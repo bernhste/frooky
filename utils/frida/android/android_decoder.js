@@ -57,6 +57,15 @@ function byteToString(bytes, length) {
   }
 }
 
+function simpleHash(str) {
+  let h = 0
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i)
+    h = h | 0
+  }
+  return h
+}
+
 /**
  * Decodes a Java object according to its type.
  * @param {string} type - Java type of the value (e.g., "java.util.Set", "java.lang.String" or "int")
@@ -117,9 +126,85 @@ function decodeValue(type, value) {
           readableValue = value.toString();
           break;
 
+        /*
+        1. No `RSAKey.class.isAssignableFrom` or `Java.isInstanceOf` for the RSA interfaces, instead each RSA interface is tried with `Java.cast` inside a `try` block. If the object does not implement that interface, the cast throws and is ignored. If it does, the cast succeeds and you can call the RSA methods.
+        2. Modulus is obtained through `RSAKey.getModulus()`, which should cover both `OpenSSLRSAPublicKey` and `AndroidKeyStoreRSAPrivateKey` as long as the backend exposes the modulus.
+        3. Exponents come from `RSAPublicKey.getPublicExponent()` and `RSAPrivateKey` or `RSAPrivateCrtKey` for the private exponent, but note that keystore backed private keys may refuse to expose the private exponent, so missing private exponent is expected in that case, while the public key parameters should still be visible.
+        */
+
         case "java.security.PrivateKey":
-          //TODO: Access key info
+        case "java.security.PublicKey":
+        case "java.security.Key":
+          try {
+            var out = {};
+
+            try {
+              // Load RSA interfaces
+              var RSAKey    = Java.use('java.security.interfaces.RSAKey');
+              var RSAPub    = Java.use('java.security.interfaces.RSAPublicKey');
+              var RSAPriv   = Java.use('java.security.interfaces.RSAPrivateKey');
+              var RSAPrivateCrt = null;
+              try {
+                RSAPrivateCrt = Java.use('java.security.interfaces.RSAPrivateCrtKey');
+              } catch (_) {
+                RSAPrivateCrt = null;
+              }
+
+              // Any RSA key, public or private, for modulus
+              try {
+                var anyRsa = Java.cast(value, RSAKey);
+                var modBI = anyRsa.getModulus();
+                out.modulusHex = modBI.toString(16);
+                out.modulusBitLength = modBI.bitLength();
+              } catch (_) {
+                // not an RSAKey or keystore backend hides it, ignore
+              }
+
+              // Public key exponent
+              try {
+                var vpub = Java.cast(value, RSAPub);
+                var expBI = vpub.getPublicExponent();
+                if (expBI) {
+                  out.publicExponentDec = expBI.toString(10);
+                }
+              } catch (_) {
+                // not an RSAPublicKey
+              }
+
+              // Private key exponents, may be unavailable for keystore backed keys
+              if (RSAPrivateCrt !== null) {
+                try {
+                  var vprivCrt = Java.cast(value, RSAPrivateCrt);
+                  var dBI = vprivCrt.getPrivateExponent();
+                  var eBI = vprivCrt.getPublicExponent();
+                  if (dBI) {
+                    out.privateExponentDec = dBI.toString(10);
+                  }
+                  if (eBI) {
+                    out.publicExponentDec = eBI.toString(10);
+                  }
+                } catch (_) {
+                  // not an RSAPrivateCrtKey
+                }
+              } else {
+                try {
+                  var vpriv = Java.cast(value, RSAPriv);
+                  var dBI2 = vpriv.getPrivateExponent();
+                  if (dBI2) {
+                    out.privateExponentDec = dBI2.toString(10);
+                  }
+                } catch (_) {
+                  // not an RSAPrivateKey
+                }
+              }
+            } catch (_) {
+              // key interface logic failed, out remains minimal
+            }
+            out.keyHash = simpleHash(out.modulusHex);
+            readableValue = out;
+          } catch (e) {
           readableValue = value;
+          }
           break;
 
         case "[Ljava.lang.Object;":
@@ -151,6 +236,7 @@ function decodeValue(type, value) {
     console.error("Value decoding exception: " + e);
     readableValue = value;
   }
+
   return readableValue;
 }
 
@@ -192,17 +278,50 @@ function decodeCursor(value){
 }
 
 /**
- * Decodes a Java values according to their types.
+ * Decodes Java values according to their types.
  * @param {[string]} types - Java types of the value (e.g., ["java.util.Set", "java.lang.String", "int"])
  * @param {[string]]} value - Reference to the objects.
  * @returns {[string]} The type-appropriate decoded strings (e.g., ["java.util.Set":"[1,50,21]", "java.lang.String":"Hello World", "int":"-12"])
  */
 function decodeArguments(types, args) {
   var parameters = [];
+  // Prepare reflected toString once (best effort)
+  var toStringMethod = null;
+  try {
+    var ObjCls = Java.use('java.lang.Object');
+    toStringMethod = ObjCls.class.getDeclaredMethod('toString', []);
+    toStringMethod.setAccessible(true);
+  } catch (_) { toStringMethod = null; }
+
   for (var i in types) {
-    var type = types[i];
-    var parameter = { type: type, value: decodeValue(type, args[i]) };
-    parameters.push(parameter);
+    var declaredType = types[i];
+    var argVal = args[i];
+    var entry = { declaredType: declaredType, value: decodeValue(declaredType, argVal) };
+
+    // Attach runtime info if this is a Java object
+    if (argVal && typeof argVal === 'object') {
+      var runtimeType = null;
+      try { runtimeType = argVal.$className || (argVal.getClass ? argVal.getClass().getName() : null); } catch (_) {}
+      if (runtimeType) {
+        entry.runtimeType = runtimeType;
+        try {
+          var SystemCls = Java.use('java.lang.System');
+          entry.instanceId = '' + SystemCls.identityHashCode(argVal);
+        } catch (_) {}
+        // Robust toString retrieval: prefer reflected method, fallback to direct call
+        try {
+          if (toStringMethod) {
+            entry.instanceToString = '' + toStringMethod.invoke(argVal, []);
+          } else {
+            entry.instanceToString = '' + argVal.toString();
+          }
+        } catch (e1) {
+          try { entry.instanceToString = '' + argVal.toString(); } catch (e2) { entry.instanceToString = '<toString-unavailable>'; }
+        }
+      }
+    }
+
+    parameters.push(entry);
   }
   return parameters;
 }
