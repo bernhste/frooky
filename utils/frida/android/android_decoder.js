@@ -57,13 +57,96 @@ function byteToString(bytes, length) {
   }
 }
 
+/**
+ * Generates a simple hash from a string.
+ * @param {string} str - String to hash.
+ * @returns {number} Hash value as a 32-bit integer.
+ */
 function simpleHash(str) {
-  let h = 0
+  let h = 0;
   for (let i = 0; i < str.length; i++) {
-    h = (h << 5) - h + str.charCodeAt(i)
-    h = h | 0
+    h = (h << 5) - h + str.charCodeAt(i);
+    h = h | 0;
   }
-  return h
+  return h;
+}
+
+/**
+ * Decodes an RSA key (public or private) and extracts key parameters.
+ * @param {Object} value - Reference to the Java key object.
+ * @returns {Object} Object containing key parameters (modulusHex, modulusBitLength, publicExponentDec, privateExponentDec, keyHash).
+ */
+function decodeRSAKey(value) {
+  var out = {};
+
+  try {
+    // Load RSA interfaces
+    var RSAKey = Java.use('java.security.interfaces.RSAKey');
+    var RSAPub = Java.use('java.security.interfaces.RSAPublicKey');
+    var RSAPriv = Java.use('java.security.interfaces.RSAPrivateKey');
+    var RSAPrivateCrt = null;
+    try {
+      RSAPrivateCrt = Java.use('java.security.interfaces.RSAPrivateCrtKey');
+    } catch (_) {
+      RSAPrivateCrt = null;
+    }
+
+    // Any RSA key, public or private, for modulus
+    try {
+      var anyRsa = Java.cast(value, RSAKey);
+      var modBI = anyRsa.getModulus();
+      out.modulusHex = modBI.toString(16);
+      out.modulusBitLength = modBI.bitLength();
+    } catch (_) {
+      // not an RSAKey or keystore backend hides it, ignore
+    }
+
+    // Public key exponent
+    try {
+      var vpub = Java.cast(value, RSAPub);
+      var expBI = vpub.getPublicExponent();
+      if (expBI) {
+        out.publicExponentDec = expBI.toString(10);
+      }
+    } catch (_) {
+      // not an RSAPublicKey
+    }
+
+    // Private key exponents, may be unavailable for keystore backed keys
+    if (RSAPrivateCrt !== null) {
+      try {
+        var vprivCrt = Java.cast(value, RSAPrivateCrt);
+        var dBI = vprivCrt.getPrivateExponent();
+        var eBI = vprivCrt.getPublicExponent();
+        if (dBI) {
+          out.privateExponentDec = dBI.toString(10);
+        }
+        if (eBI) {
+          out.publicExponentDec = eBI.toString(10);
+        }
+      } catch (_) {
+        // not an RSAPrivateCrtKey
+      }
+    } else {
+      try {
+        var vpriv = Java.cast(value, RSAPriv);
+        var dBI2 = vpriv.getPrivateExponent();
+        if (dBI2) {
+          out.privateExponentDec = dBI2.toString(10);
+        }
+      } catch (_) {
+        // not an RSAPrivateKey
+      }
+    }
+  } catch (_) {
+    // key interface logic failed, out remains minimal
+  }
+
+  if (out.modulusHex) {
+    out.keyHash = simpleHash(out.modulusHex);
+  }
+
+  return out;
 }
 
 /**
@@ -136,74 +219,9 @@ function decodeValue(type, value) {
         case "java.security.PublicKey":
         case "java.security.Key":
           try {
-            var out = {};
-
-            try {
-              // Load RSA interfaces
-              var RSAKey    = Java.use('java.security.interfaces.RSAKey');
-              var RSAPub    = Java.use('java.security.interfaces.RSAPublicKey');
-              var RSAPriv   = Java.use('java.security.interfaces.RSAPrivateKey');
-              var RSAPrivateCrt = null;
-              try {
-                RSAPrivateCrt = Java.use('java.security.interfaces.RSAPrivateCrtKey');
-              } catch (_) {
-                RSAPrivateCrt = null;
-              }
-
-              // Any RSA key, public or private, for modulus
-              try {
-                var anyRsa = Java.cast(value, RSAKey);
-                var modBI = anyRsa.getModulus();
-                out.modulusHex = modBI.toString(16);
-                out.modulusBitLength = modBI.bitLength();
-              } catch (_) {
-                // not an RSAKey or keystore backend hides it, ignore
-              }
-
-              // Public key exponent
-              try {
-                var vpub = Java.cast(value, RSAPub);
-                var expBI = vpub.getPublicExponent();
-                if (expBI) {
-                  out.publicExponentDec = expBI.toString(10);
-                }
-              } catch (_) {
-                // not an RSAPublicKey
-              }
-
-              // Private key exponents, may be unavailable for keystore backed keys
-              if (RSAPrivateCrt !== null) {
-                try {
-                  var vprivCrt = Java.cast(value, RSAPrivateCrt);
-                  var dBI = vprivCrt.getPrivateExponent();
-                  var eBI = vprivCrt.getPublicExponent();
-                  if (dBI) {
-                    out.privateExponentDec = dBI.toString(10);
-                  }
-                  if (eBI) {
-                    out.publicExponentDec = eBI.toString(10);
-                  }
-                } catch (_) {
-                  // not an RSAPrivateCrtKey
-                }
-              } else {
-                try {
-                  var vpriv = Java.cast(value, RSAPriv);
-                  var dBI2 = vpriv.getPrivateExponent();
-                  if (dBI2) {
-                    out.privateExponentDec = dBI2.toString(10);
-                  }
-                } catch (_) {
-                  // not an RSAPrivateKey
-                }
-              }
-            } catch (_) {
-              // key interface logic failed, out remains minimal
-            }
-            out.keyHash = simpleHash(out.modulusHex);
-            readableValue = out;
+            readableValue = decodeRSAKey(value);
           } catch (e) {
-          readableValue = value;
+            readableValue = value;
           }
           break;
 
@@ -283,15 +301,43 @@ function decodeCursor(value){
  * @param {[string]]} value - Reference to the objects.
  * @returns {[string]} The type-appropriate decoded strings (e.g., ["java.util.Set":"[1,50,21]", "java.lang.String":"Hello World", "int":"-12"])
  */
+
+// Module-level cached references for performance
+var _toStringMethod = null;
+var _toStringMethodInitialized = false;
+var _SystemCls = null;
+var _SystemClsInitialized = false;
+
+function getToStringMethod() {
+  if (!_toStringMethodInitialized) {
+    try {
+      var ObjCls = Java.use('java.lang.Object');
+      _toStringMethod = ObjCls.class.getDeclaredMethod('toString', []);
+      _toStringMethod.setAccessible(true);
+    } catch (_) {
+      _toStringMethod = null;
+    }
+    _toStringMethodInitialized = true;
+  }
+  return _toStringMethod;
+}
+
+function getSystemCls() {
+  if (!_SystemClsInitialized) {
+    try {
+      _SystemCls = Java.use('java.lang.System');
+    } catch (_) {
+      _SystemCls = null;
+    }
+    _SystemClsInitialized = true;
+  }
+  return _SystemCls;
+}
+
 function decodeArguments(types, args) {
   var parameters = [];
-  // Prepare reflected toString once (best effort)
-  var toStringMethod = null;
-  try {
-    var ObjCls = Java.use('java.lang.Object');
-    toStringMethod = ObjCls.class.getDeclaredMethod('toString', []);
-    toStringMethod.setAccessible(true);
-  } catch (_) { toStringMethod = null; }
+  var toStringMethod = getToStringMethod();
+  var SystemCls = getSystemCls();
 
   for (var i in types) {
     var declaredType = types[i];
@@ -304,10 +350,11 @@ function decodeArguments(types, args) {
       try { runtimeType = argVal.$className || (argVal.getClass ? argVal.getClass().getName() : null); } catch (_) {}
       if (runtimeType) {
         entry.runtimeType = runtimeType;
-        try {
-          var SystemCls = Java.use('java.lang.System');
-          entry.instanceId = '' + SystemCls.identityHashCode(argVal);
-        } catch (_) {}
+        if (SystemCls) {
+          try {
+            entry.instanceId = '' + SystemCls.identityHashCode(argVal);
+          } catch (_) {}
+        }
         // Robust toString retrieval: prefer reflected method, fallback to direct call
         try {
           if (toStringMethod) {
