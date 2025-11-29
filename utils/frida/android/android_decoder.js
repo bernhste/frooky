@@ -142,7 +142,7 @@ function decodeRSAKey(value) {
     // key interface logic failed, out remains minimal
   }
 
-  if (out.modulusHex) {
+  if (out.modulusHex != null) {
     out.keyHash = simpleHash(out.modulusHex);
   }
 
