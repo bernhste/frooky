@@ -1,13 +1,16 @@
-import { Decoder, DecoderArgs } from "../../shared/decoders/baseDecoder";
-import { Param, RetType } from "../../shared/decoders/decodable";
+import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { DecodedArgs, HookManager, ParamDecoders } from "../../shared/hook/hookManager";
+import { ArgDecoderSpec, DecodedArgs, HookManager } from "../../shared/hook/hookManager";
 import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookGroup";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { NativeHook } from "./nativeHook";
 import { NativeHookEvent } from "./nativeHookEvent";
 
-export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook> {
+export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
+  constructor() {
+    super(NativeDecoderResolver);
+  }
+
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number): Promise<Promise<NativeHook[] | null>[]> {
     frooky.log.debug(`Resolving native hooks`);
 
@@ -54,9 +57,12 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       let stackTrace: string[];
 
       // resolve the decoders used for this hook and cache it locally
-      let paramDecoders: ParamDecoders<NativePointer>;
+      let inArgDecoders: ArgDecoderSpec<NativePointer>[];
+      let outArgDecoders: ArgDecoderSpec<NativePointer>[];
       if (hook.params) {
-        paramDecoders = this.resolveParamDecoders(hook.params);
+        const argDecoders = this.resolveArgDecoders(hook.params);
+        inArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "in");
+        outArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "out");
       }
       let retTypeDecoder: Decoder<NativePointer>;
       if (hook.retType) {
@@ -79,13 +85,13 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             for (let i = 0; i < hook.params.length; i++) {
               this.savedArgs[i] = args[i];
             }
-            decodedArgs.in = hookManager.decodeNativeArgs(args, paramDecoders.in, hook.params);
+            decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
           }
         },
         onLeave: function (returnValue: InvocationReturnValue) {
           if (hook.params) {
             // decode arguments onExit
-            decodedArgs.out = hookManager.decodeNativeArgs(this.savedArgs, paramDecoders.out, hook.params);
+            decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders);
           }
 
           let decodedRetValue: DecodedValue | undefined;
@@ -145,49 +151,5 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       frooky.log.warn(`Native backtrace unavailable: ${e}`);
     }
     return stackTrace;
-  }
-
-  private resolveParamDecoders(params: Param[]): ParamDecoders<NativePointer> {
-    const paramDecoders: ParamDecoders<NativePointer> = {
-      in: [],
-      out: [],
-    };
-    for (const param of params) {
-      const { direction, ...decodable } = param;
-      if (direction === "inout" || direction === "in") {
-        paramDecoders.in.push(NativeDecoderResolver.resolveDecoder(decodable));
-      }
-      if (direction === "inout" || direction === "out") {
-        paramDecoders.out.push(NativeDecoderResolver.resolveDecoder(decodable));
-      }
-    }
-    return paramDecoders;
-  }
-
-  private resolveRetTypeDecoder(retType: RetType): Decoder<NativePointer> {
-    return NativeDecoderResolver.resolveDecoder(retType);
-  }
-
-  private decodeNativeArgs(args: NativePointer[], decoderCache: Decoder<NativePointer>[], params?: Param[]): DecodedValue[] {
-    const decodedArgs: DecodedValue[] = [];
-    decoderCache.forEach((decoder: Decoder<NativePointer>, i: number) => {
-      // TODO: Should be generalized to be reused by android and ios code
-      let decoderArgs: DecoderArgs<NativePointer>[] = [];
-      if (params && params[i].settings.decoderArgs.length > 0) {
-        for (const argName of params[i].settings.decoderArgs) {
-          params.forEach((param: Param, j: number) => {
-            if (param.name === argName) {
-              decoderArgs.push({
-                arg: args[j],
-                decoder: NativeDecoderResolver.resolveDecoder(param),
-                name: param.name,
-              });
-            }
-          });
-        }
-      }
-      decodedArgs.push(decoder.decode(args[i], decoderArgs));
-    });
-    return decodedArgs;
   }
 }

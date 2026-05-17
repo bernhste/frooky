@@ -108,16 +108,12 @@ class FrookyRunner:
                 for event in payload:
                     self.event_count += 1
                     if event.get("symbol"):
-                        self.last_event = f"{event.get('symbol')}"
+                        self.last_event = f"{event.get('module')}: {event.get('symbol')}"
                     elif event.get("method"):
-                        self.last_event = f"{event.get('method')}"
+                        self.last_event = f"{event.get('javaClass')}.{event.get('method')}"
                     self._update_status_line()
 
                     if self.options.print_events:
-                        if event.get("symbol"):
-                            self.last_event = f"{event.get('symbol')}"
-                        elif event.get("method"):
-                            self.last_event = f"{event.get('method')}"
                         pp_hook_event(event)
             else:
                 try:

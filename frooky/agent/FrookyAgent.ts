@@ -25,7 +25,7 @@ export class FrookyAgent {
   private eventCache: BaseEvent[] = [];
   private platform: Platform;
   private platformHookValidator: HookValidator<any, any>;
-  private platformHookManger: HookManager<any, any>;
+  private platformHookManger: HookManager<any, any, any>;
   private nativeHookValidator = new NativeHookValidator();
   private nativeHookManager = new NativeHookManager();
   private resolverTimeoutSeconds: number;
@@ -41,7 +41,7 @@ export class FrookyAgent {
   constructor(
     platform: Platform,
     platformInputHookValidator: HookValidator<any, any>,
-    platformHookResolver: HookManager<any, any>,
+    platformHookResolver: HookManager<any, any, any>,
     logLevel: LogLevel = DEFAULT_SETTING_LOG_LEVEL,
     logTo: LogTo = DEFAULT_SETTING_LOG_TO,
     resolverTimeoutSeconds: number = DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
@@ -110,8 +110,6 @@ export class FrookyAgent {
     const validNativeHook = this.nativeHookValidator.validateAndNormalizeHooks(inputFrookyConfig, validatedFrookySettings);
 
     // preparing stats
-    const countDeclaredPlatformHooks = validPlatformHooks.length;
-    const countDeclaredNativeHooks = validNativeHook.length;
     let countSuccessfulPlatformHooks = 0;
     let countSuccessfulNativeHooks = 0;
 
@@ -159,16 +157,19 @@ export class FrookyAgent {
 
     await Promise.all([
       Promise.all([platformPromises]).then(() => {
-        if (countDeclaredPlatformHooks > 0) {
-          this.log.info(`Successfully hooked ${countSuccessfulPlatformHooks}/${countDeclaredPlatformHooks} ${this.platform} methods${hookSuffix}`);
+        if (countSuccessfulPlatformHooks > 0) {
+          this.log.info(`Successfully hooked ${countSuccessfulPlatformHooks} ${this.platform} methods${hookSuffix}`);
         }
       }),
       Promise.all([nativePromises]).then(() => {
-        if (countDeclaredNativeHooks > 0) {
-          this.log.info(`Successfully hooked ${countSuccessfulNativeHooks}/${countDeclaredNativeHooks} native functions${hookSuffix}`);
+        if (countSuccessfulNativeHooks > 0) {
+          this.log.info(`Successfully hooked ${countSuccessfulNativeHooks} native functions${hookSuffix}`);
         }
       }),
     ]);
+    if (countSuccessfulPlatformHooks === 0 && countSuccessfulNativeHooks === 0) {
+      frooky.log.warn(`No hooks were loaded. Either the hook file was empty, or the declared hooks could not be resolved.`);
+    }
   }
 
   /**

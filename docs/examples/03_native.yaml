@@ -41,7 +41,7 @@ hookGroup:
       - symbol: open
         returnType: int
         params:
-          - ["const char *", path]
+          - [const char *, path]
           - [int, flags]
           - [mode_t, mode]
 
@@ -59,23 +59,12 @@ hookGroup:
           - ["X509_STORE *", trusted_store]
           - ["X509 *", cert]
 
-  # Use `direction: out` to decode buffer contents after function execution.
-  # Since `buf` is a pointer, we need to decode it at exit using the `count` parameter for the length.
-  # Pass `decoderArgs` with the length parameter name/index.
-  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
-  - module: libc.so
-    hooks:
-      - symbol: read
-        returnType: ssize_t
-        params:
-          - [int, fd]
-          - ["void *", buf, { direction: out, decoderArgs: [count] }]
-          - [size_t, count]
 
-  # Use `decoderArgs` to pass a related parameter for decoding context.
+  # Use `decoderArg` to pass a related parameter for decoding context.
   # Here, `ctx` contains cipher algorithm info needed to decode `key` and `iv` correctly.
   # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
   - module: libssl.so
+    stackTraceLimit: 10
     hooks:
       - symbol: EVP_EncryptInit_ex
         returnType: int
@@ -83,9 +72,8 @@ hookGroup:
           - ["EVP_CIPHER_CTX *", ctx]
           - ["const EVP_CIPHER *", type]
           - ["ENGINE *", impl]
-          - ["const unsigned char *", key, { decoderArgs: [ctx] }]
-          - ["const unsigned char *", iv, { decoderArgs: [ctx] }]
-    stackTraceLimit: 10
+          - ["const unsigned char *", key, { decoderArg: ctx }]
+          - ["const unsigned char *", iv, { decoderArg: ctx }]
 
   # Pass decoder parameters to decode buffer contents based on related parameters.
   # Docs: https://docs.openssl.org/master/man3/SSL_write/
@@ -95,5 +83,33 @@ hookGroup:
         returnType: int
         params:
           - ["SSL *", ssl]
-          - ["const void *", buf, { decoderArgs: [num] }]
+          - ["const void *", buf, { decoderArg: num }]
           - [int, num]
+
+
+# decode argument: null terminated string 
+  - module: libreceiveString.so
+    hookSettings:
+      stackTraceLimit: 0
+    decoderSettings:
+      magicDecode: false
+    hooks:
+      - symbol: receive_cstring
+        params: 
+          - [char *, string]
+      - symbol: receive_utf8
+        params: 
+          - [char *, string]
+
+  # Use `direction: out` to decode buffer contents after function execution.
+  # Since `buf` is a pointer, we need to decode it at exit using the `count` parameter for the length.
+  # Pass `decoderArg` with the length parameter name/index.
+  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
+  - module: libc.so
+    hooks:
+      - symbol: read
+        # returnType: ssize_t
+        params:
+          - [int, fd]
+          - [void *, buf, { direction: out, decoderArg: count, decodeLimit: 20 }]
+          - [size_t, count]

@@ -29,7 +29,7 @@ export interface DecoderSettings {
   maxRecursion: number;
 
   /**
-   * Maximum number of elements to decode in a collection or buffer.
+   * Maximum number of elements to decode in lists, arrays, collections, maps etc.. May be increased when decoding 'char *' or 'void *' data types in native code.
    *
    * @example 1000
    */
@@ -52,16 +52,16 @@ export interface DecoderSettings {
   /**
    * Overrides the type decoder.
    *
-   * @defaultValue null
+   * @defaultValue undefined
    */
-  customDecoder: string;
+  customDecoder?: string;
 
   /**
    * Arguments form the arguments list passed to the decoder.
    *
-   * @defaultValue null
+   * @defaultValue undefined
    */
-  decoderArgs: string[];
+  decoderArg?: string;
 }
 
 export interface FrookySettings {

@@ -8,7 +8,7 @@ The return type declaration is a simpler variant of a [parameter declaration](./
   - [Objective-C Return Types](#objective-c-return-types)
   - [Native Return Types](#native-return-types)
 - [Decoders](#decoders)
-    - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
+  - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
 
 ## Return Type vs. Parameter Declaration
 
@@ -48,7 +48,6 @@ This example hooks the following class method from [NSURL](https://developer.app
                                   relativeToURL:(NSURL *) baseURL;
 ```
 
-
 ### Native Return Types
 
 ```yaml
@@ -76,7 +75,7 @@ The function returns an integer. It returns 1 on success and 0 on failure.
 
 If you want to configure the decoder for the return value, you can use the following option:
 
-- `decoderArgs`
+- `decoderArg`
 
 The following chapters will explain the concepts with a practical example.
 
@@ -86,7 +85,7 @@ The following chapters will explain the concepts with a practical example.
 objcClass: NSString
 methods:
   - name: "- dataUsingEncoding"
-    returnType: [ "(NSData *)", { decoderArgs: [ encoding ] }  ]
+    returnType: [ "(NSData *)", { decoderArg: encoding }  ]
     params: [ ["(NSStringEncoding)", encoding ] ]
 ```
 

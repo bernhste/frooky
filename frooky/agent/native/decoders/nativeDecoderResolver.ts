@@ -15,7 +15,7 @@ export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
       return new NativeFallbackDecoder(decodable);
     }
     if (typeof nativeFridaType === "object") {
-      // the declared type is a reference (e.g. 'char*')
+      // the declared type is a reference (e.g. 'char*', 'void *')
       return new NativeReferenceDecoder(decodable, nativeFridaType);
     } else {
       // the declared type is a fundamental (e.g. 'int')

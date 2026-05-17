@@ -1,4 +1,4 @@
-import { direction } from "../decoders/decodable";
+import { Direction } from "../decoders/decodable";
 import { DecoderSettings, HookSettings } from "../frookySettings";
 
 export type InputFrookySettings = {
@@ -8,5 +8,5 @@ export type InputFrookySettings = {
 export type InputHookSettings = Partial<HookSettings>;
 export type InputDecoderSettings = Partial<DecoderSettings>;
 export type InputParamSettings = Partial<DecoderSettings> & {
-  direction?: direction;
+  direction?: Direction;
 };

@@ -1,6 +1,7 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../../../../shared/decoders/baseDecoder";
 import { Decodable } from "../../../../../shared/decoders/decodable";
+import { DecodedValue } from "../../../../../shared/decoders/decodedValue";
 import { JavaDecoderResolver } from "../../../javaDecoderResolver";
 
 const getters = [
@@ -41,7 +42,7 @@ const getters = [
 export class KeyGenParameterSpecDecoder extends Decoder<Java.Wrapper> {
   keyGenParameterSpec: Java.Wrapper = Java.use("android.security.keystore.KeyGenParameterSpec");
 
-  decode(value: Java.Wrapper) {
+  decode(value: Java.Wrapper): DecodedValue {
     const typedSpec: Java.Wrapper = Java.cast(value, this.keyGenParameterSpec);
 
     const decodedProperties: Record<string, unknown> = {};
@@ -54,14 +55,15 @@ export class KeyGenParameterSpecDecoder extends Decoder<Java.Wrapper> {
       }
       try {
         const raw = fn.call(typedSpec);
-        const type: Decodable = {
+        const decodable: Decodable = {
           type: fn.returnType.className ?? "void",
           settings: this.decodable.settings,
         };
-        const propertyDecoder = JavaDecoderResolver.resolveDecoder(type);
+        const propertyDecoder = JavaDecoderResolver.resolveDecoder(decodable);
         decodedProperties[this.stripPrefix(getter)] = propertyDecoder.decode(raw);
       } catch (e) {
-        decodedProperties[this.stripPrefix(getter)] = `Error when decoding : ${e}>`;
+        // When the value is not set and the getter returned null, skip silently
+        decodedProperties[this.stripPrefix(getter)] = null;
       }
     }
 

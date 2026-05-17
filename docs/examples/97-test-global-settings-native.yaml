@@ -152,5 +152,5 @@ hookGroup:
     hooks:
       - symbol: receive_byte_array
         params:
-          - [unsigned char *, data, { decoderArgs: [ length ], direction: inout } ]
+          - [unsigned char *, data, { decoderArg: length , direction: inout } ]
           - [int, length]

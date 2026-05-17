@@ -6,6 +6,6 @@ export type DecodedValue = {
   type: string;
   /** The name of the decoded value. */
   name?: string;
-  /** The decoded value; absent if decoding failed. */
-  value: unknown;
+  /** The decoded value. Can be nested */
+  value: any;
 };

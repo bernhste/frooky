@@ -81,7 +81,7 @@ describe("configValidator", () => {
         maxRecursion: 10,
         decodeLimit: 30,
         customDecoder: "",
-        decoderArgs: [],
+        decoderArg: "",
       });
     });
 

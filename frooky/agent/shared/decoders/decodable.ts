@@ -17,13 +17,13 @@ export interface Decodable {
 /**
  * Specifies when a decoder should be applied during function execution.
  *
- * @example "enter" - Decode when the function/method is entered (before execution)
- * @example "exit" - Decode when the function/method returns (after execution)
- * @example "both" - Decode at both times
+ * @example "in" - Decode when the function/method is entered (before execution)
+ * @example "out" - Decode when the function/method returns (after execution)
+ * @example "inout" - Decode at both times
  *
  * @public
  */
-export type direction = "in" | "out" | "inout";
+export type Direction = "in" | "out" | "inout";
 
 /**
  * Describes a parameter of a function or method signature.
@@ -38,7 +38,7 @@ export interface Param extends Decodable {
    * @example "out"
    * @example "inout"
    */
-  direction: direction;
+  direction: Direction;
 }
 
 /**

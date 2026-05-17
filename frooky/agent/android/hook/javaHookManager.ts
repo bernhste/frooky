@@ -1,10 +1,10 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../shared/decoders/baseDecoder";
-import { Param, RetType } from "../../shared/decoders/decodable";
+import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
-import { DecodedArgs, HookManager, ParamDecoders } from "../../shared/hook/hookManager";
+import { ArgDecoderSpec, DecodedArgs, HookManager } from "../../shared/hook/hookManager";
 import { InputParam, normalizeInputParam } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookGroup";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
@@ -17,7 +17,10 @@ export type FieldType = {
 };
 
 // resolve java classes, the method and their overloads
-export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHook> {
+export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
+  constructor() {
+    super(JavaDecoderResolver);
+  }
   async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number): Promise<Promise<JavaHook[] | null>[]> {
     frooky.log.debug(`Resolving Java hooks`);
 
@@ -43,26 +46,26 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
     });
   }
 
-  private resolveParamDecoders(params: Param[]): ParamDecoders<Java.Wrapper> {
-    const paramDecoders: ParamDecoders<Java.Wrapper> = {
-      in: [],
-      out: [],
-    };
-    for (const param of params) {
-      const { direction, ...decodable } = param;
-      if (direction === "inout" || direction === "in") {
-        paramDecoders.in.push(JavaDecoderResolver.resolveDecoder(decodable));
-      }
-      if (direction === "inout" || direction === "out") {
-        paramDecoders.out.push(JavaDecoderResolver.resolveDecoder(decodable));
-      }
-    }
-    return paramDecoders;
-  }
+  // private resolveParamDecoders(params: Param[]): ParamDecoders<Java.Wrapper> {
+  //   const paramDecoders: ParamDecoders<Java.Wrapper> = {
+  //     in: [],
+  //     out: [],
+  //   };
+  //   for (const param of params) {
+  //     const { direction, ...decodable } = param;
+  //     if (direction === "inout" || direction === "in") {
+  //       paramDecoders.in.push(JavaDecoderResolver.resolveDecoder(decodable));
+  //     }
+  //     if (direction === "inout" || direction === "out") {
+  //       paramDecoders.out.push(JavaDecoderResolver.resolveDecoder(decodable));
+  //     }
+  //   }
+  //   return paramDecoders;
+  // }
 
-  private resolveRetTypeDecoder(retType: RetType): Decoder<Java.Wrapper> {
-    return JavaDecoderResolver.resolveDecoder(retType);
-  }
+  // private resolveRetTypeDecoder(retType: RetType): Decoder<Java.Wrapper> {
+  //   return JavaDecoderResolver.resolveDecoder(retType);
+  // }
 
   registerHooks(hooks: JavaHook[]): number {
     const hookManager = this;
@@ -72,11 +75,14 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
       let stackTrace: string[];
 
       // // resolve the decoders used for this hook and cache it locally
-      let paramDecoders: ParamDecoders<Java.Wrapper>;
+      // resolve the decoders used for this hook and cache it locally
+      let inArgDecoders: ArgDecoderSpec<Java.Wrapper>[];
+      let outArgDecoders: ArgDecoderSpec<Java.Wrapper>[];
       if (hook.params) {
-        paramDecoders = this.resolveParamDecoders(hook.params);
+        const argDecoders = this.resolveArgDecoders(hook.params);
+        inArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "in");
+        outArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "out");
       }
-      // const cachedRetTypeDecoder = this.resolveRetTypeDecoder(hook.method.returnType.type);
       let decodedArgs: DecodedArgs = {
         in: [],
         out: [],
@@ -96,7 +102,7 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
         try {
           // decode arguments onEnter
           if (hook.params) {
-            decodedArgs.in = hookManager.decodeJavaArgs(args, paramDecoders.in);
+            decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
           }
         } catch (e) {
           frooky.log.error(`Decoder error during 'onEnter' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
@@ -108,7 +114,7 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
         try {
           // decode arguments onEnter
           if (hook.params) {
-            decodedArgs.out = hookManager.decodeJavaArgs(args, paramDecoders.out);
+            decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders);
           }
         } catch (e) {
           frooky.log.error(`Decoder error during 'onExit' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);

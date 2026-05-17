@@ -87,6 +87,9 @@ function createPointerType(normalizedType: string): FridaReferenceType {
  * normalizeNativeType("char ")
  *   => { type: "char"}
  *
+ * normalizeNativeType("const char ")
+ *   => { type: "char"}
+ *
  * normalizeNativeType(" long long int ")
  *   => { type: "uint64"}
  *
@@ -105,6 +108,7 @@ export function parseNativeFridaType(type: string): FridaFundamentalType | Frida
   const normalized = type
     .trim()
     .toLowerCase()
+    .replace(/^const\s+/, "")
     .replace(/\s*\*\s*/g, "*")
     .replace(/\s+/g, " ");
 

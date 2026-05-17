@@ -1,13 +1,36 @@
-import { Decoder, DecoderArgs } from "../../shared/decoders/baseDecoder";
+import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
+import { DecoderSettings } from "../../shared/frookySettings";
 import { toHexAndAscii } from "../../shared/utils";
 import { FridaFundamentalType, FridaReferenceType } from "./nativeFridaType";
 
-type ReferenceDecoder = (input: NativePointer, args?: DecoderArgs<NativePointer>[]) => any;
+type ReferenceDecoder = (input: NativePointer, setting: DecoderSettings, arg?: DecodedValue) => any;
 
 const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
-  void: () => null,
+  void: (input, setting, arg) => {
+    // TODO: should be generalized to be usable by other reference decoders (char *, int8....)
+    // for now, we assume, that the first argument is the length of the array as an int
+    try {
+      if (arg) {
+        if (typeof arg.value != "number") {
+          throw Error(`Argument for void * decoder must be a number, but it is: ${arg.value}`);
+        }
+        frooky.log.debug(`void * Decoder: Decoder argument passed: ${JSON.stringify(arg, null, 2)}.`);
+
+        const decodeLength = arg.value > setting.decodeLimit ? setting.decodeLimit : arg.value;
+        const rawBytes = input.readByteArray(decodeLength);
+        frooky.log.debug(`void * Decoder: Successfully read ${arg} bytes of void *`);
+        if (rawBytes !== null) {
+          var bytes = new Uint8Array(rawBytes);
+          return toHexAndAscii(bytes);
+        }
+      }
+    } catch (e) {
+      frooky.log.warn(`Unable to decode void *: ${e}`);
+      return null;
+    }
+  },
   bool: (input) => input.readU8() !== 0,
   char: (input) => {
     // TODO: May be replaced in the future by a better string decoder
@@ -18,26 +41,22 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
     }
   },
   int8: (input) => input.readS8(),
-  uchar: (input, args) => {
+  uchar: (input, setting, arg) => {
     // TODO: should be generalized to be usable by other reference decoders (char *, int8....)
     // for now, we assume, that the first argument is the length of the array as an int
     try {
-      if (args && args[0]) {
-        frooky.log.debug(`uchar * Decoder: One argument passed.`);
-        var decodedArg = args[0].decoder.decode(args[0].arg);
-        frooky.log.debug(`uchar * Decoder: Decoded argument: ${JSON.stringify(decodedArg, null, 2)}`);
+      if (arg) {
+        if (typeof arg.value != "number") {
+          throw Error(`Argument for uchar * decoder must be a number, but it is: ${arg.value}`);
+        }
+        frooky.log.debug(`uchar * Decoder: Decoder argument passed: ${JSON.stringify(arg, null, 2)}.`);
 
-        if (typeof decodedArg.value != "number") {
-          frooky.log.warn(`Argument passed to uchar decoder is not a number.`);
-        } else {
-          if (decodedArg.value) {
-            var rawBytes = input.readByteArray(decodedArg.value);
-            frooky.log.debug(`uchar * Decoder: Successfully read ${decodedArg.value} bytes of uchar *`);
-            if (rawBytes !== null) {
-              var bytes = new Uint8Array(rawBytes);
-              return toHexAndAscii(bytes);
-            }
-          }
+        const decodeLength = arg.value > setting.decodeLimit ? setting.decodeLimit : arg.value;
+        const rawBytes = input.readByteArray(decodeLength);
+        frooky.log.debug(`uchar * Decoder: Successfully read ${arg} bytes of uchar *`);
+        if (rawBytes !== null) {
+          var bytes = new Uint8Array(rawBytes);
+          return toHexAndAscii(bytes);
         }
       } else {
         try {
@@ -77,14 +96,14 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
     this.fridaReference = fridaReference;
   }
 
-  public decode(value: NativePointer, args?: DecoderArgs<NativePointer>[]): DecodedValue {
+  public decode(value: NativePointer, arg?: DecodedValue): DecodedValue {
     if (this.cachedDecoder === null) {
       this.cachedDecoder = referenceDecoders[this.fridaReference.pointee];
     }
     return {
       type: this.decodable.type,
       name: this.decodable.name,
-      value: this.cachedDecoder(value, args),
+      value: this.cachedDecoder(value, this.decodable.settings, arg),
     };
   }
 }

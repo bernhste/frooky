@@ -17,7 +17,7 @@ There are different accepted ways to declare a parameter. The following chapters
     - [Explicit Time of Decoding in Java](#explicit-time-of-decoding-in-java)
     - [Explicit Time of Decoding in Objective-C](#explicit-time-of-decoding-in-objective-c)
     - [Explicit Time of Decoding in Native](#explicit-time-of-decoding-in-native)
-  - [`decoderArgs`-Option: Pass Arguments to Decoder](#decoderargs-option-pass-arguments-to-decoder)
+  - [`decoderArg`-Option: Pass Arguments to Decoder](#decoderarg-option-pass-arguments-to-decoder)
     - [Pass Arguments to Decoder in Java](#pass-arguments-to-decoder-in-java)
     - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
     - [Pass Arguments to Decoder in Native](#pass-arguments-to-decoder-in-native)
@@ -191,7 +191,7 @@ params:
       <name>,                                    # Parameter name
       {                                          # Decoder configuration
         direction: <in|out|inout>,               # When to decode the parameter. Default: in
-        decoderArgs: [<param_name>]              # List of arguments passed to the decoder. Must be a valid parameter name
+        decoderArg: <param_name>                 # Argument passed to the decoder. Must be a valid parameter name
       }
     ]
 ```
@@ -276,7 +276,7 @@ char *realpath(const char *restrict file_name,
 
 The `resolved_name` parameter must be decoded at exit because it contains an absolute pathname after resolution.
 
-### `decoderArgs`-Option: Pass Arguments to Decoder
+### `decoderArg`-Option: Pass Arguments to Decoder
 
 In native functions, primitive arrays are passed by reference. In some cases, we need additional context to decode the parameter.
 
@@ -302,7 +302,7 @@ methods:
   - name: read
     overloads:
       - params:
-        - [ "[B", buffer, { decoderArgs: [ len ] } ]
+        - [ "[B", buffer, { decoderArg: len } ]
         - [ int, off ]
         - [ int, len ]
 ```
@@ -324,7 +324,7 @@ objcClass: NSData
 methods:
   - name: "- getBytes"
     params:
-      - [ "(void *)", buffer, { decoderArgs: [ range ] } ]
+      - [ "(void *)", buffer, { decoderArg: range } ]
       - [ "(NSUInteger)", range ]
 ```
 
@@ -346,7 +346,7 @@ functions:
     returnType: int
     params:
       - [ "EVP_MD_CTX *", ctx ]
-      - [ "unsigned char *", md, { direction: out, decoderArgs: [ ctx ] } ]
+      - [ "unsigned char *", md, { direction: out, decoderArg: ctx } ]
       - [ "unsigned int *", s ]
 ```
 

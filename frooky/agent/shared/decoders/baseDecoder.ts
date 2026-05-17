@@ -1,12 +1,6 @@
 import { Decodable } from "./decodable";
 import { DecodedValue } from "./decodedValue";
 
-export type DecoderArgs<TValue> = {
-  arg: TValue;
-  decoder: Decoder<TValue>;
-  name: string;
-};
-
 /**
  * Base interface for value decoders.
  *
@@ -26,5 +20,5 @@ export abstract class Decoder<TValue> {
    * @param args - Arguments passed to the decoder
    * @returns The decoded representation of `value`.
    */
-  public abstract decode(value: TValue, args?: DecoderArgs<TValue>[]): DecodedValue;
+  public abstract decode(value: TValue, arg?: any): DecodedValue;
 }

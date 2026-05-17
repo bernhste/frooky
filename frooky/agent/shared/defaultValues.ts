@@ -1,15 +1,15 @@
-import { direction } from "./decoders/decodable";
+import { Direction } from "./decoders/decodable";
 import { DecoderSettings, FrookySettings, HookSettings } from "./frookySettings";
 
-export const DEFAULT_DECODE_AT: direction = "in";
+export const DEFAULT_DECODE_AT: Direction = "in";
 
 export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
   fastDecode: false,
   magicDecode: false,
   maxRecursion: 10,
   decodeLimit: 1000,
-  customDecoder: "",
-  decoderArgs: [],
+  customDecoder: undefined,
+  decoderArg: undefined,
 };
 
 export const DEFAULT_HOOK_SETTINGS: HookSettings = {
