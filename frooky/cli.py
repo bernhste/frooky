@@ -17,9 +17,8 @@ def _add_common_args(subparser: argparse.ArgumentParser) -> None:
 
     # frooky agent options group
     agent_options = subparser.add_argument_group("frooky agent options")
-    agent_options.add_argument("-l", "--log-level", metavar="LEVEL", default="info", choices=["none", "error", "warning", "info", "debug"], help="Log verbosity level: none, error, warning, info, debug (default: info)")
-    agent_options.add_argument("-d", "--log-to", metavar="DESTINATION", default="console", choices=["console", "file"], help="Log destination: console or file (default: console)")
-    agent_options.add_argument("--log-file", metavar="PATH", help="Path to log file when --log-to=file (default: Output JSON file)")
+    agent_options.add_argument("-l", "--log-level", metavar="LEVEL", default="warn", choices=["none", "error", "warn", "info", "debug"], help="Log verbosity level: none, error, warn, info, debug (default: warn)")
+    agent_options.add_argument("-d", "--log-to", metavar="DESTINATION", default="console", choices=["console", "eventlog"], help="Log destination: console or frooky event log (default: console)")
     agent_options.add_argument("-t", "--resolver-timeout", metavar="SECONDS", type=int, default=5, help="Timeout in seconds for module/class lookup (default: 5)")
 
     # Target selection group (mutually exclusive)
@@ -31,7 +30,7 @@ def _add_common_args(subparser: argparse.ArgumentParser) -> None:
     target_group.add_argument("-f", "--spawn", metavar="IDENTIFIER", help="Spawn a process by identifier/name")
 
     subparser.add_argument("hooks", nargs="+", help="Path(s) to your input hook YAML file(s)")
-    subparser.add_argument("-o", "--output", default="output.json", help="Output JSON file")
+    subparser.add_argument("-o", "--output", metavar="PATH", default="output.json", help="File PATH for the frooky event log ndjson (default: output.json)")
     subparser.add_argument("-e", "--print-events", action="store_true", default=False, help="Print the captured events to the terminal")
 
 
@@ -103,7 +102,6 @@ def main() -> int:
         spawn=args.spawn,
         agent_option_log_level=args.log_level,
         agent_option_log_to=args.log_to,
-        agent_option_log_file=args.log_file,
         agent_option_resolver_timeout=args.resolver_timeout,
         print_events=args.print_events,
     )

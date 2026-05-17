@@ -38,7 +38,6 @@ class RunnerOptions:
     spawn: Optional[str] = None
     agent_option_log_level: Optional[str] = None
     agent_option_log_to: Optional[str] = None
-    agent_option_log_file: Optional[Path] = None
     agent_option_resolver_timeout: Optional[int] = None
     print_events: bool = False
 

@@ -33,11 +33,6 @@ export class FrookyAgent {
   /** Logger instance for this for frooky. */
   public log: Logger;
 
-  /**
-   * @param platform - The target platform to instrument.
-   * @param verbosity - Log verbosity level (default: `3`).
-   * @param logTo - Log destination (default: `"device"`).
-   */
   constructor(
     platform: Platform,
     platformInputHookValidator: HookValidator<any, any>,

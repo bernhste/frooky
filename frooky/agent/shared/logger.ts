@@ -2,7 +2,7 @@ import { FrookyAgent } from "../FrookyAgent";
 import { LogEvent } from "./event/logEvent";
 
 export type LogLevel = "none" | "error" | "warn" | "info" | "debug";
-export type LogTo = "console" | "log";
+export type LogTo = "console" | "eventlog";
 
 /**
  * Sets the level of logging.
@@ -90,7 +90,7 @@ export class Logger {
           console.log(out);
           break;
       }
-    } else if (this.logTo === "log") {
+    } else if (this.logTo === "eventlog") {
       this.frooky.addEventToLog(new LogEvent(level, formatted));
     }
   }
