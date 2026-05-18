@@ -109,7 +109,7 @@ class FrookyRunner:
                     if event.get("symbol"):
                         self.last_event = f"{event.get('module')}: {event.get('symbol')}"
                     elif event.get("method"):
-                        self.last_event = f"{event.get('javaClass')}.{event.get('method')}"
+                        self.last_event = f"{event.get('javaClassName')}.{event.get('method')}"
                     self._update_status_line()
 
                     if self.options.print_events:

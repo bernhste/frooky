@@ -1,9 +1,9 @@
-# pp_hook_event.py
+# TODO: Refactoring (currently lots of LLM slop and code duplications)
 
 import pprint as _pprint
 
-_SEP_LEN = 120
-_LINE_MAX = 119
+_SEP_LEN = 160
+_LINE_MAX = 159
 _WRAP_INDENT = "    "  # 4-space indent to signal a line break continuation
 _LABEL_ARGS_IN = "  args in   :  "
 _LABEL_ARGS_OUT = "  args out  :  "
@@ -75,6 +75,20 @@ def _format_function_or_method(name: str, args: list) -> str:
     return f"{name}({params})"
 
 
+def _extract_value(v):
+    """Recursively unwrap {type, name, value} structures to plain values."""
+    if v is None:
+        return None
+    if isinstance(v, dict):
+        if "value" in v:
+            return _extract_value(v["value"])
+        # Plain dict (already unwrapped map) - recurse into values
+        return {k: _extract_value(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [_extract_value(item) for item in v]
+    return v
+
+
 def _print_decoded_values(label: str, args: list):
     continuation = " " * len(label)
     value_indent = continuation + "  "
@@ -82,11 +96,11 @@ def _print_decoded_values(label: str, args: list):
         prefix = label if i == 0 else continuation
         t = a.get("type", "?")
         name = a.get("name")
-        v = _extract_value(a.get("value"))
 
         arg_label = f"{t} {name}" if name else t
         _print_wrapped(f"{prefix}{arg_label}", continuation)
 
+        v = _extract_value(a.get("value"))
         if v is not None and not (isinstance(v, str) and v == "?"):
             _pprint_indented(v, value_indent)
 
@@ -132,7 +146,7 @@ def _pp_java(hook: dict):
     label = f"java ({ft_str})"
     print(_top_border(label, _C_TYPE_J))
     print(_kv("  time      :  ", timestamp))
-    print(_kv("  java class:  ", classname))
+    print(_kv("  class     :  ", classname))
     print(_kv("  method    :  ", _format_function_or_method(method, args_in)))
 
     if args_in:
