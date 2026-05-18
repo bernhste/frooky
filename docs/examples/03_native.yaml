@@ -108,7 +108,7 @@ hookGroup:
   - module: libc.so
     hooks:
     - symbol: read
-      # returnType: ssize_t
+      returnType: ssize_t
       params:
       - [int, fd]
       - [void *, buf, { direction: out, decoderArg: count, decodeLimit: 200 }]
