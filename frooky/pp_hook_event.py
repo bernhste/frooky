@@ -15,7 +15,6 @@ _C_RESET = "\033[0m"
 _C_BORDER = "\033[36m"  # cyan - box borders
 _C_KEY = "\033[37m"  # light grey - field labels
 _C_VAL = "\033[97m"  # bright white - values
-_C_TIME = "\033[33m"  # yellow - timestamp
 _C_TYPE_J = "\033[35m"  # magenta - java type tag
 _C_TYPE_N = "\033[32m"  # green - native type tag
 
@@ -132,7 +131,7 @@ def _pp_java(hook: dict):
 
     label = f"java ({ft_str})"
     print(_top_border(label, _C_TYPE_J))
-    print(_kv("  time      :  ", f"{_C_TIME}{timestamp}"))
+    print(_kv("  time      :  ", timestamp))
     print(_kv("  java class:  ", classname))
     print(_kv("  method    :  ", _format_function_or_method(method, args_in)))
 
@@ -158,7 +157,7 @@ def _pp_native(hook: dict):
     stack_trace = hook.get("stackTrace") or []
 
     print(_top_border("native", _C_TYPE_N))
-    print(_kv("  time      :  ", f"{_C_TIME}{timestamp}"))
+    print(_kv("  time      :  ", timestamp))
     print(_kv("  module    :  ", module))
     print(_kv("  function  :  ", _format_function_or_method(symbol, args_in)))
 

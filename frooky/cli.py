@@ -17,8 +17,8 @@ def _add_common_args(subparser: argparse.ArgumentParser) -> None:
 
     # frooky agent options group
     agent_options = subparser.add_argument_group("frooky agent options")
-    agent_options.add_argument("-l", "--log-level", metavar="LEVEL", default="warn", choices=["none", "error", "warn", "info", "debug"], help="Log verbosity level: none, error, warn, info, debug (default: warn)")
-    agent_options.add_argument("-d", "--log-to", metavar="DESTINATION", default="console", choices=["console", "eventlog"], help="Log destination: console or frooky event log (default: console)")
+    agent_options.add_argument("-v", action="store_true", help="shows up to info logs from the frooky agent.")
+    agent_options.add_argument("-vv", action="store_true", help="shows all logs including debug logs from the frooky agent.")
     agent_options.add_argument("-t", "--resolver-timeout", metavar="SECONDS", type=int, default=5, help="Timeout in seconds for module/class lookup (default: 5)")
 
     # Target selection group (mutually exclusive)
@@ -100,8 +100,8 @@ def main() -> int:
         attach_identifier=args.attach_identifier,
         attach_pid=args.attach_pid,
         spawn=args.spawn,
-        agent_option_log_level=args.log_level,
-        agent_option_log_to=args.log_to,
+        agent_option_verbose=args.v,
+        agent_option_very_verbose=args.vv,
         agent_option_resolver_timeout=args.resolver_timeout,
         print_events=args.print_events,
     )

@@ -36,8 +36,8 @@ class RunnerOptions:
     attach_identifier: Optional[str] = None
     attach_pid: Optional[int] = None
     spawn: Optional[str] = None
-    agent_option_log_level: Optional[str] = None
-    agent_option_log_to: Optional[str] = None
+    agent_option_verbose: bool = False
+    agent_option_very_verbose: bool = False
     agent_option_resolver_timeout: Optional[int] = None
     print_events: bool = False
 
@@ -210,6 +210,7 @@ class FrookyRunner:
         lines.append("")
 
         print("\n".join(lines))
+        self._update_status_line()
 
     def _get_device(self) -> frida.core.Device:
         """Get the Frida device based on options."""
@@ -279,7 +280,13 @@ class FrookyRunner:
             self.script.load()
 
             # init the frooky agent with the provided settings
-            self.script.exports_sync.init_frooky_agent(self.options.agent_option_log_level, self.options.agent_option_log_to, self.options.agent_option_resolver_timeout)
+            if self.options.agent_option_verbose:
+                log_level = "info"
+            elif self.options.agent_option_very_verbose:
+                log_level = "debug"
+            else:
+                log_level = "warn"
+            self.script.exports_sync.init_frooky_agent(log_level, "console", self.options.agent_option_resolver_timeout)
 
             # Combine the user provided hooks.yaml and send the to the agent
             targets = self._prepare_targets()
