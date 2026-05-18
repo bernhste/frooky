@@ -18,15 +18,15 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
         }
         frooky.log.debug(`void * Decoder: Decoder argument passed: ${arg.value}`);
 
-        let decodeLength: number;
+        let readLength: number;
         if (arg.value > setting.decodeLimit) {
           frooky.log.debug(`void * Decoder: Setting the argument value of ${arg.value} to the max decode length of ${setting.decodeLimit}.`);
-          decodeLength = setting.decodeLimit;
+          readLength = setting.decodeLimit;
         } else {
-          decodeLength = arg.value;
+          readLength = arg.value;
         }
-        const rawBytes = input.readByteArray(decodeLength);
-        frooky.log.debug(`void * Decoder: Successfully read ${decodeLength} bytes`);
+        const rawBytes = input.readByteArray(readLength);
+        frooky.log.debug(`void * Decoder: Successfully read ${readLength} bytes`);
         if (rawBytes !== null) {
           var bytes = new Uint8Array(rawBytes);
           return toHexAndAscii(bytes);
