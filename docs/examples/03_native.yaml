@@ -12,52 +12,52 @@ hookGroup:
   # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
   - module: libc.so
     hooks:
-      - open
-      - close
+    - open
+    - close
 
   # Hook functions using explicit object syntax.
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
   - module: libc.so
     hooks:
-      - symbol: open
-      - symbol: close
+    - symbol: open
+    - symbol: close
 
   # Hook with unnamed parameter types and return type (type information required for decoding).
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   - module: libc.so
     hooks:
-      - symbol: open
-        returnType: int
-        params:
-          - "const char *"
-          - int
-          - mode_t
+    - symbol: open
+      returnType: int
+      params:
+      - "const char *"
+      - int
+      - mode_t
 
   # Hook with named parameters (names provide context in output).
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   - module: libc.so
     hooks:
-      - symbol: open
-        returnType: int
-        params:
-          - [const char *, path]
-          - [int, flags]
-          - [mode_t, mode]
+    - symbol: open
+      returnType: int
+      params:
+      - [const char *, path]
+      - [int, flags]
+      - [mode_t, mode]
 
   # Hook multiple hooks from the same module with various parameter counts.
   # Docs: https://docs.openssl.org/master/man3/ENGINE_add/
   # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
   - module: libssl.so
     hooks:
-      - symbol: ENGINE_load_builtin_engines
-      - symbol: ENGINE_cleanup
-      - symbol: OSSL_CMP_validate_cert_path
-        returnType: int
-        params:
-          - ["const OSSL_CMP_CTX *", ctx]
-          - ["X509_STORE *", trusted_store]
-          - ["X509 *", cert]
+    - symbol: ENGINE_load_builtin_engines
+    - symbol: ENGINE_cleanup
+    - symbol: OSSL_CMP_validate_cert_path
+      returnType: int
+      params:
+      - ["const OSSL_CMP_CTX *", ctx]
+      - ["X509_STORE *", trusted_store]
+      - ["X509 *", cert]
 
 
   # Use `decoderArg` to pass a related parameter for decoding context.
@@ -66,25 +66,25 @@ hookGroup:
   - module: libssl.so
     stackTraceLimit: 10
     hooks:
-      - symbol: EVP_EncryptInit_ex
-        returnType: int
-        params:
-          - ["EVP_CIPHER_CTX *", ctx]
-          - ["const EVP_CIPHER *", type]
-          - ["ENGINE *", impl]
-          - ["const unsigned char *", key, { decoderArg: ctx }]
-          - ["const unsigned char *", iv, { decoderArg: ctx }]
+    - symbol: EVP_EncryptInit_ex
+      returnType: int
+      params:
+      - ["EVP_CIPHER_CTX *", ctx]
+      - ["const EVP_CIPHER *", type]
+      - ["ENGINE *", impl]
+      - ["const unsigned char *", key, { decoderArg: ctx }]
+      - ["const unsigned char *", iv, { decoderArg: ctx }]
 
   # Pass decoder parameters to decode buffer contents based on related parameters.
   # Docs: https://docs.openssl.org/master/man3/SSL_write/
   - module: libssl.so
     hooks:
-      - symbol: SSL_write
-        returnType: int
-        params:
-          - ["SSL *", ssl]
-          - ["const void *", buf, { decoderArg: num }]
-          - [int, num]
+    - symbol: SSL_write
+      returnType: int
+      params:
+      - ["SSL *", ssl]
+      - ["const void *", buf, { decoderArg: num }]
+      - [int, num]
 
 
 # decode argument: null terminated string 
@@ -94,12 +94,12 @@ hookGroup:
     decoderSettings:
       magicDecode: false
     hooks:
-      - symbol: receive_cstring
-        params: 
-          - [char *, string]
-      - symbol: receive_utf8
-        params: 
-          - [char *, string]
+    - symbol: receive_cstring
+      params: 
+      - [char *, string]
+    - symbol: receive_utf8
+      params: 
+      - [char *, string]
 
   # Use `direction: out` to decode buffer contents after function execution.
   # Since `buf` is a pointer, we need to decode it at exit using the `count` parameter for the length.
@@ -107,9 +107,9 @@ hookGroup:
   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
   - module: libc.so
     hooks:
-      - symbol: read
-        # returnType: ssize_t
-        params:
-          - [int, fd]
-          - [void *, buf, { direction: out, decoderArg: count, decodeLimit: 20 }]
-          - [size_t, count]
+    - symbol: read
+      # returnType: ssize_t
+      params:
+      - [int, fd]
+      - [void *, buf, { direction: out, decoderArg: count, decodeLimit: 200 }]
+      - [size_t, count]

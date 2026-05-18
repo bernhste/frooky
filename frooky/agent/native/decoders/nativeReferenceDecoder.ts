@@ -14,13 +14,19 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
     try {
       if (arg) {
         if (typeof arg.value != "number") {
-          throw Error(`Argument for void * decoder must be a number, but it is: ${arg.value}`);
+          throw Error(`void * Decoder: Argument must be a number, but it is: ${arg.value}`);
         }
-        frooky.log.debug(`void * Decoder: Decoder argument passed: ${JSON.stringify(arg, null, 2)}.`);
+        frooky.log.debug(`void * Decoder: Decoder argument passed: ${arg.value}`);
 
-        const decodeLength = arg.value > setting.decodeLimit ? setting.decodeLimit : arg.value;
+        let decodeLength: number;
+        if (arg.value > setting.decodeLimit) {
+          frooky.log.debug(`void * Decoder: Setting the argument value of ${arg.value} to the max decode length of ${setting.decodeLimit}.`);
+          decodeLength = setting.decodeLimit;
+        } else {
+          decodeLength = arg.value;
+        }
         const rawBytes = input.readByteArray(decodeLength);
-        frooky.log.debug(`void * Decoder: Successfully read ${arg} bytes of void *`);
+        frooky.log.debug(`void * Decoder: Successfully read ${decodeLength} bytes`);
         if (rawBytes !== null) {
           var bytes = new Uint8Array(rawBytes);
           return toHexAndAscii(bytes);
@@ -49,7 +55,7 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
         if (typeof arg.value != "number") {
           throw Error(`Argument for uchar * decoder must be a number, but it is: ${arg.value}`);
         }
-        frooky.log.debug(`uchar * Decoder: Decoder argument passed: ${JSON.stringify(arg, null, 2)}.`);
+        // frooky.log.debug(`uchar * Decoder: Decoder argument passed: ${JSON.stringify(arg, null, 2)}.`);
 
         const decodeLength = arg.value > setting.decodeLimit ? setting.decodeLimit : arg.value;
         const rawBytes = input.readByteArray(decodeLength);

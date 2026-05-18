@@ -8,102 +8,115 @@ metadata:
 
 hookGroup:
   # Hook a method using simple string syntax.
-  # Docs: https://developer.apple.com/documentation/localauthentication/lacontext/invalidate()?language=objc
+  # Docs: https://developer.apple.com/documentation/localauthentication/lacontex
+  # t/invalidate()?language=objc
   - objcClass: LAContext
     hooks:
-      - "- invalidate"
+    - "- invalidate"
 
   # Hook a method using explicit object syntax.
-  # Docs: https://developer.apple.com/documentation/localauthentication/lacontext/invalidate()?language=objc
+  # Docs: https://developer.apple.com/documentation/localauthentication/lacontex
+  # t/invalidate()?language=objc
   - objcClass: LAContext
     hooks:
-      - methodName: "- invalidate"
+    - methodName: "- invalidate"
 
-  # Hook an instance method with unnamed parameter types (type information required for decoding).
-  # Docs: https://developer.apple.com/documentation/foundation/userdefaults/set(_:forkey:)-8ab6d?language=objc
+  # Hook an instance method with unnamed parameter types (type information
+  # required for decoding).
+  # Docs: https://developer.apple.com/documentation/foundation/userdefaults/set(
+  # _:forkey:)-8ab6d?language=objc
   - objcClass: NSUserDefaults
     hooks:
-      - methodName: "- setObject:forKey:"
-        params:
-          - "(id)"
-          - "(NSString *)"
+    - methodName: "- setObject:forKey:"
+      params:
+      - "(id)"
+      - "(NSString *)"
 
-  # Hook an instance method with named parameters (names provide context in output).
-  # Docs: https://developer.apple.com/documentation/foundation/userdefaults/set(_:forkey:)-8ab6d?language=objc
+  # Hook an instance method with named parameters (names provide context in
+  # output).
+  # Docs: https://developer.apple.com/documentation/foundation/userdefaults/set(
+  # _:forkey:)-8ab6d?language=objc
   - objcClass: NSUserDefaults
     hooks:
-      - methodName: "- setObject:forKey:"
-        params:
-          - ["(id)", value]
-          - ["(NSString *)", key]
+    - methodName: "- setObject:forKey:"
+      params:
+      - ["(id)", value]
+      - ["(NSString *)", key]
 
   # Hook with `returnType` and `stackTraceLimit`.
-  # Docs: https://developer.apple.com/documentation/foundation/nsdata/write(tofile:atomically:)?language=objc
+  # Docs: https://developer.apple.com/documentation/foundation/nsdata/write(tofi
+  # le:atomically:)?language=objc
   - objcClass: NSData
     hooks:
-      - methodName: "- writeToFile:atomically:"
-        returnType: "(BOOL)"
-        params:
-          - ["(NSString *)", path]
-          - ["(BOOL)", useAuxiliaryFile]
+    - methodName: "- writeToFile:atomically:"
+      returnType: "(BOOL)"
+      params:
+      - ["(NSString *)", path]
+      - ["(BOOL)", useAuxiliaryFile]
     stackTraceLimit: 8
 
   # Hook a class method (prefixed with "+").
-  # Docs: https://developer.apple.com/documentation/foundation/nsurl/fileurl(withfilesystemrepresentation:isdirectory:relativeto:)?language=objc
+  # Docs: https://developer.apple.com/documentation/foundation/nsurl/fileurl(wit
+  # hfilesystemrepresentation:isdirectory:relativeto:)?language=objc
   - objcClass: NSURL
     hooks:
-      - methodName: "+ fileURLWithFileSystemRepresentation:isDirectory:relativeToURL:"
-        returnType: "(NSURL *)"
-        params:
-          - ["(const char *)", path]
-          - ["(BOOL)", isDir]
-          - ["(NSURL *)", baseURL]
+    - methodName: "+ fileURLWithFileSystemRepresentation:isDirectory:relativeToURL:"
+      returnType: "(NSURL *)"
+      params:
+      - ["(const char *)", path]
+      - ["(BOOL)", isDir]
+      - ["(NSURL *)", baseURL]
 
   # Hook multiple hooks from the same class.
-  # Docs: https://developer.apple.com/documentation/localauthentication/laprivatekey/decrypt(_:algorithm:completion:)?language=objc
-  # Docs: https://developer.apple.com/documentation/localauthentication/laprivatekey/sign(_:algorithm:completion:)?&language=objc
+  # Docs: https://developer.apple.com/documentation/localauthentication/laprivat
+  # ekey/decrypt(_:algorithm:completion:)?language=objc
+  # Docs: https://developer.apple.com/documentation/localauthentication/laprivat
+  # ekey/sign(_:algorithm:completion:)?&language=objc
   - objcClass: LAPrivateKey
     hooks:
-      - methodName: "- decryptData:secKeyAlgorithm:completion:"
-        params:
-          - ["(NSData *)", data]
-          - ["(SecKeyAlgorithm)", algorithm]
-          - ["(void (^)(NSData *, NSError *))", handler]
-      - methodName: "- signData:secKeyAlgorithm:completion:"
-        params:
-          - ["(NSData *)", data]
-          - ["(SecKeyAlgorithm)", algorithm]
-          - ["(void (^)(NSData *, NSError *))", handler]
+    - methodName: "- decryptData:secKeyAlgorithm:completion:"
+      params:
+      - ["(NSData *)", data]
+      - ["(SecKeyAlgorithm)", algorithm]
+      - ["(void (^)(NSData *, NSError *))", handler]
+    - methodName: "- signData:secKeyAlgorithm:completion:"
+      params:
+      - ["(NSData *)", data]
+      - ["(SecKeyAlgorithm)", algorithm]
+      - ["(void (^)(NSData *, NSError *))", handler]
 
   # Use `direction: out` to decode output parameters after method execution.
-  # Docs: https://developer.apple.com/documentation/CoreData/NSManagedObjectContext/save()?language=objc
+  # Docs: https://developer.apple.com/documentation/CoreData/NSManagedObjectCont
+  # ext/save()?language=objc
   - objcClass: NSManagedObjectContext
     hooks:
-      - methodName: "- save:"
-        returnType: "(BOOL)"
-        params:
-          - ["(NSError **)", error, { direction: out }]
+    - methodName: "- save:"
+      returnType: "(BOOL)"
+      params:
+      - ["(NSError **)", error, { direction: out }]
 
   # Use `stackTraceFilter` with regex to include only relevant stack frames.
-  # Docs: https://developer.apple.com/documentation/foundation/urlsession/datatask(with:completionhandler:)-e6xv?language=objc
+  # Docs: https://developer.apple.com/documentation/foundation/urlsession/datata
+  # sk(with:completionhandler:)-e6xv?language=objc
   - objcClass: NSURLSession
     hooks:
-      - methodName: "- dataTaskWithRequest:completionHandler:"
-        returnType: "(NSURLSessionDataTask *)"
-        params:
-          - ["(NSURLRequest *)", request]
-          - [
-              "(void (^)(NSData *, NSURLResponse *, NSError *))",
-              completionHandler,
-            ]
+    - methodName: "- dataTaskWithRequest:completionHandler:"
+      returnType: "(NSURLSessionDataTask *)"
+      params:
+      - ["(NSURLRequest *)", request]
+      - [
+          "(void (^)(NSData *, NSURLResponse *, NSError *))",
+          completionHandler,
+        ]
     stackTraceFilter:
       - "^(?!Foundation)"
       - "^(?!libsystem_)"
 
   # Use `direction: inout` to decode a parameter before and after execution.
-  # Docs: https://developer.apple.com/documentation/foundation/nsmutabledata/append(_:)?language=objc
+  # Docs: https://developer.apple.com/documentation/foundation/nsmutabledata/app
+  # end(_:)?language=objc
   - objcClass: NSMutableData
     hooks:
-      - methodName: "- appendData:"
-        params:
-          - ["(NSData *)", data, { direction: inout }]
+    - methodName: "- appendData:"
+      params:
+      - ["(NSData *)", data, { direction: inout }]

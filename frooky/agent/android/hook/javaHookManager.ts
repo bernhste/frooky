@@ -4,7 +4,7 @@ import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
-import { ArgDecoderSpec, DecodedArgs, HookManager } from "../../shared/hook/hookManager";
+import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputParam, normalizeInputParam } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookGroup";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
@@ -76,10 +76,10 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
 
       // // resolve the decoders used for this hook and cache it locally
       // resolve the decoders used for this hook and cache it locally
-      let inArgDecoders: ArgDecoderSpec<Java.Wrapper>[];
-      let outArgDecoders: ArgDecoderSpec<Java.Wrapper>[];
+      let inArgDecoders: ParamDecoder<Java.Wrapper>[];
+      let outArgDecoders: ParamDecoder<Java.Wrapper>[];
       if (hook.params) {
-        const argDecoders = this.resolveArgDecoders(hook.params);
+        const argDecoders = this.resolveParamDecoders(hook.params);
         inArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "in");
         outArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "out");
       }

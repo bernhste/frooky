@@ -120,8 +120,8 @@ hookGroup:
     decoderSettings:
       decodeLimit: 44
     hooks:
-      - receiveFloat
-      - receiveDouble
+    - receiveFloat
+    - receiveDouble
 
 
   # PARTIAL local parameter settings take priority over global setting, form [type, settings]
@@ -129,25 +129,25 @@ hookGroup:
     hookSettings:
       stackTraceLimit: 0
     hooks:
-      - method: receiveIntArray
-        overloads:
-          - params:
-            - ["[I", {decodeLimit: 55}]
+    - method: receiveIntArray
+      overloads:
+      - params:
+        - ["[I", {decodeLimit: 55}]
 
   # PARTIAL local parameter settings take priority over global setting, form [type, name, settings]
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
-      - method: receiveNestedPrimitivesArray
-        overloads:
-          - params:
-            - ["[[[I", nestedIntegerInput ]
+    - method: receiveNestedPrimitivesArray
+      overloads:
+      - params:
+        - ["[[[I", nestedIntegerInput ]
 
   # complex common java types
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
-      - receiveBigInteger
-      - receiveBigDecimal
-      - receiveList
-      - receiveMap
-      - receiveSet
-      - receiveEnum
+    - receiveBigInteger
+    - receiveBigDecimal
+    - receiveList
+    - receiveMap
+    - receiveSet
+    - receiveEnum

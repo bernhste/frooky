@@ -5,7 +5,7 @@ import { DecoderResolver } from "../decoders/decoderResolver";
 import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
 import { Hook } from "./hook";
 
-export type ArgDecoderSpec<TValue> = {
+export type ParamDecoder<TValue> = {
   decoder: Decoder<TValue>;
   argIndex: number;
   direction: Direction;
@@ -37,29 +37,51 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     throw Error(`frida resolver timed out resolving '${label}' after ${timeoutSeconds} seconds.`);
   }
 
-  protected resolveArgDecoders(params: Param[]): ArgDecoderSpec<TValue>[] {
-    const argDecoderSpecs: ArgDecoderSpec<TValue>[] = [];
+  protected resolveParamDecoders(params: Param[]): ParamDecoder<TValue>[] {
+    const argDecoderSpecs: ParamDecoder<TValue>[] = [];
 
-    params.forEach((param: Param, i: number) => {
+    params.forEach((param: Param, paramIndex: number) => {
       let decoderArgIndex: number | undefined;
       let decoderArgDecoder: Decoder<TValue> | undefined;
-      const { direction, ...decodable } = param;
+      const { direction, ...paramDecodable } = param;
       if (param.settings.decoderArg) {
         decoderArgIndex = params.findIndex((p) => p.name === param.settings.decoderArg);
+        if (decoderArgIndex < 0) {
+          frooky.log.warn(
+            `Decoder argument (${param.settings.decoderArg}) is not a valid parameter. Make sure to choose form one of the following parameter: ${params
+              .filter((p) => p.name !== param.name)
+              .map((p) => p.name)
+              .join(", ")} `,
+          );
+          return;
+        }
+
+        if (decoderArgIndex === paramIndex) {
+          frooky.log.warn(
+            `Decoder argument (${param.settings.decoderArg}) cannot be itself. Make sure to choose form one of the following parameter: ${params
+              .filter((p) => p.name !== param.name)
+              .map((p) => p.name)
+              .join(", ")} `,
+          );
+          return;
+        }
+
         decoderArgDecoder = this.decoderResolver.resolveDecoder({
           type: params.find((p) => p.name === param.settings.decoderArg)!.type,
           settings: param.settings,
         });
       }
-      argDecoderSpecs.push({
-        decoder: this.decoderResolver.resolveDecoder(decodable),
-        argIndex: i,
+      const paramDecoder = {
+        decoder: this.decoderResolver.resolveDecoder(paramDecodable),
+        argIndex: paramIndex,
         direction: param.direction,
         name: param.name,
         decoderArg: param.settings.decoderArg,
         decoderArgIndex: decoderArgIndex,
         decoderArgDecoder: decoderArgDecoder,
-      });
+      };
+      frooky.log.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
+      argDecoderSpecs.push(paramDecoder);
     });
     return argDecoderSpecs;
   }
@@ -68,19 +90,19 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return this.decoderResolver.resolveDecoder(retType);
   }
 
-  protected decodeArgs(args: TValue[], argDecoderSpecs: ArgDecoderSpec<TValue>[]): DecodedValue[] {
+  protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[]): DecodedValue[] {
     const decodedArgs: DecodedValue[] = [];
-    for (const argDecoderSpec of argDecoderSpecs) {
+    for (const paramDecoder of paramDecoders) {
       let decodedDecoderArg: any;
-      if (argDecoderSpec.decoderArg && argDecoderSpec.decoderArgIndex && argDecoderSpec.decoderArgDecoder) {
+      if (paramDecoder.decoderArg && paramDecoder.decoderArgIndex !== undefined && paramDecoder.decoderArgDecoder) {
         // decode the decoder argument
-        const decoderArgDecoderSpec = argDecoderSpecs.filter((ardDecoder) => ardDecoder.name === argDecoderSpec.name);
+        const decoderArgDecoderSpec = paramDecoders.filter((argDecoder) => argDecoder.name === paramDecoder.name);
         if (decoderArgDecoderSpec.length != 1) {
-          throw Error(`It was not possible fetching the decoder for decoderArg '${argDecoderSpec.decoderArg}'`);
+          throw Error(`It was not possible fetching the decoder for decoderArg '${paramDecoder.decoderArg}'`);
         }
-        decodedDecoderArg = argDecoderSpec.decoderArgDecoder.decode(args[argDecoderSpec.decoderArgIndex]);
+        decodedDecoderArg = paramDecoder.decoderArgDecoder.decode(args[paramDecoder.decoderArgIndex]);
       }
-      decodedArgs.push(argDecoderSpec.decoder.decode(args[argDecoderSpec.argIndex], decodedDecoderArg));
+      decodedArgs.push(paramDecoder.decoder.decode(args[paramDecoder.argIndex], decodedDecoderArg));
     }
 
     return decodedArgs;

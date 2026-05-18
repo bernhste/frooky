@@ -1,6 +1,6 @@
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { ArgDecoderSpec, DecodedArgs, HookManager } from "../../shared/hook/hookManager";
+import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookGroup";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { NativeHook } from "./nativeHook";
@@ -57,13 +57,14 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       let stackTrace: string[];
 
       // resolve the decoders used for this hook and cache it locally
-      let inArgDecoders: ArgDecoderSpec<NativePointer>[];
-      let outArgDecoders: ArgDecoderSpec<NativePointer>[];
+      let inArgDecoders: ParamDecoder<NativePointer>[];
+      let outArgDecoders: ParamDecoder<NativePointer>[];
       if (hook.params) {
-        const argDecoders = this.resolveArgDecoders(hook.params);
+        const argDecoders = this.resolveParamDecoders(hook.params);
         inArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "in");
         outArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "out");
       }
+
       let retTypeDecoder: Decoder<NativePointer>;
       if (hook.retType) {
         retTypeDecoder = this.resolveRetTypeDecoder(hook.retType);

@@ -85,72 +85,78 @@ hookGroup:
   # simple function declaration
   - module: libreceiveFundamentalValue.so
     hooks:
-      - receive_bool
+    - receive_bool
 
-  # object with ONLY symbol provided, technically the same form as the one before
+  # object with ONLY symbol provided, technically the same form as the one 
+  # before
   - module: libreceiveFundamentalValue.so
     hooks:
-      - symbol: receive_short
+    - symbol: receive_short
 
-  # PARTIAL local hook settings take priority over global setting, simple function declaration
+  # PARTIAL local hook settings take priority over global setting, simple 
+  # function declaration
   - module: libreceiveFundamentalValue.so
     hookSettings:
       stackTraceLimit: 0
     decoderSettings:
       decodeLimit: 22
     hooks:
-      - symbol: receive_int
-        params: [int]
-      - symbol: receive_char
-        params: [char]
+    - symbol: receive_int
+      params: [int]
+    - symbol: receive_char
+      params: [char]
 
-# decode argument: null terminated string 
+  # decode argument: null terminated string 
   - module: libreceiveString.so
     hookSettings:
       stackTraceLimit: 0
     decoderSettings:
       magicDecode: false
     hooks:
-      - symbol: receive_cstring
-        params: 
-          - [char *, string]
-      - symbol: receive_utf8
-        params: 
-          - [char *, string]
+    - symbol: receive_cstring
+      params:
+      - [char *, string]
+    - symbol: receive_utf8
+      params:
+      - [char *, string]
 
-  # PARTIAL local hook settings take priority over global setting, simple function declaration
+  # PARTIAL local hook settings take priority over global setting, simple 
+  # function declaration
   - module: libreceiveFundamentalValue.so
     decoderSettings:
       decodeLimit: 33
     hooks:
-      - symbol: receive_long
+    - symbol: receive_long
 
-  # PARTIAL local hook settings take priority over global setting, object with ONLY symbol provided
+  # PARTIAL local hook settings take priority over global setting, object with 
+  # ONLY symbol provided
   - module: libreceiveFundamentalValue.so
     decoderSettings:
       decodeLimit: 44
     hooks:
-      - receive_schar
-      - receive_ullong
+    - receive_schar
+    - receive_ullong
 
-  # PARTIAL local parameter settings take priority over global setting, form [type, settings]
+  # PARTIAL local parameter settings take priority over global setting, form 
+  # [type, settings]
   - module: libreceiveFundamentalValue.so
     hooks:
-      - symbol: receive_llong
-        params: [ llong, llong ]
+    - symbol: receive_llong
+      params: [ llong, llong ]
 
-  # PARTIAL local parameter settings take priority over global setting, form [type, name, settings]
+  # PARTIAL local parameter settings take priority over global setting, form 
+  # [type, name, settings]
   - module: libreceiveFundamentalValue.so
     hooks:
-      - symbol: receive_ullong
-        params:
-          - [ullong, minValue]
-          - [ullong, maxValue]
+    - symbol: receive_ullong
+      params:
+      - [ullong, minValue]
+      - [ullong, maxValue]
 
   # use parameter to decode a native uchar *
   - module: libreceiveFundamentalReference.so
     hooks:
-      - symbol: receive_byte_array
-        params:
-          - [unsigned char *, data, { decoderArg: length , direction: inout } ]
-          - [int, length]
+    - symbol: receive_byte_array
+      params:
+      - [unsigned char *, data, { decoderArg: length , direction: inout } ]
+      - [int, length]
