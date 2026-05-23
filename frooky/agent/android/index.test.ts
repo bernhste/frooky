@@ -6,7 +6,6 @@ export * from './decoders/android/content/IntentFlagDecoder.test';
 export * from './decoders/android/security/keystore/KeyGenParameterSpecDecoder.test';
 export * from './decoders/java/lang/IterableDecoder.test';
 export * from './decoders/java/util/MapDecoder.test';
-export * from './hook/javaHook.test';
 export * from './hook/javaHookEvent.test';
 export * from './hook/javaHookManager.test';
 export * from './hook/javaHookValidator.test';

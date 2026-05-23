@@ -13,7 +13,3 @@ export interface NativeHook extends Hook {
   symbolAddress: NativePointer;
   params?: Param[];
 }
-
-export function isNativeHook(hook: Hook): hook is NativeHook {
-  return "symbol" in hook;
-}

@@ -12,7 +12,3 @@ export interface JavaHook extends Hook {
   methodName: string;
   params?: Param[];
 }
-
-export function isJavaHook(hook: Hook): hook is JavaHook {
-  return "overloads" in hook;
-}
