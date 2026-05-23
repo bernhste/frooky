@@ -74,7 +74,7 @@ export class KeyGenParameterSpecDecoder extends Decoder<Java.Wrapper> {
     };
   }
 
-  stripPrefix(name: string): string {
+  private stripPrefix(name: string): string {
     if (name.startsWith("get") && name.length > 3) {
       return name[3].toLowerCase() + name.slice(4);
     }
