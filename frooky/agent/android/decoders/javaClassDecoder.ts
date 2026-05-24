@@ -4,6 +4,10 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 
 import { Decodable } from "../../shared/decoders/decodable";
+import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
+import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
+import { IntentDecoder } from "./android/content/IntentDecoder";
+import { BundleDecoder } from "./android/os/BundleDecoder";
 import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenParameterSpecDecoder";
 import { IterableDecoder } from "./java/lang/IterableDecoder";
 import { MapDecoder } from "./java/util/MapDecoder";
@@ -95,6 +99,11 @@ const mapClasses: string[] = [
 const javaClassDecoderRegistry: Record<string, DecoderConstructor> = {
   ...Object.fromEntries(iterableClasses.map((c) => [c, IterableDecoder])),
   ...Object.fromEntries(mapClasses.map((c) => [c, MapDecoder])),
+
+  "android.content.Intent": IntentDecoder,
+  "android.os.Bundle": BundleDecoder,
+  "android.content.ClipData": ClipDataDecoder,
+  "android.content.ClipData$Item": ClipDataItemDecoder,
 
   // custom decoders
   "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,

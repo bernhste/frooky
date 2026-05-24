@@ -9,10 +9,12 @@ export class IntentFlagDecoder extends Decoder<Java.Wrapper> {
     const bitmask = Number(value) >>> 0;
 
     const decodedFlags: string[] = [];
+    const seenBits = new Set<number>();
 
     for (const { name, value: flag } of this.flags) {
       if (flag === 0) continue;
-      if ((bitmask & flag) === flag) {
+      if ((bitmask & flag) === flag && !seenBits.has(flag)) {
+        seenBits.add(flag);
         decodedFlags.push(name);
       }
     }
