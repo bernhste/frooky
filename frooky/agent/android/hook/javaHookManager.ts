@@ -243,7 +243,10 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
   }
 
   private buildFieldType(method: Java.Wrapper): FieldType {
-    const fieldType = method === null ? "static" : "instance";
+    const isStatic =
+      method === null || method === undefined || method.$handle === null || method.$handle === undefined || method.$className === undefined;
+
+    const fieldType = isStatic ? "static" : "instance";
     const instanceId = fieldType === "instance" ? method.hashCode() : undefined;
     return { fieldType, instanceId };
   }
