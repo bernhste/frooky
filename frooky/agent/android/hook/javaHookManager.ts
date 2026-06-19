@@ -114,10 +114,10 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
         try {
           // decode arguments onLeave
           if (hook.params) {
-            decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders);
+            decodedArgs.out = hookManager.decodeArgs(args, outArgDecoders);
           }
         } catch (e) {
-          frooky.log.error(`Decoder error during 'onExit' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+          frooky.log.error(`Decoder error during 'onLeave' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
         }
 
         let decodedRetValue: DecodedValue | undefined;
