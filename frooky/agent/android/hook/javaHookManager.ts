@@ -80,8 +80,8 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
       let outArgDecoders: ParamDecoder<Java.Wrapper>[];
       if (hook.params) {
         const argDecoders = this.resolveParamDecoders(hook.params);
-        inArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "in");
-        outArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "out");
+        inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
+        outArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout");
       }
       let decodedArgs: DecodedArgs = {
         in: [],
@@ -112,7 +112,7 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
         const returnValue = hook.method.apply(this, args);
 
         try {
-          // decode arguments onEnter
+          // decode arguments onLeave
           if (hook.params) {
             decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders);
           }

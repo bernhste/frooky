@@ -61,8 +61,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       let outArgDecoders: ParamDecoder<NativePointer>[];
       if (hook.params) {
         const argDecoders = this.resolveParamDecoders(hook.params);
-        inArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "in");
-        outArgDecoders = argDecoders.filter((ardDecoder) => ardDecoder.direction === "out");
+        inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
+        outArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout");
       }
 
       let retTypeDecoder: Decoder<NativePointer>;
