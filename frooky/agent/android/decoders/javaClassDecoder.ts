@@ -7,6 +7,7 @@ import { Decodable } from "../../shared/decoders/decodable";
 import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
 import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
 import { IntentDecoder } from "./android/content/IntentDecoder";
+import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagsDecoder";
 import { BundleDecoder } from "./android/os/BundleDecoder";
 import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenParameterSpecDecoder";
 import { IterableDecoder } from "./java/lang/IterableDecoder";
@@ -96,7 +97,7 @@ const mapClasses: string[] = [
   "androidx.collection.SparseArrayCompat",
 ];
 
-const javaClassDecoderRegistry: Record<string, DecoderConstructor> = {
+export const javaClassDecoderRegistry: Record<string, DecoderConstructor> = {
   ...Object.fromEntries(iterableClasses.map((c) => [c, IterableDecoder])),
   ...Object.fromEntries(mapClasses.map((c) => [c, MapDecoder])),
 
@@ -108,6 +109,7 @@ const javaClassDecoderRegistry: Record<string, DecoderConstructor> = {
   // custom decoders
   "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,
   "android.content.IntentFlagDecoder": IntentFlagDecoder,
+  "android.content.IntentUriFlagDecoder": IntentUriFlagDecoder,
 };
 
 export class JavaClassDecoder extends Decoder<Java.Wrapper> {

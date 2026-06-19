@@ -2,8 +2,8 @@ import Java from "frida-java-bridge";
 import { Decoder } from "../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 
-// TODO: PoC-Decoder for OWASP Conference
-export class IntentFlagDecoder extends Decoder<Java.Wrapper> {
+// TODO: Double Just for OWASP Conference, will be fixed later
+export class IntentUriFlagDecoder extends Decoder<Java.Wrapper> {
   flags = this.loadIntentFlags();
 
   decode(value: Java.Wrapper): DecodedValue {
@@ -32,7 +32,7 @@ export class IntentFlagDecoder extends Decoder<Java.Wrapper> {
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i];
       const name: string = f.getName();
-      if (!name.startsWith("FLAG_")) continue;
+      if (!name.startsWith("URI_")) continue;
       if (f.getType().getName() !== "int") continue;
       f.setAccessible(true);
       flags.push({ name, value: f.getInt(null) >>> 0 });

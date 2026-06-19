@@ -4,7 +4,7 @@ import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { JavaArrayDecoder } from "./javaArrayDecoder";
 import { JavaPrimitiveDecoder } from "./javaBasicDecoder";
-import { JavaClassDecoder } from "./javaClassDecoder";
+import { JavaClassDecoder, javaClassDecoderRegistry } from "./javaClassDecoder";
 
 export const JAVA_PRIMITIVE_TYPES = new Set(["int", "long", "short", "byte", "char", "boolean", "float", "double"]);
 
@@ -15,7 +15,8 @@ export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
   resolveDecoder(decodable: Decodable): Decoder<Java.Wrapper> {
     if (decodable.settings.customDecoder) {
       // return the custom decoder (if implemented)
-      return new JavaClassDecoder(decodable);
+      const DecoderClass = javaClassDecoderRegistry[decodable.settings.customDecoder];
+      return new DecoderClass(decodable);
     } else if (decodable.type.startsWith("[")) {
       // java array decoder
       return new JavaArrayDecoder(decodable);
