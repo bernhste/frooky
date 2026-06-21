@@ -1,5 +1,5 @@
 metadata:
-  method: Android Hook Examples
+  name: Android Hook Examples
   platform: Android
   description: Examples of Java/Kotlin method hooking on Android
   category: GENERAL

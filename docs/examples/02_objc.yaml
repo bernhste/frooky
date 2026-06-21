@@ -1,5 +1,5 @@
 metadata:
-  methodName: Objective-C Hook Examples
+  name: Objective-C Hook Examples
   platform: iOS
   description: Examples of Objective-C method hooking
   category: GENERAL
