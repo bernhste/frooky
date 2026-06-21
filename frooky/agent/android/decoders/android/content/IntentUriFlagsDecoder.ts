@@ -20,7 +20,7 @@ export class IntentUriFlagDecoder extends Decoder<Java.Wrapper> {
     }
 
     return {
-      type: "android.content.IntentFlag",
+      declaredType: "android.content.IntentFlag",
       value: decodedFlags,
     };
   }

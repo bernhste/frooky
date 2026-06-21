@@ -1,6 +1,5 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../shared/decoders/baseDecoder";
-import { Decodable } from "../../shared/decoders/decodable";
 import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
 import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
 import { IntentDecoder } from "./android/content/IntentDecoder";
@@ -11,8 +10,7 @@ import { IterableDecoder } from "./java/lang/IterableDecoder";
 import { MapDecoder } from "./java/util/MapDecoder";
 import { JavaFallbackDecoder } from "./javaBasicDecoder";
 import { JavaDecodedValue } from "./javaDecodedValue";
-
-type DecoderConstructor = { new (decodable: Decodable): Decoder<Java.Wrapper> };
+import { DecoderConstructor } from "./javaDecoderResolver";
 
 const CLASS_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
   "android.content.Intent": IntentDecoder,
