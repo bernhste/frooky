@@ -2,7 +2,7 @@ import Java from "frida-java-bridge";
 import { Decoder } from "../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 
-// TODO: Double Just for OWASP Conference, will be fixed later
+// TODO: PoC-Decoder for OWASP Conference
 export class IntentUriFlagDecoder extends Decoder<Java.Wrapper> {
   flags = this.loadIntentFlags();
 
