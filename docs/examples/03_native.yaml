@@ -113,3 +113,16 @@ hookGroup:
       - [int, fd]
       - [void *, buf, { direction: out, decoderArg: count, decodeLimit: 200 }]
       - [size_t, count]
+
+
+# demos/ios/MASVS-AUTH/MASTG-DEMO-0043/hooks.js
+  - module: Security
+    hooks:
+      - symbol: SecAccessControlCreateWithFlags
+        returnType: pointer
+        params:
+          - [pointer, allocator]
+          - [pointer, protection]
+          - [uint32, flags]
+          - [pointer, error]
+          - [pointer, accessControl, { direction: inout }]
