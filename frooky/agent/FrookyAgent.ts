@@ -3,7 +3,7 @@ import { NativeHookValidator } from "./native/hook/nativeHookValidator";
 import { validateAndRepairFrookyConfig } from "./shared/configValidator";
 import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "./shared/defaultValues";
 import { BaseEvent } from "./shared/event/baseEvent";
-import { startAsyncSender } from "./shared/event/eventSender";
+import { startEventSender } from "./shared/event/eventSender";
 import { HookEvent } from "./shared/event/hookEvent";
 import { LogEvent } from "./shared/event/logEvent";
 import { InputFrookyConfig } from "./shared/frookyConfig";
@@ -42,7 +42,7 @@ export class FrookyAgent {
     resolverTimeoutSeconds: number = DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
   ) {
     //initialize asynchronous sender
-    startAsyncSender(this.eventCache);
+    startEventSender(this.eventCache);
 
     this.platform = platform;
     this.platformHookValidator = platformInputHookValidator;
@@ -111,17 +111,15 @@ export class FrookyAgent {
     // async resolve platform hooks and register them
     const platformPromises = this.platformHookManger
       .resolveHooks(validPlatformHooks, this.resolverTimeoutSeconds)
-      .then((platformHookPromises) => {
-        return Promise.allSettled(
-          platformHookPromises.map((platformHookPromise) =>
-            platformHookPromise.then((platformHooks) => {
-              if (platformHooks) {
-                countSuccessfulPlatformHooks += this.platformHookManger.registerHooks(platformHooks);
-              }
+      .then((platformHookPromises) =>
+        Promise.allSettled(
+          platformHookPromises.map((p) =>
+            p.then((platformHooks) => {
+              if (platformHooks) this.platformHookManger.registerHooks(platformHooks);
             }),
           ),
-        );
-      })
+        ),
+      )
       .catch((e) => {
         this.log.error(`Error while resolving platform hooks: ${String(e)}`);
       });
