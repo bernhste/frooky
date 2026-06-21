@@ -1,25 +1,26 @@
-// // This file is used when the agent is run by frida. Hooks embedded into the agent at build time.
-// // !!!! Don't change this file, the build script will insert the actual frooky config here
-// import ObjC from "frida-objc-bridge";
-// import type { FrookyConfig } from "frooky";
-// import { FrookyApp } from "../FrookyApp";
+import ObjC from "frida-objc-bridge";
+import { FrookyAgent } from "../FrookyAgent";
+import { DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "../shared/defaultValues";
+import { InputFrookyConfig } from "../shared/frookyConfig";
+import { ObjcHookManager } from "./hook/objcHookManager";
+import { ObjcHookValidator } from "./hook/objcHookValidator";
 
-// var frookyConfigs: FrookyConfig[];
+var frookyConfigs: InputFrookyConfig[];
 
-// if (ObjC.available) {
-// //%%% REPLACE START
-//     frookyConfigs = { } as FrookyConfig[];
-// //%%% REPLACE STOP
+if (ObjC.available) {
+  //%%% REPLACE START
+  frookyConfigs = [{}] as InputFrookyConfig[];
+  //%%% REPLACE STOP
 
-//     globalThis.frooky = new FrookyApp("iOS", 3, "device");
-//     frookyConfigs.forEach(frookyConfig => {
-//         frooky.loadFrookyConfig(frookyConfig);
-//     });
-//     frooky.prepareHookOperation();
-//     frooky.executeHookOperations();
-
-// } else {
-//   console.error("[!] The agent is not run on an iOS device. Make sure to run this version of the frooky agent on iOS.")
-// }
-
-throw Error("This is the PoC branch for the agent refactoring. At the moment, iOS is not yet implemented.");
+  globalThis.frooky = new FrookyAgent(
+    "iOS",
+    new ObjcHookValidator(),
+    new ObjcHookManager(),
+    "debug",
+    DEFAULT_SETTING_LOG_TO,
+    DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
+  );
+  frooky.loadFrookyConfigs(frookyConfigs);
+} else {
+  console.error("[!] The objective-c environment is not available.");
+}
