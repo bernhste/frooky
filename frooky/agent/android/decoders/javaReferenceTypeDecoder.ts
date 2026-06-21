@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../shared/decoders/baseDecoder";
+import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
 import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
 import { IntentDecoder } from "./android/content/IntentDecoder";
@@ -8,7 +9,6 @@ import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenPa
 import { IterableDecoder } from "./java/lang/IterableDecoder";
 import { MapDecoder } from "./java/util/MapDecoder";
 import { JavaFallbackDecoder } from "./javaBasicDecoder";
-import { JavaDecodedValue } from "./javaDecodedValue";
 import { DecoderConstructor } from "./javaDecoderResolver";
 
 const CLASS_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
@@ -68,7 +68,7 @@ function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor |
 export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
   private decoder: Decoder<Java.Wrapper> | undefined;
 
-  decode(value: Java.Wrapper): JavaDecodedValue {
+  decode(value: Java.Wrapper): DecodedValue {
     if (!this.decoder) {
       frooky.log.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
 
@@ -96,8 +96,7 @@ export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
     }
 
     return {
-      declaredType: this.decodable.type,
-      implementationType: value.$className,
+      type: this.decodable.type,
       name: this.decodable.name,
       value: this.decoder.decode(value),
     };

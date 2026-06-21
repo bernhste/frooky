@@ -13,7 +13,7 @@ export class MapDecoder extends Decoder<Java.Wrapper> {
     const decodedKeySet = iterableDecoder.decode(keySet);
 
     return {
-      declaredType: this.decodable.type,
+      type: this.decodable.type,
       name: this.decodable.name,
       value: [
         { ...decodedKeySet, name: "key" },

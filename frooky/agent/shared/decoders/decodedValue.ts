@@ -3,7 +3,7 @@
  */
 export interface DecodedValue {
   /** The declared type of the decoded value. */
-  declaredType: string;
+  type: string;
   /** The name of the decoded value. */
   name?: string;
   /** The decoded value. Can be nested */

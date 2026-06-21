@@ -17,13 +17,13 @@ export class ClipDataDecoder extends Decoder<Java.Wrapper> {
       });
 
       items.push({
-        declaredType: "android.content.ClipData.Item",
+        type: "android.content.ClipData.Item",
         value: clipDataItemDecoder.decode(item),
       });
     }
 
     return {
-      declaredType: "android.content.ClipData",
+      type: "android.content.ClipData",
       value: {
         description: value.getDescription(),
         itemCount: itemCount,

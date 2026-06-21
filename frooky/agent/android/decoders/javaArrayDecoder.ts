@@ -69,7 +69,7 @@ export class JavaArrayDecoder extends Decoder<Java.Wrapper> {
     }
 
     return {
-      declaredType: this.decodable.type,
+      type: this.decodable.type,
       name: this.decodable.name,
       value: arrayValue,
     };

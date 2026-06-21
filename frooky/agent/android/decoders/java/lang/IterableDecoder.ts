@@ -35,13 +35,13 @@ export class IterableDecoder extends Decoder<Java.Wrapper> {
 
     if (iterator.hasNext()) {
       values.push({
-        declaredType: "java.lang.String",
+        type: "java.lang.String",
         value: `[truncated at ${decodeLimit}]`,
       } as DecodedValue);
     }
 
     return {
-      declaredType: this.decodable.type,
+      type: this.decodable.type,
       name: this.decodable.name,
       value: values,
     };

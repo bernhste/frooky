@@ -8,21 +8,21 @@ describe("JavaPrimitiveDecoder", () => {
       const decoder = new JavaPrimitiveDecoder({ type: "int", settings: DEFAULT_DECODER_SETTINGS });
       const primitive = Java.use("java.lang.Integer").$new(42).intValue();
       const result = decoder.decode(primitive);
-      expect(result).toEqual({ declaredType: "int", value: 42 });
+      expect(result).toEqual({ type: "int", value: 42 });
     });
 
     it("should decode a java long primitive correctly", () => {
       const decoder = new JavaPrimitiveDecoder({ type: "long", settings: DEFAULT_DECODER_SETTINGS });
       const primitive = Java.use("java.lang.Long").$new("9223372036854775807").longValue();
       const result = decoder.decode(primitive);
-      expect(result).toEqual({ declaredType: "long", value: "9223372036854775807" });
+      expect(result).toEqual({ type: "long", value: "9223372036854775807" });
     });
 
     it("should decode a java double primitive correctly", () => {
       const decoder = new JavaPrimitiveDecoder({ type: "double", settings: DEFAULT_DECODER_SETTINGS });
       const primitive = Java.use("java.lang.Double").$new(2.718281828459045235).doubleValue();
       const result = decoder.decode(primitive);
-      expect(result).toEqual({ declaredType: "double", value: 2.718281828459045235 });
+      expect(result).toEqual({ type: "double", value: 2.718281828459045235 });
     });
 
     it("should decode a java float primitive correctly", () => {
@@ -31,7 +31,7 @@ describe("JavaPrimitiveDecoder", () => {
       const result = decoder.decode(primitive);
 
       // float is very un-precise . we just validate that it is not off by too far
-      expect(result.declaredType).toBe("float");
+      expect(result.type).toBe("float");
       const zero = primitive - 3.14159265358979323846264;
       expect(Math.round(zero)).toBe(0);
     });
@@ -40,21 +40,21 @@ describe("JavaPrimitiveDecoder", () => {
       const decoder = new JavaPrimitiveDecoder({ type: "boolean", settings: DEFAULT_DECODER_SETTINGS });
       const primitive = Java.use("java.lang.Boolean").$new(true).booleanValue();
       const result = decoder.decode(primitive);
-      expect(result).toEqual({ declaredType: "boolean", value: true });
+      expect(result).toEqual({ type: "boolean", value: true });
     });
 
     it("should decode a java byte primitive correctly", () => {
       const decoder = new JavaPrimitiveDecoder({ type: "byte", settings: DEFAULT_DECODER_SETTINGS });
       const primitive = Java.use("java.lang.Byte").$new(127).byteValue();
       const result = decoder.decode(primitive);
-      expect(result).toEqual({ declaredType: "byte", value: 127 });
+      expect(result).toEqual({ type: "byte", value: 127 });
     });
 
     it("should decode a java short primitive correctly", () => {
       const decoder = new JavaPrimitiveDecoder({ type: "short", settings: DEFAULT_DECODER_SETTINGS });
       const primitive = Java.use("java.lang.Short").$new(32767).shortValue();
       const result = decoder.decode(primitive);
-      expect(result).toEqual({ declaredType: "short", value: 32767 });
+      expect(result).toEqual({ type: "short", value: 32767 });
     });
 
     it("should decode a java char primitive correctly", () => {
@@ -63,7 +63,7 @@ describe("JavaPrimitiveDecoder", () => {
       const charValue = (JavaCharacter.valueOf("A") as any).charValue();
       const result = decoder.decode(charValue);
 
-      expect(result).toEqual({ declaredType: "char", value: "A" });
+      expect(result).toEqual({ type: "char", value: "A" });
     });
   });
 });
@@ -78,7 +78,7 @@ describe("JavaFallbackDecoder", () => {
       const result = decoder.decode(javaObject);
 
       expect(result).toEqual({
-        declaredType: "java.lang.Object",
+        type: "java.lang.Object",
         value: javaObject.toString(),
       });
     });

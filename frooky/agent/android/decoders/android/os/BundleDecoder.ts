@@ -24,14 +24,14 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
       }).decode(entry);
 
       values.push({
-        declaredType: decoded.declaredType,
+        type: decoded.type,
         name: key,
         value: (decoded.value as DecodedValue).value,
       });
     }
 
     return {
-      declaredType: this.decodable.type,
+      type: this.decodable.type,
       value: values,
     };
   }

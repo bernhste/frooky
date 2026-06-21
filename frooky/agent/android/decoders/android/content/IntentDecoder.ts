@@ -66,7 +66,7 @@ export class IntentDecoder extends Decoder<Java.Wrapper> {
     };
 
     return {
-      declaredType: this.decodable.type,
+      type: this.decodable.type,
       value: decoded,
     };
   }
