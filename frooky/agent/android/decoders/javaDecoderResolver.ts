@@ -4,7 +4,6 @@ import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagsDecoder";
-import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenParameterSpecDecoder";
 import { JavaArrayDecoder } from "./javaArrayDecoder";
 import { JavaPrimitiveDecoder } from "./javaBasicDecoder";
 import { JavaReferenceTypeDecoder } from "./javaReferenceTypeDecoder";
@@ -12,7 +11,6 @@ import { JavaReferenceTypeDecoder } from "./javaReferenceTypeDecoder";
 export type DecoderConstructor = { new (decodable: Decodable): Decoder<Java.Wrapper> };
 
 const CUSTOM_CLASS_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
-  "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,
   "android.content.IntentFlagDecoder": IntentFlagDecoder,
   "android.content.IntentUriFlagDecoder": IntentUriFlagDecoder,
 };

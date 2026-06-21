@@ -3,7 +3,6 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
 import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
 import { IntentDecoder } from "./android/content/IntentDecoder";
-import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { BundleDecoder } from "./android/os/BundleDecoder";
 import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenParameterSpecDecoder";
 import { IterableDecoder } from "./java/lang/IterableDecoder";
@@ -16,7 +15,6 @@ const CLASS_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
   "android.content.Intent": IntentDecoder,
   "android.content.ClipData": ClipDataDecoder,
   "android.content.ClipData$Item": ClipDataItemDecoder,
-  "android.content.IntentFlagDecoder": IntentFlagDecoder,
   "android.os.Bundle": BundleDecoder,
   "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,
 };
@@ -79,14 +77,20 @@ export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
 
   decode(value: Java.Wrapper): JavaDecodedValue {
     if (!this.implementationDecoder) {
+      frooky.log.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
+
       this.implementationType = value.$className;
 
-      const decoderClass = resolveDecoderClass(this.implementationType, value.class);
+      const decoderClass = resolveDecoderClass(this.implementationType, value);
       this.implementationDecoder = new decoderClass({
         type: this.implementationType,
         name: this.decodable.name,
         settings: this.decodable.settings,
       });
+    } else if (value.$className !== this.implementationType) {
+      throw new Error(
+        `JavaReferenceTypeDecoder: runtime type changed from "${this.implementationType}" to "${value.$className}". Create a new decoder instance per type.`,
+      );
     }
 
     return {
