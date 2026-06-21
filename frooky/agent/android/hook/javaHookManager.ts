@@ -46,27 +46,6 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
     });
   }
 
-  // private resolveParamDecoders(params: Param[]): ParamDecoders<Java.Wrapper> {
-  //   const paramDecoders: ParamDecoders<Java.Wrapper> = {
-  //     in: [],
-  //     out: [],
-  //   };
-  //   for (const param of params) {
-  //     const { direction, ...decodable } = param;
-  //     if (direction === "inout" || direction === "in") {
-  //       paramDecoders.in.push(JavaDecoderResolver.resolveDecoder(decodable));
-  //     }
-  //     if (direction === "inout" || direction === "out") {
-  //       paramDecoders.out.push(JavaDecoderResolver.resolveDecoder(decodable));
-  //     }
-  //   }
-  //   return paramDecoders;
-  // }
-
-  // private resolveRetTypeDecoder(retType: RetType): Decoder<Java.Wrapper> {
-  //   return JavaDecoderResolver.resolveDecoder(retType);
-  // }
-
   registerHooks(hooks: JavaHook[]): number {
     const hookManager = this;
     let countSuccessfulHooks = 0;
@@ -74,7 +53,6 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
     for (const hook of hooks) {
       let stackTrace: string[];
 
-      // // resolve the decoders used for this hook and cache it locally
       // resolve the decoders used for this hook and cache it locally
       let inArgDecoders: ParamDecoder<Java.Wrapper>[];
       let outArgDecoders: ParamDecoder<Java.Wrapper>[];

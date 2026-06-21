@@ -7,8 +7,12 @@ export class JavaPrimitiveDecoder extends Decoder<Java.Wrapper> {
     return {
       declaredType: this.decodable.type,
       name: this.decodable.name,
-      value: this.decodable.type === "long" ? value.toString() : value,
+      value: this.needsUnwrap() ? value.toString() : value,
     };
+  }
+
+  private needsUnwrap(): boolean {
+    return this.decodable.type === "long" || this.decodable.type === "java.lang.String";
   }
 }
 

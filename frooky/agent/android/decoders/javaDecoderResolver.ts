@@ -29,8 +29,8 @@ export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
     } else if (decodable.type.startsWith("[")) {
       // java array decoder
       return new JavaArrayDecoder(decodable);
-    } else if (JAVA_PRIMITIVE_TYPES.has(decodable.type) || decodable.type === "void") {
-      // other Java primitive types and void
+    } else if (JAVA_PRIMITIVE_TYPES.has(decodable.type) || decodable.type === "void" || decodable.type === "java.lang.String") {
+      // other Java primitive types, void and strings (Frida unwraps java.lang.String automatically to JavaScript strings)
       return new JavaPrimitiveDecoder(decodable);
     } else {
       // at this time we don't know the implementation class

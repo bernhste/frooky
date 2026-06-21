@@ -24,80 +24,82 @@ const INTERFACE_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
   "java.lang.Iterable": IterableDecoder,
 };
 
-const _ifaceCache = new Map<string, string[]>();
-
 const _decoderCache = new Map<string, DecoderConstructor>();
 
-function resolveInterfaces(clazz: Java.Wrapper | null): string[] {
-  if (clazz === null) return [];
+function collectInterfaces(javaClass: Java.Wrapper): Set<string> {
+  const result = new Set<string>();
 
-  const className: string = clazz.getName();
-  const cached = _ifaceCache.get(className);
-  if (cached !== undefined) return cached;
-
-  const result: string[] = [];
-
-  for (const iface of clazz.getInterfaces() as Java.Wrapper[]) {
-    result.push(iface.getName());
-    result.push(...resolveInterfaces(iface));
-  }
-
-  result.push(...resolveInterfaces(clazz.getSuperclass() as Java.Wrapper | null));
-
-  _ifaceCache.set(className, result);
-  return result;
-}
-
-function resolveDecoderClass(className: string, clazz: Java.Wrapper): DecoderConstructor {
-  const cached = _decoderCache.get(className);
-  if (cached !== undefined) return cached;
-
-  const byClass = CLASS_DECODER_REGISTRY[className];
-  if (byClass) {
-    _decoderCache.set(className, byClass);
-    return byClass;
-  }
-
-  const interfaces = resolveInterfaces(clazz);
-  for (const iface of interfaces) {
-    const byIface = INTERFACE_DECODER_REGISTRY[iface];
-    if (byIface) {
-      _decoderCache.set(className, byIface);
-      return byIface;
+  while (javaClass !== null) {
+    try {
+      const ifaces: Java.Wrapper[] = javaClass.getInterfaces();
+      for (const iface of ifaces) {
+        const name: string = iface.getName();
+        if (!result.has(name)) {
+          result.add(name);
+          for (const n of collectInterfaces(iface)) result.add(n);
+        }
+      }
+      javaClass = javaClass.getSuperclass();
+    } catch (e) {
+      frooky.log.warn(`Error when resolving interfaces for class ${javaClass.$className}: ${e}`);
+      break;
     }
   }
 
-  _decoderCache.set(className, JavaFallbackDecoder);
-  return JavaFallbackDecoder;
+  return result;
+}
+
+function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor | null {
+  const cachedDecoder = _decoderCache.get(value.$className);
+  if (cachedDecoder !== undefined) return cachedDecoder;
+
+  const interfaces = collectInterfaces(value.class);
+  for (const iface of interfaces) {
+    const interfaceDecoder = INTERFACE_DECODER_REGISTRY[iface];
+    if (interfaceDecoder) {
+      _decoderCache.set(value.$className, interfaceDecoder);
+      return interfaceDecoder;
+    }
+  }
+
+  return null;
 }
 
 export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
-  private implementationDecoder: Decoder<Java.Wrapper> | undefined;
-  private implementationType: string | undefined;
+  private decoder: Decoder<Java.Wrapper> | undefined;
 
   decode(value: Java.Wrapper): JavaDecodedValue {
-    if (!this.implementationDecoder) {
+    if (!this.decoder) {
       frooky.log.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
 
-      this.implementationType = value.$className;
+      let decoderConstructor: DecoderConstructor;
 
-      const decoderClass = resolveDecoderClass(this.implementationType, value);
-      this.implementationDecoder = new decoderClass({
-        type: this.implementationType,
+      // 1. class decoder for the runtime class exists
+      if (CLASS_DECODER_REGISTRY[value.$className]) {
+        decoderConstructor = CLASS_DECODER_REGISTRY[value.$className];
+        _decoderCache.set(value.$className, decoderConstructor);
+      }
+      // 2. interface decoder for declared interface type exits
+      else if (INTERFACE_DECODER_REGISTRY[this.decodable.type]) {
+        decoderConstructor = INTERFACE_DECODER_REGISTRY[this.decodable.type];
+        _decoderCache.set(this.decodable.type, decoderConstructor);
+      }
+      // 3. resolve the interfaces and use a decoder if implemented or fall back to the JavaFallbackDecoder
+      else {
+        decoderConstructor = resolveInterfaceDecoderClass(value) ?? JavaFallbackDecoder;
+      }
+      this.decoder = new decoderConstructor({
+        type: value.$className,
         name: this.decodable.name,
         settings: this.decodable.settings,
       });
-    } else if (value.$className !== this.implementationType) {
-      throw new Error(
-        `JavaReferenceTypeDecoder: runtime type changed from "${this.implementationType}" to "${value.$className}". Create a new decoder instance per type.`,
-      );
     }
 
     return {
       declaredType: this.decodable.type,
-      implementationType: this.implementationType,
+      implementationType: value.$className,
       name: this.decodable.name,
-      value: this.implementationDecoder.decode(value),
+      value: this.decoder.decode(value),
     };
   }
 }
