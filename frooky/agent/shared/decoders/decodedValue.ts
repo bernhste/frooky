@@ -1,11 +1,11 @@
 /**
- * Represents the result of a decode operation.
+ * Represents the result of a decoded value.
  */
-export type DecodedValue = {
-  /** The resolved type of the decoded value. */
-  type: string;
+export interface DecodedValue {
+  /** The declared type of the decoded value. */
+  declaredType: string;
   /** The name of the decoded value. */
   name?: string;
   /** The decoded value. Can be nested */
   value: any;
-};
+}

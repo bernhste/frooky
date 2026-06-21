@@ -44,7 +44,7 @@ export class NativeValueDecoder extends Decoder<NativePointer> {
       this.cachedValueDecoder = valueDecoders[this.decodable.type as FridaFundamentalType];
     }
     return {
-      type: this.decodable.type,
+      declaredType: this.decodable.type,
       name: this.decodable.name,
       value: this.cachedValueDecoder(value),
     };

@@ -8,7 +8,7 @@ export class ClipDataItemDecoder extends Decoder<Java.Wrapper> {
     const text = value.getText();
     const uri = value.getUri();
     return {
-      type: "android.content.ClipData.Item",
+      declaredType: "android.content.ClipData.Item",
       value: {
         htmlText: htmlText != null ? htmlText.toString() : null,
         text: text != null ? text.toString() : null,
