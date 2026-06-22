@@ -97,6 +97,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
           let decodedRetValue: DecodedValue | undefined;
           if (hook.retType) {
+            console.log("returntype");
             decodedRetValue = retTypeDecoder.decode(returnValue);
           }
 
