@@ -68,9 +68,9 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
 
       // resolve the return type
       let retTypeDecoder: Decoder<Java.Wrapper>;
-      if (hook.method.retType.className) {
+      if (hook.method.returnType.className) {
         const retType = {
-          type: hook.method.retType.className,
+          type: hook.method.returnType.className,
           settings: hook.decoderSettings,
         };
         retTypeDecoder = this.resolveRetTypeDecoder(retType);
