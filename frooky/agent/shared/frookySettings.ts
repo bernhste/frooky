@@ -15,6 +15,8 @@ export interface HookSettings {
   eventFilter: string[];
 }
 
+export type IncludeFilter = string[] | number[];
+
 /**
  * Decoder settings any kind of parameter or return type decoder
  *
@@ -62,6 +64,13 @@ export interface DecoderSettings {
    * @defaultValue undefined
    */
   decoderArg?: string;
+
+  /**
+   * Include / Exclude filters for the
+   *
+   * @defaultValue undefined
+   */
+  filter?: IncludeFilter;
 }
 
 export interface FrookySettings {

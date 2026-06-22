@@ -4,7 +4,7 @@ import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
-import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
+import { DecodedArgs, FilterMismatchError, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputParam, normalizeInputParam } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookGroup";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
@@ -77,35 +77,43 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
       }
 
       hook.method.implementation = function (...args: Java.Wrapper[]) {
-        try {
-          // decode arguments onEnter
-          if (hook.params) {
+        // decode arguments onEnter
+        if (hook.params) {
+          try {
             decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
+          } catch (e) {
+            if (!(e instanceof FilterMismatchError)) {
+              frooky.log.error(`Decoder error during 'onEnter' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+            }
+            // call the original implementation and return immediately
+            return hook.method.apply(this, args);
           }
-        } catch (e) {
-          frooky.log.error(`Decoder error during 'onEnter' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
         }
 
         // call the original implementation
         const returnValue = hook.method.apply(this, args);
 
-        try {
-          // decode arguments onLeave
-          if (hook.params) {
+        // decode arguments onLeave
+        if (hook.params) {
+          try {
             decodedArgs.out = hookManager.decodeArgs(args, outArgDecoders);
+          } catch (e) {
+            if (!(e instanceof FilterMismatchError)) {
+              frooky.log.error(`Decoder error during 'onLeave' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+            }
+            return returnValue;
           }
-        } catch (e) {
-          frooky.log.error(`Decoder error during 'onLeave' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
         }
 
+        // decode the return value
         let decodedRetValue: DecodedValue | undefined;
         try {
-          // decode the return value
           if (retTypeDecoder) {
             decodedRetValue = retTypeDecoder.decode(returnValue);
           }
         } catch (e) {
           frooky.log.error(`Decoder error during return value decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+          return returnValue;
         }
 
         try {
@@ -120,8 +128,10 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
         } catch (e) {
           frooky.log.error(`Error during the execution of the hooked method ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
         }
+
         return returnValue;
       };
+
       countSuccessfulHooks++;
     }
     return countSuccessfulHooks;

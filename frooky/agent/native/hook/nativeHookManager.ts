@@ -1,6 +1,6 @@
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
+import { DecodedArgs, FilterMismatchError, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookGroup";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { NativeHook } from "./nativeHook";
@@ -76,7 +76,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
       Interceptor.attach(hook.symbolAddress, {
         onEnter: function (args: NativePointer[]) {
-          // build stack trace
+          this.filtered = false;
+
           const stackTraceLimit: number = hook.hookSettings.stackTraceLimit;
           stackTrace = hookManager.buildNativeStackTrace(this.context, stackTraceLimit);
 
@@ -86,18 +87,32 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             for (let i = 0; i < hook.params.length; i++) {
               this.savedArgs[i] = args[i];
             }
-            decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
+
+            try {
+              decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
+            } catch (e) {
+              if (e instanceof FilterMismatchError) {
+                this.filtered = true;
+                return;
+              }
+              throw e;
+            }
           }
         },
         onLeave: function (returnValue: InvocationReturnValue) {
+          if (this.filtered) return;
           if (hook.params) {
-            // decode arguments onExit
-            decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders);
+            try {
+              // decode arguments onLeave
+              decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders);
+            } catch (e) {
+              if (e instanceof FilterMismatchError) return;
+              throw e;
+            }
           }
 
           let decodedRetValue: DecodedValue | undefined;
           if (hook.retType) {
-            console.log("retType");
             decodedRetValue = retTypeDecoder.decode(returnValue);
           }
 

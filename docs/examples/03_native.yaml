@@ -126,3 +126,14 @@ hookGroup:
           - [uint32, flags]
           - [pointer, error]
           - [pointer, accessControl, { direction: inout }]
+
+  # Hook with named parameters (names provide context in output).
+  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+  - module: libc.so
+    hooks:
+    - symbol: open
+      retType: int
+      params:
+      - [const char *, path, { filter: ['/sdcard', '/storage/emulated']}]
+      - [int, flags]
+      - [mode_t, mode]

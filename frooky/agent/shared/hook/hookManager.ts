@@ -3,6 +3,7 @@ import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
 import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
+import { IncludeFilter } from "../frookySettings";
 import { Hook } from "./hook";
 
 export type ParamDecoder<TValue> = {
@@ -13,12 +14,20 @@ export type ParamDecoder<TValue> = {
   decoderArg?: string;
   decoderArgIndex?: number;
   decoderArgDecoder?: Decoder<TValue>;
+  filter?: IncludeFilter;
 };
 
 export type DecodedArgs = {
   in?: DecodedValue[];
   out?: DecodedValue[];
 };
+
+export class FilterMismatchError extends Error {
+  constructor(decodedValue: DecodedValue) {
+    super(`Value "${decodedValue.value}" of type "${decodedValue.type}" did not match the filter`);
+    this.name = "FilterMismatchError";
+  }
+}
 
 export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   constructor(private readonly decoderResolver: DecoderResolver<TValue>) {}
@@ -79,6 +88,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decoderArg: param.settings.decoderArg,
         decoderArgIndex: decoderArgIndex,
         decoderArgDecoder: decoderArgDecoder,
+        filter: param.settings.filter,
       };
       frooky.log.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
       argDecoderSpecs.push(paramDecoder);
@@ -88,6 +98,16 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
 
   protected resolveRetTypeDecoder(retType: RetType): Decoder<TValue> {
     return this.decoderResolver.resolveDecoder(retType);
+  }
+
+  protected matchesFilter(decodedValue: DecodedValue, filter?: IncludeFilter): boolean {
+    if (!filter || filter.length === 0) return true;
+
+    const value = decodedValue.value;
+
+    if (typeof value !== "string" && typeof value !== "number") return true;
+
+    return typeof value === "string" ? (filter as string[]).some((w) => value.includes(w as string)) : (filter as number[]).includes(value);
   }
 
   protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[]): DecodedValue[] {
@@ -102,7 +122,12 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         }
         decodedDecoderArg = paramDecoder.decoderArgDecoder.decode(args[paramDecoder.decoderArgIndex]);
       }
-      decodedArgs.push(paramDecoder.decoder.decode(args[paramDecoder.argIndex], decodedDecoderArg));
+      var decodedValue = paramDecoder.decoder.decode(args[paramDecoder.argIndex], decodedDecoderArg);
+      if (this.matchesFilter(decodedValue, paramDecoder.filter)) {
+        decodedArgs.push(decodedValue);
+      } else {
+        throw new FilterMismatchError(decodedValue);
+      }
     }
 
     return decodedArgs;
