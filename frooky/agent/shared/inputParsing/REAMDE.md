@@ -26,7 +26,7 @@ hooks:
   - module: libssl.so
     functions:
       - symbol: EVP_EncryptInit_ex
-        returnType: int
+        retType: int
         params:
           - "EVP_CIPHER_CTX *"
           - ["const EVP_CIPHER *", type]

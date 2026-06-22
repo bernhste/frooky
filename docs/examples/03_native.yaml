@@ -28,7 +28,7 @@ hookGroup:
   - module: libc.so
     hooks:
     - symbol: open
-      returnType: int
+      retType: int
       params:
       - "const char *"
       - int
@@ -39,7 +39,7 @@ hookGroup:
   - module: libc.so
     hooks:
     - symbol: open
-      returnType: int
+      retType: int
       params:
       - [const char *, path]
       - [int, flags]
@@ -53,7 +53,7 @@ hookGroup:
     - symbol: ENGINE_load_builtin_engines
     - symbol: ENGINE_cleanup
     - symbol: OSSL_CMP_validate_cert_path
-      returnType: int
+      retType: int
       params:
       - ["const OSSL_CMP_CTX *", ctx]
       - ["X509_STORE *", trusted_store]
@@ -67,7 +67,7 @@ hookGroup:
     stackTraceLimit: 10
     hooks:
     - symbol: EVP_EncryptInit_ex
-      returnType: int
+      retType: int
       params:
       - ["EVP_CIPHER_CTX *", ctx]
       - ["const EVP_CIPHER *", type]
@@ -80,7 +80,7 @@ hookGroup:
   - module: libssl.so
     hooks:
     - symbol: SSL_write
-      returnType: int
+      retType: int
       params:
       - ["SSL *", ssl]
       - ["const void *", buf, { decoderArg: num }]
@@ -108,7 +108,7 @@ hookGroup:
   - module: libc.so
     hooks:
     - symbol: read
-      returnType: ssize_t
+      retType: ssize_t
       params:
       - [int, fd]
       - [void *, buf, { direction: out, decoderArg: count, decodeLimit: 200 }]
@@ -119,7 +119,7 @@ hookGroup:
   - module: Security
     hooks:
       - symbol: SecAccessControlCreateWithFlags
-        returnType: pointer
+        retType: pointer
         params:
           - [pointer, allocator]
           - [pointer, protection]

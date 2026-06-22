@@ -43,13 +43,13 @@ hookGroup:
       - ["(id)", value]
       - ["(NSString *)", key]
 
-  # Hook with `returnType` and `stackTraceLimit`.
+  # Hook with `retType` and `stackTraceLimit`.
   # Docs: https://developer.apple.com/documentation/foundation/nsdata/write(tofi
   # le:atomically:)?language=objc
   - objcClass: NSData
     hooks:
     - methodName: "- writeToFile:atomically:"
-      returnType: "(BOOL)"
+      retType: "(BOOL)"
       params:
       - ["(NSString *)", path]
       - ["(BOOL)", useAuxiliaryFile]
@@ -61,7 +61,7 @@ hookGroup:
   - objcClass: NSURL
     hooks:
     - methodName: "+ fileURLWithFileSystemRepresentation:isDirectory:relativeToURL:"
-      returnType: "(NSURL *)"
+      retType: "(NSURL *)"
       params:
       - ["(const char *)", path]
       - ["(BOOL)", isDir]
@@ -91,7 +91,7 @@ hookGroup:
   - objcClass: NSManagedObjectContext
     hooks:
     - methodName: "- save:"
-      returnType: "(BOOL)"
+      retType: "(BOOL)"
       params:
       - ["(NSError **)", error, { direction: out }]
 
@@ -101,7 +101,7 @@ hookGroup:
   - objcClass: NSURLSession
     hooks:
     - methodName: "- dataTaskWithRequest:completionHandler:"
-      returnType: "(NSURLSessionDataTask *)"
+      retType: "(NSURLSessionDataTask *)"
       params:
       - ["(NSURLRequest *)", request]
       - [

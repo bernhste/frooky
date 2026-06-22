@@ -4,23 +4,24 @@ frooky needs to know a function or method's signature to hook it correctly. Part
 
 There are different accepted ways to declare a parameter. The following chapters explain them.
 
-- [Unnamed Parameters](#unnamed-parameters)
-  - [Unnamed Java Parameters](#unnamed-java-parameters)
-  - [Unnamed Objective-C Parameters](#unnamed-objective-c-parameters)
-  - [Unnamed Native Parameters](#unnamed-native-parameters)
-- [Named Parameters](#named-parameters)
-  - [Named Java Parameters](#named-java-parameters)
-  - [Named Objective-C Parameters](#named-objective-c-parameters)
-  - [Named Native Parameters](#named-native-parameters)
-- [Decoders](#decoders)
-  - [`direction`-Option: Declare the Time of Decoding](#direction-option-declare-the-time-of-decoding)
-    - [Explicit Time of Decoding in Java](#explicit-time-of-decoding-in-java)
-    - [Explicit Time of Decoding in Objective-C](#explicit-time-of-decoding-in-objective-c)
-    - [Explicit Time of Decoding in Native](#explicit-time-of-decoding-in-native)
-  - [`decoderArg`-Option: Pass Arguments to Decoder](#decoderarg-option-pass-arguments-to-decoder)
-    - [Pass Arguments to Decoder in Java](#pass-arguments-to-decoder-in-java)
-    - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
-    - [Pass Arguments to Decoder in Native](#pass-arguments-to-decoder-in-native)
+- [Parameter Declaration](#parameter-declaration)
+  - [Unnamed Parameters](#unnamed-parameters)
+    - [Unnamed Java Parameters](#unnamed-java-parameters)
+    - [Unnamed Objective-C Parameters](#unnamed-objective-c-parameters)
+    - [Unnamed Native Parameters](#unnamed-native-parameters)
+  - [Named Parameters](#named-parameters)
+    - [Named Java Parameters](#named-java-parameters)
+    - [Named Objective-C Parameters](#named-objective-c-parameters)
+    - [Named Native Parameters](#named-native-parameters)
+  - [Decoders](#decoders)
+    - [`direction`-Option: Declare the Time of Decoding](#direction-option-declare-the-time-of-decoding)
+      - [Explicit Time of Decoding in Java](#explicit-time-of-decoding-in-java)
+      - [Explicit Time of Decoding in Objective-C](#explicit-time-of-decoding-in-objective-c)
+      - [Explicit Time of Decoding in Native](#explicit-time-of-decoding-in-native)
+    - [`decoderArg`-Option: Pass Arguments to Decoder](#decoderarg-option-pass-arguments-to-decoder)
+      - [Pass Arguments to Decoder in Java](#pass-arguments-to-decoder-in-java)
+      - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
+      - [Pass Arguments to Decoder in Native](#pass-arguments-to-decoder-in-native)
 
 ## Unnamed Parameters
 
@@ -56,7 +57,7 @@ WebView(context: Context, attrs: AttributeSet?, defStyleAttr: Int, privateBrowsi
 objcClass: NSURL
 methods:
   - name: "+ fileURLWithFileSystemRepresentation:isDirectory:relativeToURL:"
-    returnType: (NSURL *)
+    retType: (NSURL *)
     params: [ "(const char *)", "(BOOL)", "(NSURL *)" ]
 ```
 
@@ -74,7 +75,7 @@ This example hooks the following class method from [`NSURL`](https://developer.a
 module: sqlite3.so
 functions:
   - symbol: sqlite3_exec
-    returnType: int
+    retType: int
     params: [ "sqlite3*", "const char *", "void *", "void *", "char **" ]
 ```
 
@@ -130,7 +131,7 @@ WebView(context: Context, attrs: AttributeSet?, defStyleAttr: Int, privateBrowsi
 objcClass: NSURL
 methods:
   - name: "+ fileURLWithFileSystemRepresentation:isDirectory:relativeToURL:"
-    returnType: (NSURL *)
+    retType: (NSURL *)
     params:
       - [ "(const char *)",  path ]
       - [ "(BOOL)", isDir ]
@@ -151,7 +152,7 @@ This example hooks the following class method from [`NSURL`](https://developer.a
 module: sqlite3.so
 functions:
   - symbol: sqlite3_exec
-    returnType: int
+    retType: int
     params: 
       - "sqlite3*"
       - [ "const char *", sql ]
@@ -241,7 +242,7 @@ In order to access the decrypted data, the `output` parameter must be decoded at
 objcClass:  NSFileManager
 methods:
   - name: "- contentsOfDirectoryAtPath"
-    returnType: "(NSArray<NSString *> *)"
+    retType: "(NSArray<NSString *> *)"
     params:
       - [ "(NSString *)", path ]
       - [ "(NSError * *)", error, { direction: out } ]
@@ -343,7 +344,7 @@ The `buffer` decoder uses the `length` parameter to specify how many bytes to de
 module: libssl.so
 functions:
   - symbol: EVP_DigestFinal_ex
-    returnType: int
+    retType: int
     params:
       - [ "EVP_MD_CTX *", ctx ]
       - [ "unsigned char *", md, { direction: out, decoderArg: ctx } ]
