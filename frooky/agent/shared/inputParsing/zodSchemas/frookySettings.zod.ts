@@ -6,8 +6,6 @@ export const hookSettingsSchema = z.object({
     eventFilter: z.array(z.string())
 });
 
-export const includeFilterSchema = z.union([z.array(z.string()), z.array(z.number())]);
-
 export const decoderSettingsSchema = z.object({
     maxRecursion: z.number(),
     decodeLimit: z.number(),
@@ -15,7 +13,7 @@ export const decoderSettingsSchema = z.object({
     fastDecode: z.boolean(),
     customDecoder: z.string().optional(),
     decoderArg: z.string().optional(),
-    filter: includeFilterSchema.optional()
+    filter: z.string().optional()
 });
 
 export const frookySettingsSchema = z.object({
