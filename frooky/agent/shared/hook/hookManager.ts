@@ -100,7 +100,6 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   }
 
   protected matchesFilter(decodedValue: DecodedValue, filters?: string[]): boolean {
-    console.log(JSON.stringify(filters, null, 2));
     if (!filters || filters.length === 0) return true;
 
     const value = decodedValue.value;
