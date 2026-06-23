@@ -3,7 +3,6 @@ import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
 import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
-import { IncludeFilter } from "../frookySettings";
 import { Hook } from "./hook";
 
 export type ParamDecoder<TValue> = {
@@ -14,7 +13,7 @@ export type ParamDecoder<TValue> = {
   decoderArg?: string;
   decoderArgIndex?: number;
   decoderArgDecoder?: Decoder<TValue>;
-  filter?: IncludeFilter;
+  filter?: string;
 };
 
 export type DecodedArgs = {
@@ -100,14 +99,15 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return this.decoderResolver.resolveDecoder(retType);
   }
 
-  protected matchesFilter(decodedValue: DecodedValue, filter?: IncludeFilter): boolean {
-    if (!filter || filter.length === 0) return true;
+  protected matchesFilter(decodedValue: DecodedValue, filter?: string): boolean {
+    if (!filter) return true;
 
     const value = decodedValue.value;
 
     if (typeof value !== "string" && typeof value !== "number") return true;
 
-    return typeof value === "string" ? (filter as string[]).some((w) => value.includes(w as string)) : (filter as number[]).includes(value);
+    const regex = new RegExp(filter);
+    return regex.test(String(value));
   }
 
   protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[]): DecodedValue[] {
