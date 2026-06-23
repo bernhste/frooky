@@ -12,7 +12,7 @@ export interface HookSettings {
   /**
    * Stack trace filters to apply.
    */
-  eventFilter: string[];
+  stackTraceFilter: string[];
 }
 
 /**
@@ -68,7 +68,7 @@ export interface DecoderSettings {
    *
    * @defaultValue undefined
    */
-  filters?: string[];
+  paramFilter?: string[];
 }
 
 export interface FrookySettings {

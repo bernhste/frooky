@@ -12,6 +12,7 @@ import { FrookySettings } from "./shared/frookySettings";
 import { HookManager } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { Logger, LogLevel, LogTo } from "./shared/logger";
+import { PlatformStackTrace } from "./shared/platformStackTrace";
 
 declare global {
   var frooky: FrookyAgent;
@@ -27,7 +28,7 @@ export class FrookyAgent {
   private platformHookValidator: HookValidator<any, any>;
   private platformHookManger: HookManager<any, any, any>;
   private nativeHookValidator = new NativeHookValidator();
-  private nativeHookManager = new NativeHookManager();
+  private nativeHookManager: NativeHookManager;
   private resolverTimeoutSeconds: number;
 
   /** Logger instance for this for frooky. */
@@ -37,6 +38,7 @@ export class FrookyAgent {
     platform: Platform,
     platformInputHookValidator: HookValidator<any, any>,
     platformHookResolver: HookManager<any, any, any>,
+    platformStackTrace: PlatformStackTrace,
     logLevel: LogLevel = DEFAULT_SETTING_LOG_LEVEL,
     logTo: LogTo = DEFAULT_SETTING_LOG_TO,
     resolverTimeoutSeconds: number = DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
@@ -48,6 +50,7 @@ export class FrookyAgent {
     this.platformHookValidator = platformInputHookValidator;
     this.platformHookManger = platformHookResolver;
     this.resolverTimeoutSeconds = resolverTimeoutSeconds;
+    this.nativeHookManager = new NativeHookManager(platformStackTrace);
 
     // setup logger
     this.log = new Logger(this, logLevel, logTo);

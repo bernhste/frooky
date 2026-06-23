@@ -10,12 +10,12 @@ export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
   decodeLimit: 1000,
   customDecoder: undefined,
   decoderArg: undefined,
-  filters: undefined,
+  paramFilter: undefined,
 };
 
 export const DEFAULT_HOOK_SETTINGS: HookSettings = {
   stackTraceLimit: 0,
-  eventFilter: [],
+  stackTraceFilter: [],
 };
 
 export const DEFAULT_FROOKY_SETTINGS: FrookySettings = {

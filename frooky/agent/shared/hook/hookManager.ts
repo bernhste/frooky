@@ -3,6 +3,8 @@ import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
 import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
+import { PlatformStackTrace } from "../platformStackTrace";
+import { FilterMismatchError } from "../utils";
 import { Hook } from "./hook";
 
 export type ParamDecoder<TValue> = {
@@ -13,7 +15,7 @@ export type ParamDecoder<TValue> = {
   decoderArg?: string;
   decoderArgIndex?: number;
   decoderArgDecoder?: Decoder<TValue>;
-  filters?: string[];
+  paramFilter?: string[];
 };
 
 export type DecodedArgs = {
@@ -21,15 +23,11 @@ export type DecodedArgs = {
   out?: DecodedValue[];
 };
 
-export class FilterMismatchError extends Error {
-  constructor(decodedValue: DecodedValue) {
-    super(`Value "${decodedValue.value}" of type "${decodedValue.type}" did not match the filter`);
-    this.name = "FilterMismatchError";
-  }
-}
-
 export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
-  constructor(private readonly decoderResolver: DecoderResolver<TValue>) {}
+  constructor(
+    private readonly decoderResolver: DecoderResolver<TValue>,
+    protected readonly stackTrace: PlatformStackTrace,
+  ) {}
 
   public abstract resolveHooks(inputHooks: TInputHook[], timeout: number): Promise<Promise<THooks[] | null>[]>;
   public abstract registerHooks(hooks: THooks[]): number;
@@ -87,7 +85,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decoderArg: param.settings.decoderArg,
         decoderArgIndex: decoderArgIndex,
         decoderArgDecoder: decoderArgDecoder,
-        filters: param.settings.filters,
+        paramFilter: param.settings.paramFilter,
       };
       frooky.log.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
       argDecoderSpecs.push(paramDecoder);
@@ -99,14 +97,14 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return this.decoderResolver.resolveDecoder(retType);
   }
 
-  protected matchesFilter(decodedValue: DecodedValue, filters?: string[]): boolean {
-    if (!filters || filters.length === 0) return true;
+  protected matchesFilter(decodedValue: DecodedValue, paramFilter?: string[]): boolean {
+    if (!paramFilter || paramFilter.length === 0) return true;
 
     const value = decodedValue.value;
 
     if (typeof value !== "string" && typeof value !== "number") return true;
 
-    return filters.some((pattern) => new RegExp(pattern).test(String(value)));
+    return paramFilter.some((pattern) => new RegExp(pattern).test(String(value)));
   }
 
   protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[]): DecodedValue[] {
@@ -122,10 +120,10 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decodedDecoderArg = paramDecoder.decoderArgDecoder.decode(args[paramDecoder.decoderArgIndex]);
       }
       var decodedValue = paramDecoder.decoder.decode(args[paramDecoder.argIndex], decodedDecoderArg);
-      if (this.matchesFilter(decodedValue, paramDecoder.filters)) {
+      if (this.matchesFilter(decodedValue, paramDecoder.paramFilter)) {
         decodedArgs.push(decodedValue);
       } else {
-        throw new FilterMismatchError(decodedValue);
+        throw new FilterMismatchError();
       }
     }
 

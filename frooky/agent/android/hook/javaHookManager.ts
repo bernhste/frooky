@@ -4,9 +4,11 @@ import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
-import { DecodedArgs, FilterMismatchError, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
+import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputParam, normalizeInputParam } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookGroup";
+import { PlatformStackTrace } from "../../shared/platformStackTrace";
+import { FilterMismatchError } from "../../shared/utils";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
 import { JavaHookEvent } from "./javaHookEvent";
@@ -18,8 +20,8 @@ export type FieldType = {
 
 // resolve java classes, the method and their overloads
 export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
-  constructor() {
-    super(JavaDecoderResolver);
+  constructor(platformStackTrace: PlatformStackTrace) {
+    super(JavaDecoderResolver, platformStackTrace);
   }
   async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number): Promise<Promise<JavaHook[] | null>[]> {
     frooky.log.debug(`Resolving Java hooks`);
@@ -51,8 +53,6 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
-      let stackTrace: string[];
-
       // resolve the decoders used for this hook and cache it locally
       let inArgDecoders: ParamDecoder<Java.Wrapper>[];
       let outArgDecoders: ParamDecoder<Java.Wrapper>[];
@@ -77,6 +77,18 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
       }
 
       hook.method.implementation = function (...args: Java.Wrapper[]) {
+        // collect the stack trace and filter
+        let stackTrace: string[];
+        try {
+          stackTrace = hookManager.stackTrace.build(hook.hookSettings.stackTraceLimit, hook.hookSettings.stackTraceFilter);
+        } catch (e) {
+          if (e instanceof FilterMismatchError) {
+            // call the original implementation and return immediately
+            return hook.method.apply(this, args);
+          }
+          throw e; // // re-throw stack trace build error
+        }
+
         // decode arguments onEnter
         if (hook.params) {
           try {
@@ -91,7 +103,13 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
         }
 
         // call the original implementation
-        const returnValue = hook.method.apply(this, args);
+        let returnValue;
+        try {
+          returnValue = hook.method.apply(this, args);
+        } catch (e) {
+          frooky.log.error(`Error during execution of hooked method: ${e}`);
+          throw e; // re-throw so the app behaves normally
+        }
 
         // decode arguments onLeave
         if (hook.params) {
@@ -116,18 +134,11 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
           return returnValue;
         }
 
-        try {
-          // collect the stack trace from Frida
-          const stackTraceLimit: number = hook.hookSettings.stackTraceLimit;
-          const stackTrace = hookManager.buildJavaStackTrace(stackTraceLimit);
+        // collect the field type
+        const fieldType = hookManager.buildFieldType(this as Java.Wrapper);
 
-          // collect the field type and (optional) instance hash
-          const fieldType = hookManager.buildFieldType(this as Java.Wrapper);
-
-          frooky.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, stackTrace));
-        } catch (e) {
-          frooky.log.error(`Error during the execution of the hooked method ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
-        }
+        // add the event to the event log
+        frooky.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, stackTrace));
 
         return returnValue;
       };
@@ -237,14 +248,5 @@ export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHo
     const fieldType = isStatic ? "static" : "instance";
     const instanceId = fieldType === "instance" ? method.hashCode() : undefined;
     return { fieldType, instanceId };
-  }
-
-  private buildJavaStackTrace(limit: number): string[] {
-    const fridaStackTrace = Java.backtrace({ limit: limit });
-
-    return Array.from({ length: Math.min(limit, fridaStackTrace.frames.length) }, (_, i) => {
-      const frame = fridaStackTrace.frames[i];
-      return `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`;
-    });
   }
 }

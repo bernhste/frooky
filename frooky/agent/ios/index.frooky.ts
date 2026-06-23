@@ -5,6 +5,7 @@ import { InputFrookyConfig } from "../shared/frookyConfig";
 import { LogLevel, LogTo } from "../shared/logger";
 import { ObjcHookManager } from "./hook/objcHookManager";
 import { ObjcHookValidator } from "./hook/objcHookValidator";
+import { IosStackTrace } from "./iosStackTrace";
 
 rpc.exports = {
   initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
@@ -12,7 +13,8 @@ rpc.exports = {
       globalThis.frooky = new FrookyAgent(
         "iOS",
         new ObjcHookValidator(),
-        new ObjcHookManager(),
+        new ObjcHookManager(IosStackTrace),
+        IosStackTrace,
         logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
         logTo ?? DEFAULT_SETTING_LOG_TO,
         resolverTimeoutSeconds ?? DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,

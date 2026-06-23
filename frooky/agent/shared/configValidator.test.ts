@@ -37,22 +37,22 @@ describe("configValidator", () => {
 
     it("should set the default value if not set", () => {
       const incompleteInputHookSettings: InputHookSettings = {
-        eventFilter: ["a", "b"],
+        stackTraceFilter: ["a", "b"],
       };
       expect(validateAndRepairHookSettings(incompleteInputHookSettings)).toEqual({
         stackTraceLimit: DEFAULT_HOOK_SETTINGS.stackTraceLimit,
-        eventFilter: ["a", "b"],
+        stackTraceFilter: ["a", "b"],
       });
     });
 
     it("should set the default value if value is not according to schema", () => {
       const incorrectInputHookSettings: InputHookSettings = {
         stackTraceLimit: "incorrect" as unknown as number,
-        eventFilter: ["a", "b"],
+        stackTraceFilter: ["a", "b"],
       };
       expect(validateAndRepairHookSettings(incorrectInputHookSettings)).toEqual({
         stackTraceLimit: DEFAULT_HOOK_SETTINGS.stackTraceLimit,
-        eventFilter: ["a", "b"],
+        stackTraceFilter: ["a", "b"],
       });
     });
 

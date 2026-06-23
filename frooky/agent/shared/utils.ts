@@ -1,3 +1,5 @@
+export class FilterMismatchError extends Error {}
+
 /**
  * Generates a v4 UUID
  * @returns {string} v4 UUID (e.g. "6b5354ed-8c3e-476d-8999-96b2251d8a3c")

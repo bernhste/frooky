@@ -3,6 +3,7 @@ import { FrookyAgent } from "../FrookyAgent";
 import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "../shared/defaultValues";
 import { InputFrookyConfig } from "../shared/frookyConfig";
 import { LogLevel, LogTo } from "../shared/logger";
+import { AndroidStackTrace } from "./androidStackTrace";
 import { JavaHookManager } from "./hook/javaHookManager";
 import { JavaHookValidator } from "./hook/javaHookValidator";
 
@@ -12,7 +13,8 @@ rpc.exports = {
       globalThis.frooky = new FrookyAgent(
         "Android",
         new JavaHookValidator(),
-        new JavaHookManager(),
+        new JavaHookManager(AndroidStackTrace),
+        AndroidStackTrace,
         logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
         logTo ?? DEFAULT_SETTING_LOG_TO,
         resolverTimeoutSeconds ?? DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,

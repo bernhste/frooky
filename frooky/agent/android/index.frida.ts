@@ -2,6 +2,7 @@ import Java from "frida-java-bridge";
 import { FrookyAgent } from "../FrookyAgent";
 import { DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "../shared/defaultValues";
 import { InputFrookyConfig } from "../shared/frookyConfig";
+import { AndroidStackTrace } from "./androidStackTrace";
 import { JavaHookManager } from "./hook/javaHookManager";
 import { JavaHookValidator } from "./hook/javaHookValidator";
 
@@ -16,7 +17,8 @@ if (Java.available) {
     globalThis.frooky = new FrookyAgent(
       "Android",
       new JavaHookValidator(),
-      new JavaHookManager(),
+      new JavaHookManager(AndroidStackTrace),
+      AndroidStackTrace,
       "debug",
       DEFAULT_SETTING_LOG_TO,
       DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,

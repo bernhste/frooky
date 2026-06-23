@@ -14,7 +14,7 @@ metadata:
           hookSettings:
             hookTimeout:     1
             stackTraceLimit: 10
-            eventFilter: ['^(?!android).*']
+            stackTraceFilter: ['^(?!android).*']
           decoderSettings:
             fastDecode: true
             magicDecode: true 
@@ -33,7 +33,7 @@ metadata:
           hookSettings:
             hookTimeout:     1
             stackTraceLimit: 10
-            eventFilter: ['^(?!android).*']
+            stackTraceFilter: ['^(?!android).*']
           decoderSettings:
             fastDecode: true
             magicDecode: true 
@@ -75,7 +75,7 @@ metadata:
 settings:
   hookSettings:
     stackTraceLimit: 10
-    eventFilter: ['^(?!android).*']   # Stack trace filters to apply.
+    stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply.
   decoderSettings:
     fastDecode: true                  # If set, the decoders are instructed to prioritize speed over details. Mostly, this mean avoiding expensive Frida <-> native roundtrip.
     magicDecode: true                 # If set, frooky tries to guess the type of a value in case it is not declared in the hook, or it is not possible to deduct it at runtime

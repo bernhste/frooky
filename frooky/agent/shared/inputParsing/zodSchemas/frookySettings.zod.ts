@@ -3,7 +3,7 @@ import { z } from "zod";
 
 export const hookSettingsSchema = z.object({
     stackTraceLimit: z.number(),
-    eventFilter: z.array(z.string())
+    stackTraceFilter: z.array(z.string())
 });
 
 export const decoderSettingsSchema = z.object({
@@ -13,7 +13,7 @@ export const decoderSettingsSchema = z.object({
     fastDecode: z.boolean(),
     customDecoder: z.string().optional(),
     decoderArg: z.string().optional(),
-    filters: z.array(z.string()).optional()
+    paramFilter: z.array(z.string()).optional()
 });
 
 export const frookySettingsSchema = z.object({

@@ -1,14 +1,16 @@
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { DecodedArgs, FilterMismatchError, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
+import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookGroup";
+import { PlatformStackTrace } from "../../shared/platformStackTrace";
+import { FilterMismatchError } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { NativeHook } from "./nativeHook";
 import { NativeHookEvent } from "./nativeHookEvent";
 
 export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
-  constructor() {
-    super(NativeDecoderResolver);
+  constructor(platformStackTrace: PlatformStackTrace) {
+    super(NativeDecoderResolver, platformStackTrace);
   }
 
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number): Promise<Promise<NativeHook[] | null>[]> {
@@ -78,16 +80,18 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         onEnter: function (args: NativePointer[]) {
           this.filtered = false;
 
-          const stackTraceLimit: number = hook.hookSettings.stackTraceLimit;
-          stackTrace = hookManager.buildNativeStackTrace(this.context, stackTraceLimit);
+          try {
+            stackTrace = hookManager.stackTrace.build(hook.hookSettings.stackTraceLimit, hook.hookSettings.stackTraceFilter, this.context);
+          } catch (e) {
+            if (e instanceof FilterMismatchError) {
+              this.filtered = true;
+              return;
+            }
+            throw e; // re-throw stackTraceBuilder error
+          }
 
           if (hook.params) {
             // decode arguments onEnter
-            this.savedArgs = [];
-            for (let i = 0; i < hook.params.length; i++) {
-              this.savedArgs[i] = args[i];
-            }
-
             try {
               decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
             } catch (e) {
@@ -95,7 +99,13 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
                 this.filtered = true;
                 return;
               }
-              throw e;
+              throw e; // re-throw arg decoder error
+            }
+
+            // save arguments in case they need to be decoded onLeave
+            this.savedArgs = [];
+            for (let i = 0; i < hook.params.length; i++) {
+              this.savedArgs[i] = args[i];
             }
           }
         },
@@ -111,11 +121,13 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             }
           }
 
+          // decode ret value
           let decodedRetValue: DecodedValue | undefined;
           if (hook.retType) {
             decodedRetValue = retTypeDecoder.decode(returnValue);
           }
 
+          // send add to event log
           frooky.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, stackTrace));
         },
       });
@@ -152,21 +164,21 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     );
   }
 
-  private buildNativeStackTrace(ctx: CpuContext, limit: number): string[] {
-    const stackTrace: string[] = [];
-    try {
-      const btFull = Thread.backtrace(ctx, Backtracer.FUZZY);
-      const count = Math.min(limit, btFull.length);
-      for (let i = 0; i < count; i++) {
-        try {
-          stackTrace.push(DebugSymbol.fromAddress(btFull[i]).toString());
-        } catch (e) {
-          frooky.log.error(`Error during stack trace capture: ${e}`);
-        }
-      }
-    } catch (e) {
-      frooky.log.warn(`Native backtrace unavailable: ${e}`);
-    }
-    return stackTrace;
-  }
+  // private buildNativeStackTrace(ctx: CpuContext, limit: number): string[] {
+  //   const stackTrace: string[] = [];
+  //   try {
+  //     const btFull = Thread.backtrace(ctx, Backtracer.FUZZY);
+  //     const count = Math.min(limit, btFull.length);
+  //     for (let i = 0; i < count; i++) {
+  //       try {
+  //         stackTrace.push(DebugSymbol.fromAddress(btFull[i]).toString());
+  //       } catch (e) {
+  //         frooky.log.error(`Error during stack trace capture: ${e}`);
+  //       }
+  //     }
+  //   } catch (e) {
+  //     frooky.log.warn(`Native backtrace unavailable: ${e}`);
+  //   }
+  //   return stackTrace;
+  // }
 }

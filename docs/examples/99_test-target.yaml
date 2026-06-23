@@ -7,8 +7,8 @@ metadata:
 # global settings for the hooks in this hook file.
 settings:
   hookSettings:
-    stackTraceLimit: 10               # Sets stackTraceLimit to 10 for all hooks
-    eventFilter: ['^(?!android).*']   # Stack trace filters to apply.
+    stackTraceLimit: 5               # Sets stackTraceLimit to 10 for all hooks
+    # stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply.
   decoderSettings:
     fastDecode: true                  # If set, the decoders are instructed to 
 # prioritize speed over details. Mostly, this mean avoiding expensive Frida <-> 
@@ -211,72 +211,72 @@ hookGroup:
   - module: libreceiveFundamentalReference.so
     hooks:
     - symbol: receive_bool_ref
-      retType: bool
+      retType: bool*
       params:
       - [bool*, falseBoolRef]
       - [bool*, trueBoolRef]
     - symbol: receive_char_ref
-      retType: char
+      retType: char*
       params:
       - [char*, minAsciiRef]
       - [char*, maxAsciiRef]
     - symbol: receive_schar_ref
-      retType: schar
+      retType: schar*
       params:
       - [schar*, minScharRef]
       - [schar*, maxScharRef]
     - symbol: receive_uchar_ref
-      retType: uchar
+      retType: uchar*
       params:
       - [uchar*, minUcharRef]
       - [uchar*, maxUcharRef]
     - symbol: receive_short_ref
-      retType: short
+      retType: short*
       params:
       - [short*, minShortRef]
       - [short*, maxShortRef]
     - symbol: receive_ushort_ref
-      retType: ushort
+      retType: ushort*
       params:
       - [ushort*, minUshortRef]
       - [ushort*, maxUshortRef]
     - symbol: receive_int_ref
-      retType: int
+      retType: int*
       params:
       - [int*, minIntRef]
       - [int*, maxIntRef]
     - symbol: receive_uint_ref
-      retType: uint
+      retType: uint*
       params:
       - [uint*, minUintRef]
       - [uint*, maxUintRef]
     - symbol: receive_long_ref
-      retType: long
+      retType: long*
       params:
       - [long*, minLongRef]
       - [long*, maxLongRef]
     - symbol: receive_ulong_ref
-      retType: ulong
+      retType: ulong*
       params:
       - [ulong*, minUlongRef]
       - [ulong*, maxUlongRef]
     - symbol: receive_llong_ref
-      retType: llong
+      retType: llong*
       params:
       - [llong*, minLlongRef]
       - [llong*, maxLlongRef]
     - symbol: receive_ullong_ref
-      retType: ullong
+      retType: ullong*
       params:
       - [ullong*, minUllongRef]
       - [ullong*, maxUllongRef]
     - symbol: receive_float_ref
-      retType: float
+      retType: float*
       params:
       - [float*, minFloatRef]
       - [float*, maxFloatRef]
     - symbol: receive_double_ref
-      retType: double
+      retType: double*
       params:
       - [double*, minDoubleRef]
       - [double*, maxDoubleRef]
@@ -304,7 +304,7 @@ hookGroup:
 # decode argument: null terminated string 
   - module: libreceiveString.so
     hookSettings:
-      stackTraceLimit: 0
+      stackTraceLimit: 10
     decoderSettings:
       magicDecode: false
     hooks:
@@ -314,3 +314,17 @@ hookGroup:
     - symbol: receive_utf8
       params: 
       - [char *, string]
+
+  # Hook with named parameters (names provide context in output).
+  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+  - module: libc.so
+    hookSettings:
+      stackTraceLimit: 10
+      stackTraceFilter: ['^org\.owasp\.mastestapp']
+    hooks:
+    - symbol: open
+      retType: int
+      params:
+      - [const char *, path, { paramFilter: ['^/sdcard', '^/storage/emulated']}]
+      - [int, flags]
+      - [mode_t, mode]
