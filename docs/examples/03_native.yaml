@@ -134,6 +134,6 @@ hookGroup:
     - symbol: open
       retType: int
       params:
-      - [const char *, path, { filter: ['/sdcard', '/storage/emulated']}]
+      - [const char *, path, { filters: ['^/sdcard', '^/storage/emulated']}]
       - [int, flags]
       - [mode_t, mode]

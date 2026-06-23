@@ -10,7 +10,7 @@ export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
   decodeLimit: 1000,
   customDecoder: undefined,
   decoderArg: undefined,
-  filter: undefined,
+  filters: undefined,
 };
 
 export const DEFAULT_HOOK_SETTINGS: HookSettings = {

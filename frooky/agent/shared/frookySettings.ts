@@ -64,11 +64,11 @@ export interface DecoderSettings {
   decoderArg?: string;
 
   /**
-   * Regular expression for how an argument is filtered
+   * Regular expressions for how an argument is filtered
    *
    * @defaultValue undefined
    */
-  filter?: string;
+  filters?: string[];
 }
 
 export interface FrookySettings {

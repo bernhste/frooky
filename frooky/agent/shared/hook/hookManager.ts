@@ -13,7 +13,7 @@ export type ParamDecoder<TValue> = {
   decoderArg?: string;
   decoderArgIndex?: number;
   decoderArgDecoder?: Decoder<TValue>;
-  filter?: string;
+  filters?: string[];
 };
 
 export type DecodedArgs = {
@@ -87,7 +87,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decoderArg: param.settings.decoderArg,
         decoderArgIndex: decoderArgIndex,
         decoderArgDecoder: decoderArgDecoder,
-        filter: param.settings.filter,
+        filters: param.settings.filters,
       };
       frooky.log.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
       argDecoderSpecs.push(paramDecoder);
@@ -99,15 +99,15 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return this.decoderResolver.resolveDecoder(retType);
   }
 
-  protected matchesFilter(decodedValue: DecodedValue, filter?: string): boolean {
-    if (!filter) return true;
+  protected matchesFilter(decodedValue: DecodedValue, filters?: string[]): boolean {
+    console.log(JSON.stringify(filters, null, 2));
+    if (!filters || filters.length === 0) return true;
 
     const value = decodedValue.value;
 
     if (typeof value !== "string" && typeof value !== "number") return true;
 
-    const regex = new RegExp(filter);
-    return regex.test(String(value));
+    return filters.some((pattern) => new RegExp(pattern).test(String(value)));
   }
 
   protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[]): DecodedValue[] {
@@ -123,7 +123,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decodedDecoderArg = paramDecoder.decoderArgDecoder.decode(args[paramDecoder.decoderArgIndex]);
       }
       var decodedValue = paramDecoder.decoder.decode(args[paramDecoder.argIndex], decodedDecoderArg);
-      if (this.matchesFilter(decodedValue, paramDecoder.filter)) {
+      if (this.matchesFilter(decodedValue, paramDecoder.filters)) {
         decodedArgs.push(decodedValue);
       } else {
         throw new FilterMismatchError(decodedValue);
