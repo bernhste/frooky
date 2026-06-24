@@ -8,6 +8,7 @@ import { runTests } from "../testFramework";
 import "../testFramework.test.ts";
 
 // Import the dynamically generated index.test.ts
+import { AndroidStackTrace } from "../../android/androidStackTrace.ts";
 import "../../android/index.test";
 import "../../native/index.test";
 import "../../shared/index.test";
@@ -15,7 +16,14 @@ import "./index.test";
 
 Java.perform(() => {
   setTimeout(() => {
-    globalThis.frooky = new FrookyAgent("Android", new AndroidHookValidator(), new AndroidHookManager(), "none", "console");
+    globalThis.frooky = new FrookyAgent(
+      "Android",
+      new AndroidHookValidator(),
+      new AndroidHookManager(AndroidStackTrace),
+      AndroidStackTrace,
+      "none",
+      "console",
+    );
     runTests(send);
   }, 1000);
 });
