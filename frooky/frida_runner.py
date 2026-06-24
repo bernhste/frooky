@@ -129,7 +129,7 @@ class FrookyRunner:
                             # Store summary info and print once
                             self.total_hooks = parsed.get("totalHooks", 0)
                             self.total_errors = parsed.get("totalErrors", 0)
-                            self._print_hooks_line()
+                            # self._print_hooks_line()
                         elif event_type in ("hook", "native-hook", "objc-hook"):
                             # Count all hook event types
                             self.event_count += 1
@@ -271,7 +271,6 @@ class FrookyRunner:
             # Check if the agent is compiled and available
             script_path = files("frooky") / "agent" / "dist" / f"agent-{self.options.platform}.js"
             script_source = script_path.read_text(encoding="utf-8")
-            print(script_path)
             # Print header with all session info
             self._print_header()
 
