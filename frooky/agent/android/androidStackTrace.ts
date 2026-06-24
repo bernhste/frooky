@@ -6,7 +6,7 @@ export const AndroidStackTrace: PlatformStackTrace = {
   build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): string[] {
     // get native frames
     let nativeFrames: string[] = [];
-    if (ctx) {
+    if (ctx && !stackTraceFilter?.length) {
       try {
         nativeFrames = Thread.backtrace(ctx, Backtracer.FUZZY)
           .slice(0, limit)
@@ -17,16 +17,18 @@ export const AndroidStackTrace: PlatformStackTrace = {
       } catch (_) {}
     }
 
-    if (!Java.available) return nativeFrames;
-
-    let javaFrames: string[] = [];
-
-    // try to get VM
-    const env = Java.vm.tryGetEnv();
-    if (env === null) {
-      // pure native/platform thread, no Java above us
+    if (!Java.available) {
+      if (stackTraceFilter?.length) throw new FilterMismatchError();
       return nativeFrames;
     }
+
+    const env = Java.vm.tryGetEnv();
+    if (env === null) {
+      if (stackTraceFilter?.length) throw new FilterMismatchError();
+      return nativeFrames;
+    }
+
+    let javaFrames: string[] = [];
 
     Java.perform(() => {
       try {
@@ -42,6 +44,7 @@ export const AndroidStackTrace: PlatformStackTrace = {
       if (!matches) {
         throw new FilterMismatchError();
       }
+      return javaFrames;
     }
 
     return [...nativeFrames, ...javaFrames];

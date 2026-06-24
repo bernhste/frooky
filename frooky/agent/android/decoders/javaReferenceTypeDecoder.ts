@@ -3,6 +3,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
 import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
+import { ContentValuesDecoder } from "./android/content/ContentValuesDecoder";
 import { IntentDecoder } from "./android/content/IntentDecoder";
 import { BundleDecoder } from "./android/os/BundleDecoder";
 import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenParameterSpecDecoder";
@@ -17,6 +18,7 @@ const CLASS_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
   "android.content.ClipData$Item": ClipDataItemDecoder,
   "android.os.Bundle": BundleDecoder,
   "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,
+  "android.content.ContentValues": ContentValuesDecoder,
 };
 
 const INTERFACE_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
