@@ -35,7 +35,6 @@ export const AndroidStackTrace: PlatformStackTrace = {
         .map((frame) => `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`);
     });
 
-    // filter AFTER Java.perform, in the outer synchronous context
     if (stackTraceFilter && stackTraceFilter.length > 0) {
       const matches = javaFrames.some((line) => stackTraceFilter.some((pattern) => new RegExp(pattern).test(line)));
       if (!matches) {

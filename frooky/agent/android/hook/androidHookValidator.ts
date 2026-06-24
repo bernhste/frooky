@@ -5,7 +5,7 @@ import { HookValidator } from "../../shared/hook/hookValidator";
 import { InputJavaHookGroup, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookGroup } from "../../shared/inputParsing/inputJavaHookGroup";
 import { inputJavaHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputJavaHookGroup.zod";
 
-export class JavaHookValidator implements HookValidator<InputJavaHookNormalized, InputJavaHookGroup> {
+export class AndroidHookValidator implements HookValidator<InputJavaHookNormalized, InputJavaHookGroup> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputJavaHookNormalized[] {
     const javaHookGroups = this.getPlatformHookGroups(inputFrookyConfig);
     const normalizedJavaHooks: InputJavaHookNormalized[] = [];

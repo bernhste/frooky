@@ -8,7 +8,7 @@ import { ObjcHook } from "./objcHook";
  * IMPORTANT: This is just a place holder file!
  * At the moment, only native hooks can be used on iOS
  */
-export class ObjcHookManager extends HookManager<InputObjcHookNormalized, ObjcHook, NativePointer> {
+export class IosHookManager extends HookManager<InputObjcHookNormalized, ObjcHook, NativePointer> {
   constructor(platformStackTrace: PlatformStackTrace) {
     super(ObjcDecoderResolver, platformStackTrace);
   }

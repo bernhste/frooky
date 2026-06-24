@@ -3,8 +3,8 @@ import { FrookyAgent } from "../FrookyAgent";
 import { DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "../shared/defaultValues";
 import { InputFrookyConfig } from "../shared/frookyConfig";
 import { AndroidStackTrace } from "./androidStackTrace";
-import { JavaHookManager } from "./hook/javaHookManager";
-import { JavaHookValidator } from "./hook/javaHookValidator";
+import { AndroidHookManager } from "./hook/androidHookManager";
+import { AndroidHookValidator } from "./hook/androidHookValidator";
 
 var frookyConfigs: InputFrookyConfig[];
 
@@ -16,8 +16,8 @@ if (Java.available) {
   Java.perform(() => {
     globalThis.frooky = new FrookyAgent(
       "Android",
-      new JavaHookValidator(),
-      new JavaHookManager(AndroidStackTrace),
+      new AndroidHookValidator(),
+      new AndroidHookManager(AndroidStackTrace),
       AndroidStackTrace,
       "debug",
       DEFAULT_SETTING_LOG_TO,

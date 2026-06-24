@@ -2,7 +2,7 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { HookEvent } from "../../shared/event/hookEvent";
 import { DecodedArgs } from "../../shared/hook/hookManager";
 import { JavaHook } from "../hook/javaHook";
-import { FieldType } from "../hook/javaHookManager";
+import { FieldType } from "./androidHookManager";
 
 /**
  * Class representing a java hook event

@@ -4,16 +4,16 @@ import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESO
 import { InputFrookyConfig } from "../shared/frookyConfig";
 import { LogLevel, LogTo } from "../shared/logger";
 import { AndroidStackTrace } from "./androidStackTrace";
-import { JavaHookManager } from "./hook/javaHookManager";
-import { JavaHookValidator } from "./hook/javaHookValidator";
+import { AndroidHookManager } from "./hook/androidHookManager";
+import { AndroidHookValidator } from "./hook/androidHookValidator";
 
 rpc.exports = {
   initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
     if (Java.available) {
       globalThis.frooky = new FrookyAgent(
         "Android",
-        new JavaHookValidator(),
-        new JavaHookManager(AndroidStackTrace),
+        new AndroidHookValidator(),
+        new AndroidHookManager(AndroidStackTrace),
         AndroidStackTrace,
         logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
         logTo ?? DEFAULT_SETTING_LOG_TO,

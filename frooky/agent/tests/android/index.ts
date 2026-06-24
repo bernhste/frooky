@@ -1,6 +1,6 @@
 import Java from "frida-java-bridge";
-import { JavaHookManager } from "../../android/hook/javaHookManager.ts";
-import { JavaHookValidator } from "../../android/hook/javaHookValidator.ts";
+import { AndroidHookManager } from "../../android/hook/androidHookManager.ts";
+import { AndroidHookValidator } from "../../android/hook/androidHookValidator.ts";
 import { FrookyAgent } from "../../FrookyAgent.ts";
 import { runTests } from "../testFramework";
 
@@ -15,7 +15,7 @@ import "./index.test";
 
 Java.perform(() => {
   setTimeout(() => {
-    globalThis.frooky = new FrookyAgent("Android", new JavaHookValidator(), new JavaHookManager(), "none", "console");
+    globalThis.frooky = new FrookyAgent("Android", new AndroidHookValidator(), new AndroidHookManager(), "none", "console");
     runTests(send);
   }, 1000);
 });

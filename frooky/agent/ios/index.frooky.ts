@@ -3,17 +3,22 @@ import { FrookyAgent } from "../FrookyAgent";
 import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "../shared/defaultValues";
 import { InputFrookyConfig } from "../shared/frookyConfig";
 import { LogLevel, LogTo } from "../shared/logger";
-import { ObjcHookManager } from "./hook/objcHookManager";
-import { ObjcHookValidator } from "./hook/objcHookValidator";
+import { IosHookManager } from "./hook/iosHookManager";
+import { IosHookValidator } from "./hook/iosHookValidator";
 import { IosStackTrace } from "./iosStackTrace";
 
+/**
+ * IMPORTANT: This is just a place holder file!
+ * At the moment, only native hooks can be used on iOS
+ */
+console.warn("!!! The frooky iOS agent only works wit native hooks at the moment !!!");
 rpc.exports = {
   initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
     if (ObjC.available) {
       globalThis.frooky = new FrookyAgent(
         "iOS",
-        new ObjcHookValidator(),
-        new ObjcHookManager(IosStackTrace),
+        new IosHookValidator(),
+        new IosHookManager(IosStackTrace),
         IosStackTrace,
         logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
         logTo ?? DEFAULT_SETTING_LOG_TO,

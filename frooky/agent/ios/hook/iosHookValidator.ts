@@ -7,7 +7,7 @@ import { InputObjcHookGroup, InputObjcHookNormalized, isObjcHookScope } from "..
  * IMPORTANT: This is just a place holder file!
  * At the moment, only native hooks can be used on iOS
  */
-export class ObjcHookValidator implements HookValidator<InputObjcHookNormalized, InputObjcHookGroup> {
+export class IosHookValidator implements HookValidator<InputObjcHookNormalized, InputObjcHookGroup> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputObjcHookNormalized[] {
     const normalizedJavaHooks: InputObjcHookNormalized[] = [];
     return normalizedJavaHooks;

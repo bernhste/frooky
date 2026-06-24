@@ -7,6 +7,6 @@ export * from './decoders/javaArrayDecoder.test';
 export * from './decoders/javaBasicDecoder.test';
 export * from './decoders/javaDecoderResolver.test';
 export * from './decoders/javaReferenceTypeDecoder.test';
-export * from './hook/javaHookManager.test';
-export * from './hook/javaHookValidator.test';
+export * from './hook/androidHookManager.test';
+export * from './hook/androidHookValidator.test';
 

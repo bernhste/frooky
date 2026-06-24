@@ -19,7 +19,7 @@ export type FieldType = {
 };
 
 // resolve java classes, the method and their overloads
-export class JavaHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
+export class AndroidHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
   constructor(platformStackTrace: PlatformStackTrace) {
     super(JavaDecoderResolver, platformStackTrace);
   }
