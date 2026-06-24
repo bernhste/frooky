@@ -30,17 +30,18 @@ export const AndroidStackTrace: PlatformStackTrace = {
 
     Java.perform(() => {
       const javaStackTrace = Java.backtrace({ limit });
-      javaFrames = Array.from({ length: Math.min(limit, javaStackTrace.frames.length) }, (_, i) => {
-        const frame = javaStackTrace.frames[i];
-        return `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`;
-      });
-
-      // filter
-      if (stackTraceFilter && stackTraceFilter.length > 0) {
-        const matches = javaStackTrace.frames.some((frame) => stackTraceFilter.some((pattern) => new RegExp(pattern).test(frame.className)));
-        if (!matches) throw new FilterMismatchError();
-      }
+      javaFrames = javaStackTrace.frames
+        .slice(0, limit)
+        .map((frame) => `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`);
     });
+
+    // filter AFTER Java.perform, in the outer synchronous context
+    if (stackTraceFilter && stackTraceFilter.length > 0) {
+      const matches = javaFrames.some((line) => stackTraceFilter.some((pattern) => new RegExp(pattern).test(line)));
+      if (!matches) {
+        throw new FilterMismatchError();
+      }
+    }
 
     return [...nativeFrames, ...javaFrames];
   },
