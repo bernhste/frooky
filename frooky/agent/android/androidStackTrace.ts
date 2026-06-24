@@ -8,7 +8,7 @@ export const AndroidStackTrace: PlatformStackTrace = {
     let nativeFrames: string[] = [];
     if (ctx) {
       try {
-        nativeFrames = Thread.backtrace(ctx, Backtracer.ACCURATE)
+        nativeFrames = Thread.backtrace(ctx, Backtracer.FUZZY)
           .slice(0, limit)
           .map((addr) => {
             const sym = DebugSymbol.fromAddress(addr);
@@ -29,10 +29,12 @@ export const AndroidStackTrace: PlatformStackTrace = {
     }
 
     Java.perform(() => {
-      const javaStackTrace = Java.backtrace({ limit });
-      javaFrames = javaStackTrace.frames
-        .slice(0, limit)
-        .map((frame) => `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`);
+      try {
+        const javaStackTrace = Java.backtrace();
+        javaFrames = javaStackTrace.frames
+          .slice(0, limit)
+          .map((frame) => `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`);
+      } catch (_) {}
     });
 
     if (stackTraceFilter && stackTraceFilter.length > 0) {

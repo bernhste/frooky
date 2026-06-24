@@ -164,7 +164,8 @@ export class FrookyAgent {
       }),
     ]);
     if (countSuccessfulPlatformHooks === 0 && countSuccessfulNativeHooks === 0) {
-      frooky.log.warn(`No hooks were loaded. Either the hook file was empty, or the declared hooks could not be resolved.`);
+      // TODO: FIX, is shown even if all is
+      // frooky.log.warn(`No hooks were loaded. Either the hook file was empty, or the declared hooks could not be resolved.`);
     }
   }
 
