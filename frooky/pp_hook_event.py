@@ -1,7 +1,7 @@
 import pprint as _pprint
 
-_SEP_LEN = 160
-_LINE_MAX = 159
+_SEP_LEN = 120
+_LINE_MAX = 119
 _WRAP_INDENT = "    "
 _LABEL_ARGS_IN = "  args in   :  "
 _LABEL_ARGS_OUT = "  args out  :  "
