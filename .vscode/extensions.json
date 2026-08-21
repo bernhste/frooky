@@ -1,7 +1,6 @@
 {
   "recommendations": [
-    "biomejs.biome",
-    "charliermarsh.ruff",
+    "ms-python.python",
     "DavidAnson.vscode-markdownlint"
   ]
 }

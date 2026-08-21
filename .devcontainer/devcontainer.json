@@ -1,0 +1,25 @@
+{
+  "name": "frooky",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "containerEnv": {
+    "VIRTUAL_ENV": "/opt/venv"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/node:2.1.0": {
+      "version": "lts"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/opt/venv/bin/python"
+      },
+      "extensions": [
+        "ms-python.python",
+        "DavidAnson.vscode-markdownlint"
+      ]
+    }
+  }
+}
