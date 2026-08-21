@@ -3,12 +3,11 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "containerEnv": {
-    "VIRTUAL_ENV": "/opt/venv"
-  },
   "mounts": [
-    "source=frooky-bashhistory,target=/commandhistory,type=volume"
+    "source=${localWorkspaceFolderBasename}-bashhistory,target=/commandhistory,type=volume",
+    "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/frooky/agent/node_modules,type=volume"
   ],
+  "postCreateCommand": "sudo chown -R vscode:vscode /commandhistory ${containerWorkspaceFolder}/frooky/agent/node_modules &&  ./compileAgent.sh --dev && pip install -e .",
   "features": {
     "ghcr.io/devcontainers/features/node:2.1.0": {
       "version": "lts"
