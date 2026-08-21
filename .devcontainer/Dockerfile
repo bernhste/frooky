@@ -5,6 +5,7 @@ RUN apt-get update \
         python3 \
         python3-venv \
         python3-pip \
+        adb \
     && rm -rf /var/lib/apt/lists/*
 
 ARG USERNAME=vscode

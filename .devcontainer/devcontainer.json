@@ -3,6 +3,13 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
+  "runArgs": [
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "containerEnv": {
+    "ANDROID_ADB_SERVER_ADDRESS": "host.docker.internal",
+    "ANDROID_ADB_SERVER_PORT": "5037"
+  },
   "mounts": [
     "source=${localWorkspaceFolderBasename}-bashhistory,target=/commandhistory,type=volume",
     "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/frooky/agent/node_modules,type=volume"
