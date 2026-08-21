@@ -6,6 +6,9 @@
   "containerEnv": {
     "VIRTUAL_ENV": "/opt/venv"
   },
+  "mounts": [
+    "source=frooky-bashhistory,target=/commandhistory,type=volume"
+  ],
   "features": {
     "ghcr.io/devcontainers/features/node:2.1.0": {
       "version": "lts"
