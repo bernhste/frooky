@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "frooky"
 dynamic = ["version"]
-description = "Frida-powered hook runner based on JSON hook files."
+description = "Frida-powered hook runner based on YAML hook files."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-only"
@@ -23,22 +23,23 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Programming Language :: JavaScript",
   "Topic :: Security",
   "Topic :: Software Development :: Debuggers",
 ]
 
 dependencies = [
-  "frida>=17.6.2",
-  "frida-tools>=14.5.1",
-  "pyyaml>=6.0",
+  "frida>=17.17.0",
+  "frida-tools>=14.10.4",
+  "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.0.0",
+  "pytest>=9.1.1",
   "pytest-reportlog>=1.0.0",
-  "pytest-cov>=4.1.0",
+  "pytest-cov>=7.1.0",
   "pylint-pytest>=1.1.8"
 ]
 
