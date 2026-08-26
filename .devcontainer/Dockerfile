@@ -1,3 +1,4 @@
+
 FROM mcr.microsoft.com/devcontainers/base:trixie
 
 RUN apt-get update \
@@ -6,6 +7,9 @@ RUN apt-get update \
         python3-venv \
         python3-pip \
         adb \
+        openjdk-21-jdk-headless \
+        unzip \
+        wget \
     && rm -rf /var/lib/apt/lists/*
 
 ARG USERNAME=vscode
@@ -20,3 +24,31 @@ RUN mkdir -p /commandhistory \
     && chown -R $USERNAME /commandhistory \
     && echo "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" >> "/home/$USERNAME/.bashrc" \
     && echo "export HISTFILE=/commandhistory/.zsh_history\nsetopt INC_APPEND_HISTORY" >> "/home/$USERNAME/.zshrc"
+
+# --- Android SDK / NDK / CMake ---
+ARG CMDLINE_TOOLS_VERSION=15859902
+ARG PLATFORM_VERSION=36
+ARG BUILD_TOOLS_VERSION=36.0.0
+ARG NDK_VERSION=27.3.13750724
+ARG CMAKE_VERSION=3.22.1
+
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV ANDROID_HOME=$ANDROID_SDK_ROOT
+ENV ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${NDK_VERSION}
+ENV PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_NDK_HOME
+
+RUN mkdir -p $ANDROID_SDK_ROOT/cmdline-tools \
+    && wget -q "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip" -O /tmp/cmdline-tools.zip \
+    && unzip -q /tmp/cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools \
+    && mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest \
+    && rm /tmp/cmdline-tools.zip
+
+RUN yes | sdkmanager --licenses > /dev/null \
+    && sdkmanager \
+        "platform-tools" \
+        "platforms;android-${PLATFORM_VERSION}" \
+        "build-tools;${BUILD_TOOLS_VERSION}" \
+        "ndk;${NDK_VERSION}" \
+        "cmake;${CMAKE_VERSION}"
+
+RUN chown -R $USERNAME:$USERNAME $ANDROID_SDK_ROOT

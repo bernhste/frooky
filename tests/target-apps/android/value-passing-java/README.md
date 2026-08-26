@@ -1,6 +1,8 @@
-# Basic Parameter Target App
+# Value Passing Java
 
-This app implements methods with common parameters such as:
+The app implements Java / Kotlin code which passes various values to methods which in turn return the same value again.
+
+Examples are:
 
 1. **Primitives**
    - `int`, `long`, `short`, `byte`
