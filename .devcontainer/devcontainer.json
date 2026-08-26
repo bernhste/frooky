@@ -17,7 +17,7 @@
     "source=${localWorkspaceFolderBasename}-gradle-cache,target=/home/vscode/.gradle,type=volume",
     "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/frooky/agent/node_modules,type=volume"
   ],
-  "postCreateCommand": "sudo chown -R vscode:vscode /commandhistory ${containerWorkspaceFolder}/frooky/agent/node_modules /home/vscode/.gradle && ./compileAgent.sh --dev && pip install -e .",
+  "postCreateCommand": "sudo chown -R vscode:vscode /commandhistory ${containerWorkspaceFolder}/frooky/agent/node_modules /home/vscode/.gradle && ./.devcontainer/setup-arm64-android-tools.sh && ./compileAgent.sh --dev && pip install -e .",
   "features": {
     "ghcr.io/devcontainers/features/node:2.1.0": {
       "version": "lts"

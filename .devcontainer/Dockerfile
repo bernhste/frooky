@@ -1,4 +1,3 @@
-
 FROM mcr.microsoft.com/devcontainers/base:trixie
 
 RUN apt-get update \
@@ -9,7 +8,8 @@ RUN apt-get update \
         adb \
         openjdk-21-jdk-headless \
         unzip \
-        wget \
+        cmake \
+        ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
 ARG USERNAME=vscode
@@ -27,8 +27,8 @@ RUN mkdir -p /commandhistory \
 
 # --- Android SDK / NDK / CMake ---
 ARG CMDLINE_TOOLS_VERSION=15859902
-ARG PLATFORM_VERSION=36
-ARG BUILD_TOOLS_VERSION=36.0.0
+ARG PLATFORM_VERSION=35
+ARG BUILD_TOOLS_VERSION=35.0.1
 ARG NDK_VERSION=27.3.13750724
 ARG CMAKE_VERSION=3.22.1
 
@@ -37,8 +37,12 @@ ENV ANDROID_HOME=$ANDROID_SDK_ROOT
 ENV ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/${NDK_VERSION}
 ENV PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$ANDROID_NDK_HOME
 
+ENV ANDROID_BUILD_TOOLS_VERSION=${BUILD_TOOLS_VERSION}
+ENV ANDROID_CMAKE_VERSION=${CMAKE_VERSION}
+
+
 RUN mkdir -p $ANDROID_SDK_ROOT/cmdline-tools \
-    && wget -q "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip" -O /tmp/cmdline-tools.zip \
+    && curl -fsSL "https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip" -o /tmp/cmdline-tools.zip \ 
     && unzip -q /tmp/cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools \
     && mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest \
     && rm /tmp/cmdline-tools.zip
@@ -49,6 +53,5 @@ RUN yes | sdkmanager --licenses > /dev/null \
         "platforms;android-${PLATFORM_VERSION}" \
         "build-tools;${BUILD_TOOLS_VERSION}" \
         "ndk;${NDK_VERSION}" \
-        "cmake;${CMAKE_VERSION}"
-
-RUN chown -R $USERNAME:$USERNAME $ANDROID_SDK_ROOT
+        "cmake;${CMAKE_VERSION}" \
+    && chown -R $USERNAME:$USERNAME $ANDROID_SDK_ROOT
