@@ -10,7 +10,7 @@
   "initializeCommand": "bash .devcontainer/host-services-start.sh",
   "containerEnv": {
     "APPIUM_URL": "http://host.docker.internal:4723",
-    "": "host.docker.internal:27042",
+    "FRIDA_HOST": "host.docker.internal:27042",
     "ADB_SERVER_SOCKET": "tcp:host.docker.internal:5037"
   },
   "mounts": [
