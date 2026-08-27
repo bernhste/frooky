@@ -40,7 +40,9 @@ dev = [
   "pytest>=8.0.0,<8.2.1",
   "pytest-reportlog>=1.0.0",
   "pytest-cov>=7.1.0",
-  "pylint-pytest>=1.1.8"
+  "pylint-pytest>=1.1.8",
+  "Appium-Python-Client>=6.0.0",
+  "selenium>=4.47.0"
 ]
 
 [project.urls]
