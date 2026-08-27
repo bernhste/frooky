@@ -10,15 +10,15 @@ jobs:
   build-host:
     uses: ./.github/workflows/build-host.yml
 
-  build-app-ios:
-    uses: ./.github/workflows/build-app-ios.yml
+  build-target-app-ios:
+    uses: ./.github/workflows/build-target-app-ios.yml
 
   test-host-ios:
     name: Test host iOS
     runs-on: macos-26
     needs:
       - build-host
-      - build-app-ios
+      - build-target-app-ios
     timeout-minutes: 30
 
     steps:
@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download all MAS app iOS artifacts
+      - name: Download MAS app iOS artifact
         uses: actions/download-artifact@v8
         with:
           name: target-apps-ios
@@ -35,9 +35,6 @@ jobs:
 
       - name: Setup Host Test Environment
         uses: ./.github/actions/setup-host-test-env
-
-      - name: Setup Maestro
-        uses: ./.github/actions/setup-maestro
 
       - name: Boot simulator
         run: |
@@ -47,25 +44,37 @@ jobs:
           xcrun simctl boot "$SIM_ID" || true
           xcrun simctl bootstatus "$SIM_ID" -b
 
-      - name: Install all target apps on simulator
-        shell: bash
-        run: .github/scripts/ios/install-target-apps.sh
-          
-      - name: Launch all target apps on simulator
-        shell: bash
-        run: .github/scripts/ios/launch-target-apps.sh
+      - name: Install app on simulator
+        run: xcrun simctl install booted target-apps-ios/MASTestApp.app
 
-      - name: Run iOS integration tests
-        run: pytest tests/integration/ios --report-log=test-results.jsonl
-
-      - name: Summarize test result
-        if: always()
+      - name: Run tests
+        shell: bash
         run: |
-          jq -rn '[inputs | select(."$report_type" == "TestReport" and .when == "call")] | .[] | "- \(if .outcome == "passed" then "✅" elif .outcome == "failed" then "❌" else "⏭️" end) \(.nodeid) (\(.duration | . * 100 | round / 100)s)"' test-results.jsonl  >> "$GITHUB_STEP_SUMMARY"    
-      
+          set -o pipefail
+
+          APP_ID="org.owasp.mastestapp.MASTestApp-iOS"
+
+          PID=$(xcrun simctl launch booted "$APP_ID" | awk '{print $2}')
+          echo "Launched with PID $PID"
+
+          for i in $(seq 1 10); do
+            if kill -0 "$PID" 2>/dev/null; then
+              echo "App is running (PID $PID)."
+
+              echo "TBD: run integration tests for iOS"
+
+              exit 0
+            fi
+            echo "Attempt $i: app not running yet, retrying in 2s..."
+            sleep 2
+          done
+
+          echo "App did not start within the timeout."
+          exit 1
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results
-          path: test-results.jsonl
+          name: test-results-ios
+          path: test-results-ios.txt

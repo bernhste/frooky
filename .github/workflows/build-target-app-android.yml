@@ -12,8 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  build-app-android:
-    name: Build & Upload Android App
+  build-target-app-android:
+    name: Build & Upload Android App Target App
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
