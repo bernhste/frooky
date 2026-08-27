@@ -17,7 +17,6 @@ if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
     ln -sf /usr/bin/ninja "${SDK_PATH}/cmake/${ANDROID_CMAKE_VERSION}/bin/ninja"
 
     # Configure Gradle override inside the mounted volume
-    mkdir -p /home/vscode/.gradle
     GRADLE_PROP="/home/vscode/.gradle/gradle.properties"
     OVERRIDE_KEY="android.aapt2FromMavenOverride"
     
@@ -26,4 +25,11 @@ if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
     else
         echo "${OVERRIDE_KEY}=${SDK_PATH}/build-tools/${ANDROID_BUILD_TOOLS_VERSION}/aapt2" >> "${GRADLE_PROP}"
     fi
+
+    # Replace NDK with https://github.com/HomuHomu833/android-ndk-custom for alpine linux /arm64 (android-ndk-r27d-aarch64-linux-musl.tar.xz)
+    echo "Installing ARM64 Android NDK for alpine linux environments..."
+    rm -rf /opt/android-sdk/ndk/27.0.12077973
+    mkdir -p /opt/android-sdk/ndk/27.0.12077973
+    curl -fsSL https://github.com/HomuHomu833/android-ndk-custom/releases/download/r27/android-ndk-r27d-aarch64-linux-musl.tar.xz -o /opt/android-sdk/android-ndk-r27d-aarch64-linux-musl.tar.xz
+    tar -xf /opt/android-sdk/android-ndk-r27d-aarch64-linux-musl.tar.xz -C /opt/android-sdk/ndk/27.0.12077973 --strip-components=1
 fi

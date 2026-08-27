@@ -27,9 +27,11 @@ RUN mkdir -p /commandhistory \
 
 # --- Android SDK / NDK / CMake ---
 ARG CMDLINE_TOOLS_VERSION=15859902
-ARG PLATFORM_VERSION=35
-ARG BUILD_TOOLS_VERSION=35.0.0
-ARG NDK_VERSION=27.0.12077973
+# Version 36 is required for android-arm-build-tools used in linux/arm64 environments
+ARG PLATFORM_VERSION=36
+ARG BUILD_TOOLS_VERSION=36.0.0
+# NDK 27d
+ARG NDK_VERSION=27.0.12077973 
 ARG CMAKE_VERSION=3.22.1
 
 ENV ANDROID_SDK_ROOT=/opt/android-sdk

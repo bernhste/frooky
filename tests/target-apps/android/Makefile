@@ -46,6 +46,12 @@ build: $(BUILD_DIR) $(DIST_DIR)
 			"$(GRADLE_FILE)" && \
 		echo "Set applicationId to $(APP_ID)" || true
 
+# set the compileSdk to 36 in oder to enable compilation on linux/arm64 environments
+	@[ -n "$(TARGET_APP)" ] && \
+		perl -i -pe 's|compileSdk = \d+|compileSdk = 36|' \
+			"$(GRADLE_FILE)" && \
+		echo "Set compileSdk to 36" || true
+
 	@[ -f "$(TARGET_APP)/MastgTest.kt" ] && \
 		cp -f "$(TARGET_APP)/MastgTest.kt" \
 			"$(BUILD_DIR)/app/src/main/java/org/owasp/mastestapp/MastgTest.kt" && \
