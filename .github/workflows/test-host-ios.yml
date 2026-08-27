@@ -45,7 +45,10 @@ jobs:
           xcrun simctl bootstatus "$SIM_ID" -b
 
       - name: Install app on simulator
-        run: xcrun simctl install booted target-apps-ios/MASTestApp.app
+        run: |
+          for app in target-apps-ios/*.app; do
+            xcrun simctl install booted "$app"
+          done
 
       - name: Run tests
         shell: bash
