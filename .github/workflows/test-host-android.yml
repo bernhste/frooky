@@ -60,7 +60,9 @@ jobs:
             .github/scripts/android/install-frida-server.sh
 
             echo "Installing target app"
-            adb install target-apps-android/MASTestApp.apk
+            for apk in target-apps-android/*.apk; do
+              adb install "$apk"
+            done
 
             echo "TBD: run integration tests for Android"
 
