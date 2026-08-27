@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project("value-passing-native", C)
+project(value-passing-native C)
 
 add_library(receiveFundamentalValue SHARED receiveFundamentalValue.c)
 add_library(receiveFundamentalReference SHARED receiveFundamentalReference.c)

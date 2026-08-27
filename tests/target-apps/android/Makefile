@@ -10,8 +10,7 @@ ifdef TARGET_APP
 
   APP_ID    := $(subst -,_,$(TARGET_APP)).frooky.target.app
   BUILD_DIR := $(_APP_ABS)/build
-  CLONE_DIR := $(BUILD_DIR)/mas-app-android
-  APK_SRC   := $(CLONE_DIR)/app/build/outputs/apk/debug/app-debug.apk
+  APK_SRC   := $(BUILD_DIR)/app/build/outputs/apk/debug/app-debug.apk
   APK_DST   := $(DIST_DIR)/$(TARGET_APP).apk
 endif
 
@@ -26,46 +25,46 @@ ALL_APPS := $(shell find . -maxdepth 1 -mindepth 1 -type d \
 build: $(BUILD_DIR) $(DIST_DIR)
 	@[ -n "$(TARGET_APP)" ] || { echo "ERROR: TARGET_APP is required. Usage: make build TARGET_APP=<name>"; exit 1; }
 
-	@if [ ! -d "$(CLONE_DIR)/.git" ]; then \
-		git clone $(REPO_URL) $(CLONE_DIR); \
+	@if [ ! -d "$(BUILD_DIR)/.git" ]; then \
+		git clone $(REPO_URL) $(BUILD_DIR); \
 	else \
 		echo "Repo already cloned, skipping git clone."; \
 	fi
 
 	@[ -n "$(TARGET_APP)" ] && \
 		perl -i -pe 's|applicationId = "org.owasp.mastestapp"|applicationId = "$(APP_ID)"|' \
-			"$(CLONE_DIR)/app/build.gradle.kts" && \
+			"$(BUILD_DIR)/app/build.gradle.kts" && \
 		echo "Set applicationId to $(APP_ID)" || true
 
 	@[ -f "$(TARGET_APP)/MastgTest.kt" ] && \
 		cp -f "$(TARGET_APP)/MastgTest.kt" \
-			"$(CLONE_DIR)/app/src/main/java/org/owasp/mastestapp/MastgTest.kt" && \
+			"$(BUILD_DIR)/app/src/main/java/org/owasp/mastestapp/MastgTest.kt" && \
 		echo "Copied MastgTest.kt" || true
 
 	@[ -f "$(TARGET_APP)/build.gradle.kts.libs" ] && \
 		perl -i -pe "s|// ADD_LIBS_HERE|$$(cat "$(TARGET_APP)/build.gradle.kts.libs")|" \
-			"$(CLONE_DIR)/app/build.gradle.kts" && \
+			"$(BUILD_DIR)/app/build.gradle.kts" && \
 		echo "Added libs in build.gradle.kts" || true
 
 	@[ -f "$(TARGET_APP)/build.gradle.kts.sections" ] && \
 		perl -i -pe "s|// ADD_SECTIONS_HERE|$$(cat "$(TARGET_APP)/build.gradle.kts.sections")|" \
-			"$(CLONE_DIR)/app/build.gradle.kts" && \
+			"$(BUILD_DIR)/app/build.gradle.kts" && \
 		echo "Added section in build.gradle.kts" || true
 
 	@[ -f "$(TARGET_APP)/AndroidManifest.xml" ] && \
-			cp "$(TARGET_APP)/AndroidManifest.xml" "$(CLONE_DIR)/app/src/main/AndroidManifest.xml" && \
+			cp "$(TARGET_APP)/AndroidManifest.xml" "$(BUILD_DIR)/app/src/main/AndroidManifest.xml" && \
 			echo "Replaced AndroidManifest.xml" || true
 
 	@[ -d "$(TARGET_APP)/cpp" ] && \
-			cp -R "$(TARGET_APP)/cpp" "$(CLONE_DIR)/app/cpp" && \
+			cp -R "$(TARGET_APP)/cpp" "$(BUILD_DIR)/app/cpp" && \
 			echo "Copied native source code folder." || true
 
-	@[ -f "$(CLONE_DIR)/app/src/main/res/values/strings.xml" ] && \
+	@[ -f "$(BUILD_DIR)/app/src/main/res/values/strings.xml" ] && \
 			perl -i -pe "s|<string name=\"app_name\">MASTestApp</string>|<string name=\"app_name\">frooky: $(TARGET_APP)</string>|" \
-					"$(CLONE_DIR)/app/src/main/res/values/strings.xml" && \
+					"$(BUILD_DIR)/app/src/main/res/values/strings.xml" && \
 			echo "Replaced app_name in strings.xml" || true
 
-	cd $(CLONE_DIR) && JAVA_HOME="$(JAVA_HOME)" ./gradlew assembleDebug
+	cd $(BUILD_DIR) && JAVA_HOME="$(JAVA_HOME)" ./gradlew assembleDebug
 	mv $(APK_SRC) $(APK_DST)
 	@echo "APK available at: $(APK_DST)"
 
