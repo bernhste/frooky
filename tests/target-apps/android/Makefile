@@ -20,6 +20,16 @@ ALL_APPS := $(shell find . -maxdepth 1 -mindepth 1 -type d \
 	! -name dist ! -name '.*' \
 	-exec basename {} \;)
 
+GRADLE_FILE = $(BUILD_DIR)/app/build.gradle.kts
+
+# $(call inject,<snippet file suffix>,<marker>)
+define inject
+@[ -f "$(TARGET_APP)/build.gradle.kts.$(1)" ] && \
+	perl -i -pe "s|// $(2)|$$(cat "$(TARGET_APP)/build.gradle.kts.$(1)")|" \
+		"$(GRADLE_FILE)" && \
+	echo "Injected build.gradle.kts.$(1) at // $(2)" || true
+endef
+
 .PHONY: build build-all install install-all uninstall uninstall-all clean clean-all
 
 build: $(BUILD_DIR) $(DIST_DIR)
@@ -33,7 +43,7 @@ build: $(BUILD_DIR) $(DIST_DIR)
 
 	@[ -n "$(TARGET_APP)" ] && \
 		perl -i -pe 's|applicationId = "org.owasp.mastestapp"|applicationId = "$(APP_ID)"|' \
-			"$(BUILD_DIR)/app/build.gradle.kts" && \
+			"$(GRADLE_FILE)" && \
 		echo "Set applicationId to $(APP_ID)" || true
 
 	@[ -f "$(TARGET_APP)/MastgTest.kt" ] && \
@@ -41,28 +51,24 @@ build: $(BUILD_DIR) $(DIST_DIR)
 			"$(BUILD_DIR)/app/src/main/java/org/owasp/mastestapp/MastgTest.kt" && \
 		echo "Copied MastgTest.kt" || true
 
-	@[ -f "$(TARGET_APP)/build.gradle.kts.libs" ] && \
-		perl -i -pe "s|// ADD_LIBS_HERE|$$(cat "$(TARGET_APP)/build.gradle.kts.libs")|" \
-			"$(BUILD_DIR)/app/build.gradle.kts" && \
-		echo "Added libs in build.gradle.kts" || true
-
-	@[ -f "$(TARGET_APP)/build.gradle.kts.sections" ] && \
-		perl -i -pe "s|// ADD_SECTIONS_HERE|$$(cat "$(TARGET_APP)/build.gradle.kts.sections")|" \
-			"$(BUILD_DIR)/app/build.gradle.kts" && \
-		echo "Added section in build.gradle.kts" || true
+	$(call inject,plugins,ADD_PLUGINS_HERE)
+	$(call inject,build,ADD_BUILD_HERE)
+	$(call inject,android,ADD_ANDROID_HERE)
+	$(call inject,sections,ADD_SECTIONS_HERE)
+	$(call inject,libs,ADD_LIBS_HERE)
 
 	@[ -f "$(TARGET_APP)/AndroidManifest.xml" ] && \
-			cp "$(TARGET_APP)/AndroidManifest.xml" "$(BUILD_DIR)/app/src/main/AndroidManifest.xml" && \
-			echo "Replaced AndroidManifest.xml" || true
+		cp "$(TARGET_APP)/AndroidManifest.xml" "$(BUILD_DIR)/app/src/main/AndroidManifest.xml" && \
+		echo "Replaced AndroidManifest.xml" || true
 
 	@[ -d "$(TARGET_APP)/cpp" ] && \
-			cp -R "$(TARGET_APP)/cpp" "$(BUILD_DIR)/app/cpp" && \
-			echo "Copied native source code folder." || true
+		cp -R "$(TARGET_APP)/cpp" "$(BUILD_DIR)/app/cpp" && \
+		echo "Copied native source code folder." || true
 
 	@[ -f "$(BUILD_DIR)/app/src/main/res/values/strings.xml" ] && \
-			perl -i -pe "s|<string name=\"app_name\">MASTestApp</string>|<string name=\"app_name\">frooky: $(TARGET_APP)</string>|" \
-					"$(BUILD_DIR)/app/src/main/res/values/strings.xml" && \
-			echo "Replaced app_name in strings.xml" || true
+		perl -i -pe "s|<string name=\"app_name\">MASTestApp</string>|<string name=\"app_name\">frooky: $(TARGET_APP)</string>|" \
+			"$(BUILD_DIR)/app/src/main/res/values/strings.xml" && \
+		echo "Replaced app_name in strings.xml" || true
 
 	cd $(BUILD_DIR) && JAVA_HOME="$(JAVA_HOME)" ./gradlew assembleDebug
 	mv $(APK_SRC) $(APK_DST)
