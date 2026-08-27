@@ -15,7 +15,7 @@ jobs:
 
   test-host-android:
     name: Test host Android
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - build-host
       - build-target-apps-android

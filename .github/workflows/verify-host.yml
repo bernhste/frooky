@@ -13,7 +13,7 @@ jobs:
 
   verify-host:
     name: Verify host
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build-host
     steps:
       - name: Checkout repository

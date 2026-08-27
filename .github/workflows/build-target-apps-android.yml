@@ -14,7 +14,7 @@ permissions:
 jobs:
   build-target-apps-android:
     name: Build & Upload Android App Target App
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
