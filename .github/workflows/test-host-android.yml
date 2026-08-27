@@ -10,15 +10,15 @@ jobs:
   build-host:
     uses: ./.github/workflows/build-host.yml
 
-  build-target-app-android:
-    uses: ./.github/workflows/build-target-app-android.yml
+  build-target-apps-android:
+    uses: ./.github/workflows/build-target-apps-android.yml
 
   test-host-android:
     name: Test host Android
     runs-on: ubuntu-latest
     needs:
       - build-host
-      - build-target-app-android
+      - build-target-apps-android
     timeout-minutes: 30
 
     steps:
@@ -30,8 +30,8 @@ jobs:
       - name: Download MAS app Android artifact
         uses: actions/download-artifact@v8
         with:
-          name: target-app-android
-          path: target-app-android
+          name: target-apps-android
+          path: target-apps-android
 
       - name: Setup Host Test Environment
         uses: ./.github/actions/setup-host-test-env
@@ -60,7 +60,7 @@ jobs:
             .github/scripts/android/install-frida-server.sh
 
             echo "Installing target app"
-            adb install target-app-android/MASTestApp.apk
+            adb install target-apps-android/MASTestApp.apk
 
             echo "TBD: run integration tests for Android"
 

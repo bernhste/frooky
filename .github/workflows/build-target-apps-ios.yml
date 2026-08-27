@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  build-target-app-ios:
+  build-target-apps-ios:
     name: Build & Upload iOS Target App
     runs-on: macos-26
     timeout-minutes: 30
