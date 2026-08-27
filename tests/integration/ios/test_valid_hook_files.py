@@ -9,18 +9,9 @@ class TestValidHookFiles:
     def test_method(self, run_frooky, count_matched_events):
         """Test hooking a single iOS method in a real process."""
 
-        hook_file = {
-            "category": "AUTH",
-            "hooks": [
-                {
-                    "native": True,
-                    "symbol": "- canEvaluatePolicy:error:",
-                    "objClass": "LAContext"
-                }
-            ]
-        }
+        hook_file = {"category": "STORAGE", "hooks": [{"class": "org.owasp.mastestapp.MastgTest", "methods": ["receiveString"]}]}
 
-        target_app = "mastg-demo-0026"
+        target_app = "value-passing"
 
         run_frooky(hook_file, target_app)
 
@@ -32,3 +23,5 @@ class TestValidHookFiles:
 
         assert count_matched_events(
             expected_event) == 1, "Not the amount of expected matched events found."
+
+#TODO: implement more test cases
