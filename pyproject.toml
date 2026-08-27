@@ -37,7 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=9.1.1",
+  "pytest>=8.0.0,<8.2.1",
   "pytest-reportlog>=1.0.0",
   "pytest-cov>=7.1.0",
   "pylint-pytest>=1.1.8"

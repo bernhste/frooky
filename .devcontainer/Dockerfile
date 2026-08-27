@@ -57,3 +57,9 @@ RUN yes | sdkmanager --licenses > /dev/null \
         "ndk;${NDK_VERSION}" \
         "cmake;${CMAKE_VERSION}" \
     && chown -R $USERNAME:$USERNAME $ANDROID_SDK_ROOT
+
+COPY setup-arm64-android-tools.sh $ANDROID_SDK_ROOT/setup-arm64-android-tools.sh
+
+RUN chmod +x $ANDROID_SDK_ROOT/setup-arm64-android-tools.sh && \
+    $ANDROID_SDK_ROOT/setup-arm64-android-tools.sh && \
+    chown -R $USERNAME:$USERNAME $ANDROID_SDK_ROOT
