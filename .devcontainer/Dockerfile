@@ -49,6 +49,12 @@ RUN mkdir -p $ANDROID_SDK_ROOT/cmdline-tools \
     && mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest \
     && rm /tmp/cmdline-tools.zip
 
+COPY setup-arm64-android-tools.sh $ANDROID_SDK_ROOT/setup-arm64-android-tools.sh
+
+# switch to vscode user
+RUN chown -R $USERNAME:$USERNAME $ANDROID_SDK_ROOT
+USER $USERNAME
+
 RUN yes | sdkmanager --licenses > /dev/null \
     && sdkmanager \
         "platform-tools" \
@@ -58,8 +64,7 @@ RUN yes | sdkmanager --licenses > /dev/null \
         "cmake;${CMAKE_VERSION}" \
     && chown -R $USERNAME:$USERNAME $ANDROID_SDK_ROOT
 
-COPY setup-arm64-android-tools.sh $ANDROID_SDK_ROOT/setup-arm64-android-tools.sh
 
 RUN chmod +x $ANDROID_SDK_ROOT/setup-arm64-android-tools.sh && \
-    $ANDROID_SDK_ROOT/setup-arm64-android-tools.sh && \
-    chown -R $USERNAME:$USERNAME $ANDROID_SDK_ROOT
+    $ANDROID_SDK_ROOT/setup-arm64-android-tools.sh
+ 
