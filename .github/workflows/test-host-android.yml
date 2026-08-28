@@ -68,11 +68,11 @@ jobs:
             find target-apps-android/ -name "*.apk" -exec adb install {} \;
 
             echo "Run tests"
-            pytest tests/integration/android --report-log=test-results.json
+            pytest tests/integration/android --report-log=test-results-android.json
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results-android
-          path: test-results.json
+          path: test-results-android.json
