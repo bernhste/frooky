@@ -48,7 +48,7 @@ jobs:
         run: |
           for app_path in target-apps-ios/*.app; do
 
-            BUNDLE_ID=$(basename "$app_path")
+            BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$app_path/Info.plist")
 
             echo "Installing $BUNDLE_ID..."
             xcrun simctl install booted "$app_path"
@@ -71,6 +71,7 @@ jobs:
             echo "App $BUNDLE_ID did not start within the timeout."
             exit 1
           done
+
 
       - name: Upload test results
         if: always()
