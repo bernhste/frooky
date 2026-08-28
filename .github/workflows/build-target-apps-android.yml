@@ -1,0 +1,62 @@
+name: Build Android target app
+
+on:
+  workflow_call:
+    inputs:
+      target_app:
+        description: "Optional path to a custom target app. Will be pass as TARGET_APP to make build"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-target-apps-android:
+    name: Build & Upload Android App Target App
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          java-version: "21"
+          distribution: "temurin"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: wrapper
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27d
+          add-to-path: true
+          link-to-sdk: true
+          local-cache: true
+
+      - name: Install CMake via Android SDK
+        run: |
+          ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager "cmake;3.31.6"
+
+      - name: Build Android target apps
+        working-directory: tests/target-apps/android
+        run: |
+          if [ -n "${{ inputs.target_app }}" ]; then
+            echo "Building the custom app target app: ${{ inputs.target_app }}"
+            make build TARGET_APP=${{ inputs.target_app }}
+          else
+            echo "Building all target apps"
+            make build-all
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: target-apps-android
+          path: tests/target-apps/android/dist/*

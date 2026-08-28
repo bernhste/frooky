@@ -1,0 +1,18 @@
+{
+  "id": "appium",
+  "version": "1.0.0",
+  "name": "Appium",
+  "description": "Installs the Appium 3 server.",
+  "options": {
+    "version": {
+      "type": "string",
+      "default": "3",
+      "description": "Appium version (semver range, must be 3.x)"
+    }
+  },
+  "dependsOn": {
+    "ghcr.io/devcontainers/features/node:2.1.0": {
+      "version": "lts"
+    }
+  }
+}

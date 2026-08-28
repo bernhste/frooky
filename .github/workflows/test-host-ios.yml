@@ -10,17 +10,15 @@ jobs:
   build-host:
     uses: ./.github/workflows/build-host.yml
 
-  build-app-ios:
-    uses: ./.github/workflows/build-app-ios.yml
-    with:
-      app_dir: "mastg-demo-0067"
+  build-target-apps-ios:
+    uses: ./.github/workflows/build-target-apps-ios.yml
 
   test-host-ios:
     name: Test host iOS
     runs-on: macos-26
     needs:
       - build-host
-      - build-app-ios
+      - build-target-apps-ios
     timeout-minutes: 30
 
     steps:
@@ -32,8 +30,8 @@ jobs:
       - name: Download MAS app iOS artifact
         uses: actions/download-artifact@v8
         with:
-          name: target-app-ios
-          path: target-app-ios
+          name: target-apps-ios
+          path: target-apps-ios
 
       - name: Setup Host Test Environment
         uses: ./.github/actions/setup-host-test-env
@@ -46,37 +44,62 @@ jobs:
           xcrun simctl boot "$SIM_ID" || true
           xcrun simctl bootstatus "$SIM_ID" -b
 
-      - name: Install app on simulator
-        run: xcrun simctl install booted target-app-ios/MASTestApp.app
-
-      - name: Run tests
-        shell: bash
+      - name: Install and run app on simulator
         run: |
-          set -o pipefail
+          for app_path in target-apps-ios/*.app; do
 
-          APP_ID="org.owasp.mastestapp.MASTestApp-iOS"
+            BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$app_path/Info.plist")
 
-          PID=$(xcrun simctl launch booted "$APP_ID" | awk '{print $2}')
-          echo "Launched with PID $PID"
+            echo "Installing $BUNDLE_ID..."
+            xcrun simctl install booted "$app_path"
 
-          for i in $(seq 1 10); do
-            if kill -0 "$PID" 2>/dev/null; then
-              echo "App is running (PID $PID)."
+            echo "Launching $BUNDLE_ID..."
+            PID=$(xcrun simctl launch booted "$BUNDLE_ID" | awk '{print $2}')
+            echo "Launched with PID $PID"
 
-              echo "TBD: run integration tests for iOS"
+            # Verification loop
+            for i in $(seq 1 10); do
+              if kill -0 "$PID" 2>/dev/null; then
+                echo "App $BUNDLE_ID is running (PID $PID)."
+                exit 0
+              fi
+              echo "Attempt $i: app not running yet, retrying in 2s..."
+              sleep 2
+            done
 
-              exit 0
-            fi
-            echo "Attempt $i: app not running yet, retrying in 2s..."
-            sleep 2
+            echo "App $BUNDLE_ID did not start within the timeout."
+            exit 1
           done
 
-          echo "App did not start within the timeout."
-          exit 1
+      - name: Install and run Appium
+        run: |
+            echo "Installing and running Appium"
+            npm install -g appium
+            appium driver install xcuitest
+            appium > /dev/null 2>&1 &
+
+            echo "Waiting for Appium to be ready..."
+            MAX_RETRIES=60
+            COUNT=0
+            until $(curl --output /dev/null --silent --head --fail http://localhost:4723/status); do
+                if [ $COUNT -eq $MAX_RETRIES ]; then
+                  echo "Error: Appium server failed to start in time."
+                  exit 1
+                fi
+                printf '.'
+                COUNT=$((COUNT+1))
+                sleep 1
+            done
+            echo " Appium is UP!"
+
+      - name: Run tests
+        run: |
+            echo "Running tests"
+            pytest tests/integration/ios --report-log=test-results-ios.json
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results-ios
-          path: test-results-ios.txt
+          path: test-results-ios.json

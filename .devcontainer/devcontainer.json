@@ -3,23 +3,26 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
+  "remoteUser": "vscode",
   "runArgs": [
     "--add-host=host.docker.internal:host-gateway"
   ],
+  "initializeCommand": "bash .devcontainer/host-services-start.sh",
   "containerEnv": {
-    "ANDROID_ADB_SERVER_ADDRESS": "host.docker.internal",
-    "ANDROID_ADB_SERVER_PORT": "5037"
+    "APPIUM_URL": "http://host.docker.internal:4723",
+    "FRIDA_HOST": "host.docker.internal:27042",
+    "ADB_SERVER_SOCKET": "tcp:host.docker.internal:5037"
   },
   "mounts": [
     "source=${localWorkspaceFolderBasename}-bashhistory,target=/commandhistory,type=volume",
+    "source=${localWorkspaceFolderBasename}-python-venv,target=/opt/venv,type=volume",
+    "source=${localWorkspaceFolderBasename}-gradle-cache,target=/home/vscode/.gradle,type=volume",
     "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/frooky/agent/node_modules,type=volume"
   ],
-  "postCreateCommand": "sudo chown -R vscode:vscode /commandhistory ${containerWorkspaceFolder}/frooky/agent/node_modules &&  ./compileAgent.sh --dev && pip install -e .",
+  "postCreateCommand": "sudo chown -R vscode:vscode /commandhistory ${containerWorkspaceFolder}/frooky/agent/node_modules /home/vscode/.gradle /opt/venv && .devcontainer/setup-arm64-android-configure-gradle.sh && echo 'source /opt/venv/bin/activate' >> ~/.bashrc && echo 'source /opt/venv/bin/activate' >> ~/.zshrc && ./compileAgent.sh --dev && pip install -e \".[dev]\"",
   "features": {
-    "ghcr.io/devcontainers/features/node:2.1.0": {
-      "version": "lts"
-    },
-    "ghcr.io/devcontainers/features/sshd:1": {}
+    "ghcr.io/devcontainers/features/sshd:1": {},
+    "./features/appium": {}
   },
   "customizations": {
     "vscode": {

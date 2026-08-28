@@ -1,0 +1,39 @@
+name: Build target app iOS
+
+on:
+  workflow_call:
+    inputs:
+      target_app:
+        description: "Optional path to a custom target app. Will be pass as TARGET_APP to make build"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-target-apps-ios:
+    name: Build & Upload iOS Target App
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build all target apps iOS
+        working-directory: tests/target-apps/ios
+        run: |
+          if [ -n "${{ inputs.target_app }}" ]; then
+            echo "Building the custom app target app: ${{ inputs.target_app }}"
+            make build TARGET_APP=${{ inputs.target_app }}
+          else
+            echo "Building all target apps"
+            make build-all
+          fi
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: target-apps-ios
+          path: tests/target-apps/ios/dist/**

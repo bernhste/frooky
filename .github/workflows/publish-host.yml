@@ -13,7 +13,7 @@ jobs:
     uses: ./.github/workflows/build-host.yml
 
   publish-host:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: verify-host
     permissions:
       id-token: write

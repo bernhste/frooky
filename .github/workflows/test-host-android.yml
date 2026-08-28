@@ -10,17 +10,15 @@ jobs:
   build-host:
     uses: ./.github/workflows/build-host.yml
 
-  build-app-android:
-    uses: ./.github/workflows/build-app-android.yml
-    with:
-      app_dir: "mastg-demo-0060"
+  build-target-apps-android:
+    uses: ./.github/workflows/build-target-apps-android.yml
 
   test-host-android:
     name: Test host Android
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs:
       - build-host
-      - build-app-android
+      - build-target-apps-android
     timeout-minutes: 30
 
     steps:
@@ -32,8 +30,8 @@ jobs:
       - name: Download MAS app Android artifact
         uses: actions/download-artifact@v8
         with:
-          name: target-app-android
-          path: target-app-android
+          name: target-apps-android
+          path: target-apps-android
 
       - name: Setup Host Test Environment
         uses: ./.github/actions/setup-host-test-env
@@ -52,8 +50,13 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
           script: |
+            echo "Preparing scripts"
+            chmod +x .github/scripts/android/install-run-appium.sh
             chmod +x .github/scripts/android/prep-device.sh
             chmod +x .github/scripts/android/install-frida-server.sh
+
+            echo "Installing and running Appium"
+            .github/scripts/android/install-run-appium.sh
 
             echo "Starting adb as root"
             .github/scripts/android/prep-device.sh
@@ -61,14 +64,15 @@ jobs:
             echo "Installing frida server"
             .github/scripts/android/install-frida-server.sh
 
-            echo "Installing target app"
-            adb install target-app-android/MASTestApp.apk
+            echo "Installing target apps"
+            find target-apps-android/ -name "*.apk" -exec adb install {} \;
 
-            echo "TBD: run integration tests for Android"
+            echo "Run tests"
+            pytest tests/integration/android --report-log=test-results-android.json
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results-android
-          path: test-results-android.txt
+          path: test-results-android.json
