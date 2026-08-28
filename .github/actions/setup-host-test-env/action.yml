@@ -17,5 +17,8 @@ runs:
     - name: Install frooky and dev dependencies
       shell: bash
       run: |
+        echo "Installing frooky"
         python -m pip install dist/*.whl
-        python -m pip install ".[dev]"
+
+        echo "Installing dev dependencies from pyproject.toml"
+        python -m pip install $(python -c "import tomllib; print(' '.join(tomllib.load(open('pyproject.toml', 'rb'))['project']['optional-dependencies']['dev']))")
