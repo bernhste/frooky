@@ -50,6 +50,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
           script: |
+            echo "Preparing device"
             chmod +x .github/scripts/android/prep-device.sh
             chmod +x .github/scripts/android/install-frida-server.sh
 
@@ -59,12 +60,14 @@ jobs:
             echo "Installing frida server"
             .github/scripts/android/install-frida-server.sh
 
-            echo "Installing target app"
+            echo "Installing target apps"
             for apk in target-apps-android/*.apk; do
               adb install "$apk"
             done
 
+            echo "Running tests"
             echo "TBD: run integration tests for Android"
+
 
       - name: Upload test results
         if: always()
