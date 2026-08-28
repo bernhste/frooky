@@ -4,7 +4,7 @@ set -euo pipefail
 echo "Installing and running Appium"
 npm install -g appium
 appium driver install uiautomator2
-appium --allow-insecure=uiautomator2:adb_shell &
+appium --allow-insecure=uiautomator2:adb_shell > /dev/null 2>&1 &
 
 echo "Waiting for Appium to be ready..."
 MAX_RETRIES=60
