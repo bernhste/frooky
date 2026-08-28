@@ -61,7 +61,6 @@ jobs:
             for i in $(seq 1 10); do
               if kill -0 "$PID" 2>/dev/null; then
                 echo "App $BUNDLE_ID is running (PID $PID)."
-                echo "TBD: run integration tests for iOS"
                 exit 0
               fi
               echo "Attempt $i: app not running yet, retrying in 2s..."
@@ -72,6 +71,31 @@ jobs:
             exit 1
           done
 
+      - name: Install and run Appium
+        run: |
+            echo "Installing and running Appium"
+            npm install -g appium
+            appium driver install xcuitest
+            appium &
+
+            echo "Waiting for Appium to be ready..."
+            MAX_RETRIES=60
+            COUNT=0
+            until $(curl --output /dev/null --silent --head --fail http://localhost:4723/status); do
+                if [ $COUNT -eq $MAX_RETRIES ]; then
+                  echo "Error: Appium server failed to start in time."
+                  exit 1
+                fi
+                printf '.'
+                COUNT=$((COUNT+1))
+                sleep 1
+            done
+            echo " Appium is UP!"
+
+      - name: Run tests
+        run: |
+            echo "Running tests"
+            pytest tests/integration/ios
 
       - name: Upload test results
         if: always()

@@ -50,6 +50,26 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
           script: |
+            echo "Installing and running Appium"
+            npm install -g appium
+            appium driver install uiautomator2
+            appium --allow-insecure=uiautomator2:adb_shell &
+
+            echo "Waiting for Appium to be ready..."
+            MAX_RETRIES=60
+            COUNT=0
+            until $(curl --output /dev/null --silent --head --fail http://localhost:4723/status); do
+                if [ $COUNT -eq $MAX_RETRIES ]; then
+                  echo "Error: Appium server failed to start in time."
+                  exit 1
+                fi
+                printf '.'
+                COUNT=$((COUNT+1))
+                sleep 1
+            done
+            echo " Appium is UP!"
+
+
             echo "Preparing device"
             chmod +x .github/scripts/android/prep-device.sh
             chmod +x .github/scripts/android/install-frida-server.sh
@@ -63,9 +83,8 @@ jobs:
             echo "Installing target apps"
             find target-apps-android/ -name "*.apk" -exec adb install {} \;
 
-            echo "Running tests"
-            echo "TBD: run integration tests for Android"
-
+            echo "Run tests"
+            pytest tests/integration/android
 
       - name: Upload test results
         if: always()
