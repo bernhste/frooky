@@ -14,10 +14,8 @@ runs:
         name: frooky-host
         path: dist
 
-    - name: Install frooky
+    - name: Install frooky and dev dependencies
       shell: bash
-      run: python -m pip install dist/*.whl
-
-    - name: Install dev dependencies
-      shell: bash
-      run: python -m pip install "pytest>=8.0.0" "pytest-cov>=4.1.0" "pylint-pytest>=1.1.8" "pytest-reportlog>=1.0.0"
+      run: |
+        python -m pip install dist/*.whl
+        python -m pip install -e ".[dev]"
