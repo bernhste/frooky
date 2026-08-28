@@ -44,36 +44,33 @@ jobs:
           xcrun simctl boot "$SIM_ID" || true
           xcrun simctl bootstatus "$SIM_ID" -b
 
-      - name: Install app on simulator
+      - name: Install and run app on simulator
         run: |
-          for app in target-apps-ios/*.app; do
-            xcrun simctl install booted "$app"
+          for app_path in target-apps-ios/*.app; do
+
+            BUNDLE_ID=$(basename "$app_path" .app)
+
+            echo "Installing $BUNDLE_ID..."
+            xcrun simctl install booted "$app_path"
+
+            echo "Launching $BUNDLE_ID..."
+            PID=$(xcrun simctl launch booted "$BUNDLE_ID" | awk '{print $2}')
+            echo "Launched with PID $PID"
+
+            # Verification loop
+            for i in $(seq 1 10); do
+              if kill -0 "$PID" 2>/dev/null; then
+                echo "App $BUNDLE_ID is running (PID $PID)."
+                echo "TBD: run integration tests for iOS"
+                exit 0
+              fi
+              echo "Attempt $i: app not running yet, retrying in 2s..."
+              sleep 2
+            done
+
+            echo "App $BUNDLE_ID did not start within the timeout."
+            exit 1
           done
-
-      - name: Run tests
-        shell: bash
-        run: |
-          set -o pipefail
-
-          APP_ID="org.owasp.mastestapp.MASTestApp-iOS"
-
-          PID=$(xcrun simctl launch booted "$APP_ID" | awk '{print $2}')
-          echo "Launched with PID $PID"
-
-          for i in $(seq 1 10); do
-            if kill -0 "$PID" 2>/dev/null; then
-              echo "App is running (PID $PID)."
-
-              echo "TBD: run integration tests for iOS"
-
-              exit 0
-            fi
-            echo "Attempt $i: app not running yet, retrying in 2s..."
-            sleep 2
-          done
-
-          echo "App did not start within the timeout."
-          exit 1
 
       - name: Upload test results
         if: always()
