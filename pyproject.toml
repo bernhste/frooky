@@ -33,6 +33,7 @@ dependencies = [
   "frida>=17.17.0",
   "frida-tools>=14.10.4",
   "pyyaml>=6.0.3",
+  "rich>=13.0",
 ]
 
 [project.optional-dependencies]
