@@ -4,9 +4,7 @@
     "dockerfile": "Dockerfile"
   },
   "remoteUser": "vscode",
-  "runArgs": [
-    "--add-host=host.docker.internal:host-gateway"
-  ],
+  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
   "initializeCommand": "bash .devcontainer/host-services-start.sh",
   "containerEnv": {
     "APPIUM_URL": "http://host.docker.internal:4723",
@@ -30,10 +28,10 @@
         "python.defaultInterpreterPath": "/opt/venv/bin/python"
       },
       "extensions": [
-        "ms-python.python",
-        "biomejs.biome",
         "charliermarsh.ruff",
-        "DavidAnson.vscode-markdownlint"
+        "DavidAnson.vscode-markdownlint",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint"
       ]
     }
   }

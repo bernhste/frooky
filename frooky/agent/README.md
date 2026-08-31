@@ -9,26 +9,22 @@
                                      |___/
 ```
 
-
 > [!NOTE]
 > If you want to learn how to write frooky hooks, please refer to the [main documentation](https://github.com/cpholguera/frooky).
 
-
-
 # General Information
 
-At the moment, the frooky agent is not intended to be used by itself or as a library for other frida scripts. The agent is designed for Python tool also called [frooky](https://github.com/cpholguera/frooky/) which acts as the host. If you want to use the frooky agent in another programming language you can use the same build. But frooky can also be used as a standalone Frida client. 
+At the moment, the frooky agent is not intended to be used by itself or as a library for other frida scripts. The agent is designed for Python tool also called [frooky](https://github.com/cpholguera/frooky/) which acts as the host. If you want to use the frooky agent in another programming language you can use the same build. But frooky can also be used as a standalone Frida client.
 
 The two versions are different only in the way hook files are send to the target:
 
 1. **Host**
 
     This version requires a custom host application which sends the hook file to the agent using `rpc`.
-   
-2. **Standalone**
-   
-    In this version, the hooks will be embedded into the JavaScript agent during the build process. This version can be used directly with `frida` and does not require a custom host. It is mostly intended for development purposes.
 
+2. **Standalone**
+
+    In this version, the hooks will be embedded into the JavaScript agent during the build process. This version can be used directly with `frida` and does not require a custom host. It is mostly intended for development purposes.
 
 ## Compile the frooky Agent for a Custom Host
 
@@ -56,9 +52,7 @@ The two versions are different only in the way hook files are send to the target
 
     This will compile the frooky agent and save the compiled agents in `./dist/agent-android.js` and `./dist/agent-ios.js`.
 
-
 1. **Use the frooky agent in your application**
-
 
     After loading the script, you have to send the hook file in the form of a JSON object in the parameter `target` to the agent using the following `rpc` call:
 
@@ -82,7 +76,7 @@ If you want to work on the frooky agent itself, you can also use the [Frida CLI]
 
 1. **Compile the development standalone client**
 
-    Using the `build:watch:*` command, `npm` will continuously watch for changed files in the code of the agent but also the hook files: 
+    Using the `build:watch:*` command, `npm` will continuously watch for changed files in the code of the agent but also the hook files:
 
     ```sh
     npm run build:watch:android hook.yaml
@@ -91,8 +85,8 @@ If you want to work on the frooky agent itself, you can also use the [Frida CLI]
 
     You can specify one or more `hook.yaml` files. Pattern expansion (`glob`) is supported. This command will continuously compile standalone agents and save them in the `./dist` folder.
 
-2. **Start Frida with the compiled agent**
-   
+1. **Start Frida with the compiled agent**
+
     For Android:
 
     ```sh
@@ -104,5 +98,3 @@ If you want to work on the frooky agent itself, you can also use the [Frida CLI]
     ```sh
     frida -U -f org.owasp.mytargetapp dist/agent-ios.js
     ```
-
-
