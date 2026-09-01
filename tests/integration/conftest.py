@@ -38,6 +38,7 @@ FROOKY_OUTPUT_NAME = "output.json"
 # if this patterns appears on stdout, frooky hooked all hooks and is read
 FROOKY_READY_PATTERN = re.compile(r"Resolved Hooks:\s*(\d+)")
 
+
 def _matches_subset_pattern_recursive(event, pattern):
     """
     Check if pattern is a subset of event structure.
@@ -54,6 +55,7 @@ def _matches_subset_pattern_recursive(event, pattern):
             return False
         return all(_matches_subset_pattern_recursive(item, expected) for item, expected in zip(event, pattern))
     return event == pattern
+
 
 @pytest.fixture
 def count_matched_events(output_file_path):
@@ -72,6 +74,7 @@ def count_matched_events(output_file_path):
         return matched
 
     return _count_matched_events
+
 
 @pytest.fixture(params=["android", "ios"])
 def platform(request):
@@ -100,9 +103,7 @@ def _wait_for_pid(driver, platform, app_bundle_id):
     deadline = time.monotonic() + APP_START_TIMEOUT
     while time.monotonic() < deadline:
         if platform == "android":
-            output = driver.execute_script(
-                "mobile: shell", {"command": "pidof", "args": [app_bundle_id]}
-            )
+            output = driver.execute_script("mobile: shell", {"command": "pidof", "args": [app_bundle_id]})
             pid = (output or "").strip().split(" ")[0]
         else:
             info = driver.execute_script("mobile: activeAppInfo") or {}
@@ -113,6 +114,7 @@ def _wait_for_pid(driver, platform, app_bundle_id):
         time.sleep(0.5)
 
     pytest.fail(f"Timed out waiting for PID of {app_bundle_id}")
+
 
 @pytest.fixture
 def app_session(platform):
@@ -152,6 +154,7 @@ def cleanup_output_json(output_file_path):
     """Remove output.json before each test, but keep it afterwards for inspection."""
     output_file_path.unlink(missing_ok=True)
     yield
+
 
 def _drain_output(process):
     """

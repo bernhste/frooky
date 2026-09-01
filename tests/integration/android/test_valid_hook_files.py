@@ -1,5 +1,7 @@
 """Tests for various valid hook files on Android."""
+
 import pytest
+
 
 @pytest.mark.parametrize("platform", ["android"], indirect=True)
 class TestValidHookFiles:
@@ -22,4 +24,4 @@ class TestValidHookFiles:
         assert count_matched_events(expected_pattern) == 1, "Not the amount of expected matched events found."
 
 
-#TODO: implement more test cases
+# TODO: implement more test cases
