@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib.resources import files
 from pathlib import Path
 from typing import Optional
@@ -26,16 +26,19 @@ logger = logging.getLogger(__name__)
 class RunnerOptions:
     """Options for the FrookyRunner."""
 
-    platform: str
     hook_paths: list[Path]
     output_path: Path
     device_id: Optional[str] = None
     use_usb: bool = False
+    remote: bool = False
+    host: Optional[str] = None
+    certificate: Optional[str] = None
     attach_frontmost: bool = False
     attach_name: Optional[str] = None
     attach_identifier: Optional[str] = None
     attach_pid: Optional[int] = None
     spawn: Optional[str] = None
+    user_scripts: list[Path] = field(default_factory=list)
     agent_option_verbose: bool = False
     agent_option_very_verbose: bool = False
     agent_option_resolver_timeout: Optional[int] = None
@@ -45,11 +48,15 @@ class RunnerOptions:
 class FrookyRunner:
     """Runs Frooky hooks using Frida."""
 
+    SUPPORTED_PLATFORMS = ("android", "ios")
+
     def __init__(self, options: RunnerOptions):
         self.options = options
         self.session: Optional[frida.core.Session] = None
         self.script: Optional[frida.core.Script] = None
+        self.user_scripts: list[frida.core.Script] = []
         self.device: Optional[frida.core.Device] = None
+        self.platform: Optional[str] = None
         self.spawned_pid: Optional[int] = None
         self.event_count: int = 0
         self.last_event: str = "Waiting for events..."
@@ -73,7 +80,6 @@ class FrookyRunner:
 
     def _prepare_targets(self) -> dict:
         """Load hook JSON files and merge their category and hooks into a single target."""
-        # Read all hook files as JSON and merge their hooks arrays
         hook_configs = []
 
         for hook_path in self.options.hook_paths:
@@ -121,19 +127,14 @@ class FrookyRunner:
                         json.dump(parsed, f)
                         f.write("\n")
 
-                    # Check if this is a summary event
                     if isinstance(parsed, dict):
                         event_type = parsed.get("type")
 
                         if event_type == "summary":
-                            # Store summary info and print once
                             self.total_hooks = parsed.get("totalHooks", 0)
                             self.total_errors = parsed.get("totalErrors", 0)
-                            # self._print_hooks_line()
                         elif event_type in ("hook", "native-hook", "objc-hook"):
-                            # Count all hook event types
                             self.event_count += 1
-                            # Extract event info for status line
                             method = parsed.get("method", parsed.get("symbol", "unknown"))
                             class_name = parsed.get("class", "")
                             if class_name:
@@ -168,12 +169,10 @@ class FrookyRunner:
     def _print_header(self) -> None:
         """Print the Frooky header with session information."""
 
-        # Get agent Frida version
         agent_frida_version_path = files("frooky") / "agent" / "dist" / "version.json"
         agent_frida_version_json = json.loads(agent_frida_version_path.read_text(encoding="utf-8"))
         agent_frida_version = str(agent_frida_version_json["frida"])
 
-        # Logo lines
         logo = [
             "   ___    ____           ",
             "  / __\\  / _  |    _     _    _  _   _   _",
@@ -183,22 +182,19 @@ class FrookyRunner:
             "                                     |___/",
         ]
 
-        # Info lines to display on the right
         info = [
             f"v{frooky_version} - Powered by Frida {frida.__version__}",
             f"Agent compiled with Frida {agent_frida_version}",
             f"Target: {self._get_target_description()}",
             "",
             f"Device: {self.device.name}" + (f" ({self.device.id})" if self.device.id else ""),
-            f"Platform: {self.options.platform}",
+            f"Platform: {self.platform}",
             f"Hook files: {len(self.options.hook_paths)}",
             f"Output: {self.options.output_path}",
         ]
 
-        # Find the width of the widest logo line
         logo_width = max(len(line) for line in logo)
 
-        # Combine logo and info side by side
         lines = [""]
         for i in range(max(len(logo), len(info))):
             logo_part = logo[i].ljust(logo_width) if i < len(logo) else " " * logo_width
@@ -214,13 +210,36 @@ class FrookyRunner:
 
     def _get_device(self) -> frida.core.Device:
         """Get the Frida device based on options."""
-        if self.options.device_id:
-            return frida.get_device(self.options.device_id, timeout=5)
-        elif self.options.use_usb:
+        opts = self.options
+
+        if opts.device_id:
+            return frida.get_device(opts.device_id, timeout=5)
+        elif opts.host:
+            return frida.get_device_manager().add_remote_device(opts.host, certificate=opts.certificate)
+        elif opts.remote:
+            return frida.get_remote_device()
+        elif opts.use_usb:
             return frida.get_usb_device(timeout=5)
         else:
-            # Default to local device
             return frida.get_local_device()
+
+    def _detect_platform(self) -> str:
+        """Detect the target platform (android/ios) from the connected device."""
+        params = self.device.query_system_parameters()
+        os_id = params.get("os", {}).get("id")
+
+        if os_id not in self.SUPPORTED_PLATFORMS:
+            raise RuntimeError(f"Unsupported target platform '{os_id}'. Frooky only supports: {', '.join(self.SUPPORTED_PLATFORMS)}.")
+
+        return os_id
+
+    def _load_user_scripts(self) -> None:
+        """Load user-provided scripts (-l/--load) before the frooky agent runs."""
+        for script_path in self.options.user_scripts:
+            source = Path(script_path).read_text(encoding="utf-8")
+            script = self.session.create_script(source)
+            script.load()
+            self.user_scripts.append(script)
 
     def _attach_or_spawn(self) -> frida.core.Session:
         """Attach to or spawn the target process."""
@@ -236,11 +255,9 @@ class FrookyRunner:
             return self.device.attach(opts.attach_name)
 
         elif opts.attach_identifier:
-            # Find process by identifier
             for proc in self.device.enumerate_processes():
                 if proc.identifier == opts.attach_identifier:
                     return self.device.attach(proc.pid)
-            # Fallback: try attaching by identifier as name
             return self.device.attach(opts.attach_identifier)
 
         elif opts.attach_pid:
@@ -258,27 +275,26 @@ class FrookyRunner:
     def run(self) -> int:
         """Run the Frooky hooks."""
         try:
-            # Clear/overwrite the output file at start
             with open(self.options.output_path, "w", encoding="utf-8") as f:
                 pass  # Truncate file
 
-            # Get device
             self.device = self._get_device()
+            self.platform = self._detect_platform()
 
-            # Attach or spawn
             self.session = self._attach_or_spawn()
 
-            # Check if the agent is compiled and available
-            script_path = files("frooky") / "agent" / "dist" / f"agent-{self.options.platform}.js"
+            script_path = files("frooky") / "agent" / "dist" / f"agent-{self.platform}.js"
             script_source = script_path.read_text(encoding="utf-8")
-            # Print header with all session info
+
             self._print_header()
+
+            # Load any user-provided scripts before the frooky agent
+            self._load_user_scripts()
 
             self.script = self.session.create_script(script_source)
             self.script.on("message", self._create_message_handler())
             self.script.load()
 
-            # init the frooky agent with the provided settings
             if self.options.agent_option_verbose:
                 log_level = "info"
             elif self.options.agent_option_very_verbose:
@@ -287,20 +303,16 @@ class FrookyRunner:
                 log_level = "warn"
             self.script.exports_sync.init_frooky_agent(log_level, "console", self.options.agent_option_resolver_timeout)
 
-            # Combine the user provided hooks.yaml and send the to the agent
             targets = self._prepare_targets()
             self.script.exports_sync.load_frooky_configs(targets)
 
-            # Resume if spawned
             if self.options.spawn:
                 self.device.resume(self.spawned_pid)
 
-            # Main loop
             while True:
                 time.sleep(0.5)
 
         except KeyboardInterrupt:
-            # Overwrite the ^C characters
             print("\b\b  ", end="", flush=True)
             print("\n\n  Stopping ...\n")
 
@@ -312,6 +324,11 @@ class FrookyRunner:
             if self.script:
                 try:
                     self.script.unload()
+                except Exception:
+                    pass
+            for script in self.user_scripts:
+                try:
+                    script.unload()
                 except Exception:
                     pass
             if self.session:
