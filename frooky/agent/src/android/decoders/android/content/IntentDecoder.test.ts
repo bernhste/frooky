@@ -108,4 +108,4 @@ describe("IntentDecoder", () => {
   });
 });
 
-export { };
+export {};
