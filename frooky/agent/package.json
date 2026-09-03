@@ -22,7 +22,7 @@
     "frida-java-bridge": "^7.0.11",
     "frida-objc-bridge": "^8.0.5",
     "frida-swift-bridge": "^3.0.2",
-    "frida-test": "^0.1.7",
+    "frida-test": "^0.1.8",
     "ts-to-zod": "^5.1.0",
     "eslint": "^10.9.1"
   },
