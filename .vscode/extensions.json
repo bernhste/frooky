@@ -1,6 +1,5 @@
 {
   "recommendations": [
-    "charliermarsh.ruff",
     "DavidAnson.vscode-markdownlint",
     "esbenp.prettier-vscode",
     "dbaeumer.vscode-eslint"
