@@ -6,146 +6,53 @@ import minimist from 'minimist';
 import path, { join } from 'path';
 import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const VALID_PLATFORMS = ['android', 'ios'];
+const VALID_TARGETS = ['frooky', 'frida'];
 
-const argv = minimist(process.argv.slice(2), {
-    boolean: ['watch', 'compress', 'verbose', 'keep-build-dir'],
-    string: ['target', 'type-check'],
-    alias: {
-        t: 'target',
-        w: 'watch',
-        c: 'compress',
-        v: 'verbose',
-        h: 'help',
-    },
-    default: {
-        t: 'frooky',
-        w: false,
-        c: false,
-        'keep-build-dir': false,
-        'type-check': 'full'
-    }
-});
-
-// args
-const targetOption = argv.target;
-const platformOption = argv._[0];
-const typeCheckOption = argv['type-check'];
-const keepBuildDirOption = argv['keep-build-dir'];
-const watchOption = argv.watch;
-const compressOption = argv.compress;
-const helpOption = argv.help;
-const verbose = argv.verbose;
-const hooksFilePaths = argv._.slice(1);
-
-// config paths
-const sourceDir = path.join(__dirname, platformOption);
-const distDir = path.join(__dirname, 'dist');
-const buildDir = path.join(__dirname, 'build');
-const agentPath = path.join(distDir, `agent-${platformOption}.js`)
-const versionPath = path.join(distDir, `version.json`)
-
-
-if (helpOption) {
-    showHelp();
-}
-validateInput();
-
-try {
-    setupBuildDir();
-    safeCompiledFridaVersion();
-
-    if (watchOption) {
-        await runWatch()
-    } else {
-        runCompileAgent();
-    }
-} catch (e){ 
-    console.error(`Error: ${e}`)
-} finally {
-    if (!keepBuildDirOption) {
-        cleanupBuildDir();
-    } 
-}
-
-
-function safeCompiledFridaVersion() {
-  try {
-    const fridaPackagePath = join(__dirname, 'node_modules', 'frida', 'package.json');
-    const fridaJavaBridgePath = join(__dirname, 'node_modules', 'frida-java-bridge', 'package.json');
-    const fridaSwiftBridgePath = join(__dirname, 'node_modules', 'frida-swift-bridge', 'package.json');
-    const fridaObjcBridgePath = join(__dirname, 'node_modules', 'frida-objc-bridge', 'package.json');
-
-    const fridaPackage = JSON.parse(fs.readFileSync(fridaPackagePath, 'utf8'));
-    const fridaJavaBridge = JSON.parse(fs.readFileSync(fridaJavaBridgePath, 'utf8'));
-    const fridaSwiftBridge = JSON.parse(fs.readFileSync(fridaSwiftBridgePath, 'utf8'));
-    const fridaObjcBridge = JSON.parse(fs.readFileSync(fridaObjcBridgePath, 'utf8'));
-
-
-    const versionInfo = {
-      frida: fridaPackage.version,
-      'frida-java-bridge': fridaJavaBridge.version,
-      'frida-swift-bridge': fridaSwiftBridge.version,
-      'frida-objc-bridge': fridaObjcBridge.version,
-      buildtime: new Date().toISOString()
-    };
-
-    fs.writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2));
-
-    if (verbose) { console.log(`Frida version written to ${versionPath}`); };
-    return versionInfo;
-  } catch (error) {
-    console.error('Error writing Frida versions:', error.message);
-    return null;
-  }
-}
-
-function cleanupBuildDir() {
-    fs.rmSync(buildDir, { recursive: true, force: true });
-}
-
-// TODO: Patch when fixing https://github.com/cpholguera/frooky/issues/29
-// Function to merge multiple hook configuration files into one
-function generateHooksFile() {
-    const frookyConfigs = []
-    hooksFilePaths.forEach(file => {
-        try {
-            const content = fs.readFileSync(file, 'utf8');
-            const ext = path.extname(file).toLowerCase();
-
-            frookyConfigs.push((ext === '.yaml' || ext === '.yml')
-                ? yaml.load(content)
-                : JSON.parse(content));
-
-        } catch (error) {
-            console.error(`Error reading ${file}:`, error.message);
-            process.exit(1);
-        }
+function parseArgs(argv) {
+    const args = minimist(argv, {
+        boolean: ['watch', 'compress', 'verbose', 'keep-build-dir'],
+        string: ['target', 'type-check'],
+        alias: {
+            t: 'target',
+            w: 'watch',
+            c: 'compress',
+            v: 'verbose',
+            h: 'help',
+        },
+        default: {
+            t: 'frooky',
+            w: false,
+            c: false,
+            'keep-build-dir': false,
+            'type-check': 'full',
+        },
     });
 
-    const targetFile = path.join(buildDir, `index.${targetOption}.ts`);
-    const replacement = `frookyConfigs = ${JSON.stringify(frookyConfigs)} as InputFrookyConfig[];`;
+    const rootDir = path.dirname(fileURLToPath(import.meta.url));
+    const platform = args._[0];
+    const target = args.target;
+    const distDir = path.join(rootDir, 'dist');
+    const buildDir = path.join(rootDir, 'src', 'build');
 
-    const blockRegex = /(\/\/%%% REPLACE START\n)[\s\S]*?(\/\/%%% REPLACE STOP)/;
-
-    try {
-        let content = fs.readFileSync(targetFile, 'utf8');
-
-        if (!blockRegex.test(content)) {
-            console.error('Replace block markers not found in index.ts');
-            process.exit(1);
-        }
-
-        content = content.replace(blockRegex, `$1${replacement}\n$2`);
-        fs.writeFileSync(targetFile, content, 'utf8');
-
-        if (verbose) { console.log(`Hook compiling successful. Updated: ${targetFile}`); }
-    } catch (error) {
-        console.error('Error updating index.ts:', error.message);
-        process.exit(1);
-    }
+    return {
+        rootDir,
+        platform,
+        target,
+        typeCheck: args['type-check'],
+        keepBuildDir: args['keep-build-dir'],
+        watch: args.watch,
+        compress: args.compress,
+        help: args.help,
+        verbose: args.verbose,
+        hooksFilePaths: args._.slice(1),
+        sourceDir: path.join(rootDir, 'src', platform),
+        distDir,
+        buildDir,
+        agentPath: path.join(distDir, `agent-${platform}.js`),
+        versionPath: path.join(distDir, 'version.json'),
+    };
 }
-
 
 function showHelp() {
     console.log(`
@@ -167,122 +74,215 @@ function showHelp() {
     process.exit(0);
 }
 
-function validateInput() {
-    // validate platforms
-    const validPlatforms = ['android', 'ios'];
-    if (!validPlatforms.includes(platformOption)) {
-        console.error(`Platform must be one of: ${validPlatforms.join(', ')}`);
+function validateConfig(config) {
+    if (!VALID_PLATFORMS.includes(config.platform)) {
+        console.error(`Platform must be one of: ${VALID_PLATFORMS.join(', ')}`);
         process.exit(1);
     }
 
-    // validate target
-    const validTargets = ['frooky', 'frida'];
-    if (!validTargets.includes(targetOption)) {
-        console.error(`Target must be one of: ${validTargets.join(', ')}`);
+    if (!VALID_TARGETS.includes(config.target)) {
+        console.error(`Target must be one of: ${VALID_TARGETS.join(', ')}`);
         process.exit(1);
     }
 
-    // validate hooks files
-    if (targetOption === 'frida') {
-        if (hooksFilePaths.length === 0) {
-            console.error(`No hook files provided. Provide one or more hook files.`);
+    if (config.target === 'frida') {
+        if (config.hooksFilePaths.length === 0) {
+            console.error('No hook files provided. Provide one or more hook files.');
             process.exit(1);
         }
-        hooksFilePaths.forEach(file => {
+        config.hooksFilePaths.forEach((file) => {
             if (!fs.existsSync(file)) {
                 console.error(`Hook file not found: ${file}`);
                 process.exit(1);
             }
             const ext = path.extname(file).toLowerCase();
             if (ext !== '.json' && ext !== '.yaml' && ext !== '.yml') {
-                console.error(`Invalid file type: ${file}. Only .yaml/yml and .json files are allowed.`);
+                console.error(`Invalid file type: ${file}. Only .yaml/.yml and .json files are allowed.`);
                 process.exit(1);
             }
         });
     }
 }
 
-function setupBuildDir() {
-    // create target dir /
-    if (!fs.existsSync(distDir)) {
-        fs.mkdirSync(distDir);
+function saveCompiledFridaVersion(config) {
+    try {
+        const packagePaths = {
+            frida: join(config.rootDir, 'node_modules', 'frida', 'package.json'),
+            'frida-java-bridge': join(config.rootDir, 'node_modules', 'frida-java-bridge', 'package.json'),
+            'frida-swift-bridge': join(config.rootDir, 'node_modules', 'frida-swift-bridge', 'package.json'),
+            'frida-objc-bridge': join(config.rootDir, 'node_modules', 'frida-objc-bridge', 'package.json'),
+        };
+
+        const versionInfo = Object.fromEntries(
+            Object.entries(packagePaths).map(([name, pkgPath]) => [
+                name,
+                JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version,
+            ])
+        );
+        versionInfo.buildtime = new Date().toISOString();
+
+        fs.writeFileSync(config.versionPath, JSON.stringify(versionInfo, null, 2));
+
+        if (config.verbose) {
+            console.log(`Frida version written to ${config.versionPath}`);
+        }
+        return versionInfo;
+    } catch (error) {
+        console.error('Error writing Frida versions:', error.message);
+        return null;
+    }
+}
+
+function cleanupBuildDir(config) {
+    fs.rmSync(config.buildDir, { recursive: true, force: true });
+}
+
+// TODO: Patch when fixing https://github.com/cpholguera/frooky/issues/29
+// Merges multiple hook configuration files into one and injects them into the target index file.
+function generateHooksFile(config) {
+    const frookyConfigs = config.hooksFilePaths.map((file) => {
+        try {
+            const content = fs.readFileSync(file, 'utf8');
+            const ext = path.extname(file).toLowerCase();
+            return (ext === '.yaml' || ext === '.yml') ? yaml.load(content) : JSON.parse(content);
+        } catch (error) {
+            console.error(`Error reading ${file}:`, error.message);
+            process.exit(1);
+        }
+    });
+
+    const targetFile = path.join(config.buildDir, `index.${config.target}.ts`);
+    const replacement = `frookyConfigs = ${JSON.stringify(frookyConfigs)} as InputFrookyConfig[];`;
+    const blockRegex = /(\/\/%%% REPLACE START\n)[\s\S]*?(\/\/%%% REPLACE STOP)/;
+
+    try {
+        let content = fs.readFileSync(targetFile, 'utf8');
+
+        if (!blockRegex.test(content)) {
+            console.error('Replace block markers not found in index.ts');
+            process.exit(1);
+        }
+
+        content = content.replace(blockRegex, `$1${replacement}\n$2`);
+        fs.writeFileSync(targetFile, content, 'utf8');
+
+        if (config.verbose) {
+            console.log(`Hook compiling successful. Updated: ${targetFile}`);
+        }
+    } catch (error) {
+        console.error('Error updating index.ts:', error.message);
+        process.exit(1);
+    }
+}
+
+function setupBuildDir(config) {
+    if (!fs.existsSync(config.distDir)) {
+        fs.mkdirSync(config.distDir);
     }
 
-    // create build dir /
-    if (!fs.existsSync(buildDir)) {
-        fs.mkdirSync(buildDir);
+    if (!fs.existsSync(config.buildDir)) {
+        fs.mkdirSync(config.buildDir);
     }
 
-    // copy code to build dir
-    fs.cpSync(path.join(__dirname, platformOption), `${buildDir}`, { recursive: true });
+    fs.cpSync(config.sourceDir, config.buildDir, { recursive: true });
 
     // Remove the index file we're NOT using
-    const unusedTarget = targetOption === 'frida' ? 'frooky' : 'frida';
-    const unusedIndexPath = path.join(buildDir, `index.${unusedTarget}.ts`);
+    const unusedTarget = config.target === 'frida' ? 'frooky' : 'frida';
+    const unusedIndexPath = path.join(config.buildDir, `index.${unusedTarget}.ts`);
     if (fs.existsSync(unusedIndexPath)) {
         fs.unlinkSync(unusedIndexPath);
     }
 
-    if (targetOption === 'frida') {
-        generateHooksFile();
+    if (config.target === 'frida') {
+        generateHooksFile(config);
     }
 }
 
-function runCompileAgent() {
+function runCompileAgent(config) {
     spawnSync('frida-compile', [
-        path.join(buildDir, `index.${targetOption}.ts`),
-        '-o', agentPath,
-        '-T', typeCheckOption,
-        ...(compressOption ? ['-c'] : [])
+        path.join(config.buildDir, `index.${config.target}.ts`),
+        '-o', config.agentPath,
+        '-T', config.typeCheck,
+        ...(config.compress ? ['-c'] : []),
     ], { stdio: 'inherit' });
-    if (verbose) { console.log(`Agent compiling successful. Location: ${agentPath}`) }
+
+    if (config.verbose) {
+        console.log(`Agent compiling successful. Location: ${config.agentPath}`);
+    }
 }
 
-function runWatch() {
+function runWatch(config) {
     return new Promise((resolve, reject) => {
-        // Start frida-compile in watch mode
         const fridaProcess = spawn('frida-compile', [
-            path.join(buildDir, `index.${targetOption}.ts`),
-            '-o', agentPath,
+            path.join(config.buildDir, `index.${config.target}.ts`),
+            '-o', config.agentPath,
             '-w',
-            '-T', typeCheckOption,
-            ...(compressOption ? ['-c'] : [])
+            '-T', config.typeCheck,
+            ...(config.compress ? ['-c'] : []),
         ], { stdio: 'inherit' });
 
-        // Watch hook files for changes
-        const watcherHooks = chokidar.watch(hooksFilePaths, {
+        const watcherHooks = chokidar.watch(config.hooksFilePaths, {
             persistent: true,
-            ignoreInitial: true
+            ignoreInitial: true,
         });
         watcherHooks.on('change', () => {
-            if(verbose){console.log('Hook files changed, regenerating hooks.')}
-            generateHooksFile();
+            if (config.verbose) console.log('Hook files changed, regenerating hooks.');
+            generateHooksFile(config);
         });
 
-        // Watch for changes in the source files
-        const watcherSource = chokidar.watch(sourceDir, {
+        const watcherSource = chokidar.watch(config.sourceDir, {
             persistent: true,
-            ignoreInitial: true
+            ignoreInitial: true,
         });
         watcherSource.on('change', () => {
-            if(verbose){console.log('Hook files changed, regenerating hooks.')}
-            cleanupBuildDir();
-            setupBuildDir();
+            if (config.verbose) console.log('Source files changed, rebuilding.');
+            cleanupBuildDir(config);
+            setupBuildDir(config);
         });
 
-        process.on('SIGINT', () => {
-            if(verbose){console.log('Stop watching for file changes.')}
+        const stopWatching = () => {
+            if (config.verbose) console.log('Stop watching for file changes.');
             fridaProcess.kill();
             watcherHooks.close();
             watcherSource.close();
+        };
+
+        process.on('SIGINT', () => {
+            stopWatching();
             resolve();
         });
 
         fridaProcess.on('error', (err) => {
-            fridaProcess.kill();
-            watcherHooks.close();
-            watcherSource.close();
+            stopWatching();
             reject(err);
         });
     });
 }
+
+async function main() {
+    const config = parseArgs(process.argv.slice(2));
+
+    if (config.help) {
+        showHelp();
+    }
+    validateConfig(config);
+
+    try {
+        setupBuildDir(config);
+        saveCompiledFridaVersion(config);
+
+        if (config.watch) {
+            await runWatch(config);
+        } else {
+            runCompileAgent(config);
+        }
+    } catch (e) {
+        console.error(`Error: ${e}`);
+    } finally {
+        if (!config.keepBuildDir) {
+            cleanupBuildDir(config);
+        }
+    }
+}
+
+main();
