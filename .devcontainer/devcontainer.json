@@ -19,7 +19,6 @@
   ],
   "postCreateCommand": "sudo chown -R vscode:vscode /commandhistory ${containerWorkspaceFolder}/frooky/agent/node_modules /home/vscode/.gradle /opt/venv && .devcontainer/setup-arm64-android-configure-gradle.sh && echo 'source /opt/venv/bin/activate' >> ~/.bashrc && echo 'source /opt/venv/bin/activate' >> ~/.zshrc && ./compileAgent.sh --dev && pip install -e \".[dev]\"",
   "features": {
-    "ghcr.io/devcontainers/features/sshd:1": {},
     "./features/appium": {}
   },
   "customizations": {
@@ -28,7 +27,6 @@
         "python.defaultInterpreterPath": "/opt/venv/bin/python"
       },
       "extensions": [
-        "charliermarsh.ruff",
         "DavidAnson.vscode-markdownlint",
         "esbenp.prettier-vscode",
         "dbaeumer.vscode-eslint"
