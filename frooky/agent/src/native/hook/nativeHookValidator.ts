@@ -10,6 +10,7 @@ import {
   normalizeNativeHookGroup,
 } from "../../shared/inputParsing/inputNativeHookGroup";
 import { inputNativeHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookGroup.zod";
+import { logger } from "../../shared/logger";
 
 export class NativeHookValidator implements HookValidator<InputNativeHookNormalized, InputNativeHookGroup> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputNativeHookNormalized[] {
@@ -23,7 +24,7 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
           normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(inputNativeHook));
         } catch (e) {
           const symbol = typeof inputNativeHook === "string" ? inputNativeHook : inputNativeHook.symbol;
-          frooky.log.warn([
+          logger.warn([
             `Skipping hook for function with the symbol name '${symbol}' from module '${normalizedNativeHookGroup.module}' due to an invalid declaration.`,
             `Validation error:\n${z.prettifyError(e as z.ZodError)}`,
           ]);

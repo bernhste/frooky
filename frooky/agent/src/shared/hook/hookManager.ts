@@ -3,6 +3,7 @@ import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
 import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
+import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError } from "../utils";
 import { Hook } from "./hook";
@@ -53,7 +54,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
       if (param.settings.decoderArg) {
         decoderArgIndex = params.findIndex((p) => p.name === param.settings.decoderArg);
         if (decoderArgIndex < 0) {
-          frooky.log.warn(
+          logger.warn(
             `Decoder argument (${param.settings.decoderArg}) is not a valid parameter. Make sure to choose form one of the following parameter: ${params
               .filter((p) => p.name !== param.name)
               .map((p) => p.name)
@@ -63,7 +64,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         }
 
         if (decoderArgIndex === paramIndex) {
-          frooky.log.warn(
+          logger.warn(
             `Decoder argument (${param.settings.decoderArg}) cannot be itself. Make sure to choose form one of the following parameter: ${params
               .filter((p) => p.name !== param.name)
               .map((p) => p.name)
@@ -87,7 +88,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decoderArgDecoder: decoderArgDecoder,
         paramFilter: param.settings.paramFilter,
       };
-      frooky.log.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
+      logger.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
       argDecoderSpecs.push(paramDecoder);
     });
     return argDecoderSpecs;

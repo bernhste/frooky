@@ -2,6 +2,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookGroup";
+import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
@@ -14,13 +15,13 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   }
 
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number): Promise<Promise<NativeHook[] | null>[]> {
-    frooky.log.debug(`Resolving native hooks`);
+    logger.debug(`Resolving native hooks`);
 
     const uniqueModules: string[] = [...new Map(inputHooks.map((inputHook) => [inputHook.module, inputHook])).keys()];
 
     return uniqueModules.flatMap((moduleName) => {
       const modulePromise = this.resolveModule(moduleName, timeout).catch((e) => {
-        frooky.log.warn(`${e}`);
+        logger.warn(`${e}`);
         return null;
       });
 
@@ -31,7 +32,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           if (!resolvedModule) return null;
           try {
             const symbolAddress = this.resolveSymbol(inputHook.symbol, resolvedModule);
-            frooky.log.debug(`Address of function symbol '${inputHook.symbol}' found: ${symbolAddress}.`);
+            logger.debug(`Address of function symbol '${inputHook.symbol}' found: ${symbolAddress}.`);
             return [
               {
                 module: resolvedModule,
@@ -44,7 +45,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
               },
             ] as NativeHook[];
           } catch (e) {
-            frooky.log.warn(`${e}`);
+            logger.warn(`${e}`);
             return null;
           }
         });
@@ -138,7 +139,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
   private resolveSymbol(symbol: string, module: Module): NativePointer {
     try {
-      frooky.log.debug(`Resolving symbol '${symbol}' in module '${module.name}'.`);
+      logger.debug(`Resolving symbol '${symbol}' in module '${module.name}'.`);
       return module.getExportByName(symbol);
     } catch (e) {
       throw Error(`Skipping hook for native function '${symbol}'. This symbol does not exist in module '${module.name}'.`);
@@ -146,16 +147,16 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   }
 
   private async resolveModule(moduleName: string, timeoutSeconds: number): Promise<Module> {
-    frooky.log.debug(`Resolving native module ${moduleName} with a timeout of ${timeoutSeconds} seconds.`);
+    logger.debug(`Resolving native module ${moduleName} with a timeout of ${timeoutSeconds} seconds.`);
     return this.pollUntilResolved(
       () => {
         try {
-          frooky.log.debug(`Trying to resolve module '${moduleName}'.`);
+          logger.debug(`Trying to resolve module '${moduleName}'.`);
           const module = Process.getModuleByName(moduleName);
-          frooky.log.debug(`Module '${moduleName}' successfully loaded.`);
+          logger.debug(`Module '${moduleName}' successfully loaded.`);
           return module;
         } catch (_) {
-          frooky.log.debug(`Module '${moduleName}' not resolved yet.`);
+          logger.debug(`Module '${moduleName}' not resolved yet.`);
           return null;
         }
       },
@@ -173,11 +174,11 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   //       try {
   //         stackTrace.push(DebugSymbol.fromAddress(btFull[i]).toString());
   //       } catch (e) {
-  //         frooky.log.error(`Error during stack trace capture: ${e}`);
+  //         logger.error(`Error during stack trace capture: ${e}`);
   //       }
   //     }
   //   } catch (e) {
-  //     frooky.log.warn(`Native backtrace unavailable: ${e}`);
+  //     logger.warn(`Native backtrace unavailable: ${e}`);
   //   }
   //   return stackTrace;
   // }

@@ -1,8 +1,70 @@
+import chalk from "chalk";
 import { FrookyAgent } from "../FrookyAgent";
 import { LogEvent } from "./event/logEvent";
 
 export type LogLevel = "none" | "error" | "warn" | "info" | "debug";
 export type LogTo = "console" | "eventlog";
+
+const levelOrder: Record<LogLevel, number> = {
+  none: 0,
+  error: 1,
+  warn: 2,
+  info: 3,
+  debug: 4,
+};
+
+const levelColors: Record<LogLevel, (msg: string) => string> = {
+  none: (msg) => msg,
+  info: chalk.blue,
+  warn: chalk.yellow,
+  error: chalk.red,
+  debug: chalk.green,
+};
+
+let frooky: FrookyAgent;
+let verbosity: LogLevel = "error";
+let logTo: LogTo = "console";
+
+function shouldLog(level: LogLevel): boolean {
+  return levelOrder[verbosity] >= levelOrder[level];
+}
+
+function format(level: LogLevel, msg: string | string[]): string {
+  if (Array.isArray(msg)) {
+    const lines = msg.map((m) => `    ${m}`).join("\n");
+    return `[${level}]:\n${lines}`;
+  }
+  return `[${level}] ${msg}`;
+}
+
+function emit(level: LogLevel, msg: string | string[]): void {
+  if (!shouldLog(level)) return;
+
+  const formatted = format(level, msg);
+
+  if (logTo === "console") {
+    const out = levelColors[level](formatted);
+    switch (level) {
+      case "info":
+        console.log(out);
+        break;
+      case "warn":
+        console.warn(out);
+        break;
+      case "error":
+        console.error(out);
+        break;
+      case "debug":
+        console.debug(out);
+        break;
+      default:
+        console.log(out);
+        break;
+    }
+  } else if (logTo === "eventlog") {
+    frooky.addEventToLog(new LogEvent(level, formatted));
+  }
+}
 
 /**
  * Sets the level of logging.
@@ -15,96 +77,22 @@ export type LogTo = "console" | "eventlog";
  * Will log using frooky messaging for logging by default.
  * If you want to use Frida `console` for logging, set `logTo = "console"`
  */
-export class Logger {
-  private logTo: LogTo;
-  private verbosity: LogLevel;
-  private frooky: FrookyAgent;
+export const logger = {
+  init: (agent: FrookyAgent, verbosity: LogLevel = "error", logTo: LogTo = "console") => {
+    frooky = agent;
+    verbosity = verbosity;
+    logTo = logTo;
+  },
+  setVerbosity: (level: LogLevel) => {
+    verbosity = level;
+  },
+  setLogTo: (target: LogTo) => {
+    logTo = target;
+  },
+  debug: (msg: string | string[]) => emit("debug", msg),
+  info: (msg: string | string[]) => emit("info", msg),
+  warn: (msg: string | string[]) => emit("warn", msg),
+  error: (msg: string | string[]) => emit("error", msg),
+};
 
-  private static readonly levelOrder: Record<LogLevel, number> = {
-    none: 0,
-    error: 1,
-    warn: 2,
-    info: 3,
-    debug: 4,
-  };
-
-  private static readonly prefix: Record<LogLevel, string> = {
-    none: "",
-    debug: "[d]",
-    info: "[i]",
-    warn: "[!]",
-    error: "[E]",
-  };
-
-  private static readonly levelColors: Record<LogLevel, string> = {
-    none: "",
-    info: "\x1b[34m", // blue
-    warn: "\x1b[33m", // yellow
-    error: "\x1b[31m", // red
-    debug: "\x1b[32m", // green
-  };
-
-  private static readonly reset = "\x1b[0m";
-
-  constructor(frooky: FrookyAgent, verbosity: LogLevel = "error", logTo: LogTo = "console") {
-    this.frooky = frooky;
-    this.verbosity = verbosity;
-    this.logTo = logTo;
-  }
-
-  private shouldLog(level: LogLevel): boolean {
-    return Logger.levelOrder[this.verbosity] >= Logger.levelOrder[level];
-  }
-
-  private format(level: LogLevel, msg: string | string[]): string {
-    const p = Logger.prefix[level];
-    if (Array.isArray(msg)) {
-      const lines = msg.map((m) => `    ${m}`).join("\n");
-      return `[${level}]:\n${lines}`;
-    }
-    return `[${level}] ${msg}`;
-  }
-
-  private emit(level: LogLevel, msg: string | string[]): void {
-    if (!this.shouldLog(level)) return;
-
-    const formatted = this.format(level, msg);
-
-    if (this.logTo === "console") {
-      const color = Logger.levelColors[level];
-      const out = color + formatted + Logger.reset;
-      switch (level) {
-        case "info":
-          console.log(out);
-          break;
-        case "warn":
-          console.warn(out);
-          break;
-        case "error":
-          console.error(out);
-          break;
-        case "debug":
-          console.debug(out);
-          break;
-        default:
-          console.log(out);
-          break;
-      }
-    } else if (this.logTo === "eventlog") {
-      this.frooky.addEventToLog(new LogEvent(level, formatted));
-    }
-  }
-
-  public debug(msg: string | string[]): void {
-    this.emit("debug", msg);
-  }
-  public info(msg: string | string[]): void {
-    this.emit("info", msg);
-  }
-  public warn(msg: string | string[]): void {
-    this.emit("warn", msg);
-  }
-  public error(msg: string | string[]): void {
-    this.emit("error", msg);
-  }
-}
+export type Logger = typeof logger;

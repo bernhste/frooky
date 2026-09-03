@@ -4,6 +4,7 @@ import { FrookySettings } from "../../shared/frookySettings";
 import { HookValidator } from "../../shared/hook/hookValidator";
 import { InputJavaHookGroup, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookGroup } from "../../shared/inputParsing/inputJavaHookGroup";
 import { inputJavaHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputJavaHookGroup.zod";
+import { logger } from "../../shared/logger";
 
 export class AndroidHookValidator implements HookValidator<InputJavaHookNormalized, InputJavaHookGroup> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputJavaHookNormalized[] {
@@ -17,7 +18,7 @@ export class AndroidHookValidator implements HookValidator<InputJavaHookNormaliz
           normalizedJavaHooks.push(inputJavaHookNormalizedSchema.parse(inputJavaHook));
         } catch (e) {
           const method = typeof inputJavaHook === "string" ? inputJavaHook : inputJavaHook.method;
-          frooky.log.warn([
+          logger.warn([
             `Skipping hook for java method '${method}' from class '${normalizedJavaHookGroup.javaClass}' due to an invalid declaration.`,
             `Validation error:\n${z.prettifyError(e as z.ZodError)}`,
           ]);

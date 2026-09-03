@@ -69,10 +69,7 @@ describe("IntentDecoder", () => {
       value: [
         {
           type: "java.lang.String",
-          value: {
-            type: "java.lang.String",
-            value: "android.intent.category.LAUNCHER",
-          },
+          value: "android.intent.category.LAUNCHER",
         },
       ],
     });

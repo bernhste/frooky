@@ -7,6 +7,7 @@ import { DecoderSettings } from "../../shared/frookySettings";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputParam, normalizeInputParam } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookGroup";
+import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError } from "../../shared/utils";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
@@ -24,12 +25,12 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     super(JavaDecoderResolver, platformStackTrace);
   }
   async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number): Promise<Promise<JavaHook[] | null>[]> {
-    frooky.log.debug(`Resolving Java hooks`);
+    logger.debug(`Resolving Java hooks`);
 
     const uniqueClasses: string[] = [...new Map(inputHooks.map((inputHook) => [inputHook.javaClass, inputHook])).keys()];
     return uniqueClasses.flatMap((javaClass) => {
       const javaClassPromise = this.resolveJavaClass(javaClass, timeout).catch((e) => {
-        frooky.log.warn(`${e}`);
+        logger.warn(`${e}`);
         return null;
       });
       return inputHooks
@@ -41,7 +42,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
             const method = this.resolveMethod(resolvedJavaClass, inputHook);
             return this.resolveOverloads(method, inputHook);
           } catch (e) {
-            frooky.log.warn(e instanceof Error ? e.message : String(e));
+            logger.warn(e instanceof Error ? e.message : String(e));
             return null;
           }
         });
@@ -95,7 +96,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
             decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
           } catch (e) {
             if (!(e instanceof FilterMismatchError)) {
-              frooky.log.error(`Decoder error during 'onEnter' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+              logger.error(`Decoder error during 'onEnter' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
             }
             // call the original implementation and return immediately
             return hook.method.apply(this, args);
@@ -107,7 +108,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         try {
           returnValue = hook.method.apply(this, args);
         } catch (e) {
-          frooky.log.error(`Error during execution of hooked method: ${e}`);
+          logger.error(`Error during execution of hooked method: ${e}`);
           throw e; // re-throw so the app behaves normally
         }
 
@@ -117,7 +118,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
             decodedArgs.out = hookManager.decodeArgs(args, outArgDecoders);
           } catch (e) {
             if (!(e instanceof FilterMismatchError)) {
-              frooky.log.error(`Decoder error during 'onLeave' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+              logger.error(`Decoder error during 'onLeave' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
             }
             return returnValue;
           }
@@ -130,7 +131,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
             decodedRetValue = retTypeDecoder.decode(returnValue);
           }
         } catch (e) {
-          frooky.log.error(`Decoder error during return value decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+          logger.error(`Decoder error during return value decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
           return returnValue;
         }
 
@@ -157,24 +158,24 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
           settings: decoderSettings,
         });
       } else {
-        frooky.log.warn(`No Frida type name for the VM type ${type.name} found.`);
+        logger.warn(`No Frida type name for the VM type ${type.name} found.`);
       }
       return params;
     }, []);
   }
 
   private async resolveJavaClass(javaClassName: string, timeoutSeconds: number): Promise<Java.Wrapper> {
-    frooky.log.debug(`Resolving java class ${javaClassName} with a timeout of ${timeoutSeconds} seconds.`);
+    logger.debug(`Resolving java class ${javaClassName} with a timeout of ${timeoutSeconds} seconds.`);
     return this.pollUntilResolved(
       () => {
         try {
-          frooky.log.debug(`Trying to resolve Java class '${javaClassName}'.`);
+          logger.debug(`Trying to resolve Java class '${javaClassName}'.`);
 
           const resolvedJavaClass = Java.use(javaClassName);
-          frooky.log.debug(`Java class '${javaClassName}' resolved.`);
+          logger.debug(`Java class '${javaClassName}' resolved.`);
           return resolvedJavaClass;
         } catch (_) {
-          frooky.log.debug(`Java class '${javaClassName}' not resolved yet.`);
+          logger.debug(`Java class '${javaClassName}' not resolved yet.`);
           return null;
         }
       },
@@ -209,7 +210,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
             decoderSettings: inputHook.decoderSettings ?? DEFAULT_DECODER_SETTINGS,
           });
         } catch (e) {
-          frooky.log.warn(`Skipping overload for method '${inputHook.method}(${paramTypes})'. The overload does not exist.`);
+          logger.warn(`Skipping overload for method '${inputHook.method}(${paramTypes})'. The overload does not exist.`);
         }
       }
     } else {

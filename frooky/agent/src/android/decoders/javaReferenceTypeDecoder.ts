@@ -1,6 +1,7 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
+import { logger } from "../../shared/logger";
 import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
 import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
 import { ContentValuesDecoder } from "./android/content/ContentValuesDecoder";
@@ -43,7 +44,7 @@ function collectInterfaces(javaClass: Java.Wrapper): Set<string> {
       }
       javaClass = javaClass.getSuperclass();
     } catch (e) {
-      frooky.log.warn(`Error when resolving interfaces for class ${javaClass.$className}: ${e}`);
+      logger.warn(`Error when resolving interfaces for class ${javaClass.$className}: ${e}`);
       break;
     }
   }
@@ -72,7 +73,7 @@ export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
 
   decode(value: Java.Wrapper): DecodedValue {
     if (!this.decoder) {
-      frooky.log.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
+      logger.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
 
       let decoderConstructor: DecoderConstructor;
 
