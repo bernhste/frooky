@@ -86,7 +86,6 @@ select = ["E", "F", "W", "I"]
 # Disable E501 (line too long)
 ignore = ["E501"]
 
-
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
