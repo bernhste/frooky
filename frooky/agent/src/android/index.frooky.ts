@@ -8,13 +8,14 @@ import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
 
 let frookyAgent: FrookyAgent;
+let frookyAgentReady: Promise<void> | undefined;
 
 rpc.exports = {
   initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
     if (!Java.available) {
       throw new Error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
     }
-    return new Promise<void>((resolve, reject) => {
+    frookyAgentReady = new Promise<void>((resolve, reject) => {
       Java.perform(() => {
         try {
           frookyAgent = new FrookyAgent(
@@ -32,15 +33,14 @@ rpc.exports = {
         }
       });
     });
+    frookyAgentReady.catch((e) => console.error(`[!] Error initializing frookyAgent: ${String(e)}`));
   },
   loadFrookyConfigs(frookyConfigs: InputFrookyConfig[]) {
-    if (!frookyAgent) {
+    if (!frookyAgentReady) {
       throw new Error("[!] frookyAgent is not initialized. Call initFrookyAgent() first.");
     }
-    return new Promise<void>((resolve, reject) => {
-      Java.perform(() => {
-        frookyAgent.loadFrookyConfigs(frookyConfigs).then(resolve, reject);
-      });
-    });
+    frookyAgentReady
+      .then(() => frookyAgent.loadFrookyConfigs(frookyConfigs))
+      .catch((e) => console.error(`[!] Error loading frooky configs: ${String(e)}`));
   },
 };
