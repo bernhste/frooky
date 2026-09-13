@@ -2,7 +2,8 @@ import Java from "frida-java-bridge";
 import { Decoder } from "../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { IterableDecoder } from "../../java/lang/IterableDecoder";
-import { BundleDecoder, BundleDecoder as ClipDataDecoder } from "../os/BundleDecoder";
+import { BundleDecoder } from "../os/BundleDecoder";
+import { ClipDataDecoder } from "./clipData/ClipDataDecoder";
 import { ComponentNameDecoder } from "./ComponentNameDecoder";
 import { IntentFlagDecoder } from "./IntentFlagDecoder";
 
@@ -12,6 +13,7 @@ type DecodedIntent = {
   type: string | null;
   package: string | null;
   component: DecodedValue | null;
+  selector: DecodedValue | null;
   flags: DecodedValue;
   categories: DecodedValue | null;
   extras: DecodedValue | null;
@@ -48,10 +50,18 @@ export class IntentDecoder extends Decoder<Java.Wrapper> {
 
     // clip
     const clipDataDecoder = new ClipDataDecoder({
-      type: "java.util.Set<String>",
+      type: "android.content.ClipData",
       settings: this.decodable.settings,
     });
     const clipData = value.getClipData();
+
+    // selector: the Intent that resolution/routing is actually performed against instead of this
+    // one - relevant for intent redirection analysis, so decode it the same way as the intent itself
+    const selectorDecoder = new IntentDecoder({
+      type: "android.content.Intent",
+      settings: this.decodable.settings,
+    });
+    const selector = value.getSelector();
 
     const decoded: DecodedIntent = {
       action: value.getAction()?.toString() ?? null,
@@ -59,10 +69,11 @@ export class IntentDecoder extends Decoder<Java.Wrapper> {
       type: value.getType()?.toString() ?? null,
       package: value.getPackage()?.toString() ?? null,
       component: componentName ? componentDecoder.decode(componentName) : null,
+      selector: selector ? selectorDecoder.decode(selector) : null,
       flags: flagDecoder.decode(value.getFlags()),
       categories: categories ? categoriesDecoder.decode(categories) : null,
       extras: extrasBundle ? extrasDecoder.decode(extrasBundle) : null,
-      clipData: clipData ? clipDataDecoder.decode(categories) : null,
+      clipData: clipData ? clipDataDecoder.decode(clipData) : null,
     };
 
     return {

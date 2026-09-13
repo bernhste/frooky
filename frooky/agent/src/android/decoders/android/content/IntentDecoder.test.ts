@@ -5,10 +5,16 @@ import { IntentDecoder } from "./IntentDecoder";
 describe("IntentDecoder", () => {
   const Intent = Java.use("android.content.Intent");
   const Uri = Java.use("android.net.Uri");
+  const ClipData = Java.use("android.content.ClipData");
   const decoder = new IntentDecoder({
     type: "android.content.Intent",
     settings: DEFAULT_DECODER_SETTINGS,
   });
+
+  // ClipData.newPlainText() takes CharSequence params. Plain JS strings can't be marshalled into an
+  // interface-typed parameter, so wrap them as real java.lang.String instances.
+  const JavaString = Java.use("java.lang.String");
+  const charSeq = (value: string): Java.Wrapper => JavaString.$new(value);
 
   it("should decode action", () => {
     const intent = Intent.$new("android.intent.action.VIEW");
@@ -75,6 +81,50 @@ describe("IntentDecoder", () => {
     });
   });
 
+  it("should decode selector", () => {
+    const selector = Intent.$new("android.intent.action.SENDTO");
+    selector.addCategory("android.intent.category.DEFAULT");
+    const intent = Intent.$new("android.intent.action.SEND");
+    intent.setSelector(selector);
+
+    const result = decoder.decode(intent);
+
+    expect(result.value.selector).toEqual({
+      type: "android.content.Intent",
+      value: {
+        action: "android.intent.action.SENDTO",
+        data: null,
+        type: null,
+        package: null,
+        component: null,
+        selector: null,
+        flags: { type: "android.content.IntentFlag", value: [] },
+        categories: {
+          type: "java.util.Set<String>",
+          value: [{ type: "java.lang.String", value: "android.intent.category.DEFAULT" }],
+        },
+        extras: null,
+        clipData: null,
+      },
+    });
+  });
+
+  it("should decode clip data", () => {
+    const intent = Intent.$new("android.intent.action.SEND");
+    intent.setClipData(ClipData.newPlainText(charSeq("label"), charSeq("clip text")));
+
+    const result = decoder.decode(intent);
+
+    expect(result.value.clipData.type).toBe("android.content.ClipData");
+    expect(result.value.clipData.value.itemCount).toBe(1);
+    expect(result.value.clipData.value.items).toEqual([
+      {
+        type: "android.content.ClipData.Item",
+        value: { htmlText: null, text: "clip text", uri: null, intent: null },
+      },
+    ]);
+  });
+
   it("should decode extras", () => {
     const intent = Intent.$new("android.intent.action.SEND");
     intent.putExtra("android.intent.extra.TEXT", "hello world");
@@ -99,6 +149,7 @@ describe("IntentDecoder", () => {
     expect(result.value.type).toBeNull();
     expect(result.value.package).toBeNull();
     expect(result.value.component).toBeNull();
+    expect(result.value.selector).toBeNull();
     expect(result.value.clipData).toBeNull();
     expect(result.value.categories).toBeNull();
     expect(result.value.extras).toBeNull();
