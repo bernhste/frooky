@@ -7,7 +7,7 @@ export class JavaPrimitiveDecoder extends Decoder<Java.Wrapper> {
     return {
       type: this.decodable.type,
       name: this.decodable.name,
-      value: this.needsUnwrap() ? value.toString() : value,
+      value: this.needsUnwrap() && value != null ? value.toString() : value,
     };
   }
 

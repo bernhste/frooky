@@ -30,10 +30,10 @@ describe("JavaPrimitiveDecoder", () => {
       const primitive = Java.use("java.lang.Float").$new(3.14159265358979323846264).floatValue();
       const result = decoder.decode(primitive);
 
-      // float is very un-precise . we just validate that it is not off by too far
+      // float has less precision than a JS number, so we allow a small margin of error
       expect(result.type).toBe("float");
-      const zero = primitive - 3.14159265358979323846264;
-      expect(Math.round(zero)).toBe(0);
+      const diff = Math.abs((result.value as number) - 3.14159265358979323846264);
+      expect(diff).toBeLessThan(0.00001);
     });
 
     it("should decode a java boolean primitive correctly", () => {
@@ -65,6 +65,29 @@ describe("JavaPrimitiveDecoder", () => {
 
       expect(result).toEqual({ type: "char", value: "A" });
     });
+
+    it("should decode a java string primitive correctly", () => {
+      const decoder = new JavaPrimitiveDecoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
+      const primitive = "hello world" as unknown as Java.Wrapper;
+      const result = decoder.decode(primitive);
+
+      expect(result).toEqual({ type: "java.lang.String", value: "hello world" });
+    });
+
+    it("should decode a null java string without throwing", () => {
+      const decoder = new JavaPrimitiveDecoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
+      const result = decoder.decode(null as unknown as Java.Wrapper);
+
+      expect(result).toEqual({ type: "java.lang.String", value: null });
+    });
+
+    it("should include the decodable name in the result", () => {
+      const decoder = new JavaPrimitiveDecoder({ type: "int", name: "myParam", settings: DEFAULT_DECODER_SETTINGS });
+      const primitive = Java.use("java.lang.Integer").$new(42).intValue();
+      const result = decoder.decode(primitive);
+
+      expect(result).toEqual({ type: "int", name: "myParam", value: 42 });
+    });
   });
 });
 
@@ -79,6 +102,18 @@ describe("JavaFallbackDecoder", () => {
 
       expect(result).toEqual({
         type: "java.lang.Object",
+        value: javaObject.toString(),
+      });
+    });
+
+    it("should include the decodable name in the result", () => {
+      const namedDecoder = new JavaFallbackDecoder({ type: "java.lang.Object", name: "myParam", settings: DEFAULT_DECODER_SETTINGS });
+      const javaObject = JavaObject.$new();
+      const result = namedDecoder.decode(javaObject);
+
+      expect(result).toEqual({
+        type: "java.lang.Object",
+        name: "myParam",
         value: javaObject.toString(),
       });
     });

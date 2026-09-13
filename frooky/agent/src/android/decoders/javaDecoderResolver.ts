@@ -25,6 +25,9 @@ export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
     if (decodable.settings.customDecoder) {
       // return the custom decoder (if implemented)
       const DecoderClass = CUSTOM_CLASS_DECODER_REGISTRY[decodable.settings.customDecoder];
+      if (!DecoderClass) {
+        throw new Error(`Unknown custom decoder: "${decodable.settings.customDecoder}"`);
+      }
       return new DecoderClass(decodable);
     } else if (decodable.type.startsWith("[")) {
       // java array decoder
