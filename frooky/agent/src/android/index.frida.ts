@@ -18,7 +18,7 @@ Java.perform(() => {
   const frookyAgent = new FrookyAgent(
     "Android",
     new AndroidHookValidator(),
-    new AndroidHookManager(AndroidStackTrace),
+    (frookyAgent) => new AndroidHookManager(AndroidStackTrace, frookyAgent),
     AndroidStackTrace,
     "debug",
     DEFAULT_SETTING_LOG_TO,

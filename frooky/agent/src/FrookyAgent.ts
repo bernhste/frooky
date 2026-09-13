@@ -30,7 +30,7 @@ export class FrookyAgent {
   constructor(
     platform: Platform,
     platformInputHookValidator: HookValidator<any, any>,
-    platformHookResolver: HookManager<any, any, any>,
+    createPlatformHookManager: (frookyAgent: FrookyAgent) => HookManager<any, any, any>,
     platformStackTrace: PlatformStackTrace,
     logLevel: LogLevel = DEFAULT_SETTING_LOG_LEVEL,
     logTo: LogTo = DEFAULT_SETTING_LOG_TO,
@@ -41,9 +41,9 @@ export class FrookyAgent {
 
     this.platform = platform;
     this.platformHookValidator = platformInputHookValidator;
-    this.platformHookManger = platformHookResolver;
     this.resolverTimeoutSeconds = resolverTimeoutSeconds;
     this.nativeHookManager = new NativeHookManager(platformStackTrace, this);
+    this.platformHookManger = createPlatformHookManager(this);
 
     // setup logger
     logger.setAgent(this);
