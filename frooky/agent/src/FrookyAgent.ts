@@ -46,7 +46,9 @@ export class FrookyAgent {
     this.nativeHookManager = new NativeHookManager(platformStackTrace);
 
     // setup logger
-    logger.init(this, logLevel, logTo);
+    logger.setAgent(this);
+    logger.setVerbosity(logLevel);
+    logger.setLogTo(logTo);
     logger.info("Logger initialized");
 
     // printing some context infos

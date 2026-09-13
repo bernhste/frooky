@@ -62,6 +62,12 @@ function emit(level: LogLevel, msg: string | string[]): void {
         break;
     }
   } else if (logTo === "eventlog") {
+    if (!frooky) {
+      console.error(
+        chalk.red("[error] Cannot log to eventLog, since no frooky agent is set. Make sure to set the agent using setAgent(frookyAgent) first."),
+      );
+      return;
+    }
     frooky.addEventToLog(new LogEvent(level, formatted));
   }
 }
@@ -78,10 +84,8 @@ function emit(level: LogLevel, msg: string | string[]): void {
  * If you want to use Frida `console` for logging, set `logTo = "console"`
  */
 export const logger = {
-  init: (agent: FrookyAgent, verbosity: LogLevel = "error", logTo: LogTo = "console") => {
+  setAgent: (agent: FrookyAgent) => {
     frooky = agent;
-    verbosity = verbosity;
-    logTo = logTo;
   },
   setVerbosity: (level: LogLevel) => {
     verbosity = level;
