@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../../shared/defaultValues";
+import { JavaDecoderResolver } from "../../javaDecoderResolver";
 import { IterableDecoder } from "./IterableDecoder";
 
 describe("IterableDecoder", () => {
@@ -52,6 +53,39 @@ describe("IterableDecoder", () => {
           { type: "java.lang.Object", value: { type: "java.lang.Object", value: objectElement.toString() } },
         ],
       });
+    });
+
+    it("should resolve the decoder only once for elements sharing the same runtime class (decoderCache)", () => {
+      const ArrayList = Java.use("java.util.ArrayList");
+      const list = ArrayList.$new();
+      list.add("a");
+      list.add("b");
+      list.add("c");
+
+      const resolveDecoderSpy = spyOn(JavaDecoderResolver, "resolveDecoder");
+
+      const decoder = new IterableDecoder({ type: "java.util.List", settings: DEFAULT_DECODER_SETTINGS });
+      decoder.decode(list);
+
+      expect(resolveDecoderSpy.calls.length).toBe(1);
+      resolveDecoderSpy.restore();
+    });
+
+    it("should resolve a new decoder once per distinct runtime class, not once per element (decoderCache)", () => {
+      const ArrayList = Java.use("java.util.ArrayList");
+      const list = ArrayList.$new();
+      list.add("a");
+      list.add(Java.use("java.lang.Object").$new());
+      list.add("b"); // same class as the first element - must not trigger another resolve
+
+      const resolveDecoderSpy = spyOn(JavaDecoderResolver, "resolveDecoder");
+
+      const decoder = new IterableDecoder({ type: "java.util.List", settings: DEFAULT_DECODER_SETTINGS });
+      decoder.decode(list);
+
+      // one resolve for java.lang.String, one for java.lang.Object
+      expect(resolveDecoderSpy.calls.length).toBe(2);
+      resolveDecoderSpy.restore();
     });
 
     it("should truncate at decodeLimit and append a truncation marker", () => {
