@@ -7,10 +7,14 @@ import { AndroidStackTrace } from "./androidStackTrace";
 import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
 
-rpc.exports = {
-  initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
-    if (Java.available) {
-      globalThis.frooky = new FrookyAgent(
+Java.perform(() => {
+  let frookyAgent: FrookyAgent;
+  rpc.exports = {
+    initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
+      if (!Java.available) {
+        throw new Error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
+      }
+      frookyAgent = new FrookyAgent(
         "Android",
         new AndroidHookValidator(),
         new AndroidHookManager(AndroidStackTrace),
@@ -19,13 +23,12 @@ rpc.exports = {
         logTo ?? DEFAULT_SETTING_LOG_TO,
         resolverTimeoutSeconds ?? DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
       );
-    } else {
-      console.error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
-    }
-  },
-  loadFrookyConfigs(frookyConfigs: InputFrookyConfig[]) {
-    Java.perform(() => {
-      frooky.loadFrookyConfigs(frookyConfigs);
-    });
-  },
-};
+    },
+    loadFrookyConfigs(frookyConfigs: InputFrookyConfig[]) {
+      if (!frookyAgent) {
+        throw new Error("[!] frookyAgent is not initialized. Call initFrookyAgent() first.");
+      }
+      frookyAgent.loadFrookyConfigs(frookyConfigs);
+    },
+  };
+});

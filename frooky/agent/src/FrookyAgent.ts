@@ -14,10 +14,6 @@ import { HookValidator } from "./shared/hook/hookValidator";
 import { logger, LogLevel, LogTo } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
 
-declare global {
-  var frooky: FrookyAgent;
-}
-
 /**
  * Main application class for Frooky.
  * Manages configuration, events, and lifecycle of a frooky session.
