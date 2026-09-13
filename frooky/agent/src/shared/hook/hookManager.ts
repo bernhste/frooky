@@ -48,50 +48,52 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     const argDecoderSpecs: ParamDecoder<TValue>[] = [];
 
     params.forEach((param: Param, paramIndex: number) => {
-      let decoderArgIndex: number | undefined;
-      let decoderArgDecoder: Decoder<TValue> | undefined;
-      const { direction, ...paramDecodable } = param;
-      if (param.settings.decoderArg) {
-        decoderArgIndex = params.findIndex((p) => p.name === param.settings.decoderArg);
-        if (decoderArgIndex < 0) {
-          logger.warn(
-            `Decoder argument (${param.settings.decoderArg}) is not a valid parameter. Make sure to choose form one of the following parameter: ${params
-              .filter((p) => p.name !== param.name)
-              .map((p) => p.name)
-              .join(", ")} `,
-          );
-          return;
-        }
-
-        if (decoderArgIndex === paramIndex) {
-          logger.warn(
-            `Decoder argument (${param.settings.decoderArg}) cannot be itself. Make sure to choose form one of the following parameter: ${params
-              .filter((p) => p.name !== param.name)
-              .map((p) => p.name)
-              .join(", ")} `,
-          );
-          return;
-        }
-
-        decoderArgDecoder = this.decoderResolver.resolveDecoder({
-          type: params.find((p) => p.name === param.settings.decoderArg)!.type,
-          settings: param.settings,
-        });
+      const decoderArgResolution = param.settings.decoderArg ? this.resolveDecoderArg(param, paramIndex, params) : undefined;
+      if (param.settings.decoderArg && !decoderArgResolution) {
+        return; // invalid decoderArg reference; warning already logged by resolveDecoderArg()
       }
-      const paramDecoder = {
+
+      const { direction, ...paramDecodable } = param;
+      const paramDecoder: ParamDecoder<TValue> = {
         decoder: this.decoderResolver.resolveDecoder(paramDecodable),
         argIndex: paramIndex,
         direction: param.direction,
         name: param.name,
         decoderArg: param.settings.decoderArg,
-        decoderArgIndex: decoderArgIndex,
-        decoderArgDecoder: decoderArgDecoder,
+        decoderArgIndex: decoderArgResolution?.index,
+        decoderArgDecoder: decoderArgResolution?.decoder,
         paramFilter: param.settings.paramFilter,
       };
       logger.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
       argDecoderSpecs.push(paramDecoder);
     });
     return argDecoderSpecs;
+  }
+
+  protected resolveDecoderArg(param: Param, paramIndex: number, params: Param[]): { index: number; decoder: Decoder<TValue> } | undefined {
+    const decoderArgName = param.settings.decoderArg!;
+    const index = params.findIndex((p) => p.name === decoderArgName);
+    const otherParamNames = params
+      .filter((p) => p.name !== param.name)
+      .map((p) => p.name)
+      .join(", ");
+
+    if (index < 0) {
+      logger.warn(
+        `Decoder argument (${decoderArgName}) is not a valid parameter. Make sure to choose form one of the following parameter: ${otherParamNames} `,
+      );
+      return undefined;
+    }
+
+    if (index === paramIndex) {
+      logger.warn(
+        `Decoder argument (${decoderArgName}) cannot be itself. Make sure to choose form one of the following parameter: ${otherParamNames} `,
+      );
+      return undefined;
+    }
+
+    const decoder = this.decoderResolver.resolveDecoder({ type: params[index].type, settings: param.settings });
+    return { index, decoder };
   }
 
   protected resolveRetTypeDecoder(retType: RetType): Decoder<TValue> {
