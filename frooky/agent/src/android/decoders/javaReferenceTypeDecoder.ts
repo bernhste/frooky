@@ -13,21 +13,27 @@ import { MapDecoder } from "./java/util/MapDecoder";
 import { JavaFallbackDecoder } from "./javaBasicDecoder";
 import { DecoderConstructor } from "./javaDecoderResolver";
 
-const CLASS_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
-  "android.content.Intent": IntentDecoder,
-  "android.content.ClipData": ClipDataDecoder,
-  "android.content.ClipData$Item": ClipDataItemDecoder,
-  "android.os.Bundle": BundleDecoder,
-  "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,
-  "android.content.ContentValues": ContentValuesDecoder,
-};
+let classDecoderRegistry: Record<string, DecoderConstructor> | undefined;
+function getClassDecoderRegistry(): Record<string, DecoderConstructor> {
+  return (classDecoderRegistry ??= {
+    "android.content.Intent": IntentDecoder,
+    "android.content.ClipData": ClipDataDecoder,
+    "android.content.ClipData$Item": ClipDataItemDecoder,
+    "android.os.Bundle": BundleDecoder,
+    "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,
+    "android.content.ContentValues": ContentValuesDecoder,
+  });
+}
 
-const INTERFACE_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
-  "java.util.Map": MapDecoder,
-  "java.lang.Iterable": IterableDecoder,
-};
+let interfaceDecoderRegistry: Record<string, DecoderConstructor> | undefined;
+function getInterfaceDecoderRegistry(): Record<string, DecoderConstructor> {
+  return (interfaceDecoderRegistry ??= {
+    "java.util.Map": MapDecoder,
+    "java.lang.Iterable": IterableDecoder,
+  });
+}
 
-const _decoderCache = new Map<string, DecoderConstructor>();
+const decoderCache = new Map<string, DecoderConstructor>();
 
 function collectInterfaces(javaClass: Java.Wrapper): Set<string> {
   const result = new Set<string>();
@@ -53,14 +59,15 @@ function collectInterfaces(javaClass: Java.Wrapper): Set<string> {
 }
 
 function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor | null {
-  const cachedDecoder = _decoderCache.get(value.$className);
+  const cachedDecoder = decoderCache.get(value.$className);
   if (cachedDecoder !== undefined) return cachedDecoder;
 
   const interfaces = collectInterfaces(value.class);
+  const registry = getInterfaceDecoderRegistry();
   for (const iface of interfaces) {
-    const interfaceDecoder = INTERFACE_DECODER_REGISTRY[iface];
+    const interfaceDecoder = registry[iface];
     if (interfaceDecoder) {
-      _decoderCache.set(value.$className, interfaceDecoder);
+      decoderCache.set(value.$className, interfaceDecoder);
       return interfaceDecoder;
     }
   }
@@ -69,39 +76,40 @@ function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor |
 }
 
 export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
-  private decoder: Decoder<Java.Wrapper> | undefined;
-
   decode(value: Java.Wrapper): DecodedValue {
-    if (!this.decoder) {
-      logger.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
-
-      let decoderConstructor: DecoderConstructor;
-
-      // 1. class decoder for the runtime class exists
-      if (CLASS_DECODER_REGISTRY[value.$className]) {
-        decoderConstructor = CLASS_DECODER_REGISTRY[value.$className];
-        _decoderCache.set(value.$className, decoderConstructor);
-      }
-      // 2. interface decoder for declared interface type exits
-      else if (INTERFACE_DECODER_REGISTRY[this.decodable.type]) {
-        decoderConstructor = INTERFACE_DECODER_REGISTRY[this.decodable.type];
-        _decoderCache.set(this.decodable.type, decoderConstructor);
-      }
-      // 3. resolve the interfaces and use a decoder if implemented or fall back to the JavaFallbackDecoder
-      else {
-        decoderConstructor = resolveInterfaceDecoderClass(value) ?? JavaFallbackDecoder;
-      }
-      this.decoder = new decoderConstructor({
-        type: value.$className,
+    if (value == null) {
+      // frida-java-bridge hands back a plain JS null for a null Java reference crossing the
+      // bridge (see IntentDecoder.ts's `value.getAction()?.toString() ?? null`), and any
+      // declared type that isn't a primitive/String/void/array can legitimately be null
+      // (e.g. an Object-typed return value) - decode it as null instead of crashing on $className
+      return {
+        type: this.decodable.type,
         name: this.decodable.name,
-        settings: this.decodable.settings,
-      });
+        value: null,
+      };
     }
+
+    logger.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
+
+    const decoderConstructor: DecoderConstructor =
+      // 1. class decoder for the runtime class exists
+      getClassDecoderRegistry()[value.$className] ??
+      // 2. interface decoder for declared interface type exists
+      getInterfaceDecoderRegistry()[this.decodable.type] ??
+      // 3. resolve the interfaces and use a decoder if implemented or fall back to the JavaFallbackDecoder
+      resolveInterfaceDecoderClass(value) ??
+      JavaFallbackDecoder;
+
+    const decoder = new decoderConstructor({
+      type: value.$className,
+      name: this.decodable.name,
+      settings: this.decodable.settings,
+    });
 
     return {
       type: this.decodable.type,
       name: this.decodable.name,
-      value: this.decoder.decode(value),
+      value: decoder.decode(value),
     };
   }
 }
