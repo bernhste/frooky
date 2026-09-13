@@ -5,12 +5,19 @@ import { IterableDecoder } from "../lang/IterableDecoder";
 
 export class MapDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
-    const valueCollection = value.values();
-    const iterableDecoder = new IterableDecoder(this.decodable);
-    const decodedValues = iterableDecoder.decode(valueCollection);
-
     const keySet = value.keySet();
-    const decodedKeySet = iterableDecoder.decode(keySet);
+    const decodedKeySet = new IterableDecoder({
+      type: keySet.$className,
+      name: this.decodable.name,
+      settings: this.decodable.settings,
+    }).decode(keySet);
+
+    const valueCollection = value.values();
+    const decodedValues = new IterableDecoder({
+      type: valueCollection.$className,
+      name: this.decodable.name,
+      settings: this.decodable.settings,
+    }).decode(valueCollection);
 
     return {
       type: this.decodable.type,
