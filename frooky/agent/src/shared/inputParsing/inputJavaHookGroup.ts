@@ -68,8 +68,20 @@ function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSett
   };
 }
 
-// will return a JavaMethod for any form of JavaMethodInput or a simple method string
-function normalizeMethod(
+/**
+ * Normalizes a single java hook definition into its canonical form.
+ *
+ * Exported so callers (e.g. the android hook validator) can normalize and validate hooks one at a time,
+ * isolating a malformed param/retType declaration on one hook from the rest of the group.
+ *
+ * @param javaClass - The java class the hook belongs to, taken from the enclosing hook group.
+ * @param method - The raw hook definition, either a plain method name or a detailed declaration.
+ * @param hookSettings - The merged hook settings to apply to this hook.
+ * @param decoderSettings - The merged decoder settings to apply to this hook's overloads/retType.
+ * @returns The normalized hook.
+ * @throws If an overload's param or a retType declaration is in an unrecognized format.
+ */
+export function normalizeJavaHook(
   javaClass: string,
   method: InputJavaHook,
   hookSettings: HookSettings,
@@ -89,23 +101,38 @@ function normalizeMethod(
   };
 }
 
-// normalized hook group
-export function normalizeJavaHookGroup(hookGroup: InputJavaHookGroup, settings: FrookySettings): InputJavaHookGroup {
-  const mergedHookSettings: HookSettings = validateAndRepairHookSettings({
+/**
+ * Merges the hook group's own hook/decoder settings with the given base settings and the hard-coded defaults,
+ * repairing any invalid values along the way.
+ *
+ * Exported so callers can obtain the merged settings for a group without normalizing its hooks (which may throw).
+ *
+ * @param hookGroup - The input java hook group whose settings should be merged.
+ * @param settings - The base frooky settings to merge on top of the defaults.
+ * @returns The merged, repaired hook and decoder settings.
+ */
+export function mergeJavaHookGroupSettings(hookGroup: InputJavaHookGroup, settings: FrookySettings): { hookSettings: HookSettings; decoderSettings: DecoderSettings } {
+  const hookSettings: HookSettings = validateAndRepairHookSettings({
     ...DEFAULT_HOOK_SETTINGS,
     ...settings.hookSettings,
     ...hookGroup.hookSettings,
   });
-  const mergedDecoderSettings: DecoderSettings = validateAndRepairDecoderSettings({
+  const decoderSettings: DecoderSettings = validateAndRepairDecoderSettings({
     ...DEFAULT_DECODER_SETTINGS,
     ...settings.decoderSettings,
     ...hookGroup.decoderSettings,
   });
+  return { hookSettings, decoderSettings };
+}
+
+// normalized hook group
+export function normalizeJavaHookGroup(hookGroup: InputJavaHookGroup, settings: FrookySettings): InputJavaHookGroup {
+  const { hookSettings, decoderSettings } = mergeJavaHookGroupSettings(hookGroup, settings);
 
   return {
     ...hookGroup,
-    hooks: hookGroup.hooks.map((hook: InputJavaHook) => normalizeMethod(hookGroup.javaClass, hook, mergedHookSettings, mergedDecoderSettings)),
-    hookSettings: mergedHookSettings,
-    decoderSettings: mergedDecoderSettings,
+    hooks: hookGroup.hooks.map((hook: InputJavaHook) => normalizeJavaHook(hookGroup.javaClass, hook, hookSettings, decoderSettings)),
+    hookSettings: hookSettings,
+    decoderSettings: decoderSettings,
   };
 }

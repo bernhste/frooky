@@ -7,7 +7,8 @@ import {
   InputNativeHookGroup,
   InputNativeHookNormalized,
   isNativeHookGroup,
-  normalizeNativeHookGroup,
+  mergeNativeHookGroupSettings,
+  normalizeNativeHook,
 } from "../../shared/inputParsing/inputNativeHookGroup";
 import { inputNativeHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookGroup.zod";
 import { logger } from "../../shared/logger";
@@ -18,15 +19,17 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
     const normalizedNativeHooks: InputNativeHookNormalized[] = [];
 
     for (const nativeHookGroup of nativeHookGroups) {
-      const normalizedNativeHookGroup = normalizeNativeHookGroup(nativeHookGroup, settings);
-      for (const inputNativeHook of normalizedNativeHookGroup.hooks) {
+      const { hookSettings, decoderSettings } = mergeNativeHookGroupSettings(nativeHookGroup, settings);
+      for (const inputNativeHook of nativeHookGroup.hooks) {
         try {
-          normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(inputNativeHook));
+          const normalizedNativeHook = normalizeNativeHook(inputNativeHook, nativeHookGroup.module, hookSettings, decoderSettings);
+          normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(normalizedNativeHook));
         } catch (e) {
           const symbol = typeof inputNativeHook === "string" ? inputNativeHook : inputNativeHook.symbol;
+          const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
           logger.warn([
-            `Skipping hook for function with the symbol name '${symbol}' from module '${normalizedNativeHookGroup.module}' due to an invalid declaration.`,
-            `Validation error:\n${z.prettifyError(e as z.ZodError)}`,
+            `Skipping hook for function with the symbol name '${symbol}' from module '${nativeHookGroup.module}' due to an invalid declaration.`,
+            `Validation error:\n${validationError}`,
           ]);
         }
       }

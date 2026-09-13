@@ -2,7 +2,7 @@ import z from "zod";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
 import { HookValidator } from "../../shared/hook/hookValidator";
-import { InputJavaHookGroup, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookGroup } from "../../shared/inputParsing/inputJavaHookGroup";
+import { InputJavaHookGroup, InputJavaHookNormalized, isJavaHookScope, mergeJavaHookGroupSettings, normalizeJavaHook } from "../../shared/inputParsing/inputJavaHookGroup";
 import { inputJavaHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputJavaHookGroup.zod";
 import { logger } from "../../shared/logger";
 
@@ -12,15 +12,17 @@ export class AndroidHookValidator implements HookValidator<InputJavaHookNormaliz
     const normalizedJavaHooks: InputJavaHookNormalized[] = [];
 
     for (const javaHookGroup of javaHookGroups) {
-      const normalizedJavaHookGroup = normalizeJavaHookGroup(javaHookGroup, settings);
-      for (const inputJavaHook of normalizedJavaHookGroup.hooks) {
+      const { hookSettings, decoderSettings } = mergeJavaHookGroupSettings(javaHookGroup, settings);
+      for (const inputJavaHook of javaHookGroup.hooks) {
         try {
-          normalizedJavaHooks.push(inputJavaHookNormalizedSchema.parse(inputJavaHook));
+          const normalizedJavaHook = normalizeJavaHook(javaHookGroup.javaClass, inputJavaHook, hookSettings, decoderSettings);
+          normalizedJavaHooks.push(inputJavaHookNormalizedSchema.parse(normalizedJavaHook));
         } catch (e) {
           const method = typeof inputJavaHook === "string" ? inputJavaHook : inputJavaHook.method;
+          const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
           logger.warn([
-            `Skipping hook for java method '${method}' from class '${normalizedJavaHookGroup.javaClass}' due to an invalid declaration.`,
-            `Validation error:\n${z.prettifyError(e as z.ZodError)}`,
+            `Skipping hook for java method '${method}' from class '${javaHookGroup.javaClass}' due to an invalid declaration.`,
+            `Validation error:\n${validationError}`,
           ]);
         }
       }

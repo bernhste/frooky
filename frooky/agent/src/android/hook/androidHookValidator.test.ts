@@ -93,6 +93,58 @@ describe("AndroidHookValidator", () => {
       expect(messageLines[0]).toContain("Skipping hook for java method '123' from class 'com.example.Foo' due to an invalid declaration.");
     });
 
+    it("skips a hook whose overload param declaration is in an unrecognized format, without aborting the rest of the group", () => {
+      // A bare number is not a valid InputParam shape (not a string, tuple, or Param object) and
+      // makes normalization throw a plain Error rather than a ZodError - this must still be caught per-hook.
+      const invalidParamHook = {
+        javaClass: "com.example.Foo",
+        method: "bad",
+        overloads: [{ params: [123 as unknown as string] }],
+      };
+      const javaGroup: InputJavaHookGroup = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: ["foo", invalidParamHook, "baz"],
+      };
+      const config: InputFrookyConfig = { hookGroup: [javaGroup] };
+
+      const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["foo", "baz"]);
+      expect(warnSpy).toHaveBeenCalled();
+      const [messageLines] = warnSpy.calls[0] as [string[]];
+      expect(messageLines[0]).toContain("Skipping hook for java method 'bad' from class 'com.example.Foo' due to an invalid declaration.");
+    });
+
+    it("skips a hook whose retType declaration is in an unrecognized format, without aborting the rest of the group", () => {
+      const invalidRetTypeHook = { javaClass: "com.example.Foo", method: "bad", retType: 42 as unknown as string };
+      const javaGroup: InputJavaHookGroup = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: [invalidRetTypeHook, "baz"],
+      };
+      const config: InputFrookyConfig = { hookGroup: [javaGroup] };
+
+      const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["baz"]);
+      expect(warnSpy).toHaveBeenCalled();
+    });
+
+    it("still validates the remaining java hook groups after one group contained an unnormalizable hook", () => {
+      const brokenGroup: InputJavaHookGroup = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: [{ javaClass: "com.example.Foo", method: "bad", overloads: [{ params: [123 as unknown as string] }] }],
+      };
+      const healthyGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Bar", hooks: ["baz"] };
+      const config: InputFrookyConfig = { hookGroup: [brokenGroup, healthyGroup] };
+
+      const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["baz"]);
+    });
+
     it("processes every hook independently, warning once per invalid hook without aborting the group", () => {
       const invalidHookA = { javaClass: "com.example.Foo", method: 1 as unknown as string };
       const invalidHookB = { javaClass: "com.example.Foo", method: 2 as unknown as string };
