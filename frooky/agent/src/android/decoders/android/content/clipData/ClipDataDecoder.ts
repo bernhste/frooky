@@ -1,6 +1,7 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../../shared/decoders/decodedValue";
+import { ClipDataItemDecoder } from "./ClipDataItemDecoder";
 
 export class ClipDataDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
@@ -11,7 +12,7 @@ export class ClipDataDecoder extends Decoder<Java.Wrapper> {
     for (let i = 0; i < itemCount; i++) {
       const item = value.getItemAt(i);
 
-      const clipDataItemDecoder = new ClipDataDecoder({
+      const clipDataItemDecoder = new ClipDataItemDecoder({
         type: "android.content.ClipData.Item",
         settings: this.decodable.settings,
       });
