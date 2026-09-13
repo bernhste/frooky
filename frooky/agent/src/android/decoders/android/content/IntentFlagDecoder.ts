@@ -1,7 +1,7 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
-import { loadJavaIntConstants } from "../../javaConstants";
+import { loadJavaIntConstants } from "../../javaGetConstants";
 
 export class IntentFlagDecoder extends Decoder<Java.Wrapper> {
   flags = loadJavaIntConstants("android.content.Intent", "FLAG_");

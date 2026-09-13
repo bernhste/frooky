@@ -1,5 +1,5 @@
 import Java from "frida-java-bridge";
-import { loadJavaIntConstants } from "./javaConstants";
+import { loadJavaIntConstants } from "./javaGetConstants";
 
 describe("javaConstants", () => {
   describe("loadJavaIntConstants()", () => {
