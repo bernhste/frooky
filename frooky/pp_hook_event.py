@@ -15,6 +15,10 @@ _C_VAL = "\033[97m"
 _C_TYPE_J = "\033[35m"
 _C_TYPE_N = "\033[32m"
 
+# A decoder's output is an envelope of exactly these keys (see DecodedValue in the TS agent);
+# "name" is optional. Anything matching this shape gets unwrapped down to its leaf value below.
+_DECODED_VALUE_KEYS = {"type", "value", "name"}
+
 
 def _top_border(label: str, color: str) -> str:
     tag = f" {label} "
@@ -30,7 +34,7 @@ def _kv(key: str, val: str) -> str:
     return f"{_C_KEY}{key}{_C_VAL}{val}{_C_RESET}"
 
 
-def _print_wrapped(line: str, continuation_indent: str):
+def _print_wrapped(line: str, continuation_indent: str) -> None:
     if len(line) <= _LINE_MAX:
         print(line)
         return
@@ -43,23 +47,32 @@ def _print_wrapped(line: str, continuation_indent: str):
         remainder = remainder[avail:]
 
 
-def _deep_unwrap(v):
-    if isinstance(v, dict) and "value" in v and set(v.keys()) <= {"type", "value", "name"}:
-        return _deep_unwrap(v["value"])
-    if isinstance(v, list):
-        return [_deep_unwrap(i) for i in v]
-    return v
+def _is_decoded_value(v) -> bool:
+    return isinstance(v, dict) and "value" in v and set(v.keys()) <= _DECODED_VALUE_KEYS
 
 
-def _extract_value(v):
-    if v is None:
-        return None
+def _unwrap(v):
+    """Recursively strip {type, value, name} decoder envelopes down to their leaf values.
+
+    A decoded object's fields (e.g. an Intent's `flags`, `extras`, ...) are themselves decoder
+    envelopes even though the object holding them isn't one, so plain dicts are walked field by
+    field rather than only unwrapping at the top level. A list whose entries all carry a distinct
+    "name" (e.g. a decoded Bundle's key/value pairs) becomes a dict keyed by name instead of a bare
+    list, so the value stays associated with the name it came from; a list of unnamed entries (e.g.
+    a decoded Set<String>'s elements) stays a plain list.
+    """
+    if _is_decoded_value(v):
+        return _unwrap(v["value"])
+
     if isinstance(v, dict):
-        if "value" in v:
-            return _extract_value(v["value"])
-        return {k: _extract_value(val) for k, val in v.items()}
+        return {k: _unwrap(val) for k, val in v.items()}
+
     if isinstance(v, list):
-        return [_extract_value(item) for item in v]
+        names = [item.get("name") for item in v if isinstance(item, dict)]
+        if len(names) == len(v) and all(names) and len(set(names)) == len(names):
+            return {item["name"]: _unwrap(item.get("value")) for item in v}
+        return [_unwrap(item) for item in v]
+
     return v
 
 
@@ -70,13 +83,13 @@ def _format_signature(name: str, args: list) -> str:
     return f"{name}({params})"
 
 
-def _pprint_indented(v, indent: str):
-    formatted = _pprint.pformat(_deep_unwrap(v), width=_LINE_MAX - len(indent), compact=True)
+def _pprint_indented(v, indent: str) -> None:
+    formatted = _pprint.pformat(v, width=_LINE_MAX - len(indent), compact=True)
     for line in formatted.splitlines():
         _print_wrapped(f"{indent}{line}", indent)
 
 
-def _print_decoded_values(label: str, args: list):
+def _print_decoded_values(label: str, args: list) -> None:
     continuation = " " * len(label)
     value_indent = continuation + "  "
     for i, a in enumerate(args):
@@ -84,31 +97,28 @@ def _print_decoded_values(label: str, args: list):
         t = a.get("type", "?")
         name = a.get("name")
         _print_wrapped(f"{prefix}{t + ' ' + name if name else t}", continuation)
-        v = _extract_value(a.get("value"))
-        if v is not None and not (isinstance(v, str) and v == "?"):
+        v = _unwrap(a.get("value"))
+        if v is not None:
             _pprint_indented(v, value_indent)
 
 
-def _print_return(return_val: dict):
+def _print_return(return_val: dict) -> None:
     if not return_val:
         return
     t = return_val.get("type", "?")
-    v = _extract_value(return_val.get("value"))
-    if t == "void" or v is None or (isinstance(v, str) and v == "?"):
-        print(f"{_LABEL_RET}{t}")
-        return
-    continuation = " " * len(_LABEL_RET)
+    v = _unwrap(return_val.get("value"))
     print(f"{_LABEL_RET}{t}")
-    _pprint_indented(v, continuation + "  ")
+    if t != "void" and v is not None:
+        _pprint_indented(v, " " * len(_LABEL_RET) + "  ")
 
 
-def _print_stack(stack_trace: list):
+def _print_stack(stack_trace: list) -> None:
     continuation = " " * len(_LABEL_STACK)
     for i, frame in enumerate(stack_trace):
         _print_wrapped(f"{_LABEL_STACK if i == 0 else continuation}{frame}", continuation)
 
 
-def _pp_hook(hook: dict, label: str, color: str, id_key: str, id_label: str, fn_key: str):
+def _pp_hook(hook: dict, label: str, color: str, id_key: str, id_label: str, fn_key: str, fn_label: str) -> None:
     """Shared pretty-printer for Java and native hook events."""
     args_in = hook.get("argsIn") or []
     args_out = hook.get("argsOut") or []
@@ -118,7 +128,7 @@ def _pp_hook(hook: dict, label: str, color: str, id_key: str, id_label: str, fn_
     print(_top_border(label, color))
     print(_kv("  time      :  ", hook.get("timestamp", "?")))
     print(_kv(f"  {id_label:<10}:  ", hook.get(id_key, "?")))
-    print(_kv(f"  {'function' if id_label == 'module' else 'method':<10}:  ", _format_signature(hook.get(fn_key, "?"), args_in)))
+    print(_kv(f"  {fn_label:<10}:  ", _format_signature(hook.get(fn_key, "?"), args_in)))
 
     if args_in:
         _print_decoded_values(_LABEL_ARGS_IN, args_in)
@@ -132,16 +142,11 @@ def _pp_hook(hook: dict, label: str, color: str, id_key: str, id_label: str, fn_
     print(_bot_border())
 
 
-def pp_hook_event(hook: dict):
+def pp_hook_event(hook: dict) -> None:
     """Pretty-print a NativeHookEvent or JavaHookEvent dict to the CLI."""
     if "java" in hook.get("type", ""):
         field_type = hook.get("fieldType", {})
         ft_str = field_type.get("fieldType", str(field_type)) if isinstance(field_type, dict) else str(field_type)
-        _pp_hook(hook, f"java ({ft_str})", _C_TYPE_J, "javaClassName", "class", "method")
+        _pp_hook(hook, f"java ({ft_str})", _C_TYPE_J, "javaClassName", "class", "method", "method")
     else:
-        _pp_hook(hook, "native", _C_TYPE_N, "module", "module", "symbol")
-
-
-def pp_hook_events(hooks: list):
-    for hook in hooks:
-        pp_hook_event(hook)
+        _pp_hook(hook, "native", _C_TYPE_N, "module", "module", "symbol", "function")
