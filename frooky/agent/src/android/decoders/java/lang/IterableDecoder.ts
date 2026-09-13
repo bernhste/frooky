@@ -2,7 +2,6 @@
 import type Java from "frida-java-bridge";
 import { Decoder } from "../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
-import { DEFAULT_DECODER_SETTINGS } from "../../../../shared/defaultValues";
 import { JavaDecoderResolver } from "../../javaDecoderResolver";
 
 /**
@@ -11,25 +10,27 @@ import { JavaDecoderResolver } from "../../javaDecoderResolver";
 export class IterableDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     const values: DecodedValue[] = [];
-    let iterator: Java.Wrapper;
-    iterator = value.iterator();
-    const decodeLimit = this.decodable.settings.decodeLimit ?? DEFAULT_DECODER_SETTINGS.decodeLimit;
+    const iterator: Java.Wrapper = value.iterator();
+    const decodeLimit = this.decodable.settings.decodeLimit;
 
-    let iteratorDecoder: Decoder<Java.Wrapper> | undefined;
+    const decoderCache = new Map<string, Decoder<Java.Wrapper>>();
 
     let count = 0;
     while (iterator.hasNext() && count < decodeLimit) {
       const element = iterator.next();
+      const className = element.$className;
 
-      if (!iteratorDecoder) {
-        iteratorDecoder = JavaDecoderResolver.resolveDecoder({
-          type: element.$className,
+      let elementDecoder = decoderCache.get(className);
+      if (!elementDecoder) {
+        elementDecoder = JavaDecoderResolver.resolveDecoder({
+          type: className,
           name: this.decodable.name,
           settings: this.decodable.settings,
         });
+        decoderCache.set(className, elementDecoder);
       }
 
-      values.push(iteratorDecoder.decode(element));
+      values.push(elementDecoder.decode(element));
       count++;
     }
 
