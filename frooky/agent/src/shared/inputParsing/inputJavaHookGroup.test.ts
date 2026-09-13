@@ -1,5 +1,184 @@
-describe("test", () => {
-  it("needs to be implemented", () => {});
+import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { FrookySettings } from "../frookySettings";
+import { normalizeInputParam, normalizeInputRetType } from "./inputDecodableTypes";
+import { InputJavaHookGroup, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookGroup } from "./inputJavaHookGroup";
+
+describe("inputJavaHookGroup", () => {
+  describe("isJavaHookScope()", () => {
+    it("returns true for a valid InputJavaHookGroup", () => {
+      const javaHookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: [] };
+      expect(isJavaHookScope(javaHookGroup)).toBeTruthy();
+    });
+
+    it("returns false for an objc hook group (no javaClass property)", () => {
+      expect(isJavaHookScope({ type: "objc", objcClass: "NSString", hooks: [] })).toBeFalsy();
+    });
+
+    it("returns false for a native hook group (no javaClass property)", () => {
+      expect(isJavaHookScope({ type: "native", module: "libc.so", hooks: [] })).toBeFalsy();
+    });
+
+    it("returns true when javaClass is the only property present", () => {
+      expect(isJavaHookScope({ javaClass: "com.example.Foo" })).toBeTruthy();
+    });
+
+    it("returns true even when javaClass is an empty string, since only key presence is checked", () => {
+      expect(isJavaHookScope({ javaClass: "" })).toBeTruthy();
+    });
+
+    it("returns false for an empty object", () => {
+      expect(isJavaHookScope({})).toBeFalsy();
+    });
+  });
+
+  describe("normalizeJavaHookGroup()", () => {
+    const defaultSettings: FrookySettings = {
+      hookSettings: { ...DEFAULT_HOOK_SETTINGS },
+      decoderSettings: { ...DEFAULT_DECODER_SETTINGS },
+    };
+
+    describe("settings merging", () => {
+      it("falls back to the default hook and decoder settings when nothing overrides them", () => {
+        const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: [] };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect(result.hookSettings).toEqual(DEFAULT_HOOK_SETTINGS);
+        expect(result.decoderSettings).toEqual(DEFAULT_DECODER_SETTINGS);
+      });
+
+      it("lets the frookySettings passed in override the hard-coded defaults", () => {
+        const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: [] };
+        const settings: FrookySettings = {
+          hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
+          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: true },
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, settings);
+
+        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 });
+        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: true });
+      });
+
+      it("gives the hook group's own hookSettings/decoderSettings the highest precedence", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [],
+          hookSettings: { stackTraceLimit: 99 },
+          decoderSettings: { magicDecode: false },
+        };
+        const settings: FrookySettings = {
+          hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
+          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: true },
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, settings);
+
+        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 99 });
+        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: false });
+      });
+    });
+
+    describe("hook normalization", () => {
+      it("normalizes a plain method name string into a full InputJavaHookNormalized", () => {
+        const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: ["bar"] };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect(result.hooks).toEqual([
+          { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
+        ]);
+      });
+
+      it("normalizes an object-form hook, always using the hook group's javaClass", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [{ javaClass: "com.example.WrongClass", method: "bar" }],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect(result.hooks).toEqual([
+          { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
+        ]);
+      });
+
+      it("normalizes each overload's params using the merged decoder settings", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [
+            {
+              javaClass: "com.example.Foo",
+              method: "bar",
+              overloads: [{ params: ["int", "java.lang.String"] }],
+            },
+          ],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect(result.hooks[0]).toEqual({
+          javaClass: "com.example.Foo",
+          method: "bar",
+          overloads: [
+            {
+              params: [normalizeInputParam("int", DEFAULT_DECODER_SETTINGS), normalizeInputParam("java.lang.String", DEFAULT_DECODER_SETTINGS)],
+            },
+          ],
+          hookSettings: DEFAULT_HOOK_SETTINGS,
+          decoderSettings: DEFAULT_DECODER_SETTINGS,
+        });
+      });
+
+      it("normalizes retType with the merged decoder settings when present", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [{ javaClass: "com.example.Foo", method: "bar", retType: "int" }],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect((result.hooks[0] as InputJavaHookNormalized).retType).toEqual(normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS));
+      });
+
+      it("leaves retType undefined when the hook does not declare one", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [{ javaClass: "com.example.Foo", method: "bar" }],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect((result.hooks[0] as InputJavaHookNormalized).retType).toBeUndefined();
+      });
+
+      it("normalizes multiple hooks, preserving order", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: ["bar", { javaClass: "com.example.Foo", method: "baz" }],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect(result.hooks.map((hook) => (hook as InputJavaHookNormalized).method)).toEqual(["bar", "baz"]);
+      });
+    });
+
+    it("preserves the type and javaClass on the returned hook group", () => {
+      const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: [] };
+
+      const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+      expect(result.type).toBe("java");
+      expect(result.javaClass).toBe("com.example.Foo");
+    });
+  });
 });
 
 export {};
