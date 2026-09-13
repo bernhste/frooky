@@ -11,8 +11,8 @@ describe("javaConstants", () => {
 
       const constants = loadJavaIntConstants("android.view.MotionEvent", "ACTION_");
 
-      expect(constants.find(({ name }) => name === "ACTION_DOWN")).toEqual({ name: "ACTION_DOWN", value: actionDown });
-      expect(constants.find(({ name }) => name === "ACTION_UP")).toEqual({ name: "ACTION_UP", value: actionUp });
+      expect(constants).toContain({ name: "ACTION_DOWN", value: actionDown });
+      expect(constants).toContain({ name: "ACTION_UP", value: actionUp });
     });
 
     it("should only include constants whose name starts with the given prefix", () => {
@@ -29,7 +29,7 @@ describe("javaConstants", () => {
 
       expect(constants.length).toBeGreaterThan(0);
       expect(constants.every(({ name }) => name.startsWith("AXIS_"))).toBe(true);
-      expect(constants.find(({ name }) => name === "AXIS_X")).toEqual({ name: "AXIS_X", value: axisX });
+      expect(constants).toContain({ name: "AXIS_X", value: axisX });
     });
 
     it("should cache the result for the same class/prefix pair instead of re-reflecting", () => {
