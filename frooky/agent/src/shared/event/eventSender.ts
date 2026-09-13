@@ -3,7 +3,7 @@ import { BaseEvent } from "./baseEvent";
 
 let senderIntervalId: ReturnType<typeof setInterval> | null = null;
 
-export function startEventSender(eventQueue: BaseEvent[], sendInterval: number = SEND_INTERVAL_MS): void {
+export function startEventSender(eventQueue: BaseEvent[], sendInterval: number = SEND_INTERVAL_MS, sendFn: typeof send = send): void {
   if (senderIntervalId !== null) {
     return; // already running
   }
@@ -14,7 +14,7 @@ export function startEventSender(eventQueue: BaseEvent[], sendInterval: number =
     const eventsToSend = eventQueue.splice(0, eventQueue.length);
 
     try {
-      send(eventsToSend);
+      sendFn(eventsToSend);
     } catch (error) {
       console.error(`Failed to send events: ${error}`);
       eventQueue.unshift(...eventsToSend);
