@@ -28,7 +28,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number): Promise<Promise<JavaHook[] | null>[]> {
     logger.debug(`Resolving Java hooks`);
 
-    const uniqueClasses: string[] = [...new Map(inputHooks.map((inputHook) => [inputHook.javaClass, inputHook])).keys()];
+    const uniqueClasses: string[] = [...new Set(inputHooks.map((inputHook) => inputHook.javaClass))];
     return uniqueClasses.flatMap((javaClass) => {
       const javaClassPromise = this.resolveJavaClass(javaClass, timeout).catch((e) => {
         logger.warn(`${e}`);
@@ -63,11 +63,6 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
         outArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout");
       }
-      let decodedArgs: DecodedArgs = {
-        in: [],
-        out: [],
-      };
-
       // resolve the return type
       let retTypeDecoder: Decoder<Java.Wrapper>;
       if (hook.method.returnType.className) {
@@ -92,6 +87,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         }
 
         // decode arguments onEnter
+        const decodedArgs: DecodedArgs = { in: [], out: [] };
         if (hook.params) {
           try {
             decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
@@ -228,19 +224,6 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       }
     }
     return result;
-  }
-  /**
-   * Decodes the arguments passed to this method
-   *
-   * @param args - The actual argument values passed to the method
-   * @param params- The optional frooky parameters for additional context information
-   */
-  private decodeJavaArgs(args: Java.Wrapper[], decoderCache: Decoder<Java.Wrapper>[]): DecodedValue[] {
-    const decodedArgs: DecodedValue[] = [];
-    decoderCache.forEach((decoder: Decoder<Java.Wrapper>, i: number) => {
-      decodedArgs.push(decoder.decode(args[i]));
-    });
-    return decodedArgs;
   }
 
   private buildFieldType(method: Java.Wrapper): FieldType {
