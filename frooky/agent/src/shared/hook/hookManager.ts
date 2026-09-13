@@ -1,3 +1,4 @@
+import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../decoders/baseDecoder";
 import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
@@ -28,6 +29,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   constructor(
     private readonly decoderResolver: DecoderResolver<TValue>,
     protected readonly stackTrace: PlatformStackTrace,
+    protected readonly frookyAgent: FrookyAgent,
   ) {}
 
   public abstract resolveHooks(inputHooks: TInputHook[], timeout: number): Promise<Promise<THooks[] | null>[]>;

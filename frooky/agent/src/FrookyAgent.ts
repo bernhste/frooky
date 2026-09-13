@@ -43,7 +43,7 @@ export class FrookyAgent {
     this.platformHookValidator = platformInputHookValidator;
     this.platformHookManger = platformHookResolver;
     this.resolverTimeoutSeconds = resolverTimeoutSeconds;
-    this.nativeHookManager = new NativeHookManager(platformStackTrace);
+    this.nativeHookManager = new NativeHookManager(platformStackTrace, this);
 
     // setup logger
     logger.setAgent(this);

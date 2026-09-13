@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
@@ -21,8 +22,8 @@ export type FieldType = {
 
 // resolve java classes, the method and their overloads
 export class AndroidHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
-  constructor(platformStackTrace: PlatformStackTrace) {
-    super(JavaDecoderResolver, platformStackTrace);
+  constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
+    super(JavaDecoderResolver, platformStackTrace, frookyAgent);
   }
   async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number): Promise<Promise<JavaHook[] | null>[]> {
     logger.debug(`Resolving Java hooks`);
@@ -139,7 +140,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         const fieldType = hookManager.buildFieldType(this as Java.Wrapper);
 
         // add the event to the event log
-        frooky.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, stackTrace));
+        hookManager.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, stackTrace));
 
         return returnValue;
       };

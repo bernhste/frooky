@@ -1,3 +1,4 @@
+import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
@@ -10,10 +11,9 @@ import { NativeHook } from "./nativeHook";
 import { NativeHookEvent } from "./nativeHookEvent";
 
 export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
-  constructor(platformStackTrace: PlatformStackTrace) {
-    super(NativeDecoderResolver, platformStackTrace);
+  constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
+    super(NativeDecoderResolver, platformStackTrace, frookyAgent);
   }
-
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number): Promise<Promise<NativeHook[] | null>[]> {
     logger.debug(`Resolving native hooks`);
 
@@ -129,7 +129,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           }
 
           // send add to event log
-          frooky.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, stackTrace));
+          hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, stackTrace));
         },
       });
       countSuccessfulHooks++;

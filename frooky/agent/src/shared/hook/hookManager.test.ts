@@ -1,13 +1,19 @@
+import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../decoders/baseDecoder";
 import { Decodable, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
 import { DEFAULT_DECODER_SETTINGS } from "../defaultValues";
+import { LogEvent } from "../event/logEvent";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError } from "../utils";
 import { Hook } from "./hook";
 import { HookManager, ParamDecoder } from "./hookManager";
+
+function createFakeFrookyAgent(): FrookyAgent {
+  return { addEventToLog: (_event: LogEvent) => {} } as unknown as FrookyAgent;
+}
 
 type TestValue = string;
 
@@ -82,8 +88,9 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
 function createManager(
   resolver: DecoderResolver<TestValue> = new FakeDecoderResolver(),
   stackTrace: PlatformStackTrace = fakeStackTrace,
+  frookyAgent: FrookyAgent = createFakeFrookyAgent(),
 ): TestHookManager {
-  return new TestHookManager(resolver, stackTrace);
+  return new TestHookManager(resolver, stackTrace, frookyAgent);
 }
 
 function makeParam(overrides: Partial<Param> = {}): Param {
