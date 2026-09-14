@@ -151,4 +151,4 @@ hooks:
   - putString
 ```
 
-This is supported by Java and native hooks (and, once implemented, Objective-C hooks).
+This is supported by Java and native hooks.

@@ -4,31 +4,20 @@ frooky needs to know a function or method's signature to hook it correctly. Part
 
 There are different accepted ways to declare a parameter. The following chapters explain them.
 
-> [!NOTE]
-> Objective-C and Swift hooking are not yet implemented (see [`ObjcHook`-Declaration](./objective-c-hook-declaration.md) and [`SwiftHook`-Declaration](./swift-hook-declaration.md)). The Objective-C and Swift examples below describe the intended, not yet available, declaration format.
-
 <!-- TOC -->
 
 - [Unnamed Parameters](#unnamed-parameters)
   - [Unnamed Java Parameters](#unnamed-java-parameters)
-  - [Unnamed Objective-C Parameters](#unnamed-objective-c-parameters)
-  - [Unnamed Swift Parameters](#unnamed-swift-parameters)
   - [Unnamed Native Parameters](#unnamed-native-parameters)
 - [Named Parameters](#named-parameters)
   - [Named Java Parameters](#named-java-parameters)
-  - [Named Objective-C Parameters](#named-objective-c-parameters)
-  - [Named Swift Parameters](#named-swift-parameters)
   - [Named Native Parameters](#named-native-parameters)
 - [Decoders](#decoders)
   - [`direction`-Option: Declare the Time of Decoding](#direction-option-declare-the-time-of-decoding)
     - [Explicit Time of Decoding in Java](#explicit-time-of-decoding-in-java)
-    - [Explicit Time of Decoding in Objective-C](#explicit-time-of-decoding-in-objective-c)
-    - [Explicit Time of Decoding in Swift](#explicit-time-of-decoding-in-swift)
     - [Explicit Time of Decoding in Native](#explicit-time-of-decoding-in-native)
   - [`decoderArg`-Option: Pass Arguments to Decoder](#decoderarg-option-pass-arguments-to-decoder)
     - [Pass Arguments to Decoder in Java](#pass-arguments-to-decoder-in-java)
-    - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
-    - [Pass Arguments to Decoder in Swift](#pass-arguments-to-decoder-in-swift)
     - [Pass Arguments to Decoder in Native](#pass-arguments-to-decoder-in-native)
   - [`customDecoder`-Option: Override the Decoder](#customdecoder-option-override-the-decoder)
 
@@ -60,39 +49,6 @@ This example hooks the following constructors from the [Android Java Library](ht
 ```kotlin
 WebView(context: Context)
 WebView(context: Context, attrs: AttributeSet?, defStyleAttr: Int, privateBrowsing: Boolean)
-```
-
-### Unnamed Objective-C Parameters
-
-```yaml
-objcClass: NSURL
-methods:
-  - name: "+ fileURLWithFileSystemRepresentation:isDirectory:relativeToURL:"
-    retType: (NSURL *)
-    params: [ "(const char *)", "(BOOL)", "(NSURL *)" ]
-```
-
-This example hooks the following class method from [`NSURL`](https://developer.apple.com/documentation/foundation/nsurl/fileurl(withfilesystemrepresentation:isdirectory:relativeto:)?language=objc):
-
-```objectivec
-+ (NSURL *) fileURLWithFileSystemRepresentation:(const char *) path 
-                                    isDirectory:(BOOL) isDir 
-                                  relativeToURL:(NSURL *) baseURL;
-```
-
-### Unnamed Swift Parameters
-
-```yaml
-swiftClass: Foundation.URL
-hooks:
-  - method: "init(fileURLWithPath:isDirectory:relativeTo:)"
-    params: [ String, Bool, "URL?" ]
-```
-
-This example hooks the following initializer from [`URL`](https://developer.apple.com/documentation/foundation/url/init(fileurlwithpath:isdirectory:relativeto:)):
-
-```swift
-init(fileURLWithPath path: String, isDirectory: Bool, relativeTo base: URL?)
 ```
 
 ### Unnamed Native Parameters
@@ -149,45 +105,6 @@ This example hooks the following constructors from the [Android Java Library](ht
 
 ```kotlin
 WebView(context: Context, attrs: AttributeSet?, defStyleAttr: Int, privateBrowsing: Boolean)
-```
-
-### Named Objective-C Parameters
-
-```yaml
-objcClass: NSURL
-methods:
-  - name: "+ fileURLWithFileSystemRepresentation:isDirectory:relativeToURL:"
-    retType: (NSURL *)
-    params:
-      - [ "(const char *)",  path ]
-      - [ "(BOOL)", isDir ]
-      - [ "(NSURL *)",  baseURL ]
-```
-
-This example hooks the following class method from [`NSURL`](https://developer.apple.com/documentation/foundation/nsurl/fileurl(withfilesystemrepresentation:isdirectory:relativeto:)?language=objc):
-
-```objectivec
-+ (NSURL *) fileURLWithFileSystemRepresentation:(const char *) path 
-                                    isDirectory:(BOOL) isDir 
-                                  relativeToURL:(NSURL *) baseURL;
-```
-
-### Named Swift Parameters
-
-```yaml
-swiftClass: Foundation.URL
-hooks:
-  - method: "init(fileURLWithPath:isDirectory:relativeTo:)"
-    params:
-      - [ String, path ]
-      - [ Bool, isDirectory ]
-      - [ "URL?", base ]
-```
-
-This example hooks the following initializer from [`URL`](https://developer.apple.com/documentation/foundation/url/init(fileurlwithpath:isdirectory:relativeto:)):
-
-```swift
-init(fileURLWithPath path: String, isDirectory: Bool, relativeTo base: URL?)
 ```
 
 ### Named Native Parameters
@@ -286,47 +203,6 @@ public final int doFinal (byte[] output,
 
 In order to access the decrypted data, the `output` parameter must be decoded at exit.
 
-#### Explicit Time of Decoding in Objective-C
-
-```yaml
-objcClass:  NSFileManager
-methods:
-  - name: "- contentsOfDirectoryAtPath"
-    retType: "(NSArray<NSString *> *)"
-    params:
-      - [ "(NSString *)", path ]
-      - [ "(NSError * *)", error, { direction: out } ]
-```
-
-This example hooks the following method from [NSFileManager](https://developer.apple.com/documentation/foundation/filemanager/contentsofdirectory(atpath:)?language=objc):
-
-```objectivec
-- (NSArray<NSString *> *) contentsOfDirectoryAtPath:(NSString *) path 
-                                              error:(NSError * *) error;
-```
-
-The `error` parameter must be decoded at exit because it contains meaningful data only if an error occurred during the operation.
-
-#### Explicit Time of Decoding in Swift
-
-```yaml
-swiftClass: MyApp.SocketReader
-hooks:
-  - method: "read(into:length:)"
-    retType: Int
-    params:
-      - [ Data, buffer, { direction: out } ]
-      - [ Int, length ]
-```
-
-This example hooks the following method:
-
-```swift
-func read(into buffer: inout Data, length: Int) -> Int
-```
-
-Since `buffer` is passed as `inout`, it must be decoded at exit to see what was written into it.
-
 #### Explicit Time of Decoding in Native
 
 ```yaml
@@ -387,45 +263,6 @@ public int read (byte[] b,
 ```
 
 The decoder for `buffer` receives `len` to indicate how many bytes were actually read.
-
-#### Pass Arguments to Decoder in Objective-C
-
-```yaml
-objcClass: NSData
-methods:
-  - name: "- getBytes"
-    params:
-      - [ "(void *)", buffer, { decoderArg: range } ]
-      - [ "(NSUInteger)", range ]
-```
-
-This example hooks the following method from [NSData](https://developer.apple.com/documentation/foundation/nsdata/getbytes(_:range:)?language=objc):
-
-```objectivec
-- (void) getBytes:(void *) buffer 
-                   range:(NSRange) range;
-```
-
-The `buffer` decoder uses the `length` parameter to specify how many bytes to decode.
-
-#### Pass Arguments to Decoder in Swift
-
-```yaml
-swiftClass: Foundation.Data
-hooks:
-  - method: "copyBytes(to:count:)"
-    params:
-      - [ UnsafeMutableRawPointer, pointer, { decoderArg: count } ]
-      - [ Int, count ]
-```
-
-This example hooks the following method from [`Data`](https://developer.apple.com/documentation/foundation/data/copybytes(to:count:)):
-
-```swift
-func copyBytes(to pointer: UnsafeMutableRawPointer, count: Int)
-```
-
-The `pointer` decoder uses the `count` parameter to specify how many bytes to decode.
 
 #### Pass Arguments to Decoder in Native
 

@@ -57,7 +57,7 @@ Here the responsibilities for the different components:
 1. **Hook Resolver**  
     Does the lookup of the target function or method.
 
-    This depends on the platform. Android, iOS both have their own implementation of the hook lookup for platform hooks (Java and Objective-C).
+    This depends on the platform. Android and iOS both have their own implementation of the hook lookup for platform hooks (Java).
 
     The native lookup is shared between all platforms.
 
@@ -69,7 +69,7 @@ Here the responsibilities for the different components:
 1. **Hooking**  
    The target function is actually hooked.
 
-   This depends on the platform. Android, iOS both have their own implementation of the hook lookup for platform hooks (Java and Objective-C).
+   This depends on the platform. Android and iOS both have their own implementation of the hook lookup for platform hooks (Java).
 
    The native lookup is shared between all platforms.
 
@@ -116,14 +116,14 @@ Here the responsibilities for the different components:
 1. **Hooking**  
     Implement the code run when a function or method is hooked. This code replaces the actual implementation, but does not change anything in the code flow.
 
-    This depends on the platform. Android, iOS both have their own implementation of the hook lookup for platform hooks (Java and Objective-C).
+    This depends on the platform. Android and iOS both have their own implementation of the hook lookup for platform hooks (Java).
 
     The native lookup is shared between all platforms.
 
 1. **Decoder**  
     Implements how the different types are actually decoded.
 
-    This depends on the platform. Android, iOS both have their own implementation of the hook lookup for platform hooks (Java and Objective-C).
+    This depends on the platform. Android and iOS both have their own implementation of the hook lookup for platform hooks (Java).
 
     The native lookup is shared between all platforms.
 

@@ -34,7 +34,7 @@ Use it, if you know what you want to hook but you don't want to write custom Fri
 Simply install via pip to get the `frooky` CLI tool:
 
 ```bash
-pip3 install frooky
+pip install frooky
 ```
 
 ## Usage
@@ -49,13 +49,13 @@ After you created the desired hook file, run `frooky`:
 
 ```bash
 # Attach by app name
-frooky android -U -n org.owasp.mastestapp hooks.yaml
+frooky -U -n org.owasp.mastestapp hooks.yaml
 
-# Spawn and add multiple hook files (hooks are merged)
-frooky android -U -f org.owasp.mastestapp storage.yaml crypto.yaml
+# Spawn and load multiple hook files (hooks are merged)
+frooky -U -f org.owasp.mastestapp storage.yaml crypto.yaml
 
-# Spawn and add multiple hook files using globs (hooks are merged)
-frooky android -U -f org.owasp.mastestapp hooks_*.yaml
+# Spawn and load multiple hook files using globs (hooks are merged)
+frooky -U -f org.owasp.mastestapp hooks_*.yaml
 ```
 
 See `frooky -h` for more options.
@@ -106,15 +106,13 @@ Depending on the platform, the `<hook_declaration>` may look different. Please r
 
 frooky supports these types of hooks:
 
-| Hook Type    | Platform    | Description                                        | Documentation                                                    |
-| ------------ | ----------- | -------------------------------------------------- | ---------------------------------------------------------------- |
-| `JavaHook`   | Android     | Hook for Java/Kotlin methods                       | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)        |
-| `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.)        | [`NativeHook`-Declaration](./docs/native-hook-declaration.md)    |
-| `ObjcHook`   | iOS         | Hook for Objective-C methods (not yet implemented) | [`ObjcHook`-Declaration](./docs/objective-c-hook-declaration.md) |
-| `SwiftHook`  | iOS         | Hook for Swift methods (not yet implemented)       | [`SwiftHook`-Declaration](./docs/swift-hook-declaration.md)      |
+| Hook Type    | Platform    | Description                                 | Documentation                                                 |
+| ------------ | ----------- | ------------------------------------------- | ------------------------------------------------------------- |
+| `JavaHook`   | Android     | Hook for Java/Kotlin methods                | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)     |
+| `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
 
 > [!NOTE]
-> `hookGroup` may freely mix different hook declarations within the same hook file, as long as they are compatible to the platform. For example an Android hook file with `JavaHook` and ``NativeHook` is valid, while `ObjcHook` and `SwiftHook` never mix with `JavaHook`.
+> `hookGroup` may freely mix different hook declarations within the same hook file, as long as they are compatible to the platform. For example an Android hook file with `JavaHook` and `NativeHook` is valid.
 
 ## Parameter- and Return-Type Declaration
 
@@ -157,40 +155,38 @@ Events are written to the output file as newline-separated batches, each line a 
 Example Output (pretty-printed for readability):
 
 ```json
-[
-  {
-    "id": "14535033-08ea-4063-897c-eacd4a885d8b",
-    "timestamp": "2026-01-14T16:02:21.782Z",
-    "type": "hook-java",
-    "stackTrace": [
-      "android.security.keystore.KeyGenParameterSpec$Builder.<init>(Native Method)",
-      "org.owasp.mastestapp.MastgTest.generateKey(MastgTest.kt:97)",
-      "org.owasp.mastestapp.MastgTest.mastgTest(MastgTest.kt:41)",
-      "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11(MainActivity.kt:101)",
-      "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk(Unknown Source:0)",
-      "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)",
-      "java.lang.Thread.run(Thread.java:1012)"
-    ],
-    "argsIn": [
-      {
-        "type": "java.lang.String",
-        "value": "MultiPurposeKey"
-      },
-      {
-        "type": "int",
-        "value": 15
-      }
-    ],
-    "argsOut": [],
-    "returnValue": {
-      "type": "void",
-      "value": "void"
+{
+  "id": "14535033-08ea-4063-897c-eacd4a885d8b",
+  "timestamp": "2026-01-14T16:02:21.782Z",
+  "type": "hook-java",
+  "javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder",
+  "method": "$init",
+  "stackTrace": [
+    "android.security.keystore.KeyGenParameterSpec$Builder.<init>(Native Method)",
+    "org.owasp.mastestapp.MastgTest.generateKey(MastgTest.kt:97)",
+    "org.owasp.mastestapp.MastgTest.mastgTest(MastgTest.kt:41)",
+    "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11(MainActivity.kt:101)",
+    "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk(Unknown Source:0)",
+    "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)",
+    "java.lang.Thread.run(Thread.java:1012)"
+  ],
+  "argsIn": [
+    {
+      "type": "java.lang.String",
+      "value": "MultiPurposeKey"
     },
-    "javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder",
-    "method": "$init",
-    "fieldType": { "fieldType": "instance", "instanceId": 35486102 }
-  }
-]
+    {
+      "type": "int",
+      "value": 15
+    }
+  ],
+  "argsOut": [],
+  "returnValue": {
+    "type": "void",
+    "value": "void"
+  },
+  "fieldType": { "fieldType": "instance", "instanceId": 35486102 }
+}
 ```
 
 ## More Information
