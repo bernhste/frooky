@@ -79,7 +79,7 @@ settings:                         # Optional. Default hookSettings/decoderSettin
   hookSettings: { ... }
   decoderSettings: { ... }
 
-hookGroup:                        # Collection of hook declarations
+hookCollection:                        # Collection of hook declarations
   - <hook_declaration>
 ```
 
@@ -96,7 +96,7 @@ metadata:
   author: frooky dev team
   version: 1
 
-hookGroup:
+hookCollection:
   - <hook_declaration> 
 ```
 
@@ -112,7 +112,7 @@ frooky supports these types of hooks:
 | `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
 
 > [!NOTE]
-> `hookGroup` may freely mix different hook declarations within the same hook file, as long as they are compatible to the platform. For example an Android hook file with `JavaHook` and `NativeHook` is valid.
+> `hookCollection` may freely mix different hook declarations within the same hook file, as long as they are compatible to the platform. For example an Android hook file with `JavaHook` and `NativeHook` is valid.
 
 ## Parameter- and Return-Type Declaration
 
@@ -138,7 +138,7 @@ metadata:
   author: frooky dev team
   version: 1
 
-hookGroup:
+hookCollection:
   - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
     hooks:
       - $init
@@ -147,7 +147,7 @@ hookGroup:
 Then run `frooky` with the hook file against your target app:
 
 ```bash
-frooky android -U -n org.owasp.mastestapp keygen.yaml
+frooky -U -f org.owasp.mastestapp keygen.yaml
 ```
 
 Events are written to the output file as newline-separated batches, each line a JSON array of the events captured in that batch (see [Understanding Output Format](./docs/output.md) for the full schema).
@@ -155,38 +155,7 @@ Events are written to the output file as newline-separated batches, each line a 
 Example Output (pretty-printed for readability):
 
 ```json
-{
-  "id": "14535033-08ea-4063-897c-eacd4a885d8b",
-  "timestamp": "2026-01-14T16:02:21.782Z",
-  "type": "hook-java",
-  "javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder",
-  "method": "$init",
-  "stackTrace": [
-    "android.security.keystore.KeyGenParameterSpec$Builder.<init>(Native Method)",
-    "org.owasp.mastestapp.MastgTest.generateKey(MastgTest.kt:97)",
-    "org.owasp.mastestapp.MastgTest.mastgTest(MastgTest.kt:41)",
-    "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11(MainActivity.kt:101)",
-    "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk(Unknown Source:0)",
-    "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)",
-    "java.lang.Thread.run(Thread.java:1012)"
-  ],
-  "argsIn": [
-    {
-      "type": "java.lang.String",
-      "value": "MultiPurposeKey"
-    },
-    {
-      "type": "int",
-      "value": 15
-    }
-  ],
-  "argsOut": [],
-  "returnValue": {
-    "type": "void",
-    "value": "void"
-  },
-  "fieldType": { "fieldType": "instance", "instanceId": 35486102 }
-}
+
 ```
 
 ## More Information

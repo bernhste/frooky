@@ -4,31 +4,31 @@ import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
 import { HookValidator } from "../../shared/hook/hookValidator";
 import {
-  InputNativeHookGroup,
+  InputNativeHookCollection,
   InputNativeHookNormalized,
-  isNativeHookGroup,
-  mergeNativeHookGroupSettings,
+  isNativeHookCollection,
+  mergeNativeHookCollectionSettings,
   normalizeNativeHook,
-} from "../../shared/inputParsing/inputNativeHookGroup";
-import { inputNativeHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookGroup.zod";
+} from "../../shared/inputParsing/inputNativeHookCollection";
+import { inputNativeHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
 import { logger } from "../../shared/logger";
 
-export class NativeHookValidator implements HookValidator<InputNativeHookNormalized, InputNativeHookGroup> {
+export class NativeHookValidator implements HookValidator<InputNativeHookNormalized, InputNativeHookCollection> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputNativeHookNormalized[] {
-    const nativeHookGroups = this.getPlatformHookGroups(inputFrookyConfig);
+    const nativeHookCollections = this.getPlatformHookCollections(inputFrookyConfig);
     const normalizedNativeHooks: InputNativeHookNormalized[] = [];
 
-    for (const nativeHookGroup of nativeHookGroups) {
-      const { hookSettings, decoderSettings } = mergeNativeHookGroupSettings(nativeHookGroup, settings);
-      for (const inputNativeHook of nativeHookGroup.hooks) {
+    for (const nativeHookCollection of nativeHookCollections) {
+      const { hookSettings, decoderSettings } = mergeNativeHookCollectionSettings(nativeHookCollection, settings);
+      for (const inputNativeHook of nativeHookCollection.hooks) {
         try {
-          const normalizedNativeHook = normalizeNativeHook(inputNativeHook, nativeHookGroup.module, hookSettings, decoderSettings);
+          const normalizedNativeHook = normalizeNativeHook(inputNativeHook, nativeHookCollection.module, hookSettings, decoderSettings);
           normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(normalizedNativeHook));
         } catch (e) {
           const symbol = typeof inputNativeHook === "string" ? inputNativeHook : inputNativeHook.symbol;
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
           logger.warn([
-            `Skipping hook for function with the symbol name '${symbol}' from module '${nativeHookGroup.module}' due to an invalid declaration.`,
+            `Skipping hook for function with the symbol name '${symbol}' from module '${nativeHookCollection.module}' due to an invalid declaration.`,
             `Validation error:\n${validationError}`,
           ]);
         }
@@ -38,13 +38,13 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
     return normalizedNativeHooks;
   }
 
-  getPlatformHookGroups(inputFrookyConfig: InputFrookyConfig): InputNativeHookGroup[] {
-    const platformHookGroup: InputNativeHookGroup[] = [];
-    for (const hookScope of inputFrookyConfig.hookGroup) {
-      if (isNativeHookGroup(hookScope)) {
-        platformHookGroup.push(hookScope);
+  getPlatformHookCollections(inputFrookyConfig: InputFrookyConfig): InputNativeHookCollection[] {
+    const platformHookCollection: InputNativeHookCollection[] = [];
+    for (const hookScope of inputFrookyConfig.hookCollection) {
+      if (isNativeHookCollection(hookScope)) {
+        platformHookCollection.push(hookScope);
       }
     }
-    return platformHookGroup;
+    return platformHookCollection;
   }
 }

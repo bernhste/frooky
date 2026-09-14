@@ -1,13 +1,13 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { FrookySettings } from "../frookySettings";
 import { normalizeInputParam } from "./inputDecodableTypes";
-import { InputJavaHookGroup, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookGroup } from "./inputJavaHookGroup";
+import { InputJavaHookCollection, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookCollection } from "./inputJavaHookCollection";
 
-describe("inputJavaHookGroup", () => {
+describe("inputJavaHookCollection", () => {
   describe("isJavaHookScope()", () => {
-    it("returns true for a valid InputJavaHookGroup", () => {
-      const javaHookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: [] };
-      expect(isJavaHookScope(javaHookGroup)).toBeTruthy();
+    it("returns true for a valid InputJavaHookCollection", () => {
+      const javaHookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: [] };
+      expect(isJavaHookScope(javaHookCollection)).toBeTruthy();
     });
 
     it("returns false for an objc hook group (no javaClass property)", () => {
@@ -31,7 +31,7 @@ describe("inputJavaHookGroup", () => {
     });
   });
 
-  describe("normalizeJavaHookGroup()", () => {
+  describe("normalizeJavaHookCollection()", () => {
     const defaultSettings: FrookySettings = {
       hookSettings: { ...DEFAULT_HOOK_SETTINGS },
       decoderSettings: { ...DEFAULT_DECODER_SETTINGS },
@@ -39,29 +39,29 @@ describe("inputJavaHookGroup", () => {
 
     describe("settings merging", () => {
       it("falls back to the default hook and decoder settings when nothing overrides them", () => {
-        const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: [] };
+        const hookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: [] };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect(result.hookSettings).toEqual(DEFAULT_HOOK_SETTINGS);
         expect(result.decoderSettings).toEqual(DEFAULT_DECODER_SETTINGS);
       });
 
       it("lets the frookySettings passed in override the hard-coded defaults", () => {
-        const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: [] };
+        const hookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: [] };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
           decoderSettings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: true },
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, settings);
+        const result = normalizeJavaHookCollection(hookCollection, settings);
 
         expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 });
         expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: true });
       });
 
       it("gives the hook group's own hookSettings/decoderSettings the highest precedence", () => {
-        const hookGroup: InputJavaHookGroup = {
+        const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
           hooks: [],
@@ -73,7 +73,7 @@ describe("inputJavaHookGroup", () => {
           decoderSettings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: true },
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, settings);
+        const result = normalizeJavaHookCollection(hookCollection, settings);
 
         expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 99 });
         expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: false });
@@ -82,7 +82,7 @@ describe("inputJavaHookGroup", () => {
 
     describe("hook-level settings override", () => {
       it("lets a hook's own hookSettings/decoderSettings override the hook group's settings", () => {
-        const hookGroup: InputJavaHookGroup = {
+        const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
           hookSettings: { stackTraceLimit: 30 },
@@ -97,7 +97,7 @@ describe("inputJavaHookGroup", () => {
           ],
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 });
         expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 });
@@ -108,7 +108,7 @@ describe("inputJavaHookGroup", () => {
         // `hookSettings: { stackTraceLimit: 40 }`); the raw config is cast to the input types at
         // the YAML boundary (see index.frida.ts) without being structurally checked against them,
         // so this models that real shape rather than the always-complete post-normalize shape.
-        const hookGroup: InputJavaHookGroup = {
+        const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
           hookSettings: { stackTraceLimit: 30, stackTraceFilter: ["^group"] },
@@ -124,7 +124,7 @@ describe("inputJavaHookGroup", () => {
           ],
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ stackTraceLimit: 40, stackTraceFilter: ["^group"] });
         expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({
@@ -135,20 +135,20 @@ describe("inputJavaHookGroup", () => {
       });
 
       it("falls back to the hook group's settings when a hook does not declare its own", () => {
-        const hookGroup: InputJavaHookGroup = {
+        const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
           hookSettings: { stackTraceLimit: 30 },
           hooks: [{ javaClass: "com.example.Foo", method: "bar" }],
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 30 });
       });
 
       it("uses the hook's own (merged) decoderSettings, not just the group's, to normalize that hook's overloads", () => {
-        const hookGroup: InputJavaHookGroup = {
+        const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
           decoderSettings: { maxRecursion: 30 },
@@ -162,7 +162,7 @@ describe("inputJavaHookGroup", () => {
           ],
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
         const hook = result.hooks[0] as InputJavaHookNormalized;
 
         expect(hook.overloads?.[0].params[0]).toEqual(normalizeInputParam("int", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
@@ -171,9 +171,9 @@ describe("inputJavaHookGroup", () => {
 
     describe("hook normalization", () => {
       it("normalizes a plain method name string into a full InputJavaHookNormalized", () => {
-        const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: ["bar"] };
+        const hookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: ["bar"] };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect(result.hooks).toEqual([
           { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
@@ -181,13 +181,13 @@ describe("inputJavaHookGroup", () => {
       });
 
       it("normalizes an object-form hook, always using the hook group's javaClass", () => {
-        const hookGroup: InputJavaHookGroup = {
+        const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
           hooks: [{ javaClass: "com.example.WrongClass", method: "bar" }],
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect(result.hooks).toEqual([
           { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
@@ -195,7 +195,7 @@ describe("inputJavaHookGroup", () => {
       });
 
       it("normalizes each overload's params using the merged decoder settings", () => {
-        const hookGroup: InputJavaHookGroup = {
+        const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
           hooks: [
@@ -207,7 +207,7 @@ describe("inputJavaHookGroup", () => {
           ],
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect(result.hooks[0]).toEqual({
           javaClass: "com.example.Foo",
@@ -223,22 +223,22 @@ describe("inputJavaHookGroup", () => {
       });
 
       it("normalizes multiple hooks, preserving order", () => {
-        const hookGroup: InputJavaHookGroup = {
+        const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
           hooks: ["bar", { javaClass: "com.example.Foo", method: "baz" }],
         };
 
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect(result.hooks.map((hook) => (hook as InputJavaHookNormalized).method)).toEqual(["bar", "baz"]);
       });
     });
 
     it("preserves the type and javaClass on the returned hook group", () => {
-      const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: [] };
+      const hookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: [] };
 
-      const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+      const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
       expect(result.type).toBe("java");
       expect(result.javaClass).toBe("com.example.Foo");

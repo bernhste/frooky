@@ -46,7 +46,7 @@ export type InputJavaHook = string | InputJavaHookNormalized;
  * @public
  * @discriminator {type}
  */
-export interface InputJavaHookGroup {
+export interface InputJavaHookCollection {
   type: "java";
   javaClass: string;
   hooks: InputJavaHook[];
@@ -55,7 +55,7 @@ export interface InputJavaHookGroup {
 }
 
 // Type guard function
-export function isJavaHookScope(hookScopeInput: object): hookScopeInput is InputJavaHookGroup {
+export function isJavaHookScope(hookScopeInput: object): hookScopeInput is InputJavaHookCollection {
   return "javaClass" in hookScopeInput;
 }
 
@@ -113,34 +113,34 @@ export function normalizeJavaHook(
  *
  * Exported so callers can obtain the merged settings for a group without normalizing its hooks (which may throw).
  *
- * @param hookGroup - The input java hook group whose settings should be merged.
+ * @param hookCollection - The input java hook group whose settings should be merged.
  * @param settings - The base frooky settings to merge on top of the defaults.
  * @returns The merged, repaired hook and decoder settings.
  */
-export function mergeJavaHookGroupSettings(
-  hookGroup: InputJavaHookGroup,
+export function mergeJavaHookCollectionSettings(
+  hookCollection: InputJavaHookCollection,
   settings: FrookySettings,
 ): { hookSettings: HookSettings; decoderSettings: DecoderSettings } {
   const hookSettings: HookSettings = validateAndRepairHookSettings({
     ...DEFAULT_HOOK_SETTINGS,
     ...settings.hookSettings,
-    ...hookGroup.hookSettings,
+    ...hookCollection.hookSettings,
   });
   const decoderSettings: DecoderSettings = validateAndRepairDecoderSettings({
     ...DEFAULT_DECODER_SETTINGS,
     ...settings.decoderSettings,
-    ...hookGroup.decoderSettings,
+    ...hookCollection.decoderSettings,
   });
   return { hookSettings, decoderSettings };
 }
 
 // normalized hook group
-export function normalizeJavaHookGroup(hookGroup: InputJavaHookGroup, settings: FrookySettings): InputJavaHookGroup {
-  const { hookSettings, decoderSettings } = mergeJavaHookGroupSettings(hookGroup, settings);
+export function normalizeJavaHookCollection(hookCollection: InputJavaHookCollection, settings: FrookySettings): InputJavaHookCollection {
+  const { hookSettings, decoderSettings } = mergeJavaHookCollectionSettings(hookCollection, settings);
 
   return {
-    ...hookGroup,
-    hooks: hookGroup.hooks.map((hook: InputJavaHook) => normalizeJavaHook(hookGroup.javaClass, hook, hookSettings, decoderSettings)),
+    ...hookCollection,
+    hooks: hookCollection.hooks.map((hook: InputJavaHook) => normalizeJavaHook(hookCollection.javaClass, hook, hookSettings, decoderSettings)),
     hookSettings: hookSettings,
     decoderSettings: decoderSettings,
   };

@@ -16,7 +16,7 @@ export const inputNativeHookNormalizedSchema = z.object({
 
 export const inputNativeHookSchema = z.union([z.string(), inputNativeHookNormalizedSchema]);
 
-export const inputNativeHookGroupSchema = z.object({
+export const inputNativeHookCollectionSchema = z.object({
     type: z.literal("native"),
     module: z.string(),
     hooks: z.array(inputNativeHookSchema),

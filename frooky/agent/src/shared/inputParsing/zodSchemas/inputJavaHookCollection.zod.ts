@@ -19,7 +19,7 @@ export const inputJavaHookNormalizedSchema = z.object({
 
 export const inputJavaHookSchema = z.union([z.string(), inputJavaHookNormalizedSchema]);
 
-export const inputJavaHookGroupSchema = z.object({
+export const inputJavaHookCollectionSchema = z.object({
     type: z.literal("java"),
     javaClass: z.string(),
     hooks: z.array(inputJavaHookSchema),

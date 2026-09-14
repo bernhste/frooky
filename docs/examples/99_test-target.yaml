@@ -23,7 +23,7 @@ settings:
 # enumerable data structures, such as arrays, lists, dictionaries etc. are 
 # decoded
 
-hookGroup:
+hookCollection:
   # java primitive types
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:

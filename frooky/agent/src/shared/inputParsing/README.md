@@ -7,7 +7,7 @@ The types in this folder are used for the public YAML files. They extend certain
 In the YAML file we can use the following different ways to declare a method:
 
 ```yaml
-hookGroup:
+hookCollection:
   - javaClass: android.security.AttestedKeyPair
     hooks:
       - $init

@@ -18,7 +18,7 @@ metadata:
 #     decoderArg: undefined,
 #     paramFilter: undefined,
 
-hookGroup:
+hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
     - receiveNestedObjectArray

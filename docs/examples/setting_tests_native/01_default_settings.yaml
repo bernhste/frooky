@@ -18,7 +18,7 @@ metadata:
 #     decoderArg: undefined,
 #     paramFilter: undefined,
 
-hookGroup:
+hookCollection:
   - module: libc.so
     hooks:
     - symbol: open

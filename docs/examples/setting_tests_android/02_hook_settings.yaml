@@ -25,7 +25,7 @@ settings:
     maxRecursion: 1
     decodeLimit: 1
 
-hookGroup:
+hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
     - receiveNestedObjectArray

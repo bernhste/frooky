@@ -2,7 +2,7 @@ import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
-import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookGroup";
+import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError } from "../../shared/utils";

@@ -29,14 +29,14 @@ export default [
 
   {
     name: "java_hook_scope",
-    input: "src/shared/inputParsing/inputJavaHookGroup.ts",
-    output: "src/shared/inputParsing/zodSchemas/inputJavaHookGroup.zod.ts",
+    input: "src/shared/inputParsing/inputJavaHookCollection.ts",
+    output: "src/shared/inputParsing/zodSchemas/inputJavaHookCollection.zod.ts",
   },
 
   {
     name: "native_hook_scope",
-    input: "src/shared/inputParsing/inputNativeHookGroup.ts",
-    output: "src/shared/inputParsing/zodSchemas/inputNativeHookGroup.zod.ts",
+    input: "src/shared/inputParsing/inputNativeHookCollection.ts",
+    output: "src/shared/inputParsing/zodSchemas/inputNativeHookCollection.zod.ts",
   },
 
   {

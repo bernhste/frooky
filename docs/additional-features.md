@@ -58,7 +58,7 @@ settings:
   decoderSettings:
     maxRecursion: 1
 
-hookGroup:
+hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
       stackTraceLimit: 30

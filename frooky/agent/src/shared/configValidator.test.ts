@@ -184,7 +184,7 @@ describe("configValidator", () => {
           hookSettings: { ...pristineFrookySettings.hookSettings },
           decoderSettings: { ...pristineFrookySettings.decoderSettings },
         },
-        hookGroup: [],
+        hookCollection: [],
       };
     }
 
@@ -195,7 +195,7 @@ describe("configValidator", () => {
     it("fills in default settings when none are provided", () => {
       const missingSettingsFrookyConfig: InputFrookyConfig = {
         metadata: { name: "Test Config", platform: "Android" },
-        hookGroup: [],
+        hookCollection: [],
       };
       expect(validateAndRepairFrookyConfig(missingSettingsFrookyConfig, "Android")).toEqual(makeValidFrookyConfig());
     });
@@ -207,7 +207,7 @@ describe("configValidator", () => {
           hookSettings: { stackTraceLimit: 55 },
           decoderSettings: { magicDecode: false },
         },
-        hookGroup: [],
+        hookCollection: [],
       };
       const expected: InputFrookyConfig = {
         metadata: { name: "Test Config", platform: "Android" },
@@ -215,7 +215,7 @@ describe("configValidator", () => {
           hookSettings: { ...pristineFrookySettings.hookSettings, stackTraceLimit: 55 },
           decoderSettings: { ...pristineFrookySettings.decoderSettings, magicDecode: false },
         },
-        hookGroup: [],
+        hookCollection: [],
       };
       expect(validateAndRepairFrookyConfig(partialSettingsFrookyConfig, "Android")).toEqual(expected);
     });
@@ -227,7 +227,7 @@ describe("configValidator", () => {
           hookSettings: { stackTraceLimit: "10" as unknown as number },
           decoderSettings: { fastDecode: 10 as unknown as boolean },
         },
-        hookGroup: [],
+        hookCollection: [],
       };
       expect(validateAndRepairFrookyConfig(invalidSettingsFrookyConfig, "Android")).toEqual(makeValidFrookyConfig());
     });
@@ -236,7 +236,7 @@ describe("configValidator", () => {
       const configWithUnknownProperty = {
         myCustomSettings: {},
         metadata: { name: "Test Config", platform: "Android" },
-        hookGroup: [],
+        hookCollection: [],
       };
       validateAndRepairFrookyConfig(configWithUnknownProperty as InputFrookyConfig, "Android");
       expect(warnSpy).toHaveBeenCalledWith("Frooky config contains unknown properties: myCustomSettings");
@@ -249,10 +249,10 @@ describe("configValidator", () => {
       );
     });
 
-    it("throws when no hookGroup is set", () => {
+    it("throws when no hookCollection is set", () => {
       expect(() => {
-        validateAndRepairFrookyConfig({ metadata: { name: "Config w/o hookGroup" } } as InputFrookyConfig, "iOS");
-      }).toThrow("Frooky config Config w/o hookGroup, as it has no 'hookGroup'.");
+        validateAndRepairFrookyConfig({ metadata: { name: "Config w/o hookCollection" } } as InputFrookyConfig, "iOS");
+      }).toThrow("Frooky config Config w/o hookCollection, as it has no 'hookCollection'.");
     });
   });
 });

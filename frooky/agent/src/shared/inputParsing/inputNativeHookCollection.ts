@@ -24,7 +24,7 @@ export type InputNativeHook = string | InputNativeHookNormalized;
 
 /**
  * Native hook configuration for YAML parsing.
- * Extends {@link InputNativeHookGroup} with a looser `functions` type that accepts
+ * Extends {@link InputNativeHookCollection} with a looser `functions` type that accepts
  * both plain symbol names and detailed definitions.
  * *
  * The settings are optional here.
@@ -32,7 +32,7 @@ export type InputNativeHook = string | InputNativeHookNormalized;
  * @public
  * @discriminator {type}
  */
-export interface InputNativeHookGroup {
+export interface InputNativeHookCollection {
   type: "native";
   module: string;
   hooks: InputNativeHook[];
@@ -41,7 +41,7 @@ export interface InputNativeHookGroup {
 }
 
 // Type guard function
-export function isNativeHookGroup(inputHookScope: object): inputHookScope is InputNativeHookGroup {
+export function isNativeHookCollection(inputHookScope: object): inputHookScope is InputNativeHookCollection {
   return "module" in inputHookScope && !("javaClass" in inputHookScope) && !("objcClass" in inputHookScope);
 }
 
@@ -73,9 +73,7 @@ export function normalizeNativeHook(
     };
   }
 
-  const mergedHookSettings = inputHook.hookSettings
-    ? validateAndRepairHookSettings({ ...hookSettings, ...inputHook.hookSettings })
-    : hookSettings;
+  const mergedHookSettings = inputHook.hookSettings ? validateAndRepairHookSettings({ ...hookSettings, ...inputHook.hookSettings }) : hookSettings;
   const mergedDecoderSettings = inputHook.decoderSettings
     ? validateAndRepairDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
     : decoderSettings;
@@ -96,20 +94,23 @@ export function normalizeNativeHook(
  *
  * Exported so callers can obtain the merged settings for a group without normalizing its hooks (which may throw).
  *
- * @param hookGroup - The input native hook group whose settings should be merged.
+ * @param hookCollection - The input native hook group whose settings should be merged.
  * @param settings - The base frooky settings to merge on top of the defaults.
  * @returns The merged, repaired hook and decoder settings.
  */
-export function mergeNativeHookGroupSettings(hookGroup: InputNativeHookGroup, settings: FrookySettings): { hookSettings: HookSettings; decoderSettings: DecoderSettings } {
+export function mergeNativeHookCollectionSettings(
+  hookCollection: InputNativeHookCollection,
+  settings: FrookySettings,
+): { hookSettings: HookSettings; decoderSettings: DecoderSettings } {
   const hookSettings: HookSettings = validateAndRepairHookSettings({
     ...DEFAULT_HOOK_SETTINGS,
     ...settings.hookSettings,
-    ...hookGroup.hookSettings,
+    ...hookCollection.hookSettings,
   });
   const decoderSettings: DecoderSettings = validateAndRepairDecoderSettings({
     ...DEFAULT_DECODER_SETTINGS,
     ...settings.decoderSettings,
-    ...hookGroup.decoderSettings,
+    ...hookCollection.decoderSettings,
   });
   return { hookSettings, decoderSettings };
 }
@@ -121,15 +122,17 @@ export function mergeNativeHookGroupSettings(hookGroup: InputNativeHookGroup, se
  *
  * Then each hook, parameter and return types are normalized by using objects such as InputNativeHookNormalized or Param only.
  *
- * @param hookGroup - The input native hook group to normalize.
- * @returns A new `InputNativeHookGroup` with merged settings and normalized hooks.
+ * @param hookCollection - The input native hook group to normalize.
+ * @returns A new `InputNativeHookCollection` with merged settings and normalized hooks.
  */
-export function normalizeNativeHookGroup(hookGroup: InputNativeHookGroup, settings: FrookySettings): InputNativeHookGroup {
-  const { hookSettings, decoderSettings } = mergeNativeHookGroupSettings(hookGroup, settings);
+export function normalizeNativeHookCollection(hookCollection: InputNativeHookCollection, settings: FrookySettings): InputNativeHookCollection {
+  const { hookSettings, decoderSettings } = mergeNativeHookCollectionSettings(hookCollection, settings);
 
   return {
-    ...hookGroup,
-    hooks: hookGroup.hooks.map((inputHook: InputNativeHook) => normalizeNativeHook(inputHook, hookGroup.module, hookSettings, decoderSettings)),
+    ...hookCollection,
+    hooks: hookCollection.hooks.map((inputHook: InputNativeHook) =>
+      normalizeNativeHook(inputHook, hookCollection.module, hookSettings, decoderSettings),
+    ),
     hookSettings: hookSettings,
     decoderSettings: decoderSettings,
   };

@@ -1,8 +1,8 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
-import { InputJavaHookGroup } from "../../shared/inputParsing/inputJavaHookGroup";
-import { InputNativeHookGroup } from "../../shared/inputParsing/inputNativeHookGroup";
+import { InputJavaHookCollection } from "../../shared/inputParsing/inputJavaHookCollection";
+import { InputNativeHookCollection } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { AndroidHookValidator } from "./androidHookValidator";
 
@@ -14,26 +14,26 @@ const defaultSettings: FrookySettings = {
 describe("AndroidHookValidator", () => {
   const validator = new AndroidHookValidator();
 
-  describe("getPlatformHookGroups()", () => {
-    it("returns an empty array for an empty hookGroup list", () => {
-      const config: InputFrookyConfig = { hookGroup: [] };
-      expect(validator.getPlatformHookGroups(config)).toEqual([]);
+  describe("getPlatformHookCollections()", () => {
+    it("returns an empty array for an empty hookCollection list", () => {
+      const config: InputFrookyConfig = { hookCollection: [] };
+      expect(validator.getPlatformHookCollections(config)).toEqual([]);
     });
 
-    it("returns only the java hook groups from a mixed hookGroup list, preserving order", () => {
-      const javaGroupA: InputJavaHookGroup = { type: "java", javaClass: "com.example.A", hooks: [] };
-      const nativeGroup: InputNativeHookGroup = { type: "native", module: "libc.so", hooks: [] };
-      const javaGroupB: InputJavaHookGroup = { type: "java", javaClass: "com.example.B", hooks: [] };
-      const config: InputFrookyConfig = { hookGroup: [javaGroupA, nativeGroup, javaGroupB] as unknown as InputJavaHookGroup[] };
+    it("returns only the java hook groups from a mixed hookCollection list, preserving order", () => {
+      const javaGroupA: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: [] };
+      const nativeGroup: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
+      const javaGroupB: InputJavaHookCollection = { type: "java", javaClass: "com.example.B", hooks: [] };
+      const config: InputFrookyConfig = { hookCollection: [javaGroupA, nativeGroup, javaGroupB] as unknown as InputJavaHookCollection[] };
 
-      expect(validator.getPlatformHookGroups(config)).toEqual([javaGroupA, javaGroupB]);
+      expect(validator.getPlatformHookCollections(config)).toEqual([javaGroupA, javaGroupB]);
     });
 
     it("returns an empty array when there are no java hook groups", () => {
-      const nativeGroup: InputNativeHookGroup = { type: "native", module: "libc.so", hooks: [] };
-      const config: InputFrookyConfig = { hookGroup: [nativeGroup] as unknown as InputJavaHookGroup[] };
+      const nativeGroup: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
+      const config: InputFrookyConfig = { hookCollection: [nativeGroup] as unknown as InputJavaHookCollection[] };
 
-      expect(validator.getPlatformHookGroups(config)).toEqual([]);
+      expect(validator.getPlatformHookCollections(config)).toEqual([]);
     });
   });
 
@@ -49,13 +49,13 @@ describe("AndroidHookValidator", () => {
     });
 
     it("returns an empty array when the config has no java hook groups", () => {
-      const config: InputFrookyConfig = { hookGroup: [] };
+      const config: InputFrookyConfig = { hookCollection: [] };
       expect(validator.validateAndNormalizeHooks(config, defaultSettings)).toEqual([]);
     });
 
     it("normalizes a plain method-name hook into a full InputJavaHookNormalized", () => {
-      const javaGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: ["bar"] };
-      const config: InputFrookyConfig = { hookGroup: [javaGroup] };
+      const javaGroup: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: ["bar"] };
+      const config: InputFrookyConfig = { hookCollection: [javaGroup] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -66,10 +66,10 @@ describe("AndroidHookValidator", () => {
     });
 
     it("collects hooks from multiple java hook groups, ignoring non-java hook groups", () => {
-      const javaGroupA: InputJavaHookGroup = { type: "java", javaClass: "com.example.A", hooks: ["foo"] };
-      const nativeGroup: InputNativeHookGroup = { type: "native", module: "libc.so", hooks: ["bar"] };
-      const javaGroupB: InputJavaHookGroup = { type: "java", javaClass: "com.example.B", hooks: ["baz"] };
-      const config: InputFrookyConfig = { hookGroup: [javaGroupA, nativeGroup, javaGroupB] as unknown as InputJavaHookGroup[] };
+      const javaGroupA: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: ["foo"] };
+      const nativeGroup: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["bar"] };
+      const javaGroupB: InputJavaHookCollection = { type: "java", javaClass: "com.example.B", hooks: ["baz"] };
+      const config: InputFrookyConfig = { hookCollection: [javaGroupA, nativeGroup, javaGroupB] as unknown as InputJavaHookCollection[] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -78,12 +78,12 @@ describe("AndroidHookValidator", () => {
 
     it("skips a hook that fails schema validation, warns about it, and still keeps the valid hooks", () => {
       const invalidHook = { javaClass: "com.example.Foo", method: 123 as unknown as string };
-      const javaGroup: InputJavaHookGroup = {
+      const javaGroup: InputJavaHookCollection = {
         type: "java",
         javaClass: "com.example.Foo",
         hooks: ["validMethod", invalidHook],
       };
-      const config: InputFrookyConfig = { hookGroup: [javaGroup] };
+      const config: InputFrookyConfig = { hookCollection: [javaGroup] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -101,12 +101,12 @@ describe("AndroidHookValidator", () => {
         method: "bad",
         overloads: [{ params: [123 as unknown as string] }],
       };
-      const javaGroup: InputJavaHookGroup = {
+      const javaGroup: InputJavaHookCollection = {
         type: "java",
         javaClass: "com.example.Foo",
         hooks: ["foo", invalidParamHook, "baz"],
       };
-      const config: InputFrookyConfig = { hookGroup: [javaGroup] };
+      const config: InputFrookyConfig = { hookCollection: [javaGroup] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -117,13 +117,13 @@ describe("AndroidHookValidator", () => {
     });
 
     it("still validates the remaining java hook groups after one group contained an unnormalizable hook", () => {
-      const brokenGroup: InputJavaHookGroup = {
+      const brokenGroup: InputJavaHookCollection = {
         type: "java",
         javaClass: "com.example.Foo",
         hooks: [{ javaClass: "com.example.Foo", method: "bad", overloads: [{ params: [123 as unknown as string] }] }],
       };
-      const healthyGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Bar", hooks: ["baz"] };
-      const config: InputFrookyConfig = { hookGroup: [brokenGroup, healthyGroup] };
+      const healthyGroup: InputJavaHookCollection = { type: "java", javaClass: "com.example.Bar", hooks: ["baz"] };
+      const config: InputFrookyConfig = { hookCollection: [brokenGroup, healthyGroup] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -133,12 +133,12 @@ describe("AndroidHookValidator", () => {
     it("processes every hook independently, warning once per invalid hook without aborting the group", () => {
       const invalidHookA = { javaClass: "com.example.Foo", method: 1 as unknown as string };
       const invalidHookB = { javaClass: "com.example.Foo", method: 2 as unknown as string };
-      const javaGroup: InputJavaHookGroup = {
+      const javaGroup: InputJavaHookCollection = {
         type: "java",
         javaClass: "com.example.Foo",
         hooks: [invalidHookA, "validMethod", invalidHookB],
       };
-      const config: InputFrookyConfig = { hookGroup: [javaGroup] };
+      const config: InputFrookyConfig = { hookCollection: [javaGroup] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 

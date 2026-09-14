@@ -16,12 +16,12 @@ export function validateAndRepairFrookyConfig(frookyConfig: InputFrookyConfig, p
     validateMetadata(frookyConfig.metadata, platform);
   }
 
-  if (!frookyConfig.hookGroup) {
-    throw Error(`Frooky config ${frookyConfig.metadata?.name ? frookyConfig.metadata?.name : ""}, as it has no 'hookGroup'.`);
+  if (!frookyConfig.hookCollection) {
+    throw Error(`Frooky config ${frookyConfig.metadata?.name ? frookyConfig.metadata?.name : ""}, as it has no 'hookCollection'.`);
   }
 
   // warn, if the hook config contains unknown entries
-  const knownKeys: (keyof InputFrookyConfig)[] = ["metadata", "settings", "hookGroup"];
+  const knownKeys: (keyof InputFrookyConfig)[] = ["metadata", "settings", "hookCollection"];
   const extraKeys = Object.keys(frookyConfig).filter((k) => !knownKeys.includes(k as keyof InputFrookyConfig));
   if (extraKeys.length > 0) {
     logger.warn(`Frooky config contains unknown properties: ${extraKeys.join(", ")}`);
