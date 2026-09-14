@@ -17,7 +17,7 @@ export class JavaPrimitiveDecoder extends Decoder<Java.Wrapper> {
   }
 }
 
-export class JavaFallbackDecoder extends Decoder<Java.Wrapper> {
+export class JavaGetterDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     return {
       type: this.decodable.type,
@@ -27,9 +27,19 @@ export class JavaFallbackDecoder extends Decoder<Java.Wrapper> {
   }
 }
 
+export class JavaToStringDecoder extends Decoder<Java.Wrapper> {
+  decode(value: Java.Wrapper): DecodedValue {
+    return {
+      type: this.decodable.type,
+      name: this.decodable.name,
+      value: value.toString(),
+    };
+  }
+}
+
 /**
  * Decodes reflection metadata (`java.lang.Class`, `Method`, `Field`, `Constructor`) as its
- * `toString()` instead of reflecting its own getters like {@link JavaFallbackDecoder} does. These
+ * `toString()` instead of reflecting its own getters like {@link JavaGetterDecoder} does. These
  * types point back at each other (a `Method`'s `getDeclaringClass()` returns the very `Class` whose
  * `getDeclaredMethods()` produced it), so getter-reflecting one crashes the Frida script by
  * exhausting the native call stack in unbounded mutual recursion.

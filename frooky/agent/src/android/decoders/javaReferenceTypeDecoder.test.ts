@@ -5,7 +5,7 @@ import { JavaReferenceTypeDecoder } from "./javaReferenceTypeDecoder";
 
 describe("JavaReferenceTypeDecoder", () => {
   describe("decode()", () => {
-    it("resolves a class decoder for a known runtime class (branch 1)", () => {
+    it("resolves a class decoder for a known runtime class (branch 4)", () => {
       const ContentValues = Java.use("android.content.ContentValues");
       const contentValues = ContentValues.$new();
       contentValues.put("key", "value");
@@ -19,7 +19,7 @@ describe("JavaReferenceTypeDecoder", () => {
       });
     });
 
-    it("resolves an interface decoder for the declared type (branch 2)", () => {
+    it("resolves an interface decoder for the declared type (branch 5)", () => {
       const ArrayList = Java.use("java.util.ArrayList");
       const list = ArrayList.$new();
       list.add("a");
@@ -40,7 +40,7 @@ describe("JavaReferenceTypeDecoder", () => {
       });
     });
 
-    it("resolves an interface decoder by walking the class hierarchy when the declared type isn't registered directly (branch 3)", () => {
+    it("resolves an interface decoder by walking the class hierarchy when the declared type isn't registered directly (branch 6)", () => {
       const ArrayList = Java.use("java.util.ArrayList");
       const list = ArrayList.$new();
       list.add("a");
@@ -59,7 +59,7 @@ describe("JavaReferenceTypeDecoder", () => {
       });
     });
 
-    it("falls back to JavaFallbackDecoder when no class or interface decoder is registered", () => {
+    it("falls back to JavaGetterDecoder when no class or interface decoder is registered (branch 7)", () => {
       const JavaObject = Java.use("java.lang.Object");
       const javaObject = JavaObject.$new();
 
@@ -69,14 +69,14 @@ describe("JavaReferenceTypeDecoder", () => {
       expect(result.type).toBe("java.lang.Object");
       const inner = result.value as DecodedValue;
       expect(inner.type).toBe("java.lang.Object");
-      // Object's only declared "get*" method is getClass(), which JavaFallbackDecoder now
+      // Object's only declared "get*" method is getClass(), which JavaGetterDecoder now
       // reflects and invokes (via decodeGetterValues) instead of just calling toString()
       const properties = inner.value as DecodedValue[];
       expect(properties.find((p) => p.name === "class")?.type).toBe("java.lang.Class");
     });
 
-    it("routes java.lang.String to JavaPrimitiveDecoder instead of falling back to JavaFallbackDecoder", () => {
-      // regression: JavaFallbackDecoder used to just call toString() on any unregistered type,
+    it("routes java.lang.String to JavaPrimitiveDecoder instead of falling back to JavaGetterDecoder (branch 3)", () => {
+      // regression: the fallback decoder used to just call toString() on any unregistered type,
       // which happened to also produce the right value for a String (its toString() is itself) -
       // now that it reflects and invokes getters instead, String must be special-cased here so it
       // doesn't get decoded via its own getBytes()/getClass()-style getters
@@ -92,10 +92,10 @@ describe("JavaReferenceTypeDecoder", () => {
       });
     });
 
-    it("routes java.lang.Class to JavaReflectionMetadataDecoder instead of falling back to JavaFallbackDecoder (regression)", () => {
+    it("routes java.lang.Class to JavaReflectionMetadataDecoder instead of falling back to JavaGetterDecoder (branch 2, regression)", () => {
       // regression: Class's own declared getters (getDeclaredMethods(), getFields(), ...) return
       // arrays of Method/Field/Constructor objects that point straight back to their declaring
-      // Class via getDeclaringClass() - reflecting those via JavaFallbackDecoder recursed without
+      // Class via getDeclaringClass() - reflecting those via JavaGetterDecoder recursed without
       // bound and crashed the Frida script ("Fatal error: Script is destroyed") by exhausting the
       // native call stack. This must complete and decode the Class as a plain string instead.
       const JavaObject = Java.use("java.lang.Object");
@@ -107,6 +107,21 @@ describe("JavaReferenceTypeDecoder", () => {
       expect(result).toEqual({
         type: "java.lang.Class",
         value: { type: "java.lang.Class", value: classValue.toString() },
+      });
+    });
+
+    it("routes java.math.BigInteger to JavaToStringDecoder instead of falling back to JavaGetterDecoder (branch 1)", () => {
+      // BigInteger has no "get"-prefixed methods, so reflecting its getters would silently lose
+      // the value entirely (an empty properties array) - it's decoded via toString() instead
+      const BigInteger = Java.use("java.math.BigInteger");
+      const value = BigInteger.$new("123456789");
+
+      const decoder = new JavaReferenceTypeDecoder({ type: "java.math.BigInteger", settings: DEFAULT_DECODER_SETTINGS });
+      const result = decoder.decode(value);
+
+      expect(result).toEqual({
+        type: "java.math.BigInteger",
+        value: { type: "java.math.BigInteger", value: value.toString() },
       });
     });
 

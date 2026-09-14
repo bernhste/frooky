@@ -9,16 +9,19 @@ import { BundleDecoder } from "./android/os/BundleDecoder";
 import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenParameterSpecDecoder";
 import { IterableDecoder } from "./java/lang/IterableDecoder";
 import { MapDecoder } from "./java/util/MapDecoder";
-import { JavaFallbackDecoder, JavaPrimitiveDecoder, JavaReflectionMetadataDecoder } from "./javaBasicDecoder";
+import { JavaGetterDecoder, JavaPrimitiveDecoder, JavaReflectionMetadataDecoder, JavaToStringDecoder } from "./javaBasicDecoder";
 import { DecoderConstructor } from "./javaDecoderResolver";
 
-// reflecting getters via JavaFallbackDecoder of these classes objects recurses
+// reflecting getters via JavaGetterDecoder of objects of these classes recurses
 const REFLECTION_RECURSION_CLASSES = new Set([
   "java.lang.Class",
   "java.lang.reflect.Method",
   "java.lang.reflect.Field",
   "java.lang.reflect.Constructor",
 ]);
+
+// objects of these classes are decoded using their toString() method. This is helpful, if there are no useful getters.
+const TO_STRING_CLASSES = new Set(["javax.security.auth.x500.X500Principal", "java.math.BigInteger", "java.util.Date"]);
 
 let classDecoderRegistry: Record<string, DecoderConstructor> | undefined;
 function getClassDecoderRegistry(): Record<string, DecoderConstructor> {
@@ -85,9 +88,9 @@ export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     if (value == null) {
       // frida-java-bridge hands back a plain JS null for a null Java reference crossing the
-      // bridge (see IntentDecoder.ts's `value.getAction()?.toString() ?? null`), and any
-      // declared type that isn't a primitive/String/void/array can legitimately be null
-      // (e.g. an Object-typed return value) - decode it as null instead of crashing on $className
+      // bridge, and any declared type that isn't a primitive/String/void/array can legitimately
+      // be null (e.g. an Object-typed return value) - decode it as null instead of crashing on
+      // $className
       return {
         type: this.decodable.type,
         name: this.decodable.name,
@@ -98,21 +101,23 @@ export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
     logger.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
 
     const decoderConstructor: DecoderConstructor =
-      // 1. class decoder for the runtime class exists
-      getClassDecoderRegistry()[value.$className] ??
-      // 2. interface decoder for declared interface type exists
-      getInterfaceDecoderRegistry()[this.decodable.type] ??
+      // 1. instances of these classes are always decoded using toString()
+      (TO_STRING_CLASSES.has(value.$className) ? JavaToStringDecoder : undefined) ??
+      // 2. reflection metadata is self-referential (see REFLECTION_RECURSION_CLASSES) - decode it via
+      // toString() instead of reflecting its getters through JavaGetterDecoder
+      (REFLECTION_RECURSION_CLASSES.has(value.$className) ? JavaReflectionMetadataDecoder : undefined) ??
       // 3. java.lang.String is final and already unwrapped by Frida to a JS-friendly value - decode
-      // it as a primitive rather than falling through to JavaFallbackDecoder, which would otherwise
+      // it as a primitive rather than falling through to JavaGetterDecoder, which would otherwise
       // reflect and invoke its getters (e.g. getBytes()) instead of using the string itself
       (value.$className === "java.lang.String" ? JavaPrimitiveDecoder : undefined) ??
-      // 4. reflection metadata is self-referential (see REFLECTION_RECURSION_CLASSES) - decode it via
-      // toString() instead of reflecting its getters through JavaFallbackDecoder
-      (REFLECTION_RECURSION_CLASSES.has(value.$className) ? JavaReflectionMetadataDecoder : undefined) ??
-      // 5. resolve the interfaces and use a decoder if implemented or fall back to the JavaFallbackDecoder
+      // 4. class decoder for the runtime class exists
+      getClassDecoderRegistry()[value.$className] ??
+      // 5. interface decoder for declared interface type exists
+      getInterfaceDecoderRegistry()[this.decodable.type] ??
+      // 6. resolve the interfaces and use a decoder if implemented
       resolveInterfaceDecoderClass(value) ??
-      // 6. use the fallback decoder (decodes all empty getter like getContent(), getIntent())
-      JavaFallbackDecoder;
+      // 7. use the getter decoder (decodes all empty getter like getContent(), getIntent())
+      JavaGetterDecoder;
 
     const decoder = new decoderConstructor({
       type: value.$className,

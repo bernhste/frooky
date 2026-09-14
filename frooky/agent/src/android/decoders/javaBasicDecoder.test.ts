@@ -1,7 +1,7 @@
 import Java from "frida-java-bridge";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
-import { JavaFallbackDecoder, JavaPrimitiveDecoder, JavaReflectionMetadataDecoder } from "./javaBasicDecoder";
+import { JavaGetterDecoder, JavaPrimitiveDecoder, JavaReflectionMetadataDecoder, JavaToStringDecoder } from "./javaBasicDecoder";
 
 describe("JavaPrimitiveDecoder", () => {
   describe("decode()", () => {
@@ -92,10 +92,10 @@ describe("JavaPrimitiveDecoder", () => {
   });
 });
 
-describe("JavaFallbackDecoder", () => {
+describe("JavaGetterDecoder", () => {
   describe("decode()", () => {
     const JavaObject = Java.use("java.lang.Object");
-    const decoder = new JavaFallbackDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
+    const decoder = new JavaGetterDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
 
     it("should decode every public getter, stripping the get/is prefix from the property name", () => {
       const javaObject = JavaObject.$new();
@@ -112,7 +112,7 @@ describe("JavaFallbackDecoder", () => {
     it("should decode getClass()'s result via toString(), not by recursing into its own getters (regression)", () => {
       // Class's own declared getters (getDeclaredMethods(), getFields(), ...) return arrays of
       // Method/Field/Constructor objects that point straight back to their declaring Class via
-      // getDeclaringClass() - reflecting those via JavaFallbackDecoder used to recurse without
+      // getDeclaringClass() - reflecting those via JavaGetterDecoder used to recurse without
       // bound and crash the Frida script ("Fatal error: Script is destroyed") by exhausting the
       // native call stack. JavaReferenceTypeDecoder now routes java.lang.Class to
       // JavaReflectionMetadataDecoder instead, so this must complete and return a plain string.
@@ -129,7 +129,7 @@ describe("JavaFallbackDecoder", () => {
     });
 
     it("should include the decodable name in the result", () => {
-      const namedDecoder = new JavaFallbackDecoder({ type: "java.lang.Object", name: "myParam", settings: DEFAULT_DECODER_SETTINGS });
+      const namedDecoder = new JavaGetterDecoder({ type: "java.lang.Object", name: "myParam", settings: DEFAULT_DECODER_SETTINGS });
       const javaObject = JavaObject.$new();
       const result = namedDecoder.decode(javaObject);
 
@@ -150,6 +150,33 @@ describe("JavaReflectionMetadataDecoder", () => {
       const result = decoder.decode(classValue);
 
       expect(result).toEqual({ type: "java.lang.Class", value: classValue.toString() });
+    });
+  });
+});
+
+describe("JavaToStringDecoder", () => {
+  describe("decode()", () => {
+    it("should decode a value with no useful getters via toString()", () => {
+      // java.math.BigInteger has no "get"-prefixed methods at all, so reflecting its getters via
+      // JavaGetterDecoder would silently lose the value (an empty properties array) - this is
+      // exactly the case JavaToStringDecoder exists for
+      const BigInteger = Java.use("java.math.BigInteger");
+      const value = BigInteger.$new("123456789");
+      const decoder = new JavaToStringDecoder({ type: "java.math.BigInteger", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(value);
+
+      expect(result).toEqual({ type: "java.math.BigInteger", value: value.toString() });
+    });
+
+    it("should include the decodable name in the result", () => {
+      const BigInteger = Java.use("java.math.BigInteger");
+      const value = BigInteger.$new("42");
+      const decoder = new JavaToStringDecoder({ type: "java.math.BigInteger", name: "myParam", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(value);
+
+      expect(result).toEqual({ type: "java.math.BigInteger", name: "myParam", value: value.toString() });
     });
   });
 });
