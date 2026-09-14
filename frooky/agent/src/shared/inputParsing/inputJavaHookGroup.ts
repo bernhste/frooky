@@ -26,8 +26,8 @@ export type InputJavaHookNormalized = {
   method: string;
   overloads?: InputOverload[];
   retType?: InputRetType;
-  hookSettings?: InputHookSettings;
-  decoderSettings?: InputDecoderSettings;
+  hookSettings?: HookSettings;
+  decoderSettings?: DecoderSettings;
 };
 
 /**

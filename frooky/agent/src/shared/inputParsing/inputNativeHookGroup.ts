@@ -9,8 +9,8 @@ export type InputNativeHookNormalized = {
   module: string;
   params?: InputParam[];
   retType?: InputRetType;
-  hookSettings?: InputHookSettings;
-  decoderSettings?: InputDecoderSettings;
+  hookSettings?: HookSettings;
+  decoderSettings?: DecoderSettings;
 };
 
 /**

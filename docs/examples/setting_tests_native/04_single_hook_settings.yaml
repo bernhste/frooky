@@ -1,0 +1,58 @@
+metadata:
+  name: Native Hooks for Testing
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# default setttings from DEFAULT_FROOKY_SETTINGS: FrookySettings
+# settings:
+#   hookSettings:
+#     stackTraceLimit: 0
+#     stackTraceFilter: []
+#   decoderSettings:
+#     fastDecode: false,
+#     magicDecode: false,
+#     maxRecursion: 10,
+#     decodeLimit: 1000,
+#     customDecoder: undefined,
+#     decoderArg: undefined,
+#     paramFilter: undefined,
+
+settings:
+  hookSettings:
+    stackTraceLimit: 5
+  decoderSettings:
+    maxRecursion: 1
+    decodeLimit: 1
+
+hookGroup:
+  - module: libc.so
+    hookSettings:
+      stackTraceLimit: 30
+      stackTraceFilter: ["^L3"]
+    decoderSettings:
+      maxRecursion: 30
+      decodeLimit: 30
+    hooks:
+    - symbol: open
+      retType: int
+      hookSettings:
+        stackTraceLimit: 40
+        stackTraceFilter: ["^L4"]
+      decoderSettings:
+        maxRecursion: 40
+        decodeLimit: 40
+      params:
+      - [const char *, path]
+      - [int, flags]
+      - [mode_t, mode]
+
+# `InputNativeHookNormalized` (the object form of a single hook entry) declares its own optional
+# `hookSettings`/`decoderSettings` fields, one level closer to the hook than the hook group's
+# settings set on the `module` block, so they take precedence.
+#
+# expected applied settings for `open`:
+#   stackTraceLimit:  40         (hook; overrides group's 30, file's 5, default's 0)
+#   stackTraceFilter: ["^L4"]    (hook; overrides group's ["^L3"])
+#   maxRecursion:     40         (hook; overrides group's 30, file's 1, default's 10)
+#   decodeLimit:      40         (hook; overrides group's 30, file's 1, default's 1000)

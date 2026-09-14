@@ -91,8 +91,8 @@ describe("inputJavaHookGroup", () => {
             {
               javaClass: "com.example.Foo",
               method: "bar",
-              hookSettings: { stackTraceLimit: 40 },
-              decoderSettings: { maxRecursion: 40 },
+              hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 },
+              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 },
             },
           ],
         };
@@ -104,6 +104,10 @@ describe("inputJavaHookGroup", () => {
       });
 
       it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
+        // A YAML author only ever writes a *partial* hookSettings/decoderSettings on a hook (e.g.
+        // `hookSettings: { stackTraceLimit: 40 }`); the raw config is cast to the input types at
+        // the YAML boundary (see index.frida.ts) without being structurally checked against them,
+        // so this models that real shape rather than the always-complete post-normalize shape.
         const hookGroup: InputJavaHookGroup = {
           type: "java",
           javaClass: "com.example.Foo",
@@ -116,7 +120,7 @@ describe("inputJavaHookGroup", () => {
               // intentionally only overrides one field of each settings object
               hookSettings: { stackTraceLimit: 40 },
               decoderSettings: { maxRecursion: 40 },
-            },
+            } as InputJavaHookNormalized,
           ],
         };
 
@@ -152,7 +156,7 @@ describe("inputJavaHookGroup", () => {
             {
               javaClass: "com.example.Foo",
               method: "bar",
-              decoderSettings: { maxRecursion: 40 },
+              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 },
               overloads: [{ params: ["int"] }],
               retType: "int",
             },
