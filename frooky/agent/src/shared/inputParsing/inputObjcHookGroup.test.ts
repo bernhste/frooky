@@ -1,4 +1,4 @@
-import { InputObjcHookGroup, isObjcHookScope } from "./inputIosHookGroup";
+import { InputObjcHookGroup, isObjcHookScope } from "./inputObjcHookGroup";
 
 describe("inputIosHookGroup", () => {
   describe("isObjcHookScope()", () => {

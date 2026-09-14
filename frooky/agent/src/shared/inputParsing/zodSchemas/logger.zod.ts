@@ -4,3 +4,5 @@ import { z } from "zod";
 export const logLevelSchema = z.union([z.literal("none"), z.literal("error"), z.literal("warn"), z.literal("info"), z.literal("debug")]);
 
 export const logToSchema = z.union([z.literal("console"), z.literal("eventlog")]);
+
+export const loggerSchema = z.any();
