@@ -18,12 +18,9 @@ export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
       // the declared type is a reference (e.g. 'char*', 'void *')
       return new NativeReferenceDecoder(decodable, nativeFridaType);
     } else {
-      // the declared type is a fundamental (e.g. 'int')
-      return new NativeValueDecoder({
-        type: nativeFridaType,
-        name: decodable.name,
-        settings: decodable.settings,
-      });
+      // the declared type is a fundamental (e.g. 'int'); `decodable` is kept as-is (not
+      // rewritten to the canonical type name) so decoded output reflects what was declared.
+      return new NativeValueDecoder(decodable, nativeFridaType);
     }
   },
 };
