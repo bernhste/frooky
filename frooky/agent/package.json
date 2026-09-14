@@ -7,11 +7,8 @@
   "scripts": {
     "build:zodSchema": "npx ts-to-zod --all",
     "build:prod:android": "node build.js android -c",
-    "build:prod:ios": "node build.js ios -c",
     "build:dev:android": "node build.js android",
-    "build:dev:ios": "node build.js ios",
     "build:watch:android": "node build.js android -t frida -w",
-    "build:watch:ios": "node build.js ios -w -t frida",
     "test:android": "npx frida-test -U -f 'com.google.android.dialer' ./src/android ./src/shared ./src/native ./src/FrookyAgent.test.ts"
   },
   "devDependencies": {
