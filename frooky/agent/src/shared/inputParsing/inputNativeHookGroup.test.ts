@@ -84,6 +84,93 @@ describe("inputNativeHookGroup", () => {
       });
     });
 
+    describe("hook-level settings override", () => {
+      it("lets a hook's own hookSettings/decoderSettings override the hook group's settings", () => {
+        const hookGroup: InputNativeHookGroup = {
+          type: "native",
+          module: "libc.so",
+          hookSettings: { stackTraceLimit: 30 },
+          decoderSettings: { maxRecursion: 30 },
+          hooks: [
+            {
+              symbol: "malloc",
+              module: "libc.so",
+              hookSettings: { stackTraceLimit: 40 },
+              decoderSettings: { maxRecursion: 40 },
+            },
+          ],
+        };
+
+        const result = normalizeNativeHookGroup(hookGroup, defaultSettings);
+
+        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 });
+        expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 });
+      });
+
+      it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
+        const hookGroup: InputNativeHookGroup = {
+          type: "native",
+          module: "libc.so",
+          hookSettings: { stackTraceLimit: 30, stackTraceFilter: ["^group"] },
+          decoderSettings: { maxRecursion: 30, decodeLimit: 30 },
+          hooks: [
+            {
+              symbol: "malloc",
+              module: "libc.so",
+              // intentionally only overrides one field of each settings object
+              hookSettings: { stackTraceLimit: 40 },
+              decoderSettings: { maxRecursion: 40 },
+            },
+          ],
+        };
+
+        const result = normalizeNativeHookGroup(hookGroup, defaultSettings);
+
+        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ stackTraceLimit: 40, stackTraceFilter: ["^group"] });
+        expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({
+          ...DEFAULT_DECODER_SETTINGS,
+          maxRecursion: 40,
+          decodeLimit: 30,
+        });
+      });
+
+      it("falls back to the hook group's settings when a hook does not declare its own", () => {
+        const hookGroup: InputNativeHookGroup = {
+          type: "native",
+          module: "libc.so",
+          hookSettings: { stackTraceLimit: 30 },
+          hooks: [{ symbol: "malloc", module: "libc.so" }],
+        };
+
+        const result = normalizeNativeHookGroup(hookGroup, defaultSettings);
+
+        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 30 });
+      });
+
+      it("uses the hook's own (merged) decoderSettings, not just the group's, to normalize that hook's params and retType", () => {
+        const hookGroup: InputNativeHookGroup = {
+          type: "native",
+          module: "libc.so",
+          decoderSettings: { maxRecursion: 30 },
+          hooks: [
+            {
+              symbol: "memcpy",
+              module: "libc.so",
+              decoderSettings: { maxRecursion: 40 },
+              params: ["void *"],
+              retType: "void *",
+            },
+          ],
+        };
+
+        const result = normalizeNativeHookGroup(hookGroup, defaultSettings);
+        const hook = result.hooks[0] as InputNativeHookNormalized;
+
+        expect(hook.params?.[0]).toEqual(normalizeInputParam("void *", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
+        expect(hook.retType).toEqual(normalizeInputRetType("void *", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
+      });
+    });
+
     describe("hook normalization", () => {
       it("normalizes a plain symbol string into a full InputNativeHookNormalized", () => {
         const hookGroup: InputNativeHookGroup = { type: "native", module: "libc.so", hooks: ["malloc"] };

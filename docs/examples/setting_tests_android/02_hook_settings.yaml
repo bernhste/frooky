@@ -1,0 +1,33 @@
+metadata:
+  name: Android Hooks for Testing
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# default setttings from DEFAULT_FROOKY_SETTINGS: FrookySettings 
+# settings:
+#   hookSettings:
+#     stackTraceLimit: 0
+#     stackTraceFilter: []
+#   decoderSettings:
+#     fastDecode: false,
+#     magicDecode: false,
+#     maxRecursion: 10,
+#     decodeLimit: 1000,
+#     customDecoder: undefined,
+#     decoderArg: undefined,
+#     paramFilter: undefined,
+
+settings:
+  hookSettings:
+    stackTraceLimit: 5
+  decoderSettings:
+    maxRecursion: 1
+    decodeLimit: 1
+
+hookGroup:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+    - receiveNestedObjectArray
+
+# expected: all hooks should inherite the settings from the hook file, if not set from default

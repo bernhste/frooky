@@ -34,6 +34,7 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
         }
       }
     }
+    logger.debug(`Normalized Native hook: ${JSON.stringify(normalizedNativeHooks, null, 2)}`);
     return normalizedNativeHooks;
   }
 

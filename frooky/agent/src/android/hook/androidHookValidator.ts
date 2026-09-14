@@ -2,7 +2,13 @@ import z from "zod";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
 import { HookValidator } from "../../shared/hook/hookValidator";
-import { InputJavaHookGroup, InputJavaHookNormalized, isJavaHookScope, mergeJavaHookGroupSettings, normalizeJavaHook } from "../../shared/inputParsing/inputJavaHookGroup";
+import {
+  InputJavaHookGroup,
+  InputJavaHookNormalized,
+  isJavaHookScope,
+  mergeJavaHookGroupSettings,
+  normalizeJavaHook,
+} from "../../shared/inputParsing/inputJavaHookGroup";
 import { inputJavaHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputJavaHookGroup.zod";
 import { logger } from "../../shared/logger";
 
@@ -27,6 +33,7 @@ export class AndroidHookValidator implements HookValidator<InputJavaHookNormaliz
         }
       }
     }
+    logger.debug(`Normalized Java hook: ${JSON.stringify(normalizedJavaHooks, null, 2)}`);
     return normalizedJavaHooks;
   }
 

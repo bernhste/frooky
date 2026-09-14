@@ -26,8 +26,8 @@ export type InputJavaHookNormalized = {
   method: string;
   overloads?: InputOverload[];
   retType?: InputRetType;
-  hookSettings?: HookSettings;
-  decoderSettings?: DecoderSettings;
+  hookSettings?: InputHookSettings;
+  decoderSettings?: InputDecoderSettings;
 };
 
 /**
@@ -91,13 +91,18 @@ export function normalizeJavaHook(
     return { javaClass: javaClass, method: method, hookSettings: hookSettings, decoderSettings: decoderSettings };
   }
 
+  const mergedHookSettings = method.hookSettings ? validateAndRepairHookSettings({ ...hookSettings, ...method.hookSettings }) : hookSettings;
+  const mergedDecoderSettings = method.decoderSettings
+    ? validateAndRepairDecoderSettings({ ...decoderSettings, ...method.decoderSettings })
+    : decoderSettings;
+
   return {
     ...method,
     javaClass: javaClass,
-    overloads: method.overloads?.map((overload: InputOverload) => normalizeOverload(overload, decoderSettings)),
-    retType: method.retType ? normalizeInputRetType(method.retType, decoderSettings) : undefined,
-    hookSettings: hookSettings,
-    decoderSettings: decoderSettings,
+    overloads: method.overloads?.map((overload: InputOverload) => normalizeOverload(overload, mergedDecoderSettings)),
+    retType: method.retType ? normalizeInputRetType(method.retType, mergedDecoderSettings) : undefined,
+    hookSettings: mergedHookSettings,
+    decoderSettings: mergedDecoderSettings,
   };
 }
 
@@ -111,7 +116,10 @@ export function normalizeJavaHook(
  * @param settings - The base frooky settings to merge on top of the defaults.
  * @returns The merged, repaired hook and decoder settings.
  */
-export function mergeJavaHookGroupSettings(hookGroup: InputJavaHookGroup, settings: FrookySettings): { hookSettings: HookSettings; decoderSettings: DecoderSettings } {
+export function mergeJavaHookGroupSettings(
+  hookGroup: InputJavaHookGroup,
+  settings: FrookySettings,
+): { hookSettings: HookSettings; decoderSettings: DecoderSettings } {
   const hookSettings: HookSettings = validateAndRepairHookSettings({
     ...DEFAULT_HOOK_SETTINGS,
     ...settings.hookSettings,

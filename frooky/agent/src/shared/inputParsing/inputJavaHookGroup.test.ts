@@ -80,6 +80,93 @@ describe("inputJavaHookGroup", () => {
       });
     });
 
+    describe("hook-level settings override", () => {
+      it("lets a hook's own hookSettings/decoderSettings override the hook group's settings", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hookSettings: { stackTraceLimit: 30 },
+          decoderSettings: { maxRecursion: 30 },
+          hooks: [
+            {
+              javaClass: "com.example.Foo",
+              method: "bar",
+              hookSettings: { stackTraceLimit: 40 },
+              decoderSettings: { maxRecursion: 40 },
+            },
+          ],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 });
+        expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 });
+      });
+
+      it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hookSettings: { stackTraceLimit: 30, stackTraceFilter: ["^group"] },
+          decoderSettings: { maxRecursion: 30, decodeLimit: 30 },
+          hooks: [
+            {
+              javaClass: "com.example.Foo",
+              method: "bar",
+              // intentionally only overrides one field of each settings object
+              hookSettings: { stackTraceLimit: 40 },
+              decoderSettings: { maxRecursion: 40 },
+            },
+          ],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ stackTraceLimit: 40, stackTraceFilter: ["^group"] });
+        expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({
+          ...DEFAULT_DECODER_SETTINGS,
+          maxRecursion: 40,
+          decodeLimit: 30,
+        });
+      });
+
+      it("falls back to the hook group's settings when a hook does not declare its own", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hookSettings: { stackTraceLimit: 30 },
+          hooks: [{ javaClass: "com.example.Foo", method: "bar" }],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+
+        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 30 });
+      });
+
+      it("uses the hook's own (merged) decoderSettings, not just the group's, to normalize that hook's overloads and retType", () => {
+        const hookGroup: InputJavaHookGroup = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          decoderSettings: { maxRecursion: 30 },
+          hooks: [
+            {
+              javaClass: "com.example.Foo",
+              method: "bar",
+              decoderSettings: { maxRecursion: 40 },
+              overloads: [{ params: ["int"] }],
+              retType: "int",
+            },
+          ],
+        };
+
+        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
+        const hook = result.hooks[0] as InputJavaHookNormalized;
+
+        expect(hook.overloads?.[0].params[0]).toEqual(normalizeInputParam("int", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
+        expect(hook.retType).toEqual(normalizeInputRetType("int", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
+      });
+    });
+
     describe("hook normalization", () => {
       it("normalizes a plain method name string into a full InputJavaHookNormalized", () => {
         const hookGroup: InputJavaHookGroup = { type: "java", javaClass: "com.example.Foo", hooks: ["bar"] };

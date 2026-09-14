@@ -9,8 +9,8 @@ export type InputNativeHookNormalized = {
   module: string;
   params?: InputParam[];
   retType?: InputRetType;
-  hookSettings?: HookSettings;
-  decoderSettings?: DecoderSettings;
+  hookSettings?: InputHookSettings;
+  decoderSettings?: InputDecoderSettings;
 };
 
 /**
@@ -73,13 +73,20 @@ export function normalizeNativeHook(
     };
   }
 
+  const mergedHookSettings = inputHook.hookSettings
+    ? validateAndRepairHookSettings({ ...hookSettings, ...inputHook.hookSettings })
+    : hookSettings;
+  const mergedDecoderSettings = inputHook.decoderSettings
+    ? validateAndRepairDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
+    : decoderSettings;
+
   return {
     symbol: inputHook.symbol,
     module: moduleName,
-    params: inputHook.params?.map((paramInput: InputParam) => normalizeInputParam(paramInput, decoderSettings)),
-    retType: inputHook.retType ? normalizeInputRetType(inputHook.retType, decoderSettings) : undefined,
-    hookSettings: hookSettings,
-    decoderSettings: decoderSettings,
+    params: inputHook.params?.map((paramInput: InputParam) => normalizeInputParam(paramInput, mergedDecoderSettings)),
+    retType: inputHook.retType ? normalizeInputRetType(inputHook.retType, mergedDecoderSettings) : undefined,
+    hookSettings: mergedHookSettings,
+    decoderSettings: mergedDecoderSettings,
   };
 }
 
