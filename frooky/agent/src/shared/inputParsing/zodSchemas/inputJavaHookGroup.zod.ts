@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 import { decoderSettingsSchema, hookSettingsSchema } from "./frookySettings.zod";
-import { inputParamSchema, inputRetTypeSchema } from "./inputDecodableTypes.zod";
+import { inputParamSchema } from "./inputDecodableTypes.zod";
 import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputSettings.zod";
 
 export const inputOverloadSchema = z.object({
@@ -13,7 +13,6 @@ export const inputJavaHookNormalizedSchema = z.object({
     javaClass: z.string(),
     method: z.string(),
     overloads: z.array(inputOverloadSchema).optional(),
-    retType: inputRetTypeSchema.optional(),
     hookSettings: hookSettingsSchema.optional(),
     decoderSettings: decoderSettingsSchema.optional()
 });

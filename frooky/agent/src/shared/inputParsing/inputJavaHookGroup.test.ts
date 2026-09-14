@@ -1,6 +1,6 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { FrookySettings } from "../frookySettings";
-import { normalizeInputParam, normalizeInputRetType } from "./inputDecodableTypes";
+import { normalizeInputParam } from "./inputDecodableTypes";
 import { InputJavaHookGroup, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookGroup } from "./inputJavaHookGroup";
 
 describe("inputJavaHookGroup", () => {
@@ -147,7 +147,7 @@ describe("inputJavaHookGroup", () => {
         expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 30 });
       });
 
-      it("uses the hook's own (merged) decoderSettings, not just the group's, to normalize that hook's overloads and retType", () => {
+      it("uses the hook's own (merged) decoderSettings, not just the group's, to normalize that hook's overloads", () => {
         const hookGroup: InputJavaHookGroup = {
           type: "java",
           javaClass: "com.example.Foo",
@@ -158,7 +158,6 @@ describe("inputJavaHookGroup", () => {
               method: "bar",
               decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 },
               overloads: [{ params: ["int"] }],
-              retType: "int",
             },
           ],
         };
@@ -167,7 +166,6 @@ describe("inputJavaHookGroup", () => {
         const hook = result.hooks[0] as InputJavaHookNormalized;
 
         expect(hook.overloads?.[0].params[0]).toEqual(normalizeInputParam("int", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
-        expect(hook.retType).toEqual(normalizeInputRetType("int", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
       });
     });
 
@@ -222,30 +220,6 @@ describe("inputJavaHookGroup", () => {
           hookSettings: DEFAULT_HOOK_SETTINGS,
           decoderSettings: DEFAULT_DECODER_SETTINGS,
         });
-      });
-
-      it("normalizes retType with the merged decoder settings when present", () => {
-        const hookGroup: InputJavaHookGroup = {
-          type: "java",
-          javaClass: "com.example.Foo",
-          hooks: [{ javaClass: "com.example.Foo", method: "bar", retType: "int" }],
-        };
-
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
-
-        expect((result.hooks[0] as InputJavaHookNormalized).retType).toEqual(normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS));
-      });
-
-      it("leaves retType undefined when the hook does not declare one", () => {
-        const hookGroup: InputJavaHookGroup = {
-          type: "java",
-          javaClass: "com.example.Foo",
-          hooks: [{ javaClass: "com.example.Foo", method: "bar" }],
-        };
-
-        const result = normalizeJavaHookGroup(hookGroup, defaultSettings);
-
-        expect((result.hooks[0] as InputJavaHookNormalized).retType).toBeUndefined();
       });
 
       it("normalizes multiple hooks, preserving order", () => {

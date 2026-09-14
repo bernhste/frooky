@@ -116,21 +116,6 @@ describe("AndroidHookValidator", () => {
       expect(messageLines[0]).toContain("Skipping hook for java method 'bad' from class 'com.example.Foo' due to an invalid declaration.");
     });
 
-    it("skips a hook whose retType declaration is in an unrecognized format, without aborting the rest of the group", () => {
-      const invalidRetTypeHook = { javaClass: "com.example.Foo", method: "bad", retType: 42 as unknown as string };
-      const javaGroup: InputJavaHookGroup = {
-        type: "java",
-        javaClass: "com.example.Foo",
-        hooks: [invalidRetTypeHook, "baz"],
-      };
-      const config: InputFrookyConfig = { hookGroup: [javaGroup] };
-
-      const result = validator.validateAndNormalizeHooks(config, defaultSettings);
-
-      expect(result.map((hook) => hook.method)).toEqual(["baz"]);
-      expect(warnSpy).toHaveBeenCalled();
-    });
-
     it("still validates the remaining java hook groups after one group contained an unnormalizable hook", () => {
       const brokenGroup: InputJavaHookGroup = {
         type: "java",

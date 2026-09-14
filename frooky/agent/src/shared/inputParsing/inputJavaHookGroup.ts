@@ -1,7 +1,7 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
-import { InputParam, InputRetType, normalizeInputParam, normalizeInputRetType } from "./inputDecodableTypes";
+import { InputParam, normalizeInputParam } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
@@ -25,7 +25,6 @@ export type InputJavaHookNormalized = {
   javaClass: string;
   method: string;
   overloads?: InputOverload[];
-  retType?: InputRetType;
   hookSettings?: HookSettings;
   decoderSettings?: DecoderSettings;
 };
@@ -72,14 +71,17 @@ function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSett
  * Normalizes a single java hook definition into its canonical form.
  *
  * Exported so callers (e.g. the android hook validator) can normalize and validate hooks one at a time,
- * isolating a malformed param/retType declaration on one hook from the rest of the group.
+ * isolating a malformed param declaration on one hook from the rest of the group.
+ *
+ * Note: Java hooks have no `retType` - the return type is always resolved from Frida's own Java
+ * reflection at hook-registration time, so there is nothing for the caller to declare.
  *
  * @param javaClass - The java class the hook belongs to, taken from the enclosing hook group.
  * @param method - The raw hook definition, either a plain method name or a detailed declaration.
  * @param hookSettings - The merged hook settings to apply to this hook.
- * @param decoderSettings - The merged decoder settings to apply to this hook's overloads/retType.
+ * @param decoderSettings - The merged decoder settings to apply to this hook's overloads.
  * @returns The normalized hook.
- * @throws If an overload's param or a retType declaration is in an unrecognized format.
+ * @throws If an overload's param declaration is in an unrecognized format.
  */
 export function normalizeJavaHook(
   javaClass: string,
@@ -100,7 +102,6 @@ export function normalizeJavaHook(
     ...method,
     javaClass: javaClass,
     overloads: method.overloads?.map((overload: InputOverload) => normalizeOverload(overload, mergedDecoderSettings)),
-    retType: method.retType ? normalizeInputRetType(method.retType, mergedDecoderSettings) : undefined,
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
   };
