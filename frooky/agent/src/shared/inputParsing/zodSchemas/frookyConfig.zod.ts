@@ -9,5 +9,5 @@ import { inputFrookySettingsSchema } from "./inputSettings.zod";
 export const inputFrookyConfigSchema = z.object({
     metadata: inputFrookyMetadataSchema.optional(),
     settings: inputFrookySettingsSchema.optional(),
-    hookGroup: z.union([z.array(inputJavaHookGroupSchema), z.array(inputNativeHookGroupSchema)])
+    hookGroup: z.array(z.union([inputJavaHookGroupSchema, inputNativeHookGroupSchema]))
 });

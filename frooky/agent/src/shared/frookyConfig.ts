@@ -20,5 +20,5 @@ export interface InputFrookyConfig {
   /**
    * Collection of hooks.
    */
-  hookGroup: InputJavaHookGroup[] | InputNativeHookGroup[];
+  hookGroup: (InputJavaHookGroup | InputNativeHookGroup)[];
 }
