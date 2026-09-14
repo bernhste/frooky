@@ -42,7 +42,7 @@ describe("configValidator", () => {
       description: "Test description",
       category: "Test category",
       author: "frooky devs",
-      version: "1.0",
+      version: 1,
     };
 
     it("does not warn when the metadata matches the schema and platform", () => {

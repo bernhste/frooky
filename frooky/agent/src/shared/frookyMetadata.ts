@@ -39,5 +39,5 @@ export interface FrookyMetadata {
   /**
    * Version of the hook collection.
    */
-  version?: string | number;
+  version?: number;
 }
