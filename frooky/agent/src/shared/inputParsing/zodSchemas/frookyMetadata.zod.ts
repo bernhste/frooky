@@ -9,5 +9,5 @@ export const frookyMetadataSchema = z.object({
     description: z.string().optional(),
     category: z.string().optional(),
     author: z.string().optional(),
-    version: z.union([z.string(), z.number()]).optional()
+    version: z.number().optional()
 });

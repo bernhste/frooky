@@ -46,14 +46,14 @@ export default [
   },
 
   {
-    name: "frooky_config",
-    input: "src/shared/frookyConfig.ts",
-    output: "src/shared/inputParsing/zodSchemas/frookyConfig.zod.ts",
-  },
-
-  {
     name: "frooky_metadata",
     input: "src/shared/frookyMetadata.ts",
     output: "src/shared/inputParsing/zodSchemas/frookyMetadata.zod.ts",
+  },
+
+  {
+    name: "frooky_config",
+    input: "src/shared/frookyConfig.ts",
+    output: "src/shared/inputParsing/zodSchemas/frookyConfig.zod.ts",
   },
 ];
