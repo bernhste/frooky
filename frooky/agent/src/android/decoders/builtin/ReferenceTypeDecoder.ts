@@ -1,18 +1,19 @@
 import Java from "frida-java-bridge";
-import { Decoder } from "../../shared/decoders/baseDecoder";
-import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { logger } from "../../shared/logger";
-import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
-import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
-import { ContentValuesDecoder } from "./android/content/ContentValuesDecoder";
-import { BundleDecoder } from "./android/os/BundleDecoder";
-import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenParameterSpecDecoder";
-import { IterableDecoder } from "./java/lang/IterableDecoder";
-import { MapDecoder } from "./java/util/MapDecoder";
-import { JavaGetterDecoder, JavaPrimitiveDecoder, JavaReflectionMetadataDecoder, JavaToStringDecoder } from "./javaBasicDecoder";
-import { DecoderConstructor } from "./javaDecoderResolver";
+import { Decoder } from "../../../shared/decoders/baseDecoder";
+import { DecodedValue } from "../../../shared/decoders/decodedValue";
+import { logger } from "../../../shared/logger";
+import { ClipDataDecoder } from "../android/content/clipData/ClipDataDecoder";
+import { ClipDataItemDecoder } from "../android/content/clipData/ClipDataItemDecoder";
+import { ContentValuesDecoder } from "../android/content/ContentValuesDecoder";
+import { BundleDecoder } from "../android/os/BundleDecoder";
+import { KeyGenParameterSpecDecoder } from "../android/security/keystore/KeyGenParameterSpecDecoder";
+import { IterableDecoder } from "../java/lang/IterableDecoder";
+import { MapDecoder } from "../java/util/MapDecoder";
+import { DecoderConstructor } from "../javaDecoderResolver";
+import { GetterDecoder, JavaReflectionMetadataDecoder, PrimitiveDecoder } from "./BasicDecoder";
+import { StringDecoder } from "./StringDecoder";
 
-// reflecting getters via JavaGetterDecoder of objects of these classes recurses
+// reflecting getters via GetterDecoder of objects of these classes recurses
 const REFLECTION_RECURSION_CLASSES = new Set([
   "java.lang.Class",
   "java.lang.reflect.Method",
@@ -84,7 +85,7 @@ function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor |
   return null;
 }
 
-export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
+export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     if (value == null) {
       // frida-java-bridge hands back a plain JS null for a null Java reference crossing the
@@ -102,14 +103,14 @@ export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
 
     const decoderConstructor: DecoderConstructor =
       // 1. instances of these classes are always decoded using toString()
-      (TO_STRING_CLASSES.has(value.$className) ? JavaToStringDecoder : undefined) ??
+      (TO_STRING_CLASSES.has(value.$className) ? StringDecoder : undefined) ??
       // 2. reflection metadata is self-referential (see REFLECTION_RECURSION_CLASSES) - decode it via
-      // toString() instead of reflecting its getters through JavaGetterDecoder
+      // toString() instead of reflecting its getters through GetterDecoder
       (REFLECTION_RECURSION_CLASSES.has(value.$className) ? JavaReflectionMetadataDecoder : undefined) ??
       // 3. java.lang.String is final and already unwrapped by Frida to a JS-friendly value - decode
-      // it as a primitive rather than falling through to JavaGetterDecoder, which would otherwise
+      // it as a primitive rather than falling through to GetterDecoder, which would otherwise
       // reflect and invoke its getters (e.g. getBytes()) instead of using the string itself
-      (value.$className === "java.lang.String" ? JavaPrimitiveDecoder : undefined) ??
+      (value.$className === "java.lang.String" ? PrimitiveDecoder : undefined) ??
       // 4. class decoder for the runtime class exists
       getClassDecoderRegistry()[value.$className] ??
       // 5. interface decoder for declared interface type exists
@@ -117,7 +118,7 @@ export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       // 6. resolve the interfaces and use a decoder if implemented
       resolveInterfaceDecoderClass(value) ??
       // 7. use the getter decoder (decodes all empty getter like getContent(), getIntent())
-      JavaGetterDecoder;
+      GetterDecoder;
 
     const decoder = new decoderConstructor({
       type: value.$className,

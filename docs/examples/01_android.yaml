@@ -86,13 +86,25 @@ hookGroup:
   # Docs: https://developer.android.com/reference/javax/crypto/Cipher#doFinal(byte[],%20int)
   - javaClass: javax.crypto.Cipher
     hookSettings:
-      stackTraceLimit: 10
+      stackTraceLimit: 3
     hooks:
     - method: doFinal
       overloads:
       - params:
-        - ["[B", output, { direction: inout }]
+        - ["[B", output, { direction: inout, customDecoder: toStringDecoder }]
         - [int, outputOffset]
+
+  - javaClass: javax.crypto.Cipher
+    hooks:
+    - method: update
+      overloads:
+      - params:
+        - ["[B", input, { customDecoder: toStringDecoder }]
+        - [int, inputOffset]
+        - [int, inputLen]
+        - ["[B", output, { direction: inout, customDecoder: toStringDecoder }]
+        - [int, outputOffset]
+
 
   # Use `direction: inout` to decode a parameter before and after execution.
   # Docs: https://developer.android.com/reference/java/nio/ByteBuffer#put(byte[])

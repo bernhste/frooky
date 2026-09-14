@@ -304,3 +304,10 @@ hooks:
 ```
 
 This decodes the `flags` argument of [`Intent.setFlags(int)`](https://developer.android.com/reference/android/content/Intent#setFlags(int)) using the `android.content.IntentFlagDecoder`, which resolves the individual `Intent.FLAG_*` constants set in the bitmask instead of just reporting the raw integer.
+
+Native hooks will support the same option once implemented, for example to decode a `byte *` using the built-in `toStringDecoder`:
+
+```yaml
+params:
+  - [byte *, name, { customDecoder: toStringDecoder }]
+```

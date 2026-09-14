@@ -1,16 +1,16 @@
 import Java from "frida-java-bridge";
-import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
-import { JavaReferenceTypeDecoder } from "./javaReferenceTypeDecoder";
+import { DecodedValue } from "../../../shared/decoders/decodedValue";
+import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
+import { ReferenceTypeDecoder } from "./ReferenceTypeDecoder";
 
-describe("JavaReferenceTypeDecoder", () => {
+describe("ReferenceTypeDecoder", () => {
   describe("decode()", () => {
     it("resolves a class decoder for a known runtime class (branch 4)", () => {
       const ContentValues = Java.use("android.content.ContentValues");
       const contentValues = ContentValues.$new();
       contentValues.put("key", "value");
 
-      const decoder = new JavaReferenceTypeDecoder({ type: "android.content.ContentValues", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "android.content.ContentValues", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(contentValues);
 
       expect(result).toEqual({
@@ -25,7 +25,7 @@ describe("JavaReferenceTypeDecoder", () => {
       list.add("a");
       list.add("b");
 
-      const decoder = new JavaReferenceTypeDecoder({ type: "java.lang.Iterable", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "java.lang.Iterable", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(list);
 
       expect(result).toEqual({
@@ -47,7 +47,7 @@ describe("JavaReferenceTypeDecoder", () => {
 
       // "java.util.List" is not in the interface registry itself, only "java.lang.Iterable" is -
       // this only resolves correctly by walking ArrayList -> List -> Collection -> Iterable
-      const decoder = new JavaReferenceTypeDecoder({ type: "java.util.List", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "java.util.List", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(list);
 
       expect(result).toEqual({
@@ -59,23 +59,23 @@ describe("JavaReferenceTypeDecoder", () => {
       });
     });
 
-    it("falls back to JavaGetterDecoder when no class or interface decoder is registered (branch 7)", () => {
+    it("falls back to GetterDecoder when no class or interface decoder is registered (branch 7)", () => {
       const JavaObject = Java.use("java.lang.Object");
       const javaObject = JavaObject.$new();
 
-      const decoder = new JavaReferenceTypeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(javaObject);
 
       expect(result.type).toBe("java.lang.Object");
       const inner = result.value as DecodedValue;
       expect(inner.type).toBe("java.lang.Object");
-      // Object's only declared "get*" method is getClass(), which JavaGetterDecoder now
+      // Object's only declared "get*" method is getClass(), which GetterDecoder now
       // reflects and invokes (via decodeGetterValues) instead of just calling toString()
       const properties = inner.value as DecodedValue[];
       expect(properties.find((p) => p.name === "class")?.type).toBe("java.lang.Class");
     });
 
-    it("routes java.lang.String to JavaPrimitiveDecoder instead of falling back to JavaGetterDecoder (branch 3)", () => {
+    it("routes java.lang.String to PrimitiveDecoder instead of falling back to GetterDecoder (branch 3)", () => {
       // regression: the fallback decoder used to just call toString() on any unregistered type,
       // which happened to also produce the right value for a String (its toString() is itself) -
       // now that it reflects and invokes getters instead, String must be special-cased here so it
@@ -83,7 +83,7 @@ describe("JavaReferenceTypeDecoder", () => {
       const JavaString = Java.use("java.lang.String");
       const value = JavaString.$new("hello world");
 
-      const decoder = new JavaReferenceTypeDecoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(value);
 
       expect(result).toEqual({
@@ -92,16 +92,16 @@ describe("JavaReferenceTypeDecoder", () => {
       });
     });
 
-    it("routes java.lang.Class to JavaReflectionMetadataDecoder instead of falling back to JavaGetterDecoder (branch 2, regression)", () => {
+    it("routes java.lang.Class to JavaReflectionMetadataDecoder instead of falling back to GetterDecoder (branch 2, regression)", () => {
       // regression: Class's own declared getters (getDeclaredMethods(), getFields(), ...) return
       // arrays of Method/Field/Constructor objects that point straight back to their declaring
-      // Class via getDeclaringClass() - reflecting those via JavaGetterDecoder recursed without
+      // Class via getDeclaringClass() - reflecting those via GetterDecoder recursed without
       // bound and crashed the Frida script ("Fatal error: Script is destroyed") by exhausting the
       // native call stack. This must complete and decode the Class as a plain string instead.
       const JavaObject = Java.use("java.lang.Object");
       const classValue = JavaObject.class;
 
-      const decoder = new JavaReferenceTypeDecoder({ type: "java.lang.Class", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "java.lang.Class", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(classValue);
 
       expect(result).toEqual({
@@ -110,13 +110,13 @@ describe("JavaReferenceTypeDecoder", () => {
       });
     });
 
-    it("routes java.math.BigInteger to JavaToStringDecoder instead of falling back to JavaGetterDecoder (branch 1)", () => {
+    it("routes java.math.BigInteger to StringDecoder instead of falling back to GetterDecoder (branch 1)", () => {
       // BigInteger has no "get"-prefixed methods, so reflecting its getters would silently lose
       // the value entirely (an empty properties array) - it's decoded via toString() instead
       const BigInteger = Java.use("java.math.BigInteger");
       const value = BigInteger.$new("123456789");
 
-      const decoder = new JavaReferenceTypeDecoder({ type: "java.math.BigInteger", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "java.math.BigInteger", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(value);
 
       expect(result).toEqual({
@@ -129,7 +129,7 @@ describe("JavaReferenceTypeDecoder", () => {
       // a single instance is reused across every invocation of a hooked method in practice
       // (see androidHookManager.ts), so a declared supertype like java.lang.Object must be
       // re-resolved per call rather than locked to whichever runtime class showed up first
-      const decoder = new JavaReferenceTypeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
 
       const JavaString = Java.use("java.lang.String");
       const firstValue = JavaString.$new("first-call value");
@@ -157,7 +157,7 @@ describe("JavaReferenceTypeDecoder", () => {
     it("should decode a null value without throwing", () => {
       // frida-java-bridge hands back plain JS null for a null Java reference (e.g. an
       // Object-typed return value that is actually null at runtime)
-      const decoder = new JavaReferenceTypeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new ReferenceTypeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(null as unknown as Java.Wrapper);
 
       expect(result).toEqual({ type: "java.lang.Object", value: null });

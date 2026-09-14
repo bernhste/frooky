@@ -1,5 +1,5 @@
 import Java from "frida-java-bridge";
-import { decodeConstantValues } from "./javaDecodeConstants";
+import { decodeConstantValues } from "./decodeConstants";
 
 describe("javaConstants", () => {
   describe("decodePublicMethodValues()", () => {

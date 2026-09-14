@@ -2,8 +2,8 @@ import Java from "frida-java-bridge";
 import { Decoder } from "../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../../../shared/frookySettings";
-import { JavaPrimitiveDecoder } from "../../javaBasicDecoder";
-import { JavaReferenceTypeDecoder } from "../../javaReferenceTypeDecoder";
+import { PrimitiveDecoder } from "../../builtin/BasicDecoder";
+import { ReferenceTypeDecoder } from "../../builtin/ReferenceTypeDecoder";
 
 const BOXED_PRIMITIVES: Record<string, { primitiveType: string; unbox: (entry: Java.Wrapper) => unknown }> = {
   "java.lang.Boolean": { primitiveType: "boolean", unbox: (entry) => entry.booleanValue() },
@@ -71,13 +71,13 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
 
     const boxedPrimitive = BOXED_PRIMITIVES[className];
     if (boxedPrimitive) {
-      const decoded = new JavaPrimitiveDecoder({ type: boxedPrimitive.primitiveType, name: key, settings }).decode(
+      const decoded = new PrimitiveDecoder({ type: boxedPrimitive.primitiveType, name: key, settings }).decode(
         boxedPrimitive.unbox(castEntry) as Java.Wrapper,
       );
       return { type: decoded.type, name: key, value: decoded.value };
     }
 
-    const decoded = new JavaReferenceTypeDecoder({ type: className, name: key, settings }).decode(castEntry);
+    const decoded = new ReferenceTypeDecoder({ type: className, name: key, settings }).decode(castEntry);
     return { type: decoded.type, name: key, value: (decoded.value as DecodedValue).value };
   }
 }

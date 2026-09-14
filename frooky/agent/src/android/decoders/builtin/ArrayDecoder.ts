@@ -1,8 +1,8 @@
 import type Java from "frida-java-bridge";
-import { Decoder } from "../../shared/decoders/baseDecoder";
-import { Decodable } from "../../shared/decoders/decodable";
-import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "./javaDecoderResolver";
+import { Decoder } from "../../../shared/decoders/baseDecoder";
+import { Decodable } from "../../../shared/decoders/decodable";
+import { DecodedValue } from "../../../shared/decoders/decodedValue";
+import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "../javaDecoderResolver";
 
 /**
  * Convert a JNI array element signature into a JavaParam-compatible `type` string.
@@ -42,7 +42,7 @@ function elementTypeFromSignature(element: string): string {
   return element;
 }
 
-export class JavaArrayDecoder extends Decoder<Java.Wrapper> {
+export class ArrayDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     const signature = this.decodable.type;
     const elementSignature = signature.startsWith("[") ? signature.substring(1) : signature;

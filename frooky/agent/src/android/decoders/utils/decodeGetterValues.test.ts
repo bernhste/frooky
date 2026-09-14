@@ -1,6 +1,6 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
-import { decodeGetterValues } from "./javaDecodeGetterValues";
+import { decodeGetterValues } from "./decodeGetterValues";
 
 describe("javaMethods", () => {
   describe("decodePublicMethodValues()", () => {

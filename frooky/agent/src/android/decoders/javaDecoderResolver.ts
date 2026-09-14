@@ -4,13 +4,15 @@ import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
-import { JavaArrayDecoder } from "./javaArrayDecoder";
-import { JavaPrimitiveDecoder } from "./javaBasicDecoder";
-import { JavaReferenceTypeDecoder } from "./javaReferenceTypeDecoder";
+import { ArrayDecoder } from "./builtin/ArrayDecoder";
+import { PrimitiveDecoder } from "./builtin/BasicDecoder";
+import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
+import { StringDecoder } from "./builtin/StringDecoder";
 
 export type DecoderConstructor = { new (decodable: Decodable): Decoder<Java.Wrapper> };
 
-const CUSTOM_CLASS_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
+const CUSTOM_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
+  toStringDecoder: StringDecoder,
   "android.content.IntentFlagDecoder": IntentFlagDecoder,
   "android.content.IntentUriFlagDecoder": IntentUriFlagDecoder,
 };
@@ -24,21 +26,21 @@ export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
   resolveDecoder(decodable: Decodable): Decoder<Java.Wrapper> {
     if (decodable.settings.customDecoder) {
       // return the custom decoder (if implemented)
-      const DecoderClass = CUSTOM_CLASS_DECODER_REGISTRY[decodable.settings.customDecoder];
-      if (!DecoderClass) {
+      const CustomDecoderClass = CUSTOM_DECODER_REGISTRY[decodable.settings.customDecoder];
+      if (!CustomDecoderClass) {
         throw new Error(`Unknown custom decoder: "${decodable.settings.customDecoder}"`);
       }
-      return new DecoderClass(decodable);
+      return new CustomDecoderClass(decodable);
     } else if (decodable.type.startsWith("[")) {
       // java array decoder
-      return new JavaArrayDecoder(decodable);
+      return new ArrayDecoder(decodable);
     } else if (JAVA_PRIMITIVE_TYPES.has(decodable.type) || decodable.type === "void" || decodable.type === "java.lang.String") {
       // other Java primitive types, void and strings (Frida unwraps java.lang.String automatically to JavaScript strings)
-      return new JavaPrimitiveDecoder(decodable);
+      return new PrimitiveDecoder(decodable);
     } else {
       // at this time we don't know the implementation class
       // this decoders resolves the implementation type at first time decode() is called
-      return new JavaReferenceTypeDecoder(decodable);
+      return new ReferenceTypeDecoder(decodable);
     }
   },
 };
