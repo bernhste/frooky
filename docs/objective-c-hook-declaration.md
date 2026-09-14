@@ -1,11 +1,17 @@
 # `ObjcHook` Declaration
 
+> [!WARNING]
+> Objective-C/iOS hooking is **not currently implemented** in frooky. `InputFrookyConfig.hookGroup` only accepts `JavaHook` and `NativeHook` declarations today. This document describes the intended, planned declaration format for a future release.
+
 This documentation explains how to write Objective-C hook declarations.
 
-- [`ObjcHook` Declaration](#objchook-declaration)
-  - [Structure](#structure)
-  - [Basic Usage](#basic-usage)
-  - [Decoding Arguments and Return Values](#decoding-arguments-and-return-values)
+<!-- TOC -->
+
+- [Structure](#structure)
+- [Basic Usage](#basic-usage)
+- [Decoding Arguments and Return Values](#decoding-arguments-and-return-values)
+
+<!-- /TOC -->
 
 ## Structure
 
@@ -53,7 +59,7 @@ In the expanded form:
 > [!IMPORTANT]
 > Read the documentation for [parameter](./parameter-declaration.md) and [return type](./return-type-declaration.md) declarations to learn how to declare and configure them correctly.
 >
-> There are multiple ways to declare a parameter. In this document, all examples use [named parameters](./parameter-declaration.md#22-named-objective-c-parameters).
+> There are multiple ways to declare a parameter. In this document, all examples use [named parameters](./parameter-declaration.md#named-objective-c-parameters).
 
 ## Basic Usage
 
@@ -130,4 +136,4 @@ This declaration hooks the following class method from [`NSURL`](https://develop
                                   relativeToURL:(NSURL *)baseURL;
 ```
 
-Depending on the type, frooky can decode arguments and return values using its built in decoders. If the types are more complex, you may need to use [custom decoders](./parameter-declaration.md#custom-decoder-in-objective-c).
+Depending on the type, frooky can decode arguments and return values using its built in decoders. If the types are more complex, you may need to use [custom decoders](./parameter-declaration.md#customdecoder-option-override-the-decoder) (currently only implemented for Java hooks).

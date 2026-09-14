@@ -4,24 +4,35 @@ frooky needs to know a function or method's signature to hook it correctly. Part
 
 There are different accepted ways to declare a parameter. The following chapters explain them.
 
-- [Parameter Declaration](#parameter-declaration)
-  - [Unnamed Parameters](#unnamed-parameters)
-    - [Unnamed Java Parameters](#unnamed-java-parameters)
-    - [Unnamed Objective-C Parameters](#unnamed-objective-c-parameters)
-    - [Unnamed Native Parameters](#unnamed-native-parameters)
-  - [Named Parameters](#named-parameters)
-    - [Named Java Parameters](#named-java-parameters)
-    - [Named Objective-C Parameters](#named-objective-c-parameters)
-    - [Named Native Parameters](#named-native-parameters)
-  - [Decoders](#decoders)
-    - [`direction`-Option: Declare the Time of Decoding](#direction-option-declare-the-time-of-decoding)
-      - [Explicit Time of Decoding in Java](#explicit-time-of-decoding-in-java)
-      - [Explicit Time of Decoding in Objective-C](#explicit-time-of-decoding-in-objective-c)
-      - [Explicit Time of Decoding in Native](#explicit-time-of-decoding-in-native)
-    - [`decoderArg`-Option: Pass Arguments to Decoder](#decoderarg-option-pass-arguments-to-decoder)
-      - [Pass Arguments to Decoder in Java](#pass-arguments-to-decoder-in-java)
-      - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
-      - [Pass Arguments to Decoder in Native](#pass-arguments-to-decoder-in-native)
+> [!NOTE]
+> Objective-C and Swift hooking are not yet implemented (see [`ObjcHook`-Declaration](./objective-c-hook-declaration.md) and [`SwiftHook`-Declaration](./swift-hook-declaration.md)). The Objective-C and Swift examples below describe the intended, not yet available, declaration format.
+
+<!-- TOC -->
+
+- [Unnamed Parameters](#unnamed-parameters)
+  - [Unnamed Java Parameters](#unnamed-java-parameters)
+  - [Unnamed Objective-C Parameters](#unnamed-objective-c-parameters)
+  - [Unnamed Swift Parameters](#unnamed-swift-parameters)
+  - [Unnamed Native Parameters](#unnamed-native-parameters)
+- [Named Parameters](#named-parameters)
+  - [Named Java Parameters](#named-java-parameters)
+  - [Named Objective-C Parameters](#named-objective-c-parameters)
+  - [Named Swift Parameters](#named-swift-parameters)
+  - [Named Native Parameters](#named-native-parameters)
+- [Decoders](#decoders)
+  - [`direction`-Option: Declare the Time of Decoding](#direction-option-declare-the-time-of-decoding)
+    - [Explicit Time of Decoding in Java](#explicit-time-of-decoding-in-java)
+    - [Explicit Time of Decoding in Objective-C](#explicit-time-of-decoding-in-objective-c)
+    - [Explicit Time of Decoding in Swift](#explicit-time-of-decoding-in-swift)
+    - [Explicit Time of Decoding in Native](#explicit-time-of-decoding-in-native)
+  - [`decoderArg`-Option: Pass Arguments to Decoder](#decoderarg-option-pass-arguments-to-decoder)
+    - [Pass Arguments to Decoder in Java](#pass-arguments-to-decoder-in-java)
+    - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
+    - [Pass Arguments to Decoder in Swift](#pass-arguments-to-decoder-in-swift)
+    - [Pass Arguments to Decoder in Native](#pass-arguments-to-decoder-in-native)
+  - [`customDecoder`-Option: Override the Decoder](#customdecoder-option-override-the-decoder)
+
+<!-- /TOC -->
 
 ## Unnamed Parameters
 
@@ -37,8 +48,8 @@ frooky will try to decode the arguments based on the provided type.
 
 ```yaml
 javaClass: android.webkit.WebView
-methods:
-  - name: $init
+hooks:
+  - method: $init
     overloads:
       - params: [ android.content.Context ]
       - params: [ android.content.Context, android.util.AttributeSet, int, boolean ]
@@ -69,11 +80,26 @@ This example hooks the following class method from [`NSURL`](https://developer.a
                                   relativeToURL:(NSURL *) baseURL;
 ```
 
+### Unnamed Swift Parameters
+
+```yaml
+swiftClass: Foundation.URL
+hooks:
+  - method: "init(fileURLWithPath:isDirectory:relativeTo:)"
+    params: [ String, Bool, "URL?" ]
+```
+
+This example hooks the following initializer from [`URL`](https://developer.apple.com/documentation/foundation/url/init(fileurlwithpath:isdirectory:relativeto:)):
+
+```swift
+init(fileURLWithPath path: String, isDirectory: Bool, relativeTo base: URL?)
+```
+
 ### Unnamed Native Parameters
 
 ```yaml
 module: sqlite3.so
-functions:
+hooks:
   - symbol: sqlite3_exec
     retType: int
     params: [ "sqlite3*", "const char *", "void *", "void *", "char **" ]
@@ -100,7 +126,7 @@ params:
   - [ <type>, <name> ]
 ```
 
-The following chapters use the same examples described in [Unnamed Parameters](#1-unnamed-parameters) but add parameter names.
+The following chapters use the same examples described in [Unnamed Parameters](#unnamed-parameters) but add parameter names.
 
 > [!TIP]
 > Technically, the name of an argument is not required, but it is recommended to declare the name as well, as this makes a declaration easier to read and provides more context in the output of frooky.
@@ -109,8 +135,8 @@ The following chapters use the same examples described in [Unnamed Parameters](#
 
 ```yaml
 javaClass: android.webkit.WebView
-methods:
-  - name: $init
+hooks:
+  - method: $init
     overloads:
       - params:
         - [ android.content.Context, context ]
@@ -146,11 +172,29 @@ This example hooks the following class method from [`NSURL`](https://developer.a
                                   relativeToURL:(NSURL *) baseURL;
 ```
 
+### Named Swift Parameters
+
+```yaml
+swiftClass: Foundation.URL
+hooks:
+  - method: "init(fileURLWithPath:isDirectory:relativeTo:)"
+    params:
+      - [ String, path ]
+      - [ Bool, isDirectory ]
+      - [ "URL?", base ]
+```
+
+This example hooks the following initializer from [`URL`](https://developer.apple.com/documentation/foundation/url/init(fileurlwithpath:isdirectory:relativeto:)):
+
+```swift
+init(fileURLWithPath path: String, isDirectory: Bool, relativeTo base: URL?)
+```
+
 ### Named Native Parameters
 
 ```yaml
 module: sqlite3.so
-functions:
+hooks:
   - symbol: sqlite3_exec
     retType: int
     params: 
@@ -181,10 +225,16 @@ These are required when the time of decoding varies, or when more context inform
 
 You can configure a decoder by adding a decoder configuration object to a parameter declaration.
 
-This is done using a decoder configuration added to any [unnamed](#unnamed-parameters) and [named](#named-parameters) parameters. It can contain the following options:
+This is done using a decoder configuration added to any [unnamed](#unnamed-parameters) and [named](#named-parameters) parameters. It can contain `direction` plus any of the [decoder settings](./additional-features.md#decoder-settings):
 
 - `direction`
-- `decodeArgs`
+- `maxRecursion`
+- `decodeLimit`
+- `magicDecode`
+- `fastDecode`
+- `customDecoder`
+- `decoderArg`
+- `paramFilter`
 
 ```yaml
 params:
@@ -219,8 +269,8 @@ To accommodate these cases, you can specify the timing of decoding using the fol
 
 ```yaml
 javaClass: javax.crypto.Cipher 
-methods:
-  - name: doFinal
+hooks:
+  - method: doFinal
     overloads:
       - params:
         - [ "[B", output, { direction: out } ]
@@ -257,11 +307,31 @@ This example hooks the following method from [NSFileManager](https://developer.a
 
 The `error` parameter must be decoded at exit because it contains meaningful data only if an error occurred during the operation.
 
+#### Explicit Time of Decoding in Swift
+
+```yaml
+swiftClass: MyApp.SocketReader
+hooks:
+  - method: "read(into:length:)"
+    retType: Int
+    params:
+      - [ Data, buffer, { direction: out } ]
+      - [ Int, length ]
+```
+
+This example hooks the following method:
+
+```swift
+func read(into buffer: inout Data, length: Int) -> Int
+```
+
+Since `buffer` is passed as `inout`, it must be decoded at exit to see what was written into it.
+
 #### Explicit Time of Decoding in Native
 
 ```yaml
 module: libsystem_c.dylib
-functions:
+hooks:
   - symbol: realpath
     params:
       - [ "const char *restrict", file_name ]
@@ -299,8 +369,8 @@ If we want to decode the `out` buffer, we must pass its length (`outl`) to the b
 
 ```yaml
 javaClass: java.io.FileInputStream
-methods:
-  - name: read
+hooks:
+  - method: read
     overloads:
       - params:
         - [ "[B", buffer, { decoderArg: len } ]
@@ -338,11 +408,30 @@ This example hooks the following method from [NSData](https://developer.apple.co
 
 The `buffer` decoder uses the `length` parameter to specify how many bytes to decode.
 
+#### Pass Arguments to Decoder in Swift
+
+```yaml
+swiftClass: Foundation.Data
+hooks:
+  - method: "copyBytes(to:count:)"
+    params:
+      - [ UnsafeMutableRawPointer, pointer, { decoderArg: count } ]
+      - [ Int, count ]
+```
+
+This example hooks the following method from [`Data`](https://developer.apple.com/documentation/foundation/data/copybytes(to:count:)):
+
+```swift
+func copyBytes(to pointer: UnsafeMutableRawPointer, count: Int)
+```
+
+The `pointer` decoder uses the `count` parameter to specify how many bytes to decode.
+
 #### Pass Arguments to Decoder in Native
 
 ```yaml
 module: libssl.so
-functions:
+hooks:
   - symbol: EVP_DigestFinal_ex
     retType: int
     params:
@@ -360,3 +449,21 @@ int EVP_DigestFinal_ex(EVP_MD_CTX *ctx,
 ```
 
 This function retrieves the digest data from `ctx` and moves it into `md`. So in order to decode `md`, we need to know the type of the digest algorithm or the size of the digest, hence we pass `ctx`.
+
+### `customDecoder`-Option: Override the Decoder
+
+For some Java types, frooky's built-in decoders are not sufficient to give the captured value meaningful context (for example, a bitmask `int` where the individual flags matter more than the raw number). In these cases, you can select one of frooky's registered custom decoders by name using `customDecoder`.
+
+> [!NOTE]
+> `customDecoder` is currently only implemented for Java hooks.
+
+```yaml
+javaClass: android.content.Intent 
+hooks:
+  - method: setFlags
+    overloads:
+      - params:
+        - [int, flags, { customDecoder: android.content.IntentFlagDecoder }]
+```
+
+This decodes the `flags` argument of [`Intent.setFlags(int)`](https://developer.android.com/reference/android/content/Intent#setFlags(int)) using the `android.content.IntentFlagDecoder`, which resolves the individual `Intent.FLAG_*` constants set in the bitmask instead of just reporting the raw integer.

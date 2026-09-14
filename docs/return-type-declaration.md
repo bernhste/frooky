@@ -2,14 +2,17 @@
 
 The return type declaration is a simpler variant of a [parameter declaration](./parameter-declaration.md).
 
-- [Return Type Declaration](#return-type-declaration)
-  - [Return Type vs. Parameter Declaration](#return-type-vs-parameter-declaration)
-  - [Basic Usage](#basic-usage)
-    - [Java Return Types](#java-return-types)
-    - [Objective-C Return Types](#objective-c-return-types)
-    - [Native Return Types](#native-return-types)
-  - [Decoders](#decoders)
-      - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
+<!-- TOC -->
+
+- [Return Type vs. Parameter Declaration](#return-type-vs-parameter-declaration)
+- [Basic Usage](#basic-usage)
+  - [Java Return Types](#java-return-types)
+  - [Objective-C Return Types](#objective-c-return-types)
+  - [Native Return Types](#native-return-types)
+- [Decoders](#decoders)
+  - [Pass Arguments to Decoder in Objective-C](#pass-arguments-to-decoder-in-objective-c)
+
+<!-- /TOC -->
 
 ## Return Type vs. Parameter Declaration
 
@@ -27,9 +30,12 @@ The return type is declared only by its type. The following chapters will use ex
 
 ### Java Return Types
 
-In Java, the method signature can be retrieved at runtime. Unless you want to override the [default decoder](#3-decoders), you don't need to provide an explicit return type.
+In Java, the method signature can be retrieved at runtime. Unless you want to override the [default decoder](#decoders), you don't need to provide an explicit return type.
 
 ### Objective-C Return Types
+
+> [!NOTE]
+> Objective-C hooking is not yet implemented (see [`ObjcHook`-Declaration](./objective-c-hook-declaration.md)). The example below describes the intended, not yet available, declaration format.
 
 ```yaml
 objcClass: NSURL
@@ -53,7 +59,7 @@ This example hooks the following class method from [NSURL](https://developer.app
 
 ```yaml
 module: libssl.so
-functions:
+hooks:
   - symbol: EVP_DigestFinal_ex
     retType: int
     params:
@@ -74,13 +80,21 @@ The function returns an integer. It returns 1 on success and 0 on failure.
 
 ## Decoders
 
-If you want to configure the decoder for the return value, you can use the following option:
+If you want to configure the decoder for the return value, you can use any of the [decoder settings](./additional-features.md#decoder-settings), for example:
 
 - `decoderArg`
+- `maxRecursion`
+- `decodeLimit`
+- `magicDecode`
+- `fastDecode`
+- `customDecoder` (Java only, see [`customDecoder`](./parameter-declaration.md#customdecoder-option-override-the-decoder))
 
 The following chapters will explain the concepts with a practical example.
 
-#### Pass Arguments to Decoder in Objective-C
+### Pass Arguments to Decoder in Objective-C
+
+> [!NOTE]
+> Objective-C hooking is not yet implemented (see [`ObjcHook`-Declaration](./objective-c-hook-declaration.md)). The example below describes the intended, not yet available, declaration format.
 
 ```yaml
 objcClass: NSString

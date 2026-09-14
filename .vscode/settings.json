@@ -40,6 +40,9 @@
   },
   "eslint.validate": ["typescript", "javascript"],
   "kotlin.diagnostics.enabled": false,
+  "markdown.extension.toc.levels": "2..6",
+  "markdown.extension.toc.updateOnSave": true,
+  "markdown.extension.toc.orderedList": false,
   "C_Cpp.errorSquiggles": "disabled",
   "cSpell.words": [
     "Backtracer",

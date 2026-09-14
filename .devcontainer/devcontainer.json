@@ -27,9 +27,11 @@
         "python.defaultInterpreterPath": "/opt/venv/bin/python"
       },
       "extensions": [
-        "DavidAnson.vscode-markdownlint",
         "esbenp.prettier-vscode",
-        "dbaeumer.vscode-eslint"
+        "dbaeumer.vscode-eslint",
+        "yzhang.markdown-all-in-one",
+        "fwcd.kotlin",
+        "ms-vscode.cpptools"
       ]
     }
   }

@@ -21,14 +21,13 @@
 - Filter hooks by argument values or stack trace patterns
 - Output events in JSON Lines format for easy processing
 
-Use it, if you **know what you want to hook** but you don't want to write custom Frida scripts or copy and paste them together. For example you can use it to quickly hook functions or methods based on public API documentation and quickly get insight about them. 
+Use it, if you know what you want to hook but you don't want to write custom Frida scripts or copy and paste them together. For example you can use it to quickly hook functions or methods based on public API documentation and quickly get insight about them.
 
 > [!NOTE]
 >
-> This documentation describes the intended feature set for [frooky 1.0](https://github.com/cpholguera/frooky/milestone/1). At the time of writing this document, not all described features may have been fully implemented and there may be breaking changes to the hook file API until the release of frooky 1.0. 
-> 
-> [Feedback](https://github.com/cpholguera/frooky/discussions) is always welcome. 
- 
+> This documentation describes the intended feature set for [frooky 1.0](https://github.com/cpholguera/frooky/milestone/1). At the time of writing this document, not all described features may have been fully implemented and there may be breaking changes to the hook file API until the release of frooky 1.0.
+>
+> [Feedback](https://github.com/cpholguera/frooky/discussions) is always welcome.
 
 ## Installation
 
@@ -38,10 +37,9 @@ Simply install via pip to get the `frooky` CLI tool:
 pip3 install frooky
 ```
 
-
 ## Usage
 
-Create a hook file (e.g., `hooks.yaml`) with the functions and/or methods you want to hook. 
+Create a hook file (e.g., `hooks.yaml`) with the functions and/or methods you want to hook.
 
 If you are already familiar with Frida and function hooking, we recommend using the documented examples as a quick starting point. You find them in the folder [docs/examples/](./docs/examples/).
 
@@ -62,7 +60,6 @@ frooky android -U -f org.owasp.mastestapp hooks_*.yaml
 
 See `frooky -h` for more options.
 
-
 ## Structure of a Hook File
 
 frooky uses _hook files_, which are structured YAML files including declarations of methods or functions to be hooked.
@@ -76,26 +73,30 @@ metadata:                         # All metadata is optional
   description: <description>      # Description of what the hook collection does
   category: <category>            # Category of the hook collection
   author: <author>                # Your name or organization
-  version: <version>              # Semantic version (e.g., v1)
+  version: <version>              # Version number of the hook collection (e.g., 1)
 
-hooks:                            # Collection of hook declarations
+settings:                         # Optional. Default hookSettings/decoderSettings applied to every hook group
+  hookSettings: { ... }
+  decoderSettings: { ... }
+
+hookGroup:                        # Collection of hook declarations
   - <hook_declaration>
 ```
 
 **Example:**
 
 The following hook file hooks all RNG initialization methods and functions on an Android device, capturing their arguments, return values, and stack trace. This information can be used to detect insecure RNG.
- 
+
 ```yaml
 metadata:
   name: RNG initialization
   platform: Android
   description: Hooks all RNG initialization methods on Android (Java, kotlin, native)
-  masCategory: CRYPTOGRAPHY
+  category: CRYPTOGRAPHY
   author: frooky dev team
-  version: v1
+  version: 1
 
-hooks:
+hookGroup:
   - <hook_declaration> 
 ```
 
@@ -105,14 +106,15 @@ Depending on the platform, the `<hook_declaration>` may look different. Please r
 
 frooky supports these types of hooks:
 
-| Hook Type        | Platform    | Description                                 | Documentation                                                          |
-| ---------------- | ----------- | ------------------------------------------- | ---------------------------------------------------------------------- |
-| `JavaHook`       | Android     | Hook for Java/Kotlin methods                | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)              |
-| `ObjcHook`       | iOS         | Hook for Objective-C methods                | [`ObjcHook`-Declaration](./docs/objective-c-hook-declaration.md)       |
-| `NativeHook`     | Android/iOS | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md)          |
+| Hook Type    | Platform    | Description                                        | Documentation                                                    |
+| ------------ | ----------- | -------------------------------------------------- | ---------------------------------------------------------------- |
+| `JavaHook`   | Android     | Hook for Java/Kotlin methods                       | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)        |
+| `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.)        | [`NativeHook`-Declaration](./docs/native-hook-declaration.md)    |
+| `ObjcHook`   | iOS         | Hook for Objective-C methods (not yet implemented) | [`ObjcHook`-Declaration](./docs/objective-c-hook-declaration.md) |
+| `SwiftHook`  | iOS         | Hook for Swift methods (not yet implemented)       | [`SwiftHook`-Declaration](./docs/swift-hook-declaration.md)      |
 
-> [!IMPORTANT]
-> When loading a hook declaration, frooky will validate it and to detect invalid declarations. For example, it is not possible to declare a `JavaHook` and a `ObjcHook` hook in one hook file.
+> [!NOTE]
+> `hookGroup` may freely mix different hook declarations within the same hook file, as long as they are compatible to the platform. For example an Android hook file with `JavaHook` and ``NativeHook` is valid, while `ObjcHook` and `SwiftHook` never mix with `JavaHook`.
 
 ## Parameter- and Return-Type Declaration
 
@@ -136,11 +138,11 @@ metadata:
   description: Captures the initialization of a KeyGenParameterSpec Builder 
   category: CRYPTO
   author: frooky dev team
-  version: v1
+  version: 1
 
-hooks:
+hookGroup:
   - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
-    methods:
+    hooks:
       - $init
 ```
 
@@ -150,53 +152,51 @@ Then run `frooky` with the hook file against your target app:
 frooky android -U -n org.owasp.mastestapp keygen.yaml
 ```
 
-Events are written to the output file in JSON Lines format (one JSON object per line, known as NDJSON). 
+Events are written to the output file as newline-separated batches, each line a JSON array of the events captured in that batch (see [Understanding Output Format](./docs/output.md) for the full schema).
 
 Example Output (pretty-printed for readability):
 
 ```json
-{
-  "id": "14535033-08ea-4063-897c-eacd4a885d8b",
-  "type": "hook",
-  "category": "CRYPTO",
-  "time": "2026-01-14T16:02:21.782Z",
-  "class": "android.security.keystore.KeyGenParameterSpec$Builder",
-  "method": "$init",
-  "instanceId": 35486102,
-  "stackTrace": [
-    "android.security.keystore.KeyGenParameterSpec$Builder.<init>(Native Method)",
-    "org.owasp.mastestapp.MastgTest.generateKey(MastgTest.kt:97)",
-    "org.owasp.mastestapp.MastgTest.mastgTest(MastgTest.kt:41)",
-    "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11(MainActivity.kt:101)",
-    "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk(Unknown Source:0)",
-    "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)",
-    "java.lang.Thread.run(Thread.java:1012)"
-  ],
-  "inputParameters": [
-    {
-      "declaredType": "java.lang.String",
-      "value": "MultiPurposeKey"
-    },
-    {
-      "declaredType": "int",
-      "value": 15
-    }
-  ],
-  "returnValue": [
-    {
-      "declaredType": "void",
+[
+  {
+    "id": "14535033-08ea-4063-897c-eacd4a885d8b",
+    "timestamp": "2026-01-14T16:02:21.782Z",
+    "type": "hook-java",
+    "stackTrace": [
+      "android.security.keystore.KeyGenParameterSpec$Builder.<init>(Native Method)",
+      "org.owasp.mastestapp.MastgTest.generateKey(MastgTest.kt:97)",
+      "org.owasp.mastestapp.MastgTest.mastgTest(MastgTest.kt:41)",
+      "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11(MainActivity.kt:101)",
+      "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk(Unknown Source:0)",
+      "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)",
+      "java.lang.Thread.run(Thread.java:1012)"
+    ],
+    "argsIn": [
+      {
+        "type": "java.lang.String",
+        "value": "MultiPurposeKey"
+      },
+      {
+        "type": "int",
+        "value": 15
+      }
+    ],
+    "argsOut": [],
+    "returnValue": {
+      "type": "void",
       "value": "void"
-    }
-  ]
-}
+    },
+    "javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder",
+    "method": "$init",
+    "fieldType": { "fieldType": "instance", "instanceId": 35486102 }
+  }
+]
 ```
 
 ## More Information
 
 Please refer to the following documentation for more information about various topics:
 
-
 - [Additional Settings and Best Practices](./docs/additional-features.md)
 - [Development / Local Testing](./docs/develop.md)
 - [Understanding Output Format](./docs/output.md)
-

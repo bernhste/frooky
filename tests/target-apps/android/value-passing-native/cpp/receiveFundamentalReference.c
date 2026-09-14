@@ -29,6 +29,16 @@ NOINLINE EXPORT unsigned char *receive_byte_array(unsigned char *data, int lengt
     }
     return data;
 }
+NOINLINE EXPORT unsigned char *reverse_byte_array(unsigned char *data, int length)
+{
+    for (int i = 0, j = length - 1; i < j; i++, j--)
+    {
+        unsigned char tmp = data[i];
+        data[i] = data[j];
+        data[j] = tmp;
+    }
+    return data;
+}
 
 JNIEXPORT jstring JNICALL
 Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI(JNIEnv *env, jobject thiz)
@@ -51,6 +61,7 @@ Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI(JNIEnv *env, 
     double minD = -1.7976931348623157e308, maxD = 1.7976931348623157e308;
     long double minLd = -1.18973149535723176e4932L, maxLd = 1.18973149535723176e4932L;
     unsigned char data[] = {0x48, 0x65, 0x6C, 0x6C, 0x6F};
+    unsigned char welcome[] = "Welcome OWASP MASCon";
 
     receive_bool_ref(&minBool, &maxBool);
     receive_char_ref(&minChar, &maxChar);
@@ -68,6 +79,7 @@ Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI(JNIEnv *env, 
     receive_double_ref(&minD, &maxD);
     receive_ldouble_ref(&minLd, &maxLd);
     receive_byte_array(data, 5);
+    reverse_byte_array(welcome, (int)(sizeof(welcome) - 1));
 
     return (*env)->NewStringUTF(env, "Called functions with primitives received by reference (e.g. void receive_int(int *minValue, int *maxValue)).");
 }

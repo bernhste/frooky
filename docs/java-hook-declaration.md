@@ -2,10 +2,15 @@
 
 This documentation explains how to write Java hooks.
 
-- [Structure of a `JavaHook` Declaration](#structure-of-a-javahook-declaration)
+<!-- TOC -->
+
+- [Structure](#structure)
 - [Basic Usage](#basic-usage)
 - [Method Overloads](#method-overloads)
+- [Hook and Decoder Settings](#hook-and-decoder-settings)
 - [Type Descriptors](#type-descriptors)
+
+<!-- /TOC -->
 
 ## Structure
 
@@ -13,30 +18,38 @@ A `JavaHook` declaration is a YAML object with these top level fields:
 
 ```yaml
 javaClass: <fully qualified Java class name>
-methods:
+hookSettings:                       # Optional. Overrides the file-level `settings.hookSettings` for this group
+  <hook settings>
+decoderSettings:                    # Optional. Overrides the file-level `settings.decoderSettings` for this group
+  <decoder settings>
+hooks:
   - <method name>
-  - name: <method name>
+  - method: <method name>
     overloads:                        # Optional
       - params:
           - <parameter declaration>
+    hookSettings:                     # Optional. Overrides the group's hookSettings for this hook only
+      <hook settings>
+    decoderSettings:                  # Optional. Overrides the group's decoderSettings for this hook only
+      <decoder settings>
 ```
 
-Each item in `methods` can be written in one of two forms.
+Each item in `hooks` can be written in one of two forms.
 
 Use the **short form** to hook all overloads of a method.
 
 ```yaml
 javaClass: <fully qualified Java class name>
-methods:
+hooks:
   - <method name>
 ```
 
-Use the **expanded form** when you want to declare specific overloads.
+Use the **expanded form** when you want to declare specific overloads, or override settings for a single hook.
 
 ```yaml
 javaClass: <fully qualified Java class name>
-methods:
-  - name: <method name>
+hooks:
+  - method: <method name>
     overloads:                        # Optional
       - params:
           - <parameter declaration>
@@ -52,15 +65,17 @@ params:
 > [!IMPORTANT]
 > Please read the documentation on [parameter](./parameter-declaration.md) and [return type](./return-type-declaration.md) declaration to learn how to declare and configure them properly.
 >
-> There are multiple ways to declare a parameter. In this document, we always use [named parameters](./parameter-declaration.md#21-named-java-parameters).
+> There are multiple ways to declare a parameter. In this document, we always use [named parameters](./parameter-declaration.md#named-java-parameters).
+>
+> Java hooks have no `retType`. The return type is always resolved from Frida's own Java reflection at hook-registration time.
 
 ## Basic Usage
 
-The minimum required fields are `javaClass` and `methods`.
+The minimum required fields are `javaClass` and `hooks`.
 
 ```yaml
 javaClass: <fully qualified Java class name>
-methods:
+hooks:
   - <method name>
 ```
 
@@ -70,7 +85,7 @@ This hooks all overloads of each listed method in the specified class.
 
 ```yaml
 javaClass: android.webkit.WebView
-methods:
+hooks:
   - $init
   - loadUrl
 ```
@@ -105,8 +120,8 @@ To hook only specific overloads of a method, use the expanded form and provide a
 
 ```yaml
 javaClass: <fully qualified Java class name>
-methods:
-  - name: <method name>
+hooks:
+  - method: <method name>
     overloads:                        # Optional
       - params:
           - <parameter declaration>
@@ -118,8 +133,8 @@ Each item in `overloads` matches one overloaded method signature including the r
 
 ```yaml
 javaClass: android.content.Intent
-methods:
-  - name: putExtra
+hooks:
+  - method: putExtra
     overloads:
       - params:
           - ["java.lang.String", name]
@@ -134,6 +149,27 @@ This hooks **only** the following methods:
 ```kotlin
 Intent.putExtra(name: String!, value: String?): Intent
 Intent.putExtra(name: String!, value: BooleanArray?): Intent
+```
+
+## Hook and Decoder Settings
+
+`hookSettings` (e.g. `stackTraceLimit`, `stackTraceFilter`) and `decoderSettings` (e.g. `maxRecursion`, `magicDecode`) can be declared at the hook-group level (applying to every hook in the group) or on an individual hook (overriding the group for that hook only). See [Additional Settings and Best Practices](./additional-features.md) for the full list of options and how settings from the file-level `settings`, the hook group, an individual hook, and a parameter are merged together.
+
+**Example:**
+
+```yaml
+javaClass: android.database.sqlite.SQLiteDatabase
+hookSettings:
+  stackTraceLimit: 5
+  stackTraceFilter:
+    - "^java\\."
+    - "^android\\."
+hooks:
+  - method: query
+    overloads:
+      - params:
+          - ["java.lang.String", table]
+          - ["[Ljava.lang.String;", columns]
 ```
 
 ## Type Descriptors
