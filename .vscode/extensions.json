@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "esbenp.prettier-vscode",
+    "charliermarsh.ruff",
     "dbaeumer.vscode-eslint",
     "yzhang.markdown-all-in-one",
     "fwcd.kotlin",
