@@ -5,18 +5,24 @@ import { logger } from "../../shared/logger";
 import { ClipDataDecoder } from "./android/content/clipData/ClipDataDecoder";
 import { ClipDataItemDecoder } from "./android/content/clipData/ClipDataItemDecoder";
 import { ContentValuesDecoder } from "./android/content/ContentValuesDecoder";
-import { IntentDecoder } from "./android/content/IntentDecoder";
 import { BundleDecoder } from "./android/os/BundleDecoder";
 import { KeyGenParameterSpecDecoder } from "./android/security/keystore/KeyGenParameterSpecDecoder";
 import { IterableDecoder } from "./java/lang/IterableDecoder";
 import { MapDecoder } from "./java/util/MapDecoder";
-import { JavaFallbackDecoder } from "./javaBasicDecoder";
+import { JavaFallbackDecoder, JavaPrimitiveDecoder, JavaReflectionMetadataDecoder } from "./javaBasicDecoder";
 import { DecoderConstructor } from "./javaDecoderResolver";
+
+// reflecting getters via JavaFallbackDecoder of these classes objects recurses
+const REFLECTION_RECURSION_CLASSES = new Set([
+  "java.lang.Class",
+  "java.lang.reflect.Method",
+  "java.lang.reflect.Field",
+  "java.lang.reflect.Constructor",
+]);
 
 let classDecoderRegistry: Record<string, DecoderConstructor> | undefined;
 function getClassDecoderRegistry(): Record<string, DecoderConstructor> {
   return (classDecoderRegistry ??= {
-    "android.content.Intent": IntentDecoder,
     "android.content.ClipData": ClipDataDecoder,
     "android.content.ClipData$Item": ClipDataItemDecoder,
     "android.os.Bundle": BundleDecoder,
@@ -96,8 +102,16 @@ export class JavaReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       getClassDecoderRegistry()[value.$className] ??
       // 2. interface decoder for declared interface type exists
       getInterfaceDecoderRegistry()[this.decodable.type] ??
-      // 3. resolve the interfaces and use a decoder if implemented or fall back to the JavaFallbackDecoder
+      // 3. java.lang.String is final and already unwrapped by Frida to a JS-friendly value - decode
+      // it as a primitive rather than falling through to JavaFallbackDecoder, which would otherwise
+      // reflect and invoke its getters (e.g. getBytes()) instead of using the string itself
+      (value.$className === "java.lang.String" ? JavaPrimitiveDecoder : undefined) ??
+      // 4. reflection metadata is self-referential (see REFLECTION_RECURSION_CLASSES) - decode it via
+      // toString() instead of reflecting its getters through JavaFallbackDecoder
+      (REFLECTION_RECURSION_CLASSES.has(value.$className) ? JavaReflectionMetadataDecoder : undefined) ??
+      // 5. resolve the interfaces and use a decoder if implemented or fall back to the JavaFallbackDecoder
       resolveInterfaceDecoderClass(value) ??
+      // 6. use the fallback decoder (decodes all empty getter like getContent(), getIntent())
       JavaFallbackDecoder;
 
     const decoder = new decoderConstructor({

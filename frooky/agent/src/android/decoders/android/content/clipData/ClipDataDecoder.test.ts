@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { DecodedValue } from "../../../../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS } from "../../../../../shared/defaultValues";
 import { ClipDataDecoder } from "./ClipDataDecoder";
 
@@ -59,21 +60,17 @@ describe("ClipDataDecoder", () => {
 
     const result = decoder.decode(clip);
 
-    expect(result.value.items[0].value.intent).toEqual({
-      type: "android.content.Intent",
-      value: {
-        action: "android.intent.action.VIEW",
-        data: null,
-        type: null,
-        package: null,
-        component: null,
-        selector: null,
-        flags: { type: "android.content.IntentFlag", value: [] },
-        categories: null,
-        extras: null,
-        clipData: null,
-      },
-    });
+    const properties = result.value.items[0].value.intent as DecodedValue[];
+    const findProperty = (name: string): DecodedValue | undefined => properties.find((p) => p.name === name);
+
+    expect(findProperty("action")).toEqual({ type: "java.lang.String", name: "action", value: "android.intent.action.VIEW" });
+    expect(findProperty("data")).toEqual({ type: "android.net.Uri", name: "data", value: null });
+    expect(findProperty("type")).toEqual({ type: "java.lang.String", name: "type", value: null });
+    expect(findProperty("package")).toEqual({ type: "java.lang.String", name: "package", value: null });
+    expect(findProperty("component")).toEqual({ type: "android.content.ComponentName", name: "component", value: null });
+    expect(findProperty("categories")).toEqual({ type: "java.util.Set", name: "categories", value: null });
+    expect(findProperty("extras")).toEqual({ type: "android.os.Bundle", name: "extras", value: null });
+    expect(findProperty("flags")).toEqual({ type: "int", name: "flags", value: 0 });
   });
 });
 
