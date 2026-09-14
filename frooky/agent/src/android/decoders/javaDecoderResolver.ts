@@ -3,7 +3,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
-import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagsDecoder";
+import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { JavaArrayDecoder } from "./javaArrayDecoder";
 import { JavaPrimitiveDecoder } from "./javaBasicDecoder";
 import { JavaReferenceTypeDecoder } from "./javaReferenceTypeDecoder";

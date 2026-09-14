@@ -1,7 +1,7 @@
 import { Decodable } from "../../shared/decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
-import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagsDecoder";
+import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { JavaArrayDecoder } from "./javaArrayDecoder";
 import { JavaPrimitiveDecoder } from "./javaBasicDecoder";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "./javaDecoderResolver";

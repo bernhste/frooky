@@ -1,6 +1,6 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../../shared/defaultValues";
-import { IntentUriFlagDecoder } from "./IntentUriFlagsDecoder";
+import { IntentUriFlagDecoder } from "./IntentUriFlagDecoder";
 
 describe("IntentUriFlagDecoder", () => {
   describe("decode()", () => {
