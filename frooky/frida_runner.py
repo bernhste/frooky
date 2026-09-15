@@ -275,7 +275,7 @@ class FrookyRunner:
     def run(self) -> int:
         """Run the Frooky hooks."""
         try:
-            with open(self.options.output_path, "w", encoding="utf-8") as f:
+            with open(self.options.output_path, "w", encoding="utf-8"):
                 pass  # Truncate file
 
             self.device = self._get_device()
