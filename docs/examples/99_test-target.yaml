@@ -108,7 +108,7 @@ hookCollection:
     - method: setFlags
       overloads:
       - params:
-        - [int, flags, { customDecoder: android.content.IntentFlagDecoder }]
+        - [int, flags, { decoder: android.content.IntentFlagDecoder }]
 
   - javaClass: java.security.KeyPairGenerator
     hooks:

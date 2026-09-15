@@ -62,4 +62,4 @@ If you want to configure the decoder for the return value, you can use any of th
 - `decodeLimit`
 - `magicDecode`
 - `fastDecode`
-- `customDecoder` (Java only, see [`customDecoder`](./parameter-declaration.md#customdecoder-option-override-the-decoder))
+- `decoder` (Java only, see [`decoder`](./parameter-declaration.md#customdecoder-option-override-the-decoder))

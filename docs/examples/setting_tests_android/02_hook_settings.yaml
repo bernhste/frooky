@@ -14,7 +14,7 @@ metadata:
 #     magicDecode: false,
 #     maxRecursion: 10,
 #     decodeLimit: 1000,
-#     customDecoder: undefined,
+#     decoder: undefined,
 #     decoderArg: undefined,
 #     paramFilter: undefined,
 

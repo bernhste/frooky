@@ -125,7 +125,7 @@ Depending on the value types, this can be simple or more complex. frooky tries t
 
 ## Example
 
-We'll use the OWASP MAS [MASTG-DEMO-0072](https://mas.owasp.org/MASTG/demos/android/MASVS-CRYPTO/MASTG-DEMO-0072/MASTG-DEMO-0072/) app to demonstrate hooking a cryptographic key generation method.
+We'll use the OWASP MAS [MASTG-DEMO-0106](https://mas.owasp.org/MASTG/demos/android/MASVS-RESILIENCE/MASTG-DEMO-0106/MASTG-DEMO-0106/) app to demonstrate hooking a cryptographic decryption method.
 
 First you need to create a hook file, e.g., `keygen.yaml`:
 
@@ -139,9 +139,9 @@ metadata:
   version: 1
 
 hookCollection:
-  - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
+  - javaClass: javax.crypto.Cipher
     hooks:
-      - $init
+      - doFinal
 ```
 
 Then run `frooky` with the hook file against your target app:

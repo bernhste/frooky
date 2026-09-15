@@ -15,8 +15,8 @@ export type DecoderConstructor = { new (decodable: Decodable): Decoder<Java.Wrap
 const CUSTOM_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
   toString: ToStringDecoder,
   toHashCode: ToHashCodeDecoder,
-  "android.content.IntentFlagDecoder": IntentFlagDecoder,
-  "android.content.IntentUriFlagDecoder": IntentUriFlagDecoder,
+  intentFlag: IntentFlagDecoder,
+  intentUriFlag: IntentUriFlagDecoder,
 };
 
 export const JAVA_PRIMITIVE_TYPES = new Set(["int", "long", "short", "byte", "char", "boolean", "float", "double"]);
@@ -26,11 +26,11 @@ export const JAVA_PRIMITIVE_TYPES = new Set(["int", "long", "short", "byte", "ch
  */
 export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
   resolveDecoder(decodable: Decodable): Decoder<Java.Wrapper> {
-    if (decodable.settings.customDecoder) {
+    if (decodable.settings.decoder) {
       // return the custom decoder (if implemented)
-      const CustomDecoderClass = CUSTOM_DECODER_REGISTRY[decodable.settings.customDecoder];
+      const CustomDecoderClass = CUSTOM_DECODER_REGISTRY[decodable.settings.decoder];
       if (!CustomDecoderClass) {
-        throw new Error(`Unknown custom decoder: "${decodable.settings.customDecoder}"`);
+        throw new Error(`Unknown custom decoder: "${decodable.settings.decoder}"`);
       }
       return new CustomDecoderClass(decodable);
     } else if (decodable.type.startsWith("[")) {

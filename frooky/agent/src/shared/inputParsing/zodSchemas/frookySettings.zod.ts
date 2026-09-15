@@ -11,7 +11,7 @@ export const decoderSettingsSchema = z.object({
     decodeLimit: z.number(),
     magicDecode: z.boolean(),
     fastDecode: z.boolean(),
-    customDecoder: z.string().optional(),
+    decoder: z.string().optional(),
     decoderArg: z.string().optional(),
     paramFilter: z.array(z.string()).optional()
 });

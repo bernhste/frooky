@@ -19,7 +19,7 @@ There are different accepted ways to declare a parameter. The following chapters
   - [`decoderArg`-Option: Pass Arguments to Decoder](#decoderarg-option-pass-arguments-to-decoder)
     - [Pass Arguments to Decoder in Java](#pass-arguments-to-decoder-in-java)
     - [Pass Arguments to Decoder in Native](#pass-arguments-to-decoder-in-native)
-  - [`customDecoder`-Option: Override the Decoder](#customdecoder-option-override-the-decoder)
+  - [`decoder`-Option: Override the Decoder](#customdecoder-option-override-the-decoder)
 
 <!-- /TOC -->
 
@@ -149,7 +149,7 @@ This is done using a decoder configuration added to any [unnamed](#unnamed-param
 - `decodeLimit`
 - `magicDecode`
 - `fastDecode`
-- `customDecoder`
+- `decoder`
 - `decoderArg`
 - `paramFilter`
 
@@ -287,12 +287,12 @@ int EVP_DigestFinal_ex(EVP_MD_CTX *ctx,
 
 This function retrieves the digest data from `ctx` and moves it into `md`. So in order to decode `md`, we need to know the type of the digest algorithm or the size of the digest, hence we pass `ctx`.
 
-### `customDecoder`-Option: Override the Decoder
+### `decoder`-Option: Override the Decoder
 
-For some Java types, frooky's built-in decoders are not sufficient to give the captured value meaningful context (for example, a bitmask `int` where the individual flags matter more than the raw number). In these cases, you can select one of frooky's registered custom decoders by name using `customDecoder`.
+For some Java types, frooky's built-in decoders are not sufficient to give the captured value meaningful context (for example, a bitmask `int` where the individual flags matter more than the raw number). In these cases, you can select one of frooky's registered custom decoders by name using `decoder`.
 
 > [!NOTE]
-> `customDecoder` is currently only implemented for Java hooks.
+> `decoder` is currently only implemented for Java hooks.
 
 ```yaml
 javaClass: android.content.Intent 
@@ -300,7 +300,7 @@ hooks:
   - method: setFlags
     overloads:
       - params:
-        - [int, flags, { customDecoder: android.content.IntentFlagDecoder }]
+        - [int, flags, { decoder: android.content.IntentFlagDecoder }]
 ```
 
 This decodes the `flags` argument of [`Intent.setFlags(int)`](https://developer.android.com/reference/android/content/Intent#setFlags(int)) using the `android.content.IntentFlagDecoder`, which resolves the individual `Intent.FLAG_*` constants set in the bitmask instead of just reporting the raw integer.
@@ -309,5 +309,5 @@ Native hooks will support the same option once implemented, for example to decod
 
 ```yaml
 params:
-  - [byte *, name, { customDecoder: toStringDecoder }]
+  - [byte *, name, { decoder: toStringDecoder }]
 ```

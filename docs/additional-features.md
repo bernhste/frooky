@@ -25,15 +25,15 @@ frooky supports two kinds of settings that can be used regardless of hook type:
 
 `decoderSettings` controls how a parameter's or return value's argument is decoded.
 
-| Setting         | Type       | Default     | Description                                                                                                                                                          |
-| --------------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `maxRecursion`  | `number`   | `10`        | Maximum recursion depth when decoding nested structures (nested arrays, lists, maps, structs, etc.).                                                                 |
-| `decodeLimit`   | `number`   | `1000`      | Maximum number of elements decoded from lists, arrays, collections, maps, etc.                                                                                       |
-| `magicDecode`   | `boolean`  | `false`     | When enabled, frooky tries to guess the type of a value that isn't declared, or can't be deduced at runtime.                                                         |
-| `fastDecode`    | `boolean`  | `false`     | When enabled, decoders prioritize speed over detail (mostly by avoiding expensive Frida <-> native round trips).                                                     |
-| `customDecoder` | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder. Java only, see [`customDecoder`](./parameter-declaration.md#customdecoder-option-override-the-decoder). |
-| `decoderArg`    | `string`   | `undefined` | Name of another parameter passed to this parameter's decoder for additional context (e.g. a buffer's length).                                                        |
-| `paramFilter`   | `string[]` | `undefined` | Regular expressions; the event for this hook is only captured if the decoded value matches one of them.                                                              |
+| Setting        | Type       | Default     | Description                                                                                                                                                    |
+| -------------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxRecursion` | `number`   | `10`        | Maximum recursion depth when decoding nested structures (nested arrays, lists, maps, structs, etc.).                                                           |
+| `decodeLimit`  | `number`   | `1000`      | Maximum number of elements decoded from lists, arrays, collections, maps, etc.                                                                                 |
+| `magicDecode`  | `boolean`  | `false`     | When enabled, frooky tries to guess the type of a value that isn't declared, or can't be deduced at runtime.                                                   |
+| `fastDecode`   | `boolean`  | `false`     | When enabled, decoders prioritize speed over detail (mostly by avoiding expensive Frida <-> native round trips).                                               |
+| `decoder`      | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder. Java only, see [`decoder`](./parameter-declaration.md#customdecoder-option-override-the-decoder). |
+| `decoderArg`   | `string`   | `undefined` | Name of another parameter passed to this parameter's decoder for additional context (e.g. a buffer's length).                                                  |
+| `paramFilter`  | `string[]` | `undefined` | Regular expressions; the event for this hook is only captured if the decoded value matches one of them.                                                        |
 
 `decoderSettings` can also be declared per-parameter, where they're combined with the `direction` option. See [Parameter Declaration](./parameter-declaration.md#decoders) and [Return Type Declaration](./return-type-declaration.md#decoders).
 

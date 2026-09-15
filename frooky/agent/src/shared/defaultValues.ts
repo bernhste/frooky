@@ -8,7 +8,7 @@ export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
   magicDecode: false,
   maxRecursion: 10,
   decodeLimit: 1000,
-  customDecoder: undefined,
+  decoder: undefined,
   decoderArg: undefined,
   paramFilter: undefined,
 };

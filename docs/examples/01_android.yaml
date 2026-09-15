@@ -91,7 +91,7 @@ hookCollection:
     - method: doFinal
       overloads:
       - params:
-        - ["[B", output, { direction: inout, customDecoder: toStringDecoder }]
+        - ["[B", output, { direction: inout, decoder: toStringDecoder }]
         - [int, outputOffset]
 
   - javaClass: javax.crypto.Cipher
@@ -99,10 +99,10 @@ hookCollection:
     - method: update
       overloads:
       - params:
-        - ["[B", input, { customDecoder: toStringDecoder }]
+        - ["[B", input, { decoder: toStringDecoder }]
         - [int, inputOffset]
         - [int, inputLen]
-        - ["[B", output, { direction: inout, customDecoder: toString }]
+        - ["[B", output, { direction: inout, decoder: toString }]
         - [int, outputOffset]
 
 
@@ -122,7 +122,7 @@ hookCollection:
     - method: initSign
       overloads:
       - params:
-        - ["java.security.PrivateKey", "privateKey", {customDecoder: "toHashCode"}]
+        - ["java.security.PrivateKey", "privateKey", {decoder: "toHashCode"}]
 
 
   - javaClass: javax.crypto.Cipher
@@ -133,5 +133,10 @@ hookCollection:
       overloads:
       - params:
         - ["int", "opmode"]
-        - ["java.security.Key", "key", {customDecoder: "toHashCode"}]
+        - ["java.security.Key", "key", {decoder: "toHashCode"}]
         - ["java.security.SecureRandom", "random"]
+
+
+  - javaClass: javax.crypto.Cipher
+    hooks:
+      - [ doFinal,  {decoder: "toHashCode"} ] 

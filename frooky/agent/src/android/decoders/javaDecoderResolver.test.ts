@@ -7,29 +7,29 @@ import { PrimitiveDecoder } from "./builtin/BasicDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "./javaDecoderResolver";
 
-function decodableOf(type: string, customDecoder?: string): Decodable {
-  return { type, settings: { ...DEFAULT_DECODER_SETTINGS, customDecoder } };
+function decodableOf(type: string, decoder?: string): Decodable {
+  return { type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder: decoder } };
 }
 
 describe("JavaDecoderResolver", () => {
   describe("resolveDecoder()", () => {
-    it("resolves each registered custom decoder from settings.customDecoder", () => {
-      const flagDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "android.content.IntentFlagDecoder"));
+    it("resolves each registered custom decoder from settings.decoder", () => {
+      const flagDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentFlag"));
       expect(flagDecoder instanceof IntentFlagDecoder).toBeTruthy();
 
-      const uriFlagDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "android.content.IntentUriFlagDecoder"));
+      const uriFlagDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentUriFlag"));
       expect(uriFlagDecoder instanceof IntentUriFlagDecoder).toBeTruthy();
     });
 
-    it("prioritizes settings.customDecoder over the declared type", () => {
+    it("prioritizes settings.decoder over the declared type", () => {
       // type "int" would normally resolve to PrimitiveDecoder
-      const decoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "android.content.IntentFlagDecoder"));
+      const decoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentFlag"));
 
       expect(decoder instanceof IntentFlagDecoder).toBeTruthy();
       expect(decoder instanceof PrimitiveDecoder).toBeFalsy();
     });
 
-    it("throws a descriptive error when settings.customDecoder names an unregistered decoder", () => {
+    it("throws a descriptive error when settings.decoder names an unregistered decoder", () => {
       const call = () => JavaDecoderResolver.resolveDecoder(decodableOf("int", "not.a.real.Decoder"));
       expect(call).toThrow("not.a.real.Decoder");
     });

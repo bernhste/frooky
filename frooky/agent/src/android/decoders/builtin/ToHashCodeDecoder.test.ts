@@ -30,11 +30,7 @@ describe("ToHashCodeDecoder", () => {
     });
 
     it("should report the same hash for two distinct objects whose overridden hashCode() is content-based", () => {
-      // mirrors why this decoder exists: AndroidKeyStore's key classes override hashCode() to be
-      // based on stable content (e.g. the key alias) rather than object identity, so two separate
-      // fetches of "the same" key are different Java objects but hash identically. java.lang.Long
-      // demonstrates the same property without needing a device-specific class: its hashCode() is
-      // value-based, and `new Long(String)` always allocates a fresh object (unlike
+      // java.lang.Long hashCode() is value-based, and `new Long(String)` always allocates a fresh object (unlike
       // Long.valueOf()/autoboxing, it never uses the boxed-value cache), so these are genuinely
       // two distinct objects.
       const JavaLong = Java.use("java.lang.Long");

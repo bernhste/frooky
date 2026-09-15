@@ -54,7 +54,7 @@ export interface DecoderSettings {
    *
    * @defaultValue undefined
    */
-  customDecoder?: string;
+  decoder?: string;
 
   /**
    * Arguments form the arguments list passed to the decoder.
