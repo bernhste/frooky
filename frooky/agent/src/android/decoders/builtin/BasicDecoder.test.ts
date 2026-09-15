@@ -2,7 +2,6 @@ import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
 import { GetterDecoder, JavaReflectionMetadataDecoder, PrimitiveDecoder } from "./BasicDecoder";
-import { StringDecoder } from "./StringDecoder";
 
 describe("PrimitiveDecoder", () => {
   describe("decode()", () => {
@@ -151,33 +150,6 @@ describe("JavaReflectionMetadataDecoder", () => {
       const result = decoder.decode(classValue);
 
       expect(result).toEqual({ type: "java.lang.Class", value: classValue.toString() });
-    });
-  });
-});
-
-describe("StringDecoder", () => {
-  describe("decode()", () => {
-    it("should decode a value with no useful getters via toString()", () => {
-      // java.math.BigInteger has no "get"-prefixed methods at all, so reflecting its getters via
-      // GetterDecoder would silently lose the value (an empty properties array) - this is
-      // exactly the case StringDecoder exists for
-      const BigInteger = Java.use("java.math.BigInteger");
-      const value = BigInteger.$new("123456789");
-      const decoder = new StringDecoder({ type: "java.math.BigInteger", settings: DEFAULT_DECODER_SETTINGS });
-
-      const result = decoder.decode(value);
-
-      expect(result).toEqual({ type: "java.math.BigInteger", value: value.toString() });
-    });
-
-    it("should include the decodable name in the result", () => {
-      const BigInteger = Java.use("java.math.BigInteger");
-      const value = BigInteger.$new("42");
-      const decoder = new StringDecoder({ type: "java.math.BigInteger", name: "myParam", settings: DEFAULT_DECODER_SETTINGS });
-
-      const result = decoder.decode(value);
-
-      expect(result).toEqual({ type: "java.math.BigInteger", name: "myParam", value: value.toString() });
     });
   });
 });

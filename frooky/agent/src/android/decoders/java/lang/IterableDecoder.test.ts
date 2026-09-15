@@ -83,11 +83,11 @@ describe("IterableDecoder", () => {
       const decoder = new IterableDecoder({ type: "java.util.List", settings: DEFAULT_DECODER_SETTINGS });
       decoder.decode(list);
 
-      // one resolve for java.lang.String, one for java.lang.Object (from IterableDecoder's own
-      // per-element cache), and one more nested inside JavaFallbackDecoder's decoding of the
-      // Object element's getClass() property (type java.lang.Class) - not a caching regression,
-      // just a real decode that only happens for the Object element
-      expect(resolveDecoderSpy.calls.length).toBe(3);
+      // one resolve for java.lang.String, one for java.lang.Object - from IterableDecoder's own
+      // per-element cache. The Object element falls back to ToStringDecoder (see
+      // ReferenceTypeDecoder branch 7), which just calls toString() directly and doesn't
+      // recursively resolve a decoder for getClass() the way GetterDecoder used to.
+      expect(resolveDecoderSpy.calls.length).toBe(2);
       resolveDecoderSpy.restore();
     });
 

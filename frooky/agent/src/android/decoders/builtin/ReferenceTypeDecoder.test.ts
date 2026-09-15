@@ -59,7 +59,7 @@ describe("ReferenceTypeDecoder", () => {
       });
     });
 
-    it("falls back to GetterDecoder when no class or interface decoder is registered (branch 7)", () => {
+    it("falls back to ToStringDecoder when no class or interface decoder is registered (branch 7)", () => {
       const JavaObject = Java.use("java.lang.Object");
       const javaObject = JavaObject.$new();
 
@@ -69,10 +69,7 @@ describe("ReferenceTypeDecoder", () => {
       expect(result.type).toBe("java.lang.Object");
       const inner = result.value as DecodedValue;
       expect(inner.type).toBe("java.lang.Object");
-      // Object's only declared "get*" method is getClass(), which GetterDecoder now
-      // reflects and invokes (via decodeGetterValues) instead of just calling toString()
-      const properties = inner.value as DecodedValue[];
-      expect(properties.find((p) => p.name === "class")?.type).toBe("java.lang.Class");
+      expect(inner.value).toBe(javaObject.toString());
     });
 
     it("routes java.lang.String to PrimitiveDecoder instead of falling back to GetterDecoder (branch 3)", () => {

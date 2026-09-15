@@ -10,8 +10,8 @@ import { KeyGenParameterSpecDecoder } from "../android/security/keystore/KeyGenP
 import { IterableDecoder } from "../java/lang/IterableDecoder";
 import { MapDecoder } from "../java/util/MapDecoder";
 import { DecoderConstructor } from "../javaDecoderResolver";
-import { GetterDecoder, JavaReflectionMetadataDecoder, PrimitiveDecoder } from "./BasicDecoder";
-import { StringDecoder } from "./StringDecoder";
+import { JavaReflectionMetadataDecoder, PrimitiveDecoder } from "./BasicDecoder";
+import { ToStringDecoder } from "./ToStringDecoder";
 
 // reflecting getters via GetterDecoder of objects of these classes recurses
 const REFLECTION_RECURSION_CLASSES = new Set([
@@ -103,7 +103,7 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
 
     const decoderConstructor: DecoderConstructor =
       // 1. instances of these classes are always decoded using toString()
-      (TO_STRING_CLASSES.has(value.$className) ? StringDecoder : undefined) ??
+      (TO_STRING_CLASSES.has(value.$className) ? ToStringDecoder : undefined) ??
       // 2. reflection metadata is self-referential (see REFLECTION_RECURSION_CLASSES) - decode it via
       // toString() instead of reflecting its getters through GetterDecoder
       (REFLECTION_RECURSION_CLASSES.has(value.$className) ? JavaReflectionMetadataDecoder : undefined) ??
@@ -117,8 +117,8 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       getInterfaceDecoderRegistry()[this.decodable.type] ??
       // 6. resolve the interfaces and use a decoder if implemented
       resolveInterfaceDecoderClass(value) ??
-      // 7. use the getter decoder (decodes all empty getter like getContent(), getIntent())
-      GetterDecoder;
+      // 7. try to string decode it as a fallback
+      ToStringDecoder;
 
     const decoder = new decoderConstructor({
       type: value.$className,
