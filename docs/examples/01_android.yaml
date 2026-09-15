@@ -116,13 +116,22 @@ hookCollection:
         - ["[B", src, { direction: inout }]
 
   - javaClass: java.security.Signature
+    hookSettings:
+      stackTraceLimit: 5
     hooks:
     - method: initSign
       overloads:
       - params:
-        - ["java.security.PrivateKey", "privateKey"]
-  
+        - ["java.security.PrivateKey", "privateKey", {customDecoder: "toHashCode"}]
+
+
   - javaClass: javax.crypto.Cipher
+    hookSettings:
+      stackTraceLimit: 5
     hooks:
     - method: init
-  
+      overloads:
+      - params:
+        - ["int", "opmode"]
+        - ["java.security.Key", "key", {customDecoder: "toHashCode"}]
+        - ["java.security.SecureRandom", "random"]
