@@ -34,7 +34,7 @@ hooks:
       <decoder settings>
 ```
 
-Each item in `hooks` can be written in one of two forms.
+Each item in `hooks` can be written in one of three forms.
 
 Use the **short form** to hook all overloads of a method.
 
@@ -42,6 +42,14 @@ Use the **short form** to hook all overloads of a method.
 javaClass: <fully qualified Java class name>
 hooks:
   - <method name>
+```
+
+Use the **short form with settings** — a `[<method name>, {<decoder settings>}]` tuple — to hook all overloads of a method while overriding its `decoderSettings`, without switching to the expanded form.
+
+```yaml
+javaClass: <fully qualified Java class name>
+hooks:
+  - [<method name>, { <decoder settings> }]
 ```
 
 Use the **expanded form** when you want to declare specific overloads, or override settings for a single hook.
@@ -111,8 +119,20 @@ WebView.loadUrl(url: String, additionalHttpHeaders: MutableMap<String!, String!>
 > Use the following syntax for dynamic class lookup at runtime.
 >
 > - **Exact match:** `org.owasp.mastestapp.MainActivity`
-> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level
+> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level — `*` matches exactly one segment between dots, and every currently loaded class matching the pattern gets hooked
 > - **Nested classes:** use the `$` separator, for example `Outer$Inner`
+
+To hook all overloads of a method while also overriding its `decoderSettings`, write the hook as a `[<method name>, {<decoder settings>}]` tuple instead of a plain string.
+
+**Example:**
+
+```yaml
+javaClass: javax.crypto.Cipher
+hooks:
+  - [doFinal, { decoder: "string" }]
+```
+
+This hooks all overloads of `Cipher.doFinal`, decoding the plaintext/ciphertext byte arrays passed to and returned from it as strings.
 
 ## Method Overloads
 

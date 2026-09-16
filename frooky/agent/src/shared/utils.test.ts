@@ -1,6 +1,44 @@
-import { FilterMismatchError, sleepMilliseconds, sleepSeconds, toAscii, toHex, toHexAndAscii, uuidv4 } from "./utils";
+import { FilterMismatchError, sleepMilliseconds, sleepSeconds, toAscii, toHex, toHexAndAscii, uuidv4, wildcardPatternToRegExp } from "./utils";
 
 describe("Utils", () => {
+  describe("wildcardPatternToRegExp()", () => {
+    it("matches a pattern without wildcards only against the exact string", () => {
+      const pattern = wildcardPatternToRegExp("org.owasp.mastestapp.MainActivity");
+
+      expect(pattern.test("org.owasp.mastestapp.MainActivity")).toBeTruthy();
+      expect(pattern.test("org.owasp.mastestapp.MainActivityOther")).toBeFalsy();
+      expect(pattern.test("org.owasp.mastestapp.sub.MainActivity")).toBeFalsy();
+    });
+
+    it("matches '*' against exactly one dot-separated segment", () => {
+      const pattern = wildcardPatternToRegExp("org.owasp.*.HttpClient");
+
+      expect(pattern.test("org.owasp.network.HttpClient")).toBeTruthy();
+      expect(pattern.test("org.owasp.HttpClient")).toBeFalsy();
+      expect(pattern.test("org.owasp.network.extra.HttpClient")).toBeFalsy();
+    });
+
+    it("does not let '*' cross package boundaries", () => {
+      const pattern = wildcardPatternToRegExp("org.*.HttpClient");
+
+      expect(pattern.test("org.owasp.network.HttpClient")).toBeFalsy();
+    });
+
+    it("supports multiple wildcards in one pattern", () => {
+      const pattern = wildcardPatternToRegExp("org.*.*.HttpClient");
+
+      expect(pattern.test("org.owasp.network.HttpClient")).toBeTruthy();
+      expect(pattern.test("org.owasp.HttpClient")).toBeFalsy();
+    });
+
+    it("escapes regex-special characters in the literal segments", () => {
+      const pattern = wildcardPatternToRegExp("Outer$Inner");
+
+      expect(pattern.test("Outer$Inner")).toBeTruthy();
+      expect(pattern.test("OuterXInner")).toBeFalsy();
+    });
+  });
+
   describe("FilterMismatchError", () => {
     it("is an Error carrying the given message", () => {
       const error = new FilterMismatchError("mismatch");

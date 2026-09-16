@@ -35,7 +35,7 @@ hooks:
 
 `module` is the name of the native module, for example a shared library such as `libssl.so`.
 
-`hooks` is a list of native functions to hook. Each item in `hooks` can be written in one of two forms.
+`hooks` is a list of native functions to hook. Each item in `hooks` can be written in one of three forms.
 
 Use the **short form** when you only want to hook a symbol and do not need argument or return value decoding.
 
@@ -43,6 +43,14 @@ Use the **short form** when you only want to hook a symbol and do not need argum
 module: <module name>
 hooks:
   - <symbol name>
+```
+
+Use the **short form with settings** — a `[<symbol name>, {<decoder settings>}]` tuple — to hook a symbol while overriding its `decoderSettings`, without switching to the expanded form.
+
+```yaml
+module: <module name>
+hooks:
+  - [<symbol name>, { <decoder settings> }]
 ```
 
 Use the **expanded form** when you want frooky to decode arguments and or the return value.
@@ -94,6 +102,19 @@ This declaration hooks the following two functions from the [OpenSSL library](ht
 void ENGINE_load_builtin_engines(void);
 void ENGINE_cleanup(void);
 ```
+
+To hook a symbol while also overriding its `decoderSettings`, write the hook as a `[<symbol name>, {<decoder settings>}]` tuple instead of a plain string.
+
+**Example:**
+
+```yaml
+module: libc.so
+hooks:
+  - [malloc, { fastDecode: true }]
+```
+
+This hooks `malloc` from `libc.so`, with `fastDecode` enabled for that hook only.
+
 
 ## Decoding Arguments and Return Values
 

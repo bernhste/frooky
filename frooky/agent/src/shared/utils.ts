@@ -1,6 +1,18 @@
 export class FilterMismatchError extends Error {}
 
 /**
+ * Converts a wildcard pattern (e.g. `org.owasp.*.HttpClient`) into a `RegExp` that fully matches
+ * (`^...$`) strings satisfying it. `*` matches exactly one dot-separated segment (i.e. it never
+ * matches a literal `.`), so wildcards apply at the package/class level rather than spanning packages.
+ * @param pattern - The wildcard pattern.
+ * @returns A `RegExp` matching strings that satisfy `pattern`.
+ */
+export function wildcardPatternToRegExp(pattern: string): RegExp {
+  const segments = pattern.split("*").map((segment) => segment.replace(/[.+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`^${segments.join("[^.]+")}$`);
+}
+
+/**
  * Generates a v4 UUID
  * @returns {string} v4 UUID (e.g. "6b5354ed-8c3e-476d-8999-96b2251d8a3c")
  */

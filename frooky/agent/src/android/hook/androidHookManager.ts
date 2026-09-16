@@ -3,14 +3,14 @@ import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
+import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS, HOOK_LOOKUP_INTERVAL_MS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { InputParam, normalizeInputParam } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
-import { FilterMismatchError } from "../../shared/utils";
+import { FilterMismatchError, wildcardPatternToRegExp } from "../../shared/utils";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
 import { JavaHookEvent } from "./javaHookEvent";
@@ -30,22 +30,26 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
     const uniqueClasses: string[] = [...new Set(inputHooks.map((inputHook) => inputHook.javaClass))];
     return uniqueClasses.flatMap((javaClass) => {
-      const javaClassPromise = this.resolveJavaClass(javaClass, timeout).catch((e) => {
+      const javaClassesPromise = this.resolveJavaClass(javaClass, timeout).catch((e) => {
         logger.warn(`${e}`);
-        return null;
+        return [] as Java.Wrapper[];
       });
       return inputHooks
         .filter((inputHook) => inputHook.javaClass === javaClass)
         .map(async (inputHook): Promise<JavaHook[] | null> => {
-          const resolvedJavaClass = await javaClassPromise;
-          if (!resolvedJavaClass) return null;
-          try {
-            const method = this.resolveMethod(resolvedJavaClass, inputHook);
-            return this.resolveOverloads(method, inputHook);
-          } catch (e) {
-            logger.warn(e instanceof Error ? e.message : String(e));
-            return null;
+          const resolvedJavaClasses = await javaClassesPromise;
+          if (resolvedJavaClasses.length === 0) return null;
+
+          const hooks: JavaHook[] = [];
+          for (const resolvedJavaClass of resolvedJavaClasses) {
+            try {
+              const method = this.resolveMethod(resolvedJavaClass, inputHook);
+              hooks.push(...this.resolveOverloads(method, inputHook));
+            } catch (e) {
+              logger.warn(e instanceof Error ? e.message : String(e));
+            }
           }
+          return hooks.length > 0 ? hooks : null;
         });
     });
   }
@@ -161,8 +165,38 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     }, []);
   }
 
-  private async resolveJavaClass(javaClassName: string, timeoutSeconds: number): Promise<Java.Wrapper> {
+  /**
+   * Resolves a `javaClass` declaration to one or more loaded Java classes.
+   *
+   * A plain class name (e.g. `org.owasp.mastestapp.MainActivity`) resolves to exactly one class.
+   * A wildcard pattern (e.g. `org.owasp.*.HttpClient`, `*` matching a single package/class segment)
+   * resolves to every currently loaded class matching it, since the pattern may match more than one.
+   *
+   * @param javaClassName - The `javaClass` declaration, plain or wildcarded.
+   * @param timeoutSeconds - How long to keep polling for a match before giving up.
+   * @returns The resolved classes. Never empty; the poll keeps retrying until at least one match or the timeout elapses.
+   */
+  private async resolveJavaClass(javaClassName: string, timeoutSeconds: number): Promise<Java.Wrapper[]> {
     logger.debug(`Resolving java class ${javaClassName} with a timeout of ${timeoutSeconds} seconds.`);
+
+    if (javaClassName.includes("*")) {
+      const pattern = wildcardPatternToRegExp(javaClassName);
+      return this.pollUntilResolved(
+        () => {
+          logger.debug(`Trying to resolve Java classes matching wildcard pattern '${javaClassName}'.`);
+          const resolvedClasses = this.resolveMatchingJavaClasses(pattern);
+          if (resolvedClasses.length === 0) {
+            logger.debug(`No Java classes matching wildcard pattern '${javaClassName}' resolved yet.`);
+            return null;
+          }
+          logger.debug(`${resolvedClasses.length} Java class(es) matching wildcard pattern '${javaClassName}' resolved.`);
+          return resolvedClasses;
+        },
+        javaClassName,
+        timeoutSeconds,
+      );
+    }
+
     return this.pollUntilResolved(
       () => {
         try {
@@ -170,7 +204,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
           const resolvedJavaClass = Java.use(javaClassName);
           logger.debug(`Java class '${javaClassName}' resolved.`);
-          return resolvedJavaClass;
+          return [resolvedJavaClass];
         } catch (_) {
           logger.debug(`Java class '${javaClassName}' not resolved yet.`);
           return null;
@@ -180,6 +214,38 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       timeoutSeconds,
     );
   }
+
+  // resolves every currently loaded class whose name matches the given wildcard pattern
+  private resolveMatchingJavaClasses(pattern: RegExp): Java.Wrapper[] {
+    const resolvedClasses: Java.Wrapper[] = [];
+    for (const className of AndroidHookManager.getLoadedClassNames()) {
+      if (!pattern.test(className)) continue;
+      try {
+        resolvedClasses.push(Java.use(className));
+      } catch (e) {
+        logger.debug(`Failed to resolve matched Java class '${className}': ${e}`);
+      }
+    }
+    return resolvedClasses;
+  }
+
+  /**
+   * `Java.enumerateLoadedClassesSync()` is an expensive native/JNI call - it can take hundreds of
+   * milliseconds on an app with many loaded classes. Every wildcard `javaClass` pattern being
+   * resolved would otherwise re-run it on every poll tick, even though they'd all see the exact
+   * same class list at that instant. This caches the result across all patterns/instances for the
+   * duration of one poll tick, so it's shared within a tick but still refreshes every tick to pick
+   * up classes that load later (which is the entire point of polling for a wildcard match).
+   */
+  private static getLoadedClassNames(): string[] {
+    const now = Date.now();
+    if (!this.loadedClassNamesCache || now >= this.loadedClassNamesCache.expiresAt) {
+      this.loadedClassNamesCache = { names: Java.enumerateLoadedClassesSync(), expiresAt: now + HOOK_LOOKUP_INTERVAL_MS };
+    }
+    return this.loadedClassNamesCache.names;
+  }
+
+  private static loadedClassNamesCache: { names: string[]; expiresAt: number } | null = null;
 
   private resolveMethod(javaClass: Java.Wrapper, inputHook: InputJavaHookNormalized): Java.MethodDispatcher {
     const resolvedMethod = javaClass[inputHook.method];
