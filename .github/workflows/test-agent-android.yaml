@@ -62,8 +62,7 @@ jobs:
             .github/scripts/android/install-frida-server.sh
 
             echo "Run tests"
-            cd frooky/agent
-            npm run test:android -- -o test-results-agent-android.json
+            cd frooky/agent && npm run test:android -- -o test-results-agent-android.json
 
       - name: Upload test results
         if: always()

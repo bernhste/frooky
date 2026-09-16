@@ -11,7 +11,7 @@
 
 `frooky` is a [Frida](https://www.frida.re/)-based dynamic analysis tool for Android and iOS apps based on YAML hook files.
 
-![PyPI - Version](https://img.shields.io/pypi/v/frooky?color=fuchsia) [![Test](https://github.com/cpholguera/frooky/actions/workflows/test.yml/badge.svg)](https://github.com/cpholguera/frooky/actions/workflows/test.yml)
+![PyPI - Version](https://img.shields.io/pypi/v/frooky?color=fuchsia) [![Verify host](https://github.com/bernhste/frooky/actions/workflows/verify-host.yml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/verify-host.yml) [![Test host Android](https://github.com/bernhste/frooky/actions/workflows/test-host-android.yml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/test-host-android.yml) [![Test agent Android](https://github.com/bernhste/frooky/actions/workflows/test-agent-android.yaml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/test-agent-android.yaml)
 
 - Hook Java/Kotlin methods and native C/C++ functions
 - Simple YAML hook file format
