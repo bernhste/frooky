@@ -9,6 +9,7 @@ import { FilterMismatchError } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { NativeHook } from "./nativeHook";
 import { NativeHookEvent } from "./nativeHookEvent";
+import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 
 export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
@@ -77,6 +78,12 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         out: [],
       };
 
+      // by-value float/double params/return values aren't in args[]/returnValue at all (see
+      // nativeFloatArgs.ts) - computed once per hook since it only depends on the declared
+      // params/retType, not on any one invocation.
+      const argSlots = planArgSlots(hook.params);
+      const floatRetSlot = planFloatRetTypeSlot(hook.retType);
+
       Interceptor.attach(hook.symbolAddress, {
         onEnter: function (args: NativePointer[]) {
           this.filtered = false;
@@ -92,9 +99,26 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           }
 
           if (hook.params) {
+            // args[] only reflects general-purpose registers; substitute the real bits for
+            // by-value float/double params, which live in dedicated FP registers instead - and,
+            // on architectures that actually have that separate register file, use each param's
+            // own lane-relative index rather than its raw position (see nativeFloatArgs.ts).
+            const separateLanes = usesSeparateFloatRegisterFile(this.context);
+            const effectiveArgs: NativePointer[] = [];
+            for (let i = 0; i < hook.params.length; i++) {
+              const slot = argSlots[i];
+              if (slot.kind === "float" && separateLanes) {
+                effectiveArgs[i] = readFloatArgBits(this.context, slot) ?? ptr(0);
+              } else if (slot.kind === "float") {
+                effectiveArgs[i] = args[i];
+              } else {
+                effectiveArgs[i] = separateLanes ? args[slot.argIndex] : args[i];
+              }
+            }
+
             // decode arguments onEnter
             try {
-              decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
+              decodedArgs.in = hookManager.decodeArgs(effectiveArgs, inArgDecoders);
             } catch (e) {
               if (e instanceof FilterMismatchError) {
                 this.filtered = true;
@@ -104,10 +128,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             }
 
             // save arguments in case they need to be decoded onLeave
-            this.savedArgs = [];
-            for (let i = 0; i < hook.params.length; i++) {
-              this.savedArgs[i] = args[i];
-            }
+            this.savedArgs = effectiveArgs;
           }
         },
         onLeave: function (returnValue: InvocationReturnValue) {
@@ -125,7 +146,11 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           // decode ret value
           let decodedRetValue: DecodedValue | undefined;
           if (hook.retType) {
-            decodedRetValue = retTypeDecoder.decode(returnValue);
+            // returnValue only reflects the general-purpose return register (e.g. RAX); on
+            // architectures with a separate FP register file, a float/double return comes back in
+            // its own dedicated register instead.
+            const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile(this.context) ? readFloatArgBits(this.context, floatRetSlot) : null;
+            decodedRetValue = retTypeDecoder.decode(floatRetBits ?? returnValue);
           }
 
           // send add to event log

@@ -89,6 +89,18 @@ describe("NativeValueDecoder", () => {
       expect(decoder.decode(ptr(100))).toEqual({ type: "long", value: expected });
     });
 
+    it("should decode a negative long correctly on LP64 targets (regression test: this used to saturate to Int64.MAX instead of wrapping around)", () => {
+      const decoder = makeDecoder("long");
+      if (Process.pointerSize < 8) {
+        // toInt32() already interprets the bit pattern as signed correctly; only the LP64
+        // (string round-trip through int64()) path was affected by this bug.
+        expect(decoder.decode(ptr(0x80000000))).toEqual({ type: "long", value: -2147483648 });
+        return;
+      }
+      // 0xffffffff80000000 is -2147483648 sign-extended to 64 bits.
+      expect(decoder.decode(ptr("0xffffffff80000000"))).toEqual({ type: "long", value: "-2147483648" });
+    });
+
     it("should decode uint", () => {
       const decoder = makeDecoder("uint");
       expect(decoder.decode(ptr(0xffff))).toEqual({ type: "uint", value: 65535 });
@@ -116,6 +128,21 @@ describe("NativeValueDecoder", () => {
       const result = decoder.decode(ptr(12345));
       expect(result.type).toBe("int64");
       expect(result.value).toBe("12345");
+    });
+
+    it("should decode a negative int64 correctly (regression test: this used to saturate to Int64.MAX instead of wrapping around)", () => {
+      const decoder = makeDecoder("int64");
+      // 0x8000000000000001 is -9223372036854775807 in two's complement.
+      const result = decoder.decode(ptr("0x8000000000000001"));
+      expect(result.type).toBe("int64");
+      expect(result.value).toBe("-9223372036854775807");
+    });
+
+    it("should decode -1 as int64 correctly (all bits set)", () => {
+      const decoder = makeDecoder("int64");
+      const result = decoder.decode(ptr("0xffffffffffffffff"));
+      expect(result.type).toBe("int64");
+      expect(result.value).toBe("-1");
     });
 
     it("should decode uint64 as a decimal string to preserve full precision", () => {

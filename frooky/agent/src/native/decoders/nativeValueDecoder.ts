@@ -5,11 +5,28 @@ import { FridaFundamentalType } from "./nativeFridaType";
 
 type FundamentalValueDecoder = (input: NativePointer) => null | number | boolean | string;
 
+// Threshold above which a 64-bit magnitude represents a negative value in two's complement.
+const INT64_MAX = "9223372036854775807";
+
+// `int64(input.toString())` parses NativePointer#toString()'s "0x..." hex output as a magnitude,
+// not a raw bit pattern - for a value whose top bit is set (i.e. negative once reinterpreted as
+// signed), that magnitude exceeds what a signed 64-bit value can hold, and it saturates to
+// Int64.MAX instead of wrapping around to the correct negative value. Parsing as UInt64 (whose
+// full 64-bit range never overflows) and converting to two's complement manually avoids that.
+const decodeSigned64 = (raw: UInt64): string => {
+  if (raw.compare(INT64_MAX) <= 0) {
+    return raw.toString();
+  }
+  const magnitude = raw.not().add(1); // -raw, mod 2^64
+  return `-${magnitude.toString()}`;
+};
+
 const decodeWord = (input: NativePointer, signed: boolean): number | string => {
   if (Process.pointerSize < 8) {
     return signed ? input.toInt32() : input.toUInt32();
   }
-  return signed ? int64(input.toString()).toString() : uint64(input.toString()).toString();
+  const raw = uint64(input.toString());
+  return signed ? decodeSigned64(raw) : raw.toString();
 };
 
 const valueDecoders: Record<FridaFundamentalType, FundamentalValueDecoder> = {
@@ -42,7 +59,7 @@ const valueDecoders: Record<FridaFundamentalType, FundamentalValueDecoder> = {
   ulong: (input) => decodeWord(input, false),
   // Returned as decimal strings: a JS number only carries 53 bits of integer
   // precision, which a genuine 64-bit value can exceed.
-  int64: (input) => int64(input.toString()).toString(),
+  int64: (input) => decodeSigned64(uint64(input.toString())),
   uint64: (input) => uint64(input.toString()).toString(),
   // `input` holds the raw integer bit pattern of the float/double, not a memory
   // address, so it's written to scratch memory and read back as the FP type to
