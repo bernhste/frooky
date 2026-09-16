@@ -76,9 +76,9 @@ def main() -> int:
     if args.resolver_timeout <= 0:
         raise argparse.ArgumentTypeError(f"--resolver-timeout ({args.resolver_timeout}) is not a positive integer")
 
-    # Validate that the android and ios agents are compiled and accessible
+    # Validate that the android agent is compiled and accessible
     agent_dist_path = files("frooky") / "agent" / "dist"
-    required_files = [agent_dist_path / "version.json", agent_dist_path / "agent-android.js", agent_dist_path / "agent-ios.js"]
+    required_files = [agent_dist_path / "version.json", agent_dist_path / "agent-android.js"]
 
     if not all(file.exists() for file in required_files):
         print(
