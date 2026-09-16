@@ -6,6 +6,7 @@ import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
 import { PrimitiveDecoder } from "./builtin/BasicDecoder";
+import { ConstantDecoder } from "./builtin/ConstantDecoder";
 import { HashCodeDecoder } from "./builtin/HashCodeDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
 import { StringDecoder } from "./builtin/StringDecoder";
@@ -17,6 +18,7 @@ const CUSTOM_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
   hashCode: HashCodeDecoder,
   intentFlag: IntentFlagDecoder,
   intentUriFlag: IntentUriFlagDecoder,
+  constant: ConstantDecoder,
 };
 
 export const JAVA_PRIMITIVE_TYPES = new Set(["int", "long", "short", "byte", "char", "boolean", "float", "double"]);

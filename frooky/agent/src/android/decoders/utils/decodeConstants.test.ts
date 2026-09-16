@@ -38,5 +38,17 @@ describe("javaConstants", () => {
 
       expect(second).toBe(first);
     });
+
+    it("should skip non-static fields when reflecting every constant on a class with an empty prefix", () => {
+      // javax.crypto.Cipher has both static final constants and private instance fields; reading an
+      // instance field the same way as a static one (passing `null` as the target) throws, so this
+      // would fail if non-static fields weren't filtered out.
+      const Cipher = Java.use("javax.crypto.Cipher");
+      const encryptMode: number = Cipher.ENCRYPT_MODE.value;
+
+      const constants = decodeConstantValues("javax.crypto.Cipher", "");
+
+      expect(constants).toContain({ type: "int", name: "ENCRYPT_MODE", value: encryptMode });
+    });
   });
 });

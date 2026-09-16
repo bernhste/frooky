@@ -35,10 +35,15 @@ function readFieldValue(field: Java.Wrapper, typeName: string): unknown {
   }
 }
 
+// java.lang.reflect.Modifier.STATIC, checked as a raw bit instead of via Java.use() since this
+// runs once per field on every newly-encountered class/prefix pair.
+const STATIC_MODIFIER = 0x0008;
+
 /**
- * Reflects all `public static` fields of `className` whose name starts with `prefix` (e.g.
- * Intent's `FLAG_*` or `URI_*` constants), decoding each field's value according to its actual
- * declared type rather than assuming `int`.
+ * Reflects every `static` field of `className` whose name starts with `prefix` (e.g. Intent's
+ * `FLAG_*` or `URI_*` constants, or "" to match every declared constant), decoding each field's
+ * value according to its actual declared type rather than assuming `int`. Instance fields are
+ * skipped - reading them the same way as a static field (passing `null` as the target) throws.
  */
 export function decodeConstantValues(className: string, prefix: string): DecodedValue[] {
   const cacheKey = `${className}#${prefix}`;
@@ -51,7 +56,7 @@ export function decodeConstantValues(className: string, prefix: string): Decoded
   for (let i = 0; i < fields.length; i++) {
     const f = fields[i];
     const name: string = f.getName();
-    if (!name.startsWith(prefix)) continue;
+    if (!name.startsWith(prefix) || (f.getModifiers() & STATIC_MODIFIER) === 0) continue;
 
     const type: string = f.getType().getName();
     f.setAccessible(true);

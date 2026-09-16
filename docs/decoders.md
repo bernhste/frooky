@@ -137,6 +137,7 @@ For some Java types, frooky's built-in decoders are not sufficient to give the c
 > - `hashCode`: renders a reference type as `<class>@<hashCode>`, without invoking a custom `toString()` override
 > - `intentFlag`: decodes an `int` bitmask into the matching `Intent.FLAG_*` constant names
 > - `intentUriFlag`: decodes an `int` bitmask into the matching `Intent.URI_*` constant names
+> - `constant`: decodes a value into the name of the matching `static final` constant declared on the hooked method's own class (e.g. `1` -> `"ENCRYPT_MODE"` for `javax.crypto.Cipher`'s `opmode`)
 >
 > A more flexible, user-extensible custom decoder framework is in the works.
 
@@ -150,6 +151,20 @@ hooks:
 ```
 
 This decodes the `flags` argument of [`Intent.setFlags(int)`](<https://developer.android.com/reference/android/content/Intent#setFlags(int)>) using the `android.content.IntentFlagDecoder`, which resolves the individual `Intent.FLAG_*` constants set in the bitmask instead of just reporting the raw integer.
+
+The `constant` decoder resolves any value to the name of the constant with that value, declared on the same class the hook is on - no class needs to be specified:
+
+```yaml
+javaClass: javax.crypto.Cipher
+hooks:
+  - method: init
+    overloads:
+      - params:
+        - [int, opmode, { decoder: constant }]
+        - [java.security.Key, key]
+```
+
+This decodes the `opmode` argument of [`Cipher.init(int, Key)`](<https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key)>) to `"ENCRYPT_MODE"`, `"DECRYPT_MODE"`, etc. instead of the raw `int`, by matching it against `Cipher`'s own declared constants.
 
 Native hooks will support the same option once implemented, for example to decode a `byte *` using the built-in `toStringDecoder`:
 

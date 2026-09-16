@@ -10,6 +10,13 @@ export interface Decodable {
   /** Optional name for the value. */
   name?: string;
 
+  /**
+   * The fully qualified name of the Java class the hooked method or field belongs to, when known.
+   * Lets a decoder look up members (e.g. declared constants) on that same class without the class
+   * being specified separately in the hook file.
+   */
+  declaringClass?: string;
+
   /** Settings applied when running the decoder. */
   settings: DecoderSettings;
 }

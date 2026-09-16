@@ -72,6 +72,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       if (hook.method.returnType.className) {
         const retType = {
           type: hook.method.returnType.className,
+          declaringClass: hook.method.holder.$className,
           settings: hook.retTypeSettings ?? hook.decoderSettings,
         };
         retTypeDecoder = this.resolveRetTypeDecoder(retType);
@@ -150,12 +151,13 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     return countSuccessfulHooks;
   }
 
-  private buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings): Param[] {
+  private buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {
     return argTypes.reduce((params: Param[], type: Java.Type) => {
       if (type.className) {
         params.push({
           type: type.className,
           direction: "in",
+          declaringClass,
           settings: decoderSettings,
         });
       } else {
@@ -258,10 +260,13 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
   private resolveOverloads(method: Java.MethodDispatcher, inputHook: InputJavaHookNormalized): JavaHook[] {
     const result: JavaHook[] = [];
+    const declaringClass = method.holder.$className;
     if (inputHook.overloads?.length) {
       // Only get declared overloaded methods
       for (const overload of inputHook.overloads) {
-        const normalizedParams: Param[] = overload.params.map((inputParam: InputParam) => normalizeInputParam(inputParam) as Param);
+        const normalizedParams: Param[] = overload.params.map(
+          (inputParam: InputParam) => ({ ...(normalizeInputParam(inputParam) as Param), declaringClass }) as Param,
+        );
         // extract a list of java parameter types e.g. ["int", "java.lang.String", "double"] to be used to look up the overload
         const paramTypes: string[] = normalizedParams.map((param: Param) => param.type);
         try {
@@ -280,7 +285,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     } else {
       // Get all overloaded methods
       for (const javaMethod of method.overloads) {
-        const params: Param[] = this.buildParamsFromArgumentTypes(javaMethod.argumentTypes, inputHook.decoderSettings!);
+        const params: Param[] = this.buildParamsFromArgumentTypes(javaMethod.argumentTypes, inputHook.decoderSettings!, declaringClass);
         result.push({
           methodName: method.methodName,
           method: javaMethod,

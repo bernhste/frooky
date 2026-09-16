@@ -132,7 +132,7 @@ hookCollection:
     - method: init
       overloads:
       - params:
-        - ["int", "opmode"]
+        - ["int", "opmode", { decoder: constant }]
         - ["java.security.Key", "key", {decoder: "hashCode"}]
         - ["java.security.SecureRandom", "random"]
 
@@ -146,3 +146,4 @@ hookCollection:
       stackTraceLimit: 5
     hooks: 
       - [ doFinal, {decoder: "string"} ] 
+      
