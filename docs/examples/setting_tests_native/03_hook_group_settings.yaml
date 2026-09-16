@@ -1,0 +1,54 @@
+metadata:
+  name: Native Hooks for Testing
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# default setttings from DEFAULT_FROOKY_SETTINGS: FrookySettings
+# settings:
+#   hookSettings:
+#     stackTraceLimit: 0
+#     stackTraceFilter: []
+#   decoderSettings:
+#     fastDecode: false,
+#     magicDecode: false,
+#     maxRecursion: 10,
+#     decodeLimit: 1000,
+#     decoder: undefined,
+#     decoderArg: undefined,
+#     paramFilter: undefined,
+
+settings:
+  hookSettings:
+    stackTraceLimit: 5
+  decoderSettings:
+    maxRecursion: 1
+    decodeLimit: 1
+
+hookCollection:
+  - module: libc.so
+    hookSettings:
+      stackTraceLimit: 30
+      stackTraceFilter: ["^L3"]
+    decoderSettings:
+      maxRecursion: 30
+      decodeLimit: 30
+    hooks:
+    - symbol: open
+      retType: int
+      params:
+      - [const char *, path]
+      - [int, flags]
+      - [mode_t, mode]
+
+# expected: the hook group's own `hookSettings`/`decoderSettings` (set directly on the `module`
+# block, one level closer to the hook than the file-level `settings:` above) take precedence over
+# both the file-level settings and the hard-coded defaults.
+#
+# expected applied settings for `open`:
+#   stackTraceLimit:   30        (group; overrides file's 5 and default's 0)
+#   stackTraceFilter:  ["^L3"]   (group; overrides file's [] )
+#   maxRecursion:      30        (group; overrides file's 1 and default's 10)
+#   decodeLimit:       30        (group; overrides file's 1 and default's 1000)
+#   magicDecode:       false     (default; never overridden at any level here)
+#   fastDecode:        false     (default; never overridden at any level here)

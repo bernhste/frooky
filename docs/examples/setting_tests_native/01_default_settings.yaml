@@ -1,0 +1,31 @@
+metadata:
+  name: Native Hooks for Testing
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# default setttings from DEFAULT_FROOKY_SETTINGS: FrookySettings
+# settings:
+#   hookSettings:
+#     stackTraceLimit: 0
+#     stackTraceFilter: []
+#   decoderSettings:
+#     fastDecode: false,
+#     magicDecode: false,
+#     maxRecursion: 10,
+#     decodeLimit: 1000,
+#     decoder: undefined,
+#     decoderArg: undefined,
+#     paramFilter: undefined,
+
+hookCollection:
+  - module: libc.so
+    hooks:
+    - symbol: open
+      retType: int
+      params:
+      - [const char *, path]
+      - [int, flags]
+      - [mode_t, mode]
+
+# expected: all hooks should inherite the settings from default

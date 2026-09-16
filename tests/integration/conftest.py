@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 import pytest
+import urllib3
 from appium import webdriver
 from appium.options.android import UiAutomator2Options
 from appium.options.ios import XCUITestOptions
@@ -18,6 +19,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 APPIUM_URL = os.environ.get("APPIUM_URL", "http://127.0.0.1:4723")
+
+# on Linux devcontainers, APPIUM_URL is typically reached through a socat relay on the host
+# (see .devcontainer/host-services-start.sh) rather than a direct loopback connection, so a
+# session request can occasionally hit a transient connection drop under repeated test churn.
+NEW_SESSION_RETRIES = 3
+NEW_SESSION_RETRY_DELAY = 2
 FRIDA_HOST = os.environ.get("FRIDA_HOST", "127.0.0.1:27042")
 
 APP_START_TIMEOUT = 60
@@ -28,6 +35,9 @@ FROOKY_READY_TIMEOUT = 60
 FROOKY_EVENT_TIMEOUT = 60
 FROOKY_EVENT_SETTLE = 5
 FROOKY_STOP_TIMEOUT = 60
+# grace period for tests that expect the click to produce NO events at all (e.g. a stackTraceFilter
+# that matches nothing), long enough for the app's test flow to run to completion either way.
+FROOKY_NO_EVENTS_GRACE = 10
 
 MAIN_ACTIVITY = "org.owasp.mastestapp.MainActivity"
 
@@ -37,6 +47,7 @@ FROOKY_OUTPUT_NAME = "output.json"
 
 # if this patterns appears on stdout, frooky hooked all hooks and is read
 FROOKY_READY_PATTERN = re.compile(r"Resolved Hooks:\s*(\d+)")
+
 
 def _matches_subset_pattern_recursive(event, pattern):
     """
@@ -55,23 +66,45 @@ def _matches_subset_pattern_recursive(event, pattern):
         return all(_matches_subset_pattern_recursive(item, expected) for item, expected in zip(event, pattern))
     return event == pattern
 
+
+def _iter_events(output_file_path):
+    """Yields every individual event written to output.json.
+
+    Each line frooky writes is a batch: a JSON array of events sent together by the agent's
+    event sender (see eventSender.ts), not a single event object, so lines are flattened here.
+    """
+    with open(output_file_path, "r", encoding="utf8") as handle:
+        for line in handle:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            yield from (entry if isinstance(entry, list) else [entry])
+
+
 @pytest.fixture
 def count_matched_events(output_file_path):
-    """Factory fixture to scan output NDJSON for hooks matching the patterns."""
+    """Factory fixture to count events in output.json matching the given pattern."""
 
     def _count_matched_events(expected_event):
-        matched = 0
-        with open(output_file_path, "r", encoding="utf8") as handle:
-            for line in handle:
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if _matches_subset_pattern_recursive(entry, expected_event):
-                    matched += 1
-        return matched
+        return sum(1 for event in _iter_events(output_file_path) if _matches_subset_pattern_recursive(event, expected_event))
 
     return _count_matched_events
+
+
+@pytest.fixture
+def find_matched_events(output_file_path):
+    """Factory fixture returning the actual events in output.json matching the given pattern.
+
+    Use this over count_matched_events when a test needs to inspect decoded values rather than
+    just confirm a hook fired.
+    """
+
+    def _find_matched_events(expected_event):
+        return [event for event in _iter_events(output_file_path) if _matches_subset_pattern_recursive(event, expected_event)]
+
+    return _find_matched_events
+
 
 @pytest.fixture(params=["android", "ios"])
 def platform(request):
@@ -100,9 +133,7 @@ def _wait_for_pid(driver, platform, app_bundle_id):
     deadline = time.monotonic() + APP_START_TIMEOUT
     while time.monotonic() < deadline:
         if platform == "android":
-            output = driver.execute_script(
-                "mobile: shell", {"command": "pidof", "args": [app_bundle_id]}
-            )
+            output = driver.execute_script("mobile: shell", {"command": "pidof", "args": [app_bundle_id]})
             pid = (output or "").strip().split(" ")[0]
         else:
             info = driver.execute_script("mobile: activeAppInfo") or {}
@@ -114,13 +145,25 @@ def _wait_for_pid(driver, platform, app_bundle_id):
 
     pytest.fail(f"Timed out waiting for PID of {app_bundle_id}")
 
+
+def _new_session(options):
+    """Creates an Appium session, retrying on a transient connection failure to APPIUM_URL."""
+    for attempt in range(1, NEW_SESSION_RETRIES + 1):
+        try:
+            return webdriver.Remote(APPIUM_URL, options=options)
+        except urllib3.exceptions.MaxRetryError:
+            if attempt == NEW_SESSION_RETRIES:
+                raise
+            time.sleep(NEW_SESSION_RETRY_DELAY)
+
+
 @pytest.fixture
 def app_session(platform):
     """Launch the target app and hand out a driver bound to it."""
     drivers = []
 
     def _launch(app_bundle_id):
-        driver = webdriver.Remote(APPIUM_URL, options=_build_options(platform, app_bundle_id))
+        driver = _new_session(_build_options(platform, app_bundle_id))
         drivers.append(driver)
         return driver, _wait_for_pid(driver, platform, app_bundle_id)
 
@@ -152,6 +195,7 @@ def cleanup_output_json(output_file_path):
     """Remove output.json before each test, but keep it afterwards for inspection."""
     output_file_path.unlink(missing_ok=True)
     yield
+
 
 def _drain_output(process):
     """
@@ -223,6 +267,17 @@ def _wait_for_events(process, chunks, output_file_path):
         time.sleep(FROOKY_EVENT_SETTLE)
 
 
+def _wait_after_click_with_no_events_expected(process, chunks):
+    """For tests where the click should legitimately produce zero events (e.g. an event-level
+    stackTraceFilter that matches nothing): just give the app's test flow time to run to
+    completion, without treating an empty output.json as a failure."""
+    deadline = time.monotonic() + FROOKY_NO_EVENTS_GRACE
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            _fail(f"frooky exited with {process.returncode} unexpectedly", process, chunks)
+        time.sleep(0.5)
+
+
 def _stop_frooky(process):
     """SIGINT first, so frooky can detach the agent and flush its NDJSON output."""
     if process.poll() is None:
@@ -236,20 +291,26 @@ def _stop_frooky(process):
 
 @pytest.fixture
 def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, tmp_path):
-    def _run_frooky(hook_file, target_app):
+    def _run_frooky(hook_file_yaml, target_app, expect_events=True):
+        """Launch target_app, attach frooky with hook_file_yaml, then click Start.
+
+        Set expect_events=False for a hook file that's expected to legitimately produce zero
+        events (e.g. an event-level stackTraceFilter matching nothing) - otherwise the normal
+        "wait for the first event" step would time out waiting for something that never comes.
+        """
         app_bundle_id = f"{target_app.replace('-', '_')}.frooky.target.app"
 
         # 1. Appium launches the app, resolve its PID
         driver, target_app_pid = app_session(app_bundle_id)
 
-        # JSON is a subset of YAML, so a dict can be dumped as-is
+        # written as real YAML text (not json.dumps'd) so frooky's own yaml.safe_load path is
+        # exercised end to end, not just its JSON-is-a-subset-of-YAML fallback.
         hook_path = tmp_path / "hooks.yaml"
-        hook_path.write_text(json.dumps(hook_file), encoding="utf8")
+        hook_path.write_text(hook_file_yaml, encoding="utf8")
 
         process = subprocess.Popen(
             [
                 "frooky",
-                platform,
                 *(["-U"] if platform == "android" else []),
                 "-p",
                 str(target_app_pid),
@@ -260,6 +321,10 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, t
             cwd=FROOKY_WORKING_DIR,  # frooky writes ./output.json relative to cwd
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            # stdout isn't a TTY here, so Python fully block-buffers frooky's own output by
+            # default - it would otherwise sit unflushed until the process exits, well past
+            # FROOKY_READY_TIMEOUT, even though frooky reports readiness almost immediately.
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
         chunks = _drain_output(process)
 
@@ -271,7 +336,10 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, t
             mastg_app_click_start(driver)
 
             # 4. the events are produced by the click, so wait for them here
-            _wait_for_events(process, chunks, output_file_path)
+            if expect_events:
+                _wait_for_events(process, chunks, output_file_path)
+            else:
+                _wait_after_click_with_no_events_expected(process, chunks)
         finally:
             _stop_frooky(process)
 

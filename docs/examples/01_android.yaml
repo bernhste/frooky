@@ -4,97 +4,146 @@ metadata:
   description: Examples of Java/Kotlin method hooking on Android
   category: GENERAL
   author: frooky dev team
-  version: v1
+  version: 1
 
-hooks:
-  # Hook multiple methods by name (all overloads are included).
+hookCollection:
+  # Hook multiple hooks by name (all overloads are included).
   # Docs: https://developer.android.com/reference/android/security/AttestedKeyPair
   - javaClass: android.security.AttestedKeyPair
-    methods:
-      - $init
-      - getKeyPair
+    hooks:
+    - $init
+    - getKeyPair
 
-  # Hook methods using explicit object syntax with optional `stackTraceLimit`.
+  # Hook hooks using explicit object syntax with optional `hookSettings.stackTraceLimit`.
   # Docs: https://developer.android.com/reference/android/security/AttestedKeyPair
   - javaClass: android.security.AttestedKeyPair
-    methods:
-      - name: $init
-      - name: getKeyPair
-    stackTraceLimit: 10
+    hookSettings:
+      stackTraceLimit: 10
+    hooks:
+    - method: $init
+    - method: getKeyPair
 
   # Hook a specific overload by parameter types (unnamed).
   # Docs: https://developer.android.com/reference/java/net/URL#openConnection(java.net.Proxy)
   - javaClass: java.net.URL
-    methods:
-      - name: openConnection
-        overloads:
-          - params:
-              - java.net.Proxy
+    hooks:
+    - method: openConnection
+      overloads:
+      - params:
+        - java.net.Proxy
 
   # Hook a specific overload by parameter types with names (for better context).
   # Docs: https://developer.android.com/reference/android/app/Activity#startActivity(android.content.Intent)
   - javaClass: android.app.Activity
-    methods:
-      - name: startActivity
-        overloads:
-          - params:
-              - ["android.content.Intent", intent]
+    hooks:
+    - method: startActivity
+      overloads:
+      - params:
+        - [android.content.Intent, intent]
 
   # Use `stackTraceFilter` with regex patterns to exclude framework/library stack frames.
   # This keeps only relevant app code by filtering out `java.*`, `android.*`, and external SDKs.
   # Docs: https://developer.android.com/reference/android/database/sqlite/SQLiteDatabase#query(java.lang.String,%20java.lang.String[],%20java.lang.String,%20java.lang.String[],%20java.lang.String,%20java.lang.String,%20java.lang.String)
   - javaClass: android.database.sqlite.SQLiteDatabase
-    methods:
-      - name: query
-        overloads:
-          - params:
-              - ["java.lang.String", table]
-              - ["[Ljava.lang.String", columns]
-              - ["java.lang.String", selection]
-              - ["[Ljava.lang.String", selectionArgs]
-              - ["java.lang.String", groupBy]
-              - ["java.lang.String", having]
-              - ["java.lang.String", orderBy]
-    stackTraceLimit: 5
-    stackTraceFilter:
-      - "$^java\\."
-      - "$^android\\."
-      - "$^com\\.external\\.sdk\\."
+    hooks:
+    - method: query
+      overloads:
+      - params:
+        - ["java.lang.String", table]
+        - ["[Ljava.lang.String;", columns]
+        - ["java.lang.String", selection]
+        - ["[Ljava.lang.String;", selectionArgs]
+        - ["java.lang.String", groupBy]
+        - ["java.lang.String", having]
+        - ["java.lang.String", orderBy]
+    hookSettings:
+      stackTraceLimit: 5
+      stackTraceFilter:
+        - "^java\\."
+        - "^android\\."
+        - "^com\\.external\\.sdk\\."
 
   # Hook multiple overloads of the same method.
   # Docs: https://developer.android.com/reference/android/content/Intent
   - javaClass: android.content.Intent
-    methods:
-      - name: putExtra
-        overloads:
-          - params:
-              - ["java.lang.String", name]
-              - ["java.lang.String", value]
-          - params:
-              - ["java.lang.String", name]
-              - [int, value]
-          - params:
-              - ["java.lang.String", name]
-              - [boolean, value]
-          - params:
-              - ["java.lang.String", name]
-              - ["[B", value]
+    hooks:
+    - method: putExtra
+      overloads:
+      - params:
+        - ["java.lang.String", name]
+        - ["java.lang.String", value]
+      - params:
+        - ["java.lang.String", name]
+        - [int, value]
+      - params:
+        - ["java.lang.String", name]
+        - [boolean, value]
+      - params:
+        - ["java.lang.String", name]
+        - ["[B", value]
 
-  # Use `decodeAt: exit` to decode output parameters after method execution.
+  # Use `direction: out` to decode output parameters after method execution.
   # Docs: https://developer.android.com/reference/javax/crypto/Cipher#doFinal(byte[],%20int)
   - javaClass: javax.crypto.Cipher
-    methods:
-      - name: doFinal
-        overloads:
-          - params:
-              - ["[B", output, { decodeAt: exit }]
-              - [int, outputOffset]
+    hookSettings:
+      stackTraceLimit: 3
+    hooks:
+    - method: doFinal
+      overloads:
+      - params:
+        - ["[B", output, { direction: inout, decoder: toStringDecoder }]
+        - [int, outputOffset]
 
-  # Use `decodeAt: both` to decode a parameter before and after execution.
+  - javaClass: javax.crypto.Cipher
+    hooks:
+    - method: update
+      overloads:
+      - params:
+        - ["[B", input, { decoder: toStringDecoder }]
+        - [int, inputOffset]
+        - [int, inputLen]
+        - ["[B", output, { direction: inout, decoder: toString }]
+        - [int, outputOffset]
+
+
+  # Use `direction: inout` to decode a parameter before and after execution.
   # Docs: https://developer.android.com/reference/java/nio/ByteBuffer#put(byte[])
   - javaClass: java.nio.ByteBuffer
-    methods:
-      - name: put
-        overloads:
-          - params:
-              - ["[B", src, { decodeAt: both }]
+    hooks:
+    - method: put
+      overloads:
+      - params:
+        - ["[B", src, { direction: inout }]
+
+  - javaClass: java.security.Signature
+    hookSettings:
+      stackTraceLimit: 5
+    hooks:
+    - method: initSign
+      overloads:
+      - params:
+        - ["java.security.PrivateKey", "privateKey", {decoder: "hashCode"}]
+
+
+  - javaClass: javax.crypto.Cipher
+    hookSettings:
+      stackTraceLimit: 5
+    hooks:
+    - method: init
+      overloads:
+      - params:
+        - ["int", "opmode", { decoder: constant }]
+        - ["java.security.Key", "key", {decoder: "hashCode"}]
+        - ["java.security.SecureRandom", "random"]
+
+
+  - javaClass: javax.crypto.Cipher
+    hooks: 
+      - doFinal
+
+  - javaClass: javax.crypto.Cipher
+    hookSettings:
+      stackTraceLimit: 5
+    hooks: 
+      - [ doFinal, {decoder: "string"} ] 
+      

@@ -1,0 +1,54 @@
+metadata:
+  name: Android Hooks for Testing
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# default setttings from DEFAULT_FROOKY_SETTINGS: FrookySettings
+# settings:
+#   hookSettings:
+#     stackTraceLimit: 0
+#     stackTraceFilter: []
+#   decoderSettings:
+#     fastDecode: false,
+#     magicDecode: false,
+#     maxRecursion: 10,
+#     decodeLimit: 1000,
+#     decoder: undefined,
+#     decoderArg: undefined,
+#     paramFilter: undefined,
+
+settings:
+  hookSettings:
+    stackTraceLimit: 5
+  decoderSettings:
+    maxRecursion: 1
+    decodeLimit: 1
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      stackTraceLimit: 30
+      stackTraceFilter: ["^L3"]
+    decoderSettings:
+      maxRecursion: 30
+      decodeLimit: 30
+    hooks:
+    - method: receiveIntArray
+      overloads:
+      - params:
+        - ["[I", arg, { maxRecursion: 50, decodeLimit: 50 }]
+
+# Unlike hook-level settings (see 04_single_hook_settings.yaml, which is silently dropped),
+# param-level decoder settings (inline on a param declaration) are the closest level that
+# ACTUALLY works: `normalizeInputParam()` merges these on top of the hook group's merged
+# `decoderSettings`.
+#
+# expected applied decoder settings for the `arg` parameter of `receiveIntArray`:
+#   maxRecursion: 50   (param; closest level, overrides group's 30, file's 1, default's 10)
+#   decodeLimit:  50   (param; closest level, overrides group's 30, file's 1, default's 1000)
+#
+# `hookSettings` (stackTraceLimit/stackTraceFilter) have no per-param equivalent, so those stay at
+# the hook group's values:
+#   stackTraceLimit:  30
+#   stackTraceFilter: ["^L3"]

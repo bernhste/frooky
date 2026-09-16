@@ -1,7 +1,7 @@
 # Frooky
 
 ```txt
-   ___    ____           
+   ___    ____
   / __\  / _  |    _     _    _  _   _   _
  / _\   | (_) |  / _ \ / _ \ | / /  | | | |
 / /     / / | | | (_) | (_) ||  <   | |_| |
@@ -11,7 +11,7 @@
 
 `frooky` is a [Frida](https://www.frida.re/)-based dynamic analysis tool for Android and iOS apps based on YAML hook files.
 
-![PyPI - Version](https://img.shields.io/pypi/v/frooky?color=fuchsia) [![Test](https://github.com/cpholguera/frooky/actions/workflows/test.yml/badge.svg)](https://github.com/cpholguera/frooky/actions/workflows/test.yml)
+![PyPI - Version](https://img.shields.io/pypi/v/frooky?color=fuchsia) [![Verify host](https://github.com/bernhste/frooky/actions/workflows/verify-host.yml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/verify-host.yml) [![Test host Android](https://github.com/bernhste/frooky/actions/workflows/test-host-android.yml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/test-host-android.yml) [![Test agent Android](https://github.com/bernhste/frooky/actions/workflows/test-agent-android.yaml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/test-agent-android.yaml)
 
 - Hook Java/Kotlin methods and native C/C++ functions
 - Simple YAML hook file format
@@ -21,27 +21,25 @@
 - Filter hooks by argument values or stack trace patterns
 - Output events in JSON Lines format for easy processing
 
-Use it, if you **know what you want to hook** but you don't want to write custom Frida scripts or copy and paste them together. For example you can use it to quickly hook functions or methods based on public API documentation and quickly get insight about them. 
+Use it, if you know what you want to hook but you don't want to write custom Frida scripts or copy and paste them together. For example you can use it to quickly hook functions or methods based on public API documentation and quickly get insight about them.
 
 > [!NOTE]
 >
-> This documentation describes the intended feature set for [frooky 1.0](https://github.com/cpholguera/frooky/milestone/1). At the time of writing this document, not all described features may have been fully implemented and there may be breaking changes to the hook file API until the release of frooky 1.0. 
-> 
-> [Feedback](https://github.com/cpholguera/frooky/discussions) is always welcome. 
- 
+> This documentation describes the intended feature set for [frooky 1.0](https://github.com/cpholguera/frooky/milestone/1). At the time of writing this document, not all described features may have been fully implemented and there may be breaking changes to the hook file API until the release of frooky 1.0.
+>
+> [Feedback](https://github.com/cpholguera/frooky/discussions) is always welcome.
 
 ## Installation
 
 Simply install via pip to get the `frooky` CLI tool:
 
 ```bash
-pip3 install frooky
+pip install frooky
 ```
-
 
 ## Usage
 
-Create a hook file (e.g., `hooks.yaml`) with the functions and/or methods you want to hook. 
+Create a hook file (e.g., `hooks.yaml`) with the functions and/or methods you want to hook.
 
 If you are already familiar with Frida and function hooking, we recommend using the documented examples as a quick starting point. You find them in the folder [docs/examples/](./docs/examples/).
 
@@ -51,23 +49,22 @@ After you created the desired hook file, run `frooky`:
 
 ```bash
 # Attach by app name
-frooky android -U -n org.owasp.mastestapp hooks.yaml
+frooky -U -n org.owasp.mastestapp hooks.yaml
 
-# Spawn and add multiple hook files (hooks are merged)
-frooky android -U -f org.owasp.mastestapp storage.yaml crypto.yaml
+# Spawn and load multiple hook files (hooks are merged)
+frooky -U -f org.owasp.mastestapp storage.yaml crypto.yaml
 
-# Spawn and add multiple hook files using globs (hooks are merged)
-frooky android -U -f org.owasp.mastestapp hooks_*.yaml
+# Spawn and load multiple hook files using globs (hooks are merged)
+frooky -U -f org.owasp.mastestapp hooks_*.yaml
 ```
 
 See `frooky -h` for more options.
-
 
 ## Structure of a Hook File
 
 frooky uses _hook files_, which are structured YAML files including declarations of methods or functions to be hooked.
 
-A hook file consists of optional metadata and a list of _hook declarations_. The following YAML file describes the basic structure:
+A hook file consists of optional metadata and a list of _hook declarations_ called `hookCollection` . The following YAML file describes the basic structure:
 
 ```yaml
 metadata:                         # All metadata is optional
@@ -76,27 +73,14 @@ metadata:                         # All metadata is optional
   description: <description>      # Description of what the hook collection does
   category: <category>            # Category of the hook collection
   author: <author>                # Your name or organization
-  version: <version>              # Semantic version (e.g., v1)
+  version: <version>              # Version number of the hook collection (e.g., 1)
 
-hooks:                            # Collection of hook declarations
+settings:                         # Optional. Default hookSettings/decoderSettings applied to every hook group
+  hookSettings: { ... }
+  decoderSettings: { ... }
+
+hookCollection:                   # Collection of hook declarations
   - <hook_declaration>
-```
-
-**Example:**
-
-The following hook file hooks all RNG initialization methods and functions on an Android device, capturing their arguments, return values, and stack trace. This information can be used to detect insecure RNG.
- 
-```yaml
-metadata:
-  name: RNG initialization
-  platform: Android
-  description: Hooks all RNG initialization methods on Android (Java, kotlin, native)
-  masCategory: CRYPTOGRAPHY
-  author: frooky dev team
-  version: v1
-
-hooks:
-  - <hook_declaration> 
 ```
 
 ## Hook Declaration
@@ -105,14 +89,13 @@ Depending on the platform, the `<hook_declaration>` may look different. Please r
 
 frooky supports these types of hooks:
 
-| Hook Type        | Platform    | Description                                 | Documentation                                                          |
-| ---------------- | ----------- | ------------------------------------------- | ---------------------------------------------------------------------- |
-| `JavaHook`       | Android     | Hook for Java/Kotlin methods                | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)              |
-| `ObjcHook`       | iOS         | Hook for Objective-C methods                | [`ObjcHook`-Declaration](./docs/objective-c-hook-declaration.md)       |
-| `NativeHook`     | Android/iOS | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md)          |
+| Hook Type    | Platform    | Description                                 | Documentation                                                 |
+| ------------ | ----------- | ------------------------------------------- | ------------------------------------------------------------- |
+| `JavaHook`   | Android     | Hook for Java/Kotlin methods                | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)     |
+| `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
 
-> [!IMPORTANT]
-> When loading a hook declaration, frooky will validate it and to detect invalid declarations. For example, it is not possible to declare a `JavaHook` and a `ObjcHook` hook in one hook file.
+> [!NOTE]
+> `hookCollection` may freely mix different hook declarations within the same hook file, as long as they are compatible to the platform. For example an Android hook file with `JavaHook` and `NativeHook` is valid.
 
 ## Parameter- and Return-Type Declaration
 
@@ -122,72 +105,67 @@ Depending on the value types, this can be simple or more complex. frooky tries t
 
 - [Parameter Declaration](docs/parameter-declaration.md)
 - [Return Type Declaration](docs/return-type-declaration.md)
+- [Decoders](docs/decoders.md)
 
 ## Example
 
-We'll use the OWASP MAS [MASTG-DEMO-0072](https://mas.owasp.org/MASTG/demos/android/MASVS-CRYPTO/MASTG-DEMO-0072/MASTG-DEMO-0072/) app to demonstrate hooking a cryptographic key generation method.
+We'll use the OWASP MAS [MASTG-DEMO-0106](https://mas.owasp.org/MASTG/demos/android/MASVS-RESILIENCE/MASTG-DEMO-0106/MASTG-DEMO-0106/) app to demonstrate hooking a cryptographic en-/decryption method.
 
-First you need to create a hook file, e.g., `keygen.yaml`:
+First you need to create a hook file, e.g., `cipher.yaml`:
 
 ```yaml
 metadata:
-  name: Android Key Generator Specifications
+  name: Android Cipher doFinal Hook
   platform: Android
-  description: Captures the initialization of a KeyGenParameterSpec Builder 
+  description: Captures the plaintext/ciphertext passed to Cipher#doFinal during en-/decryption decoded as string.
   category: CRYPTO
   author: frooky dev team
-  version: v1
+  version: 1
 
-hooks:
-  - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
-    methods:
-      - $init
+hookCollection:
+  - javaClass: javax.crypto.Cipher
+    hooks:
+      - [ doFinal, {decoder: "string"} ]
 ```
 
 Then run `frooky` with the hook file against your target app:
 
 ```bash
-frooky android -U -n org.owasp.mastestapp keygen.yaml
+frooky -U -f org.owasp.mastestapp cipher.yaml
 ```
 
-Events are written to the output file in JSON Lines format (one JSON object per line, known as NDJSON). 
+Events are written to the output file as newline-separated batches, each line a JSON array of the events captured in that batch (see [Understanding Output Format](./docs/output.md) for the full schema).
 
 Example Output (pretty-printed for readability):
 
 ```json
 {
-  "id": "14535033-08ea-4063-897c-eacd4a885d8b",
-  "type": "hook",
-  "category": "CRYPTO",
-  "time": "2026-01-14T16:02:21.782Z",
-  "class": "android.security.keystore.KeyGenParameterSpec$Builder",
-  "method": "$init",
-  "instanceId": 35486102,
-  "stackTrace": [
-    "android.security.keystore.KeyGenParameterSpec$Builder.<init>(Native Method)",
-    "org.owasp.mastestapp.MastgTest.generateKey(MastgTest.kt:97)",
-    "org.owasp.mastestapp.MastgTest.mastgTest(MastgTest.kt:41)",
-    "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11(MainActivity.kt:101)",
-    "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk(Unknown Source:0)",
-    "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run(D8$$SyntheticClass:0)",
-    "java.lang.Thread.run(Thread.java:1012)"
-  ],
-  "inputParameters": [
-    {
-      "declaredType": "java.lang.String",
-      "value": "MultiPurposeKey"
+    "id": "0a6c400a-a7fe-44ab-8842-d1e4a67e0487",
+    "timestamp": "2026-09-16T06:20:33.163Z",
+    "type": "hook-java",
+    "javaClassName": "javax.crypto.Cipher",
+    "method": "doFinal",
+    "fieldType": {
+        "fieldType": "static"
     },
-    {
-      "declaredType": "int",
-      "value": 15
+    "stackTrace": [
+      "javax.crypto.Cipher.doFinal (Cipher.java:2066)",
+      "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:58)",
+      "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)",
+      "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)",
+      "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)"
+    ],
+    "argsIn": [
+        {
+            "type": "[B",
+            "value": ".5}....!(.L;(...KY.ly.Pd.`2.uT.....x.C?."
+        }
+    ],
+    "argsOut": [],
+    "returnValue": {
+        "type": "[B",
+        "value": "We ❤️ OWASP MAS 📱"
     }
-  ],
-  "returnValue": [
-    {
-      "declaredType": "void",
-      "value": "void"
-    }
-  ]
 }
 ```
 
@@ -195,8 +173,6 @@ Example Output (pretty-printed for readability):
 
 Please refer to the following documentation for more information about various topics:
 
-
 - [Additional Settings and Best Practices](./docs/additional-features.md)
 - [Development / Local Testing](./docs/develop.md)
 - [Understanding Output Format](./docs/output.md)
-

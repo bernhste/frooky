@@ -4,9 +4,7 @@
     "dockerfile": "Dockerfile"
   },
   "remoteUser": "vscode",
-  "runArgs": [
-    "--add-host=host.docker.internal:host-gateway"
-  ],
+  "runArgs": ["--add-host=host.docker.internal:host-gateway"],
   "initializeCommand": "bash .devcontainer/host-services-start.sh",
   "containerEnv": {
     "APPIUM_URL": "http://host.docker.internal:4723",
@@ -21,7 +19,6 @@
   ],
   "postCreateCommand": "sudo chown -R vscode:vscode /commandhistory ${containerWorkspaceFolder}/frooky/agent/node_modules /home/vscode/.gradle /opt/venv && .devcontainer/setup-arm64-android-configure-gradle.sh && echo 'source /opt/venv/bin/activate' >> ~/.bashrc && echo 'source /opt/venv/bin/activate' >> ~/.zshrc && ./compileAgent.sh --dev && pip install -e \".[dev]\"",
   "features": {
-    "ghcr.io/devcontainers/features/sshd:1": {},
     "./features/appium": {}
   },
   "customizations": {
@@ -30,10 +27,12 @@
         "python.defaultInterpreterPath": "/opt/venv/bin/python"
       },
       "extensions": [
-        "ms-python.python",
-        "biomejs.biome",
+        "esbenp.prettier-vscode",
         "charliermarsh.ruff",
-        "DavidAnson.vscode-markdownlint"
+        "dbaeumer.vscode-eslint",
+        "yzhang.markdown-all-in-one",
+        "fwcd.kotlin",
+        "ms-vscode.cpptools"
       ]
     }
   }

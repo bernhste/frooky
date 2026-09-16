@@ -1,16 +1,25 @@
 {
-  "biome.lsp.bin": "./frooky/agent/node_modules/.bin/biome",
   "[typescript]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
   },
   "[json]": {
-    "editor.defaultFormatter": "biomejs.biome",
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
   },
+  "[yaml]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": false,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "never"
+    }
+  },
   "[markdown]": {
-    "editor.defaultFormatter": "DavidAnson.vscode-markdownlint",
-    "editor.formatOnSave": true
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.markdownlint": "explicit"
+    }
   },
   "[c]": {
     "editor.defaultFormatter": "ms-vscode.cpptools",
@@ -29,15 +38,27 @@
     "editor.formatOnSave": true
   },
   "editor.codeActionsOnSave": {
-    "source.fixAll.biome": "explicit",
-    "source.organizeImports.biome": "explicit"
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
   },
-  "biome.enabled": true, 
-  "biome.configurationPath": "./biome.json",
+  "eslint.validate": ["typescript", "javascript"],
   "kotlin.diagnostics.enabled": false,
+  "markdown.extension.toc.levels": "2..6",
+  "markdown.extension.toc.updateOnSave": true,
+  "markdown.extension.toc.orderedList": false,
   "C_Cpp.errorSquiggles": "disabled",
   "cSpell.words": [
+    "Backtracer",
+    "frooky",
+    "ifaces",
+    "inout",
     "JNIEXPORT",
-    "jobject"
+    "jobject",
+    "Ljava",
+    "llong",
+    "schar",
+    "ssize",
+    "uchar",
+    "ullong"
   ]
 }

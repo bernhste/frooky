@@ -254,8 +254,7 @@ unzip -l dist/*.whl | grep "frooky/agent/dist/agent-ios.js"
 
 ### iOS
 
-- Hooks Objective-C and Swift methods
-- Uses Frida's ObjC and Swift bridges (`frida-objc-bridge` and `frida-swift-bridge`)
+- Hooks native functions (C/C++/Rust etc.), same as Android's `NativeHook`
 - Method syntax differs from Android (see [`docs/usage.md`](../docs/usage.md))
 
 ## Debugging Tips

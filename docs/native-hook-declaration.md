@@ -2,9 +2,14 @@
 
 This documentation explains how to write native hook declarations.
 
-- [Structure of a `NativeHook` Declaration](#structure-of-a-nativehook-declaration)
+<!-- TOC -->
+
+- [Structure](#structure)
 - [Basic Usage](#basic-usage)
 - [Decoding Arguments and Return Values](#decoding-arguments-and-return-values)
+- [Hook and Decoder Settings](#hook-and-decoder-settings)
+
+<!-- /TOC -->
 
 ## Structure
 
@@ -12,33 +17,49 @@ A `NativeHook` declaration is a YAML object with these top level fields:
 
 ```yaml
 module: <module name>
-functions:
+hookSettings:                       # Optional. Overrides the file-level `settings.hookSettings` for this group
+  <hook settings>
+decoderSettings:                    # Optional. Overrides the file-level `settings.decoderSettings` for this group
+  <decoder settings>
+hooks:
   - <symbol name>
   - symbol: <symbol name>
-    returnType: <type>                # Optional
+    retType: <type>                   # Optional
     params:                           # Optional
       - <parameter declaration>
+    hookSettings:                     # Optional. Overrides the group's hookSettings for this hook only
+      <hook settings>
+    decoderSettings:                  # Optional. Overrides the group's decoderSettings for this hook only
+      <decoder settings>
 ```
 
 `module` is the name of the native module, for example a shared library such as `libssl.so`.
 
-`functions` is a list of native functions to hook. Each item in `functions` can be written in one of two forms.
+`hooks` is a list of native functions to hook. Each item in `hooks` can be written in one of three forms.
 
 Use the **short form** when you only want to hook a symbol and do not need argument or return value decoding.
 
 ```yaml
 module: <module name>
-functions:
+hooks:
   - <symbol name>
+```
+
+Use the **short form with settings** — a `[<symbol name>, {<decoder settings>}]` tuple — to hook a symbol while overriding its `decoderSettings`, without switching to the expanded form.
+
+```yaml
+module: <module name>
+hooks:
+  - [<symbol name>, { <decoder settings> }]
 ```
 
 Use the **expanded form** when you want frooky to decode arguments and or the return value.
 
 ```yaml
 module: <module name>
-functions:
+hooks:
   - symbol: <symbol name>
-    returnType: <type>                # Optional
+    retType: <type>                   # Optional
     params:                           # Optional
       - <parameter declaration>
 ```
@@ -46,21 +67,21 @@ functions:
 In the expanded form:
 
 - `symbol`: Native symbol name.
-- `returnType`: Optional return type of the function.
+- `retType`: Optional return type of the function.
 - `params`: Optional list of parameter declarations.
 
 > [!IMPORTANT]
 > Read the documentation for [parameter](./parameter-declaration.md) and [return type](./return-type-declaration.md) declarations to learn how to declare and configure them correctly.
 >
-> There are multiple ways to declare a parameter. In this document, all examples use [named parameters](./parameter-declaration.md#22-named-objective-c-parameters).
+> There are multiple ways to declare a parameter. In this document, all examples use [named parameters](./parameter-declaration.md#named-native-parameters).
 
 ## Basic Usage
 
-The minimum required fields are `module` and `functions`.
+The minimum required fields are `module` and `hooks`.
 
 ```yaml
 module: <module name>
-functions:
+hooks:
   - <symbol name>
 ```
 
@@ -70,7 +91,7 @@ This hooks the listed symbols from the specified native module.
 
 ```yaml
 module: libssl.so
-functions:
+hooks:
   - ENGINE_load_builtin_engines
   - ENGINE_cleanup
 ```
@@ -82,17 +103,29 @@ void ENGINE_load_builtin_engines(void);
 void ENGINE_cleanup(void);
 ```
 
+To hook a symbol while also overriding its `decoderSettings`, write the hook as a `[<symbol name>, {<decoder settings>}]` tuple instead of a plain string.
+
+**Example:**
+
+```yaml
+module: libc.so
+hooks:
+  - [malloc, { fastDecode: true }]
+```
+
+This hooks `malloc` from `libc.so`, with `fastDecode` enabled for that hook only.
+
 ## Decoding Arguments and Return Values
 
 When a function accepts parameters or returns a value, frooky needs to know how to decode them.
 
-You can provide that information by declaring `returnType` and `params` for each function. The type syntax follows standard [C function declaration](https://en.cppreference.com/w/c/language/function_declaration.html) style.
+You can provide that information by declaring `retType` and `params` for each function. The type syntax follows standard [C function declaration](https://en.cppreference.com/w/c/language/function_declaration.html) style.
 
 ```yaml
 module: <module name>
-functions:
+hooks:
   - symbol: <symbol name>
-    returnType: <type>                # Optional
+    retType: <type>                   # Optional
     params:                           # Optional
       - <parameter declaration>
 ```
@@ -101,9 +134,9 @@ functions:
 
 ```yaml
 module: libssl.so
-functions:
+hooks:
   - symbol: OSSL_CMP_validate_cert_path
-    returnType: int
+    retType: int
     params:
       - ["const OSSL_CMP_CTX *", ctx]
       - ["X509_STORE *", trusted_store]
@@ -120,5 +153,24 @@ int OSSL_CMP_validate_cert_path(const OSSL_CMP_CTX *ctx,
 
 When these types are declared, frooky can decode arguments and return values using its built in decoders.
 
-If a type is more complex, you may need to use [custom decoders](./parameter-declaration.md#custom-decoder-in-native).
+If a type is more complex, you may need further [decoder settings](./decoders.md#decoder-settings), such as `decoderArg` or `direction`, to decode it correctly.
 
+## Hook and Decoder Settings
+
+`hookSettings` (e.g. `stackTraceLimit`, `stackTraceFilter`) and `decoderSettings` (e.g. `maxRecursion`, `magicDecode`) can be declared at the hook-group level (applying to every hook in the group) or on an individual hook (overriding the group for that hook only). See [Additional Settings and Best Practices](./additional-features.md) and [Decoders](./decoders.md) for the full list of options and how settings from the file-level `settings`, the hook group, an individual hook, and a parameter are merged together.
+
+**Example:**
+
+```yaml
+module: libc.so
+hookSettings:
+  stackTraceLimit: 10
+  stackTraceFilter: ['^org\.owasp\.mastestapp']
+hooks:
+  - symbol: open
+    retType: int
+    params:
+      - [const char *, path]
+      - [int, flags]
+      - [mode_t, mode]
+```
