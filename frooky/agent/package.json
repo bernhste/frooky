@@ -1,6 +1,6 @@
 {
   "name": "frooky-agent",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Frooky frida agent.",
   "private": true,
   "type": "module",

@@ -31,9 +31,7 @@ jobs:
 
       - name: Build frooky agent
         working-directory: frooky/agent
-        run: |
-          npm run build:prod:android
-          npm run build:prod:ios
+        run: npm run build:prod:android
 
       - name: Upload frooky agent artifact
         uses: actions/upload-artifact@v7

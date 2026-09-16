@@ -11,6 +11,9 @@ jobs:
   build-host:
     uses: ./.github/workflows/build-host.yml
 
+  test-host-unit:
+    uses: ./.github/workflows/test-host-unit.yml
+
   verify-host:
     name: Verify host
     runs-on: ubuntu-24.04
@@ -40,5 +43,4 @@ jobs:
       - name: Check agent artifacts
         run: |
           unzip -l dist/*.whl | grep "frooky/agent/dist/agent-android.js"
-          unzip -l dist/*.whl | grep "frooky/agent/dist/agent-ios.js"
           echo "All agent artifacts present in wheel"
