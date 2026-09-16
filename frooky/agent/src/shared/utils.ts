@@ -14,20 +14,20 @@ const HEX_TABLE: readonly string[] = Object.freeze(Array.from({ length: 256 }, (
 
 /**
  * Determines the actual length to decode and whether ellipsis is needed.
- * @param bytes - Bytes array to check length against.
- * @param length - Maximum number of bytes to decode.
+ * @param availableLength - Number of decodable items (bytes or characters) available.
+ * @param length - Maximum number of items to decode.
  * @returns A tuple [lengthToDecode, ellipsis] where lengthToDecode is the actual length and ellipsis is "..." or "".
  * @throws {RangeError} If length is negative.
  */
-function getDecodeBounds(bytes: Uint8Array, length: number): [number, string] {
+function getDecodeBounds(availableLength: number, length: number): [number, string] {
   if (length < 0) {
     throw new RangeError("Length cannot be negative");
   }
 
-  if (bytes.length > length) {
+  if (availableLength > length) {
     return [length, "..."];
   }
-  return [bytes.length, ""];
+  return [availableLength, ""];
 }
 
 /**
@@ -47,7 +47,7 @@ function isPrintable(byte: number): boolean {
  * @throws {RangeError} If length is negative.
  */
 export function toHex(bytes: Uint8Array, length: number = Infinity): string {
-  const [lengthToDecode, ellipsis] = getDecodeBounds(bytes, length);
+  const [lengthToDecode, ellipsis] = getDecodeBounds(bytes.length, length);
   const hexArray = new Array(lengthToDecode);
 
   for (let i = 0; i < lengthToDecode; i++) {
@@ -67,7 +67,7 @@ export function toHex(bytes: Uint8Array, length: number = Infinity): string {
  * @throws {RangeError} If length is negative.
  */
 export function toAscii(bytes: Uint8Array, length: number = Infinity, placeholder: string = "."): string {
-  const [lengthToDecode, ellipsis] = getDecodeBounds(bytes, length);
+  const [lengthToDecode, ellipsis] = getDecodeBounds(bytes.length, length);
   const asciiArray = new Array(lengthToDecode);
 
   for (let i = 0; i < lengthToDecode; i++) {
@@ -79,6 +79,91 @@ export function toAscii(bytes: Uint8Array, length: number = Infinity, placeholde
 }
 
 /**
+ * Checks whether a byte sequence is well-formed UTF-8.
+ * @param bytes - Bytes to validate.
+ * @returns True if every byte participates in a well-formed UTF-8 sequence.
+ */
+export function isValidUtf8(bytes: Uint8Array): boolean {
+  let i = 0;
+  while (i < bytes.length) {
+    const byte1 = bytes[i];
+    let extraBytes: number;
+    let codePoint: number;
+    let minCodePoint: number;
+
+    if (byte1 <= 0x7f) {
+      i += 1;
+      continue;
+    } else if ((byte1 & 0xe0) === 0xc0) {
+      extraBytes = 1;
+      codePoint = byte1 & 0x1f;
+      minCodePoint = 0x80;
+    } else if ((byte1 & 0xf0) === 0xe0) {
+      extraBytes = 2;
+      codePoint = byte1 & 0x0f;
+      minCodePoint = 0x800;
+    } else if ((byte1 & 0xf8) === 0xf0) {
+      extraBytes = 3;
+      codePoint = byte1 & 0x07;
+      minCodePoint = 0x10000;
+    } else {
+      return false;
+    }
+
+    if (i + extraBytes >= bytes.length) {
+      return false;
+    }
+
+    for (let j = 1; j <= extraBytes; j++) {
+      const continuationByte = bytes[i + j];
+      if ((continuationByte & 0xc0) !== 0x80) {
+        return false;
+      }
+      codePoint = (codePoint << 6) | (continuationByte & 0x3f);
+    }
+
+    // rejects overlong encodings and UTF-16 surrogate halves, which are not valid UTF-8 code points
+    if (codePoint < minCodePoint || (codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
+      return false;
+    }
+
+    i += extraBytes + 1;
+  }
+  return true;
+}
+
+/**
+ * Decodes a well-formed UTF-8 byte sequence into a string.
+ * @param bytes - Bytes to decode. Must already be validated with {@link isValidUtf8}.
+ * @param length - Maximum number of decoded characters to return. Defaults to Infinity.
+ * @returns The decoded string, truncated to `length` characters with an ellipsis if needed.
+ * @throws {RangeError} If length is negative.
+ */
+export function toUtf8(bytes: Uint8Array, length: number = Infinity): string {
+  const codePoints: number[] = [];
+  let i = 0;
+  while (i < bytes.length) {
+    const byte1 = bytes[i];
+    if (byte1 <= 0x7f) {
+      codePoints.push(byte1);
+      i += 1;
+    } else if ((byte1 & 0xe0) === 0xc0) {
+      codePoints.push(((byte1 & 0x1f) << 6) | (bytes[i + 1] & 0x3f));
+      i += 2;
+    } else if ((byte1 & 0xf0) === 0xe0) {
+      codePoints.push(((byte1 & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f));
+      i += 3;
+    } else {
+      codePoints.push(((byte1 & 0x07) << 18) | ((bytes[i + 1] & 0x3f) << 12) | ((bytes[i + 2] & 0x3f) << 6) | (bytes[i + 3] & 0x3f));
+      i += 4;
+    }
+  }
+
+  const [lengthToDecode, ellipsis] = getDecodeBounds(codePoints.length, length);
+  return String.fromCodePoint(...codePoints.slice(0, lengthToDecode)) + ellipsis;
+}
+
+/**
  * Fast bytes to hexadecimal and ASCII conversion.
  * @param bytes - Bytes to be decoded.
  * @param length - Number of bytes which will be decoded. Defaults to Infinity.
@@ -87,7 +172,7 @@ export function toAscii(bytes: Uint8Array, length: number = Infinity, placeholde
  * @throws {RangeError} If length is negative.
  */
 export function toHexAndAscii(bytes: Uint8Array, length: number = Infinity, placeholder: string = "."): [string, string] {
-  const [lengthToDecode, ellipsis] = getDecodeBounds(bytes, length);
+  const [lengthToDecode, ellipsis] = getDecodeBounds(bytes.length, length);
   const hexArray = new Array(lengthToDecode);
   const asciiArray = new Array(lengthToDecode);
 

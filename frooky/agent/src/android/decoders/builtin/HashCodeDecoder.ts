@@ -16,7 +16,7 @@ import { DecodedValue } from "../../../shared/decoders/decodedValue";
  * uniqueness guarantee (it can collide, and isn't always reference-based) - it's just whatever the
  * runtime class actually returns.
  */
-export class ToHashCodeDecoder extends Decoder<Java.Wrapper> {
+export class HashCodeDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     let decodedValue: string | null = null;
     if (value != null) {

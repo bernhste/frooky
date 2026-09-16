@@ -122,7 +122,7 @@ hookCollection:
     - method: initSign
       overloads:
       - params:
-        - ["java.security.PrivateKey", "privateKey", {decoder: "toHashCode"}]
+        - ["java.security.PrivateKey", "privateKey", {decoder: "hashCode"}]
 
 
   - javaClass: javax.crypto.Cipher
@@ -133,10 +133,10 @@ hookCollection:
       overloads:
       - params:
         - ["int", "opmode"]
-        - ["java.security.Key", "key", {decoder: "toHashCode"}]
+        - ["java.security.Key", "key", {decoder: "hashCode"}]
         - ["java.security.SecureRandom", "random"]
 
 
   - javaClass: javax.crypto.Cipher
-    hooks:
-      - [ doFinal,  {decoder: "toHashCode"} ] 
+    hooks: 
+      - doFinal

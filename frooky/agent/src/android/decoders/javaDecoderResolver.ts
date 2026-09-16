@@ -6,15 +6,15 @@ import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
 import { PrimitiveDecoder } from "./builtin/BasicDecoder";
+import { HashCodeDecoder } from "./builtin/HashCodeDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
-import { ToHashCodeDecoder } from "./builtin/ToHashCodeDecoder";
-import { ToStringDecoder } from "./builtin/ToStringDecoder";
+import { StringDecoder } from "./builtin/StringDecoder";
 
 export type DecoderConstructor = { new (decodable: Decodable): Decoder<Java.Wrapper> };
 
 const CUSTOM_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
-  toString: ToStringDecoder,
-  toHashCode: ToHashCodeDecoder,
+  string: StringDecoder,
+  hashCode: HashCodeDecoder,
   intentFlag: IntentFlagDecoder,
   intentUriFlag: IntentUriFlagDecoder,
 };

@@ -1,13 +1,13 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
-import { ToHashCodeDecoder } from "./ToHashCodeDecoder";
+import { HashCodeDecoder } from "./HashCodeDecoder";
 
-describe("ToHashCodeDecoder", () => {
+describe("HashcodeDecoder", () => {
   describe("decode()", () => {
     it("should decode a value as '<runtime class>@<hex hashCode()>'", () => {
       const JavaObject = Java.use("java.lang.Object");
       const value = JavaObject.$new();
-      const decoder = new ToHashCodeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new HashCodeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
 
       const result = decoder.decode(value);
 
@@ -20,7 +20,7 @@ describe("ToHashCodeDecoder", () => {
       // "ClassName@hash" shape - this must not leak through here the way ToStringDecoder would
       const BigInteger = Java.use("java.math.BigInteger");
       const value = BigInteger.$new("123456789");
-      const decoder = new ToHashCodeDecoder({ type: "java.math.BigInteger", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new HashCodeDecoder({ type: "java.math.BigInteger", settings: DEFAULT_DECODER_SETTINGS });
 
       const result = decoder.decode(value);
 
@@ -36,7 +36,7 @@ describe("ToHashCodeDecoder", () => {
       const JavaLong = Java.use("java.lang.Long");
       const first = JavaLong.$new("123456789012345");
       const second = JavaLong.$new("123456789012345");
-      const decoder = new ToHashCodeDecoder({ type: "java.lang.Long", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new HashCodeDecoder({ type: "java.lang.Long", settings: DEFAULT_DECODER_SETTINGS });
 
       const firstResult = decoder.decode(first);
       const secondResult = decoder.decode(second);
@@ -47,7 +47,7 @@ describe("ToHashCodeDecoder", () => {
     it("should include the decodable name in the result", () => {
       const JavaObject = Java.use("java.lang.Object");
       const value = JavaObject.$new();
-      const decoder = new ToHashCodeDecoder({ type: "java.lang.Object", name: "myParam", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new HashCodeDecoder({ type: "java.lang.Object", name: "myParam", settings: DEFAULT_DECODER_SETTINGS });
 
       const result = decoder.decode(value);
 
@@ -55,7 +55,7 @@ describe("ToHashCodeDecoder", () => {
     });
 
     it("should decode a null value as null without throwing", () => {
-      const decoder = new ToHashCodeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
+      const decoder = new HashCodeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
 
       const result = decoder.decode(null as unknown as Java.Wrapper);
 
