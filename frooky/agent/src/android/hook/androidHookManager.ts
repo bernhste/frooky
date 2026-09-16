@@ -17,7 +17,7 @@ import { JavaHookEvent } from "./javaHookEvent";
 
 export type FieldType = {
   fieldType: "static" | "instance";
-  instanceId?: number;
+  hashCode?: string;
 };
 
 // resolve java classes, the method and their overloads
@@ -297,7 +297,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       method === null || method === undefined || method.$handle === null || method.$handle === undefined || method.$className === undefined;
 
     const fieldType = isStatic ? "static" : "instance";
-    const instanceId = fieldType === "instance" ? method.hashCode() : undefined;
-    return { fieldType, instanceId };
+    const hashCode = isStatic ? undefined : (method.hashCode() >>> 0).toString(16);
+    return { fieldType, hashCode };
   }
 }
