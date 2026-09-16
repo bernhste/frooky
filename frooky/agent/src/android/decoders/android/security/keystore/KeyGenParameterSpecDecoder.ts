@@ -6,9 +6,9 @@ import { decodeGetterValues } from "../../../utils/decodeGetterValues";
 export class KeyGenParameterSpecDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
-      value: decodeGetterValues(value, ["get", "is"], this.decodable.settings),
+      type: this.type,
+      name: this.name,
+      value: decodeGetterValues(value, ["get", "is"], this.settings),
     };
   }
 }

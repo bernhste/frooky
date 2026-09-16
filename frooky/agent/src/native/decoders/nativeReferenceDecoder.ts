@@ -138,9 +138,9 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
       this.cachedDecoder = referenceDecoders[this.fridaReference.pointee];
     }
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
-      value: this.cachedDecoder(value, this.decodable.settings, arg),
+      type: this.type,
+      name: this.name,
+      value: this.cachedDecoder(value, this.settings, arg),
     };
   }
 }

@@ -1,5 +1,6 @@
 import { Decodable } from "./decodable";
 import { DecodedValue } from "./decodedValue";
+import { DecoderSettings } from "../frookySettings";
 
 /**
  * Base interface for value decoders.
@@ -8,9 +9,15 @@ import { DecodedValue } from "./decodedValue";
  */
 export abstract class Decoder<TValue> {
   protected decodable: Decodable;
+  protected settings: DecoderSettings;
+  protected type: string;
+  protected name?: string;
 
   constructor(decodable: Decodable) {
     this.decodable = decodable;
+    this.settings = decodable.settings;
+    this.type = decodable.type;
+    this.name = decodable.name;
   }
 
   /**

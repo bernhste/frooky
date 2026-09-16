@@ -10,7 +10,7 @@ export class ClipDataItemDecoder extends Decoder<Java.Wrapper> {
     const uri = value.getUri();
 
     const intentValue = value.getIntent();
-    const intent = intentValue != null ? decodeGetterValues(intentValue, ["get"], this.decodable.settings) : null;
+    const intent = intentValue != null ? decodeGetterValues(intentValue, ["get"], this.settings) : null;
 
     return {
       type: "android.content.ClipData.Item",

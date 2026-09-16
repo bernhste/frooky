@@ -28,7 +28,7 @@ export class ClipDataDecoder extends Decoder<Java.Wrapper> {
 
       const clipDataItemDecoder = new ClipDataItemDecoder({
         type: "android.content.ClipData.Item",
-        settings: this.decodable.settings,
+        settings: this.settings,
       });
 
       items.push(clipDataItemDecoder.decode(item));

@@ -45,7 +45,7 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
     }
 
     return {
-      type: this.decodable.type,
+      type: this.type,
       value: values,
     };
   }
@@ -55,7 +55,7 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
       return { type: "null", name: key, value: null };
     }
 
-    const settings: DecoderSettings = this.decodable.settings;
+    const settings: DecoderSettings = this.settings;
     const className: string = entry.getClass().getName();
 
     if (className.startsWith("[")) {

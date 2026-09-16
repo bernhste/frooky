@@ -6,23 +6,23 @@ import { decodeGetterValues } from "../utils/decodeGetterValues";
 export class PrimitiveDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: this.needsUnwrap() && value != null ? value.toString() : value,
     };
   }
 
   private needsUnwrap(): boolean {
-    return this.decodable.type === "long" || this.decodable.type === "java.lang.String";
+    return this.type === "long" || this.type === "java.lang.String";
   }
 }
 
 export class GetterDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
-      value: decodeGetterValues(value, ["get"], this.decodable.settings),
+      type: this.type,
+      name: this.name,
+      value: decodeGetterValues(value, ["get"], this.settings),
     };
   }
 }
@@ -37,8 +37,8 @@ export class GetterDecoder extends Decoder<Java.Wrapper> {
 export class JavaReflectionMetadataDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: value.toString(),
     };
   }

@@ -44,7 +44,7 @@ function elementTypeFromSignature(element: string): string {
 
 export class ArrayDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
-    const signature = this.decodable.type;
+    const signature = this.type;
     const elementSignature = signature.startsWith("[") ? signature.substring(1) : signature;
     const elementType = elementTypeFromSignature(elementSignature);
     let arrayValue: unknown[];
@@ -56,8 +56,8 @@ export class ArrayDecoder extends Decoder<Java.Wrapper> {
       // complex java types or nested array
       const elementDecodable: Decodable = {
         type: elementType,
-        name: this.decodable.name,
-        settings: this.decodable.settings,
+        name: this.name,
+        settings: this.settings,
       };
       const elementDecoder = JavaDecoderResolver.resolveDecoder(elementDecodable);
       const len = value.length;
@@ -69,8 +69,8 @@ export class ArrayDecoder extends Decoder<Java.Wrapper> {
     }
 
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: arrayValue,
     };
   }

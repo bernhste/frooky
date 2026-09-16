@@ -93,13 +93,13 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       // be null (e.g. an Object-typed return value) - decode it as null instead of crashing on
       // $className
       return {
-        type: this.decodable.type,
-        name: this.decodable.name,
+        type: this.type,
+        name: this.name,
         value: null,
       };
     }
 
-    logger.debug(`Resolving decoder for declared type: ${this.decodable.type}`);
+    logger.debug(`Resolving decoder for declared type: ${this.type}`);
 
     const decoderConstructor: DecoderConstructor =
       // 1. instances of these classes are always decoded using toString()
@@ -114,7 +114,7 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       // 4. class decoder for the runtime class exists
       getClassDecoderRegistry()[value.$className] ??
       // 5. interface decoder for declared interface type exists
-      getInterfaceDecoderRegistry()[this.decodable.type] ??
+      getInterfaceDecoderRegistry()[this.type] ??
       // 6. resolve the interfaces and use a decoder if implemented
       resolveInterfaceDecoderClass(value) ??
       // 7. try to string decode it as a fallback
@@ -122,13 +122,13 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
 
     const decoder = new decoderConstructor({
       type: value.$className,
-      name: this.decodable.name,
-      settings: this.decodable.settings,
+      name: this.name,
+      settings: this.settings,
     });
 
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: decoder.decode(value),
     };
   }

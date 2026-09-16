@@ -8,8 +8,8 @@ export class StringDecoder extends Decoder<Java.Wrapper> {
     var decodedValue: any;
     if (value == null) {
       decodedValue = value;
-    } else if (this.decodable.type == "[B") {
-      const [bytes, truncated] = readBytesLimited(value as unknown as ArrayLike<number>, this.decodable.settings.decodeLimit);
+    } else if (this.type == "[B") {
+      const [bytes, truncated] = readBytesLimited(value as unknown as ArrayLike<number>, this.settings.decodeLimit);
       const hasMultiByteChars = bytes.some((byte) => byte >= 0x80);
       const decoded = hasMultiByteChars && isValidUtf8(bytes) ? toUtf8(bytes) : toAscii(bytes);
       decodedValue = decoded + (truncated ? "..." : "");
@@ -19,8 +19,8 @@ export class StringDecoder extends Decoder<Java.Wrapper> {
       decodedValue = typedValue.toString();
     }
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: decodedValue,
     };
   }

@@ -4,8 +4,8 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 export class NativeFallbackDecoder extends Decoder<NativePointer> {
   public decode(value: NativePointer): DecodedValue {
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: value.toString(),
     };
   }

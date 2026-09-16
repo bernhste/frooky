@@ -25,8 +25,8 @@ export class HashCodeDecoder extends Decoder<Java.Wrapper> {
       decodedValue = `${value.$className}@${(hash >>> 0).toString(16)}`;
     }
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: decodedValue,
     };
   }

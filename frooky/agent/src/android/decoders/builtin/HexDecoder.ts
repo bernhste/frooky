@@ -8,14 +8,14 @@ export class HexDecoder extends Decoder<Java.Wrapper> {
     var decodedValue: any;
     if (value == null) {
       decodedValue = value;
-    } else if (this.decodable.type == "[B") {
-      const [bytes, truncated] = readBytesLimited(value as unknown as ArrayLike<number>, this.decodable.settings.decodeLimit);
+    } else if (this.type == "[B") {
+      const [bytes, truncated] = readBytesLimited(value as unknown as ArrayLike<number>, this.settings.decodeLimit);
       decodedValue = toHex(bytes) + (truncated ? "..." : "");
     } else {
     }
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: decodedValue,
     };
   }

@@ -8,20 +8,20 @@ export class MapDecoder extends Decoder<Java.Wrapper> {
     const keySet = value.keySet();
     const decodedKeySet = new IterableDecoder({
       type: keySet.$className,
-      name: this.decodable.name,
-      settings: this.decodable.settings,
+      name: this.name,
+      settings: this.settings,
     }).decode(keySet);
 
     const valueCollection = value.values();
     const decodedValues = new IterableDecoder({
       type: valueCollection.$className,
-      name: this.decodable.name,
-      settings: this.decodable.settings,
+      name: this.name,
+      settings: this.settings,
     }).decode(valueCollection);
 
     return {
-      type: this.decodable.type,
-      name: this.decodable.name,
+      type: this.type,
+      name: this.name,
       value: [
         { ...decodedKeySet, name: "key" },
         { ...decodedValues, name: "value" },
