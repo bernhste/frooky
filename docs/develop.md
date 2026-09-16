@@ -13,28 +13,28 @@ This document describes how to set up a local development environment for the re
 
 1. **Create a new Python virtual environment and activate it**
 
-    ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
 
 2. Compiling the frooky agent:
 
-    ```bash
-    ./compileAgent.sh --dev
-    ```
+   ```bash
+   ./compileAgent.sh --dev
+   ```
 
 3. **Install the CLI for development**
 
-    ```bash
-    pip install -e .
-    ```
+   ```bash
+   pip install -e .
+   ```
 
 4. **Ensure which CLI version you're running**
 
-    ```bash
-    which frooky
-    ```
+   ```bash
+   which frooky
+   ```
 
    The output must be a path within the VENV directory, typically ending with `venv/bin/frooky`. If not, a different version might be used instead, such as a global installation.
 
@@ -42,7 +42,7 @@ This document describes how to set up a local development environment for the re
 
 The project consists of two testable components: a Frida agent written in TypeScript and a Python host.
 
-The agent has its own dedicated unit tests that run directly on a target device, as the agent's functionality is  tied to the runtime environment Frida operates in.
+The agent has its own dedicated unit tests that run directly on a target device, as the agent's functionality is tied to the runtime environment Frida operates in.
 
 The host, on the other hand, serves as an integration test for the full application.
 

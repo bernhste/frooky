@@ -115,7 +115,6 @@ hooks:
 
 This hooks `malloc` from `libc.so`, with `fastDecode` enabled for that hook only.
 
-
 ## Decoding Arguments and Return Values
 
 When a function accepts parameters or returns a value, frooky needs to know how to decode them.

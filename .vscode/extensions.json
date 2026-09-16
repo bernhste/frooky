@@ -4,6 +4,7 @@
     "charliermarsh.ruff",
     "dbaeumer.vscode-eslint",
     "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint",
     "fwcd.kotlin",
     "ms-vscode.cpptools"
   ]

@@ -1,7 +1,7 @@
 # Frooky
 
 ```txt
-   ___    ____           
+   ___    ____
   / __\  / _  |    _     _    _  _   _   _
  / _\   | (_) |  / _ \ / _ \ | / /  | | | |
 / /     / / | | | (_) | (_) ||  <   | |_| |
@@ -64,7 +64,7 @@ See `frooky -h` for more options.
 
 frooky uses _hook files_, which are structured YAML files including declarations of methods or functions to be hooked.
 
-A hook file consists of optional metadata and a list of _hook declarations_. The following YAML file describes the basic structure:
+A hook file consists of optional metadata and a list of _hook declarations_ called `hookCollection` . The following YAML file describes the basic structure:
 
 ```yaml
 metadata:                         # All metadata is optional
@@ -79,25 +79,8 @@ settings:                         # Optional. Default hookSettings/decoderSettin
   hookSettings: { ... }
   decoderSettings: { ... }
 
-hookCollection:                        # Collection of hook declarations
+hookCollection:                   # Collection of hook declarations
   - <hook_declaration>
-```
-
-**Example:**
-
-The following hook file hooks all RNG initialization methods and functions on an Android device, capturing their arguments, return values, and stack trace. This information can be used to detect insecure RNG.
-
-```yaml
-metadata:
-  name: RNG initialization
-  platform: Android
-  description: Hooks all RNG initialization methods on Android (Java, kotlin, native)
-  category: CRYPTOGRAPHY
-  author: frooky dev team
-  version: 1
-
-hookCollection:
-  - <hook_declaration> 
 ```
 
 ## Hook Declaration
@@ -140,8 +123,8 @@ metadata:
 
 hookCollection:
   - javaClass: javax.crypto.Cipher
-    hooks: 
-      - [ doFinal, {decoder: "string"} ] 
+    hooks:
+      - [ doFinal, {decoder: "string"} ]
 ```
 
 Then run `frooky` with the hook file against your target app:

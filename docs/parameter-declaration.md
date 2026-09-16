@@ -19,7 +19,7 @@ There are different accepted ways to declare a parameter. The following chapters
   - [`decoderArg`-Option: Pass Arguments to Decoder](#decoderarg-option-pass-arguments-to-decoder)
     - [Pass Arguments to Decoder in Java](#pass-arguments-to-decoder-in-java)
     - [Pass Arguments to Decoder in Native](#pass-arguments-to-decoder-in-native)
-  - [`decoder`-Option: Override the Decoder](#customdecoder-option-override-the-decoder)
+  - [`decoder`-Option: Override the Decoder](#decoder-option-override-the-decoder)
 
 <!-- /TOC -->
 
@@ -114,7 +114,7 @@ module: sqlite3.so
 hooks:
   - symbol: sqlite3_exec
     retType: int
-    params: 
+    params:
       - "sqlite3*"
       - [ "const char *", sql ]
       - [ "void *", callback ]
@@ -171,7 +171,7 @@ The following chapters will explain the concepts through practical examples.
 By default, arguments are decoded when the function or method is called. Larger data structures, such as arrays, are often passed by reference to allow manipulation within the function or method, as the following example shows:
 
 ```java
-public final int doFinal(byte[] output, 
+public final int doFinal(byte[] output,
                          int outputOffset)
 ```
 
@@ -185,19 +185,19 @@ To accommodate these cases, you can specify the timing of decoding using the fol
 #### Explicit Time of Decoding in Java
 
 ```yaml
-javaClass: javax.crypto.Cipher 
+javaClass: javax.crypto.Cipher
 hooks:
   - method: doFinal
     overloads:
       - params:
         - [ "[B", output, { direction: out } ]
         - [ int, outputOffset ]
- ```
+```
 
-This example hooks the following method from the [Android Java Library](https://developer.android.com/reference/javax/crypto/Cipher?hl=en#doFinal(byte[],%20int)):
+This example hooks the following method from the [Android Java Library](<https://developer.android.com/reference/javax/crypto/Cipher?hl=en#doFinal(byte[],%20int)>):
 
 ```java
-public final int doFinal (byte[] output, 
+public final int doFinal (byte[] output,
                           int outputOffset)
 ```
 
@@ -217,7 +217,7 @@ hooks:
 This example hooks the following method from the [C standard library on iOS](https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/realpath.3.html):
 
 ```c
-char *realpath(const char *restrict file_name, 
+char *realpath(const char *restrict file_name,
                char *restrict resolved_name);
 ```
 
@@ -254,11 +254,11 @@ hooks:
         - [ int, len ]
 ```
 
-This example hooks the following method from the [Android Java Library](https://developer.android.com/reference/java/io/FileInputStream#read(byte[],%20int,%20int)):
+This example hooks the following method from the [Android Java Library](<https://developer.android.com/reference/java/io/FileInputStream#read(byte[],%20int,%20int)>):
 
 ```java
-public int read (byte[] b, 
-                 int off, 
+public int read (byte[] b,
+                 int off,
                  int len)
 ```
 
@@ -295,7 +295,7 @@ For some Java types, frooky's built-in decoders are not sufficient to give the c
 > `decoder` is currently only implemented for Java hooks.
 
 ```yaml
-javaClass: android.content.Intent 
+javaClass: android.content.Intent
 hooks:
   - method: setFlags
     overloads:
@@ -303,7 +303,7 @@ hooks:
         - [int, flags, { decoder: android.content.IntentFlagDecoder }]
 ```
 
-This decodes the `flags` argument of [`Intent.setFlags(int)`](https://developer.android.com/reference/android/content/Intent#setFlags(int)) using the `android.content.IntentFlagDecoder`, which resolves the individual `Intent.FLAG_*` constants set in the bitmask instead of just reporting the raw integer.
+This decodes the `flags` argument of [`Intent.setFlags(int)`](<https://developer.android.com/reference/android/content/Intent#setFlags(int)>) using the `android.content.IntentFlagDecoder`, which resolves the individual `Intent.FLAG_*` constants set in the bitmask instead of just reporting the raw integer.
 
 Native hooks will support the same option once implemented, for example to decode a `byte *` using the built-in `toStringDecoder`:
 

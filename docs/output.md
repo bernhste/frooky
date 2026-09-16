@@ -17,11 +17,11 @@ There are three kinds of events, distinguished by their `type` field: `hook-java
 
 Every event carries these fields:
 
-| Field       | Type     | Description                                 |
-| ----------- | -------- | ------------------------------------------- |
-| `id`        | `string` | Unique identifier for the event (UUID).     |
-| `timestamp` | `string` | Event timestamp in ISO 8601 format.         |
-| `type`      | `string` | Type of the event.                          |
+| Field       | Type     | Description                             |
+| ----------- | -------- | --------------------------------------- |
+| `id`        | `string` | Unique identifier for the event (UUID). |
+| `timestamp` | `string` | Event timestamp in ISO 8601 format.     |
+| `type`      | `string` | Type of the event.                      |
 
 Hook events additionally carry:
 
