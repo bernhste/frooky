@@ -113,7 +113,7 @@ export class FrookyAgent {
         Promise.allSettled(
           platformHookPromises.map((p) =>
             p.then((platformHooks) => {
-              if (platformHooks) this.platformHookManger.registerHooks(platformHooks);
+              if (platformHooks) countSuccessfulPlatformHooks += this.platformHookManger.registerHooks(platformHooks);
             }),
           ),
         ),
@@ -162,6 +162,10 @@ export class FrookyAgent {
       // TODO: FIX, is shown even if all is
       // logger.warn(`No hooks were loaded. Either the hook file was empty, or the declared hooks could not be resolved.`);
     }
+
+    // printed unconditionally (bypassing the logger's own verbosity setting) so external tooling
+    // can detect when this config is done resolving, independent of -v/-vv.
+    console.log(`Resolved Hooks: ${countSuccessfulPlatformHooks + countSuccessfulNativeHooks}`);
   }
 
   /**

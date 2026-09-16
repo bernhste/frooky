@@ -57,23 +57,43 @@ def _matches_subset_pattern_recursive(event, pattern):
     return event == pattern
 
 
+def _iter_events(output_file_path):
+    """Yields every individual event written to output.json.
+
+    Each line frooky writes is a batch: a JSON array of events sent together by the agent's
+    event sender (see eventSender.ts), not a single event object, so lines are flattened here.
+    """
+    with open(output_file_path, "r", encoding="utf8") as handle:
+        for line in handle:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            yield from (entry if isinstance(entry, list) else [entry])
+
+
 @pytest.fixture
 def count_matched_events(output_file_path):
-    """Factory fixture to scan output NDJSON for hooks matching the patterns."""
+    """Factory fixture to count events in output.json matching the given pattern."""
 
     def _count_matched_events(expected_event):
-        matched = 0
-        with open(output_file_path, "r", encoding="utf8") as handle:
-            for line in handle:
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if _matches_subset_pattern_recursive(entry, expected_event):
-                    matched += 1
-        return matched
+        return sum(1 for event in _iter_events(output_file_path) if _matches_subset_pattern_recursive(event, expected_event))
 
     return _count_matched_events
+
+
+@pytest.fixture
+def find_matched_events(output_file_path):
+    """Factory fixture returning the actual events in output.json matching the given pattern.
+
+    Use this over count_matched_events when a test needs to inspect decoded values rather than
+    just confirm a hook fired.
+    """
+
+    def _find_matched_events(expected_event):
+        return [event for event in _iter_events(output_file_path) if _matches_subset_pattern_recursive(event, expected_event)]
+
+    return _find_matched_events
 
 
 @pytest.fixture(params=["android", "ios"])

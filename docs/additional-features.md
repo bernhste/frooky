@@ -14,10 +14,10 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 
 `hookSettings` controls how a hook itself behaves, independent of argument/return value decoding.
 
-| Setting            | Type       | Default | Description                                                           |
-| ------------------ | ---------- | ------- | --------------------------------------------------------------------- |
-| `stackTraceLimit`  | `number`   | `0`     | Limits the number of stack frames captured per event.                 |
-| `stackTraceFilter` | `string[]` | `[]`    | Regular expressions; only stack frames matching one of them are kept. |
+| Setting            | Type       | Default | Description                                                                                                                                                                                               |
+| ------------------ | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stackTraceLimit`  | `number`   | `0`     | Limits the number of stack frames captured per event.                                                                                                                                                     |
+| `stackTraceFilter` | `string[]` | `[]`    | Regular expressions; the event is only captured if at least one captured stack frame matches one of them. Frames themselves are not filtered individually - a match keeps the whole captured stack trace. |
 
 ## Settings Precedence
 
