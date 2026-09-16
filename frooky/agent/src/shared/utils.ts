@@ -31,6 +31,24 @@ function getDecodeBounds(availableLength: number, length: number): [number, stri
 }
 
 /**
+ * Reads at most `limit` elements from an array-like value, without reading elements beyond that -
+ * important when `array` is a Java array proxy, where every element access crosses the JS/Java bridge.
+ * @param array - Array-like value to read from (e.g. a Java byte[] proxy).
+ * @param limit - Maximum number of elements to read.
+ * @returns A tuple [bytes, truncated] where truncated is true if `array` had more elements than `limit`.
+ */
+export function readBytesLimited(array: ArrayLike<number>, limit: number): [bytes: Uint8Array, truncated: boolean] {
+  const readLength = Math.min(array.length, limit);
+  const bytes = new Uint8Array(readLength);
+
+  for (let i = 0; i < readLength; i++) {
+    bytes[i] = array[i];
+  }
+
+  return [bytes, array.length > limit];
+}
+
+/**
  * Checks if a byte is printable ASCII.
  * @param byte - Byte value to check.
  * @returns True if the byte represents a printable character (32-126) or tab/newline/carriage return.

@@ -66,10 +66,20 @@ describe("StringDecoder", () => {
       expect(result).toEqual({ type: "[B", value: expectedAscii });
     });
 
+    it("should truncate a '[B' byte array longer than decodeLimit and append an ellipsis", () => {
+      const rawBytes = [0x41, 0x42, 0x43, 0x44, 0x45]; // "ABCDE"
+      const bytes = Java.array("byte", rawBytes);
+      const decoder = new StringDecoder({ type: "[B", settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 3 } });
+
+      const result = decoder.decode(bytes as unknown as Java.Wrapper);
+
+      expect(result).toEqual({ type: "[B", value: "ABC..." });
+    });
+
     it("should decode a null '[B' byte array without throwing (regression)", () => {
       // a "[B" is a reference type too and can legitimately be null (e.g. an uninitialized
-      // output buffer) - Array.from(null), which the "[B" branch relies on, throws rather than
-      // producing an empty/null result, so null must be checked before that branch is reached
+      // output buffer) - readBytesLimited(null, ...), which the "[B" branch relies on, throws
+      // rather than producing an empty/null result, so null must be checked before that branch is reached
       const decoder = new StringDecoder({ type: "[B", settings: DEFAULT_DECODER_SETTINGS });
 
       const result = decoder.decode(null as unknown as Java.Wrapper);
