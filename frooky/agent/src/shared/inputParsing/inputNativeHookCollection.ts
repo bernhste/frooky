@@ -16,11 +16,11 @@ export type InputNativeHookNormalized = {
 /**
  * Type describing a native function in an YAML input file.
  *
- * Can be string, or a NativeFrookyFunction with optional properties.
+ * Can be a plain symbol string, a `[symbol, decoderSettings]` tuple shorthand, or a NativeFrookyFunction with optional properties.
  *
  * @public
  */
-export type InputNativeHook = string | InputNativeHookNormalized;
+export type InputNativeHook = string | [string, DecoderSettings] | InputNativeHookNormalized;
 
 /**
  * Native hook configuration for YAML parsing.
@@ -51,7 +51,7 @@ export function isNativeHookCollection(inputHookScope: object): inputHookScope i
  * Exported so callers (e.g. the native hook validator) can normalize and validate hooks one at a time,
  * isolating a malformed param/retType declaration on one hook from the rest of the group.
  *
- * @param inputHook - The raw hook definition, either a plain symbol string or a detailed declaration.
+ * @param inputHook - The raw hook definition: a plain symbol string, a `[symbol, decoderSettings]` tuple, or a detailed declaration.
  * @param moduleName - The module the hook belongs to, taken from the enclosing hook group.
  * @param hookSettings - The merged hook settings to apply to this hook.
  * @param decoderSettings - The merged decoder settings to apply to this hook's params/retType.
@@ -70,6 +70,16 @@ export function normalizeNativeHook(
       module: moduleName,
       hookSettings: hookSettings,
       decoderSettings: decoderSettings,
+    };
+  }
+
+  if (Array.isArray(inputHook)) {
+    const [symbol, hookDecoderSettings] = inputHook;
+    return {
+      symbol: symbol,
+      module: moduleName,
+      hookSettings: hookSettings,
+      decoderSettings: validateAndRepairDecoderSettings({ ...decoderSettings, ...hookDecoderSettings }),
     };
   }
 

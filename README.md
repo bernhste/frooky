@@ -125,29 +125,29 @@ Depending on the value types, this can be simple or more complex. frooky tries t
 
 ## Example
 
-We'll use the OWASP MAS [MASTG-DEMO-0106](https://mas.owasp.org/MASTG/demos/android/MASVS-RESILIENCE/MASTG-DEMO-0106/MASTG-DEMO-0106/) app to demonstrate hooking a cryptographic decryption method.
+We'll use the OWASP MAS [MASTG-DEMO-0106](https://mas.owasp.org/MASTG/demos/android/MASVS-RESILIENCE/MASTG-DEMO-0106/MASTG-DEMO-0106/) app to demonstrate hooking a cryptographic en-/decryption method.
 
-First you need to create a hook file, e.g., `keygen.yaml`:
+First you need to create a hook file, e.g., `cipher.yaml`:
 
 ```yaml
 metadata:
-  name: Android Key Generator Specifications
+  name: Android Cipher doFinal Hook
   platform: Android
-  description: Captures the initialization of a KeyGenParameterSpec Builder 
+  description: Captures the plaintext/ciphertext passed to Cipher#doFinal during en-/decryption decoded as string.
   category: CRYPTO
   author: frooky dev team
   version: 1
 
 hookCollection:
   - javaClass: javax.crypto.Cipher
-    hooks:
-      - doFinal
+    hooks: 
+      - [ doFinal, {decoder: "string"} ] 
 ```
 
 Then run `frooky` with the hook file against your target app:
 
 ```bash
-frooky -U -f org.owasp.mastestapp keygen.yaml
+frooky -U -f org.owasp.mastestapp cipher.yaml
 ```
 
 Events are written to the output file as newline-separated batches, each line a JSON array of the events captured in that batch (see [Understanding Output Format](./docs/output.md) for the full schema).
@@ -155,7 +155,34 @@ Events are written to the output file as newline-separated batches, each line a 
 Example Output (pretty-printed for readability):
 
 ```json
-
+{
+    "id": "0a6c400a-a7fe-44ab-8842-d1e4a67e0487",
+    "timestamp": "2026-09-16T06:20:33.163Z",
+    "type": "hook-java",
+    "javaClassName": "javax.crypto.Cipher",
+    "method": "doFinal",
+    "fieldType": {
+        "fieldType": "static"
+    },
+    "stackTrace": [
+      "javax.crypto.Cipher.doFinal (Cipher.java:2066)",
+      "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:58)",
+      "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)",
+      "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)",
+      "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)"
+    ],
+    "argsIn": [
+        {
+            "type": "[B",
+            "value": ".5}....!(.L;(...KY.ly.Pd.`2.uT.....x.C?."
+        }
+    ],
+    "argsOut": [],
+    "returnValue": {
+        "type": "[B",
+        "value": "We ❤️ OWASP MAS 📱"
+    }
+}
 ```
 
 ## More Information

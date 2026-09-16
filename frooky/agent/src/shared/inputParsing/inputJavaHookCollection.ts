@@ -30,11 +30,12 @@ export type InputJavaHookNormalized = {
 };
 
 /**
- * Java method selector - either a simple method name or a detailed definition.
+ * Java method selector - either a simple method name, a `[method, decoderSettings]` tuple shorthand,
+ * or a detailed definition.
  *
  * @public
  */
-export type InputJavaHook = string | InputJavaHookNormalized;
+export type InputJavaHook = string | [string, DecoderSettings] | InputJavaHookNormalized;
 
 /**
  * Native hook configuration.
@@ -77,7 +78,7 @@ function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSett
  * reflection at hook-registration time, so there is nothing for the caller to declare.
  *
  * @param javaClass - The java class the hook belongs to, taken from the enclosing hook group.
- * @param method - The raw hook definition, either a plain method name or a detailed declaration.
+ * @param method - The raw hook definition: a plain method name, a `[method, decoderSettings]` tuple, or a detailed declaration.
  * @param hookSettings - The merged hook settings to apply to this hook.
  * @param decoderSettings - The merged decoder settings to apply to this hook's overloads.
  * @returns The normalized hook.
@@ -91,6 +92,16 @@ export function normalizeJavaHook(
 ): InputJavaHookNormalized {
   if (typeof method === "string") {
     return { javaClass: javaClass, method: method, hookSettings: hookSettings, decoderSettings: decoderSettings };
+  }
+
+  if (Array.isArray(method)) {
+    const [methodName, methodDecoderSettings] = method;
+    return {
+      javaClass: javaClass,
+      method: methodName,
+      hookSettings: hookSettings,
+      decoderSettings: validateAndRepairDecoderSettings({ ...decoderSettings, ...methodDecoderSettings }),
+    };
   }
 
   const mergedHookSettings = method.hookSettings ? validateAndRepairHookSettings({ ...hookSettings, ...method.hookSettings }) : hookSettings;

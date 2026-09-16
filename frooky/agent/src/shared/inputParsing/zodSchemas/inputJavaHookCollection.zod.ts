@@ -17,7 +17,7 @@ export const inputJavaHookNormalizedSchema = z.object({
     decoderSettings: decoderSettingsSchema.optional()
 });
 
-export const inputJavaHookSchema = z.union([z.string(), inputJavaHookNormalizedSchema]);
+export const inputJavaHookSchema = z.union([z.string(), z.tuple([z.string(), decoderSettingsSchema]), inputJavaHookNormalizedSchema]);
 
 export const inputJavaHookCollectionSchema = z.object({
     type: z.literal("java"),

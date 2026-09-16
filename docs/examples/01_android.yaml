@@ -140,3 +140,9 @@ hookCollection:
   - javaClass: javax.crypto.Cipher
     hooks: 
       - doFinal
+
+  - javaClass: javax.crypto.Cipher
+    hookSettings:
+      stackTraceLimit: 5
+    hooks: 
+      - [ doFinal, {decoder: "string"} ] 

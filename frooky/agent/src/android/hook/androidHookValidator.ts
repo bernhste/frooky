@@ -24,7 +24,7 @@ export class AndroidHookValidator implements HookValidator<InputJavaHookNormaliz
           const normalizedJavaHook = normalizeJavaHook(javaHookCollection.javaClass, inputJavaHook, hookSettings, decoderSettings);
           normalizedJavaHooks.push(inputJavaHookNormalizedSchema.parse(normalizedJavaHook));
         } catch (e) {
-          const method = typeof inputJavaHook === "string" ? inputJavaHook : inputJavaHook.method;
+          const method = typeof inputJavaHook === "string" ? inputJavaHook : Array.isArray(inputJavaHook) ? inputJavaHook[0] : inputJavaHook.method;
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
           logger.warn([
             `Skipping hook for java method '${method}' from class '${javaHookCollection.javaClass}' due to an invalid declaration.`,

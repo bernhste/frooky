@@ -1,5 +1,5 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
-import { FrookySettings } from "../frookySettings";
+import { DecoderSettings, FrookySettings } from "../frookySettings";
 import { normalizeInputParam, normalizeInputRetType } from "./inputDecodableTypes";
 import {
   InputNativeHookCollection,
@@ -273,6 +273,29 @@ describe("inputNativeHookCollection", () => {
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
         expect(result.hooks.map((hook) => (hook as InputNativeHookNormalized).symbol)).toEqual(["malloc", "free"]);
+      });
+
+      it("normalizes a [symbol, decoderSettings] tuple, merging its decoderSettings on top of the group's", () => {
+        const hookCollection: InputNativeHookCollection = {
+          type: "native",
+          module: "libc.so",
+          decoderSettings: { maxRecursion: 30 },
+          // A YAML author only ever writes a *partial* decoderSettings on a tuple hook (e.g. `{decoder: "string"}`);
+          // the raw config is cast to the input types at the YAML boundary without being structurally checked
+          // against them, so this models that real shape rather than the always-complete post-normalize shape.
+          hooks: [["malloc", { decoder: "string" }] as [string, DecoderSettings]],
+        };
+
+        const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
+
+        expect(result.hooks).toEqual([
+          {
+            symbol: "malloc",
+            module: "libc.so",
+            hookSettings: DEFAULT_HOOK_SETTINGS,
+            decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30, decoder: "string" },
+          },
+        ]);
       });
     });
 

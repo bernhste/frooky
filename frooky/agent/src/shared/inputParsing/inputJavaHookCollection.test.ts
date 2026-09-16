@@ -1,5 +1,5 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
-import { FrookySettings } from "../frookySettings";
+import { DecoderSettings, FrookySettings } from "../frookySettings";
 import { normalizeInputParam } from "./inputDecodableTypes";
 import { InputJavaHookCollection, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookCollection } from "./inputJavaHookCollection";
 
@@ -232,6 +232,29 @@ describe("inputJavaHookCollection", () => {
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect(result.hooks.map((hook) => (hook as InputJavaHookNormalized).method)).toEqual(["bar", "baz"]);
+      });
+
+      it("normalizes a [method, decoderSettings] tuple, merging its decoderSettings on top of the group's", () => {
+        const hookCollection: InputJavaHookCollection = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          decoderSettings: { maxRecursion: 30 },
+          // A YAML author only ever writes a *partial* decoderSettings on a tuple hook (e.g. `{decoder: "string"}`);
+          // the raw config is cast to the input types at the YAML boundary without being structurally checked
+          // against them, so this models that real shape rather than the always-complete post-normalize shape.
+          hooks: [["bar", { decoder: "string" }] as [string, DecoderSettings]],
+        };
+
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
+
+        expect(result.hooks).toEqual([
+          {
+            javaClass: "com.example.Foo",
+            method: "bar",
+            hookSettings: DEFAULT_HOOK_SETTINGS,
+            decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30, decoder: "string" },
+          },
+        ]);
       });
     });
 

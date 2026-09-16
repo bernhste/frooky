@@ -25,7 +25,7 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
           const normalizedNativeHook = normalizeNativeHook(inputNativeHook, nativeHookCollection.module, hookSettings, decoderSettings);
           normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(normalizedNativeHook));
         } catch (e) {
-          const symbol = typeof inputNativeHook === "string" ? inputNativeHook : inputNativeHook.symbol;
+          const symbol = typeof inputNativeHook === "string" ? inputNativeHook : Array.isArray(inputNativeHook) ? inputNativeHook[0] : inputNativeHook.symbol;
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
           logger.warn([
             `Skipping hook for function with the symbol name '${symbol}' from module '${nativeHookCollection.module}' due to an invalid declaration.`,

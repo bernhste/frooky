@@ -14,7 +14,7 @@ export const inputNativeHookNormalizedSchema = z.object({
     decoderSettings: decoderSettingsSchema.optional()
 });
 
-export const inputNativeHookSchema = z.union([z.string(), inputNativeHookNormalizedSchema]);
+export const inputNativeHookSchema = z.union([z.string(), z.tuple([z.string(), decoderSettingsSchema]), inputNativeHookNormalizedSchema]);
 
 export const inputNativeHookCollectionSchema = z.object({
     type: z.literal("native"),
