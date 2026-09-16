@@ -6,9 +6,8 @@ The return type declaration is a simpler variant of a [parameter declaration](./
 
 - [Return Type vs. Parameter Declaration](#return-type-vs-parameter-declaration)
 - [Basic Usage](#basic-usage)
-  - [Java Return Types](#java-return-types)
   - [Native Return Types](#native-return-types)
-- [Decoders](#decoders)
+  - [Java Return Types](#java-return-types)
 
 <!-- /TOC -->
 
@@ -25,10 +24,6 @@ The following chapter explains how to declare the return type with examples.
 ## Basic Usage
 
 The return type is declared only by its type. The following chapters will use examples to illustrate this.
-
-### Java Return Types
-
-In Java, the method signature can be retrieved at runtime. Unless you want to override the [default decoder](#decoders), you don't need to provide an explicit return type.
 
 ### Native Return Types
 
@@ -53,13 +48,8 @@ int EVP_DigestFinal_ex(EVP_MD_CTX *ctx,
 
 The function returns an integer. It returns 1 on success and 0 on failure.
 
-## Decoders
+If you also want to customize how the return value is decoded, see [Decoders for Return Types](./decoders.md#decoders-for-return-types).
 
-If you want to configure the decoder for the return value, you can use any of the [decoder settings](./additional-features.md#decoder-settings), for example:
+### Java Return Types
 
-- `decoderArg`
-- `maxRecursion`
-- `decodeLimit`
-- `magicDecode`
-- `fastDecode`
-- `decoder` (Java only, see [`decoder`](./parameter-declaration.md#customdecoder-option-override-the-decoder))
+In Java, the method signature can be retrieved at runtime, so you never declare the return type itself. If you want to customize how the return value is decoded, see [Decoders for Return Types](./decoders.md#decoders-for-return-types).

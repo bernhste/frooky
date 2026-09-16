@@ -173,7 +173,7 @@ Intent.putExtra(name: String!, value: BooleanArray?): Intent
 
 ## Hook and Decoder Settings
 
-`hookSettings` (e.g. `stackTraceLimit`, `stackTraceFilter`) and `decoderSettings` (e.g. `maxRecursion`, `magicDecode`) can be declared at the hook-group level (applying to every hook in the group) or on an individual hook (overriding the group for that hook only). See [Additional Settings and Best Practices](./additional-features.md) for the full list of options and how settings from the file-level `settings`, the hook group, an individual hook, and a parameter are merged together.
+`hookSettings` (e.g. `stackTraceLimit`, `stackTraceFilter`) and `decoderSettings` (e.g. `maxRecursion`, `magicDecode`) can be declared at the hook-group level (applying to every hook in the group) or on an individual hook (overriding the group for that hook only). See [Additional Settings and Best Practices](./additional-features.md) and [Decoders](./decoders.md) for the full list of options and how settings from the file-level `settings`, the hook group, an individual hook, and a parameter are merged together.
 
 **Example:**
 

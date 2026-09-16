@@ -222,6 +222,96 @@ describe("inputJavaHookCollection", () => {
         });
       });
 
+      it("normalizes an overload's retType decoder settings, merged on top of the hook's decoder settings", () => {
+        const hookCollection: InputJavaHookCollection = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          decoderSettings: { maxRecursion: 30 },
+          hooks: [
+            {
+              javaClass: "com.example.Foo",
+              method: "bar",
+              overloads: [{ params: ["int"], retType: { decoder: "myDecoder" } }],
+            },
+          ],
+        };
+
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
+        const hook = result.hooks[0] as InputJavaHookNormalized;
+
+        expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30, decoder: "myDecoder" });
+      });
+
+      it("leaves an overload's retType undefined when not declared", () => {
+        const hookCollection: InputJavaHookCollection = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [{ javaClass: "com.example.Foo", method: "bar", overloads: [{ params: ["int"] }] }],
+        };
+
+        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
+        const hook = result.hooks[0] as InputJavaHookNormalized;
+
+        expect(hook.overloads?.[0].retType).toBeUndefined();
+      });
+
+      // A user used to native's `retType: type` / `retType: [type, decoderSettings]` forms may reuse
+      // that habit for a Java overload. Accepting it (and just ignoring the type) keeps their hook
+      // file valid instead of silently dropping the whole retType declaration.
+      describe("accepts the native retType forms too, ignoring the type", () => {
+        it("accepts a plain type string, which has nothing to merge", () => {
+          const hookCollection: InputJavaHookCollection = {
+            type: "java",
+            javaClass: "com.example.Foo",
+            decoderSettings: { maxRecursion: 30 },
+            hooks: [{ javaClass: "com.example.Foo", method: "bar", overloads: [{ params: ["int"], retType: "int" }] }],
+          };
+
+          const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
+          const hook = result.hooks[0] as InputJavaHookNormalized;
+
+          expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30 });
+        });
+
+        it("accepts a [type, decoderSettings] tuple, keeping only the settings", () => {
+          const hookCollection: InputJavaHookCollection = {
+            type: "java",
+            javaClass: "com.example.Foo",
+            hooks: [
+              {
+                javaClass: "com.example.Foo",
+                method: "bar",
+                overloads: [{ params: ["int"], retType: ["int", { decoder: "myDecoder" }] }],
+              },
+            ],
+          };
+
+          const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
+          const hook = result.hooks[0] as InputJavaHookNormalized;
+
+          expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "myDecoder" });
+        });
+
+        it("accepts a normalized RetType object ({ type, settings }), keeping only the settings", () => {
+          const hookCollection: InputJavaHookCollection = {
+            type: "java",
+            javaClass: "com.example.Foo",
+            hooks: [
+              {
+                javaClass: "com.example.Foo",
+                method: "bar",
+                overloads: [{ params: ["int"], retType: { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "myDecoder" } } }],
+              },
+            ],
+          };
+
+          const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
+          const hook = result.hooks[0] as InputJavaHookNormalized;
+
+          expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "myDecoder" });
+        });
+      });
+
       it("normalizes multiple hooks, preserving order", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",

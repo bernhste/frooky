@@ -1,13 +1,13 @@
 # Output Format
 
-frooky writes captured events to the file given via `-o`/`--output` (default `output.json`). Every 100ms, if any new events were captured since the last flush, frooky appends **one line containing a JSON array of that batch's events** — not one event object per line. Use `jq -c '.[]' output.json` to flatten the file into one event object per line, or `jq . output.json` to pretty-print it.
+frooky writes captured events to the file given via `-o`/`--output` (default `output.json`).
 
 <!-- TOC -->
 
 - [Common Event Fields](#common-event-fields)
 - [`hook-java` Events](#hook-java-events)
 - [`hook-native` Events](#hook-native-events)
-- [`log` Events](#log-events)
+- [Printing Events to the Terminal](#printing-events-to-the-terminal)
 
 <!-- /TOC -->
 
@@ -38,17 +38,20 @@ A `DecodedValue` (used for each `argsIn`/`argsOut` entry and for `returnValue`) 
 { "type": "<declared type>", "name": "<parameter name, if any>", "value": "<decoded value>" }
 ```
 
-`name` is only present for named parameters (see [Parameter Declaration](./parameter-declaration.md)). `value`'s JSON type depends on the decoded type (string, number, boolean, array, object, or a stringified value for types like 64-bit integers that don't fit a JS `number`).
+> [!TIP]
+> Use `jq -c '.[]' output.json` to flatten the file into one event object per line, or `jq . output.json` to pretty-print it.
+>
+> If you want to be fancy, you could even visualize them on a time line using tools like [Grafana](https://grafana.com/docs/grafana/latest/visualizations/simplified-exploration/logs/) or [Kibana](https://www.elastic.co/kibana) from the ELK-Stack - feed them the flattened, one-event-per-line output of `jq -c '.[]' output.json`.
 
 ## `hook-java` Events
 
 In addition to the [common fields](#common-event-fields), `hook-java` events carry:
 
-| Field           | Type     | Description                                                                                                                                                                      |
-| --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `javaClassName` | `string` | The hooked Java/Kotlin class.                                                                                                                                                    |
-| `method`        | `string` | The hooked method name.                                                                                                                                                          |
-| `fieldType`     | `object` | `{ "fieldType": "static" \| "instance", "instanceId"?: number }`. `instanceId` is only present for `"instance"` calls (identifies the object instance the method was called on). |
+| Field           | Type     | Description                                                    |
+| --------------- | -------- | -------------------------------------------------------------- |
+| `javaClassName` | `string` | The hooked Java/Kotlin class.                                  |
+| `method`        | `string` | The hooked method name.                                        |
+| `fieldType`     | `object` | `{ "fieldType": "static" \| "instance", "hashcode?": string }` |
 
 **Example:**
 
@@ -108,7 +111,7 @@ In addition to the [common fields](#common-event-fields), `hook-native` events c
     {
       "type": "unsigned char *",
       "name": "data",
-      "value": ["0x57656c636f6d65204f57415350204d4153436f6e", "Welcome OWASP MASCon"]
+      "value": "Welcome OWASP MASCon"
     },
     {
       "type": "int",
@@ -120,7 +123,7 @@ In addition to the [common fields](#common-event-fields), `hook-native` events c
     {
       "type": "unsigned char *",
       "name": "data",
-      "value": ["0x6e6f4353414d20505341574f20656d6f636c6557", "noCSAM PSAWO emocleW"]
+      "value": "noCSAM PSAWO emocleW"
     }
   ]
 }
@@ -129,19 +132,55 @@ In addition to the [common fields](#common-event-fields), `hook-native` events c
 Notes on this example:
 
 - `stackTrace` is truncated above for brevity; a real trace also includes the app-side Kotlin frames that led to the native call.
-- Buffer/pointer types like `unsigned char *` decode to a two-element `[rawHexBytes, interpretedString]` array rather than a plain scalar.
-- `reverse_byte_array` returns `unsigned char *`, but since no `retType` was declared on this hook, no `returnValue` field is present — it's only included when the hook declares a decodable return type (see [`retType`](./native-hook-declaration.md)).
+- Buffer/pointer `unsigned char *` was decoded using the built in `string` decoder.
+- `reverse_byte_array` returns `unsigned char *`, but since no `retType` was declared on this hook, no `returnValue` field is present. It's only included when the hook declares a decodable return type (see [`retType`](./native-hook-declaration.md)).
 
-## `log` Events
+## Printing Events to the Terminal
 
-frooky's internal log messages are routed into the output stream (alongside hook events) when frooky's `logTo` setting is set to `eventlog`. In addition to the [common fields](#common-event-fields), `log` events carry:
+Pass `-e`/`--print-events` to `frooky` to also pretty-print each `hook-java`/`hook-native` event to the terminal as it's captured, in addition to writing it to the output file.
 
-| Field   | Type     | Description                                            |
-| ------- | -------- | ------------------------------------------------------ |
-| `level` | `string` | `"none"`, `"error"`, `"warn"`, `"info"`, or `"debug"`. |
-| `msg`   | `string` | The log message.                                       |
+```sh
+$ frooky -U -f org.owasp.mastestapp  docs/examples/01_android.yaml -e
+   ___    ____                                v0.1.dev174+gc704d263c.d20260914 - Powered by Frida 17.17.0
+  / __\  / _  |    _     _    _  _   _   _    Agent compiled with Frida 17.18.0
+ / _\   | (_) |  / _ \ / _ \ | / /  | | | |   Target: org.owasp.mastestapp (spawned)
+/ /     / / | | | (_) | (_) ||  <   | |_| |
+\/     /_/  |_|  \___/ \___/ |_|\_\  \__, |   Device: Android Emulator 5554 (emulator-5554)
+                                     |___/    Platform: android
+                                              Hook files: 1
+                                              Output: output.json
 
-> [!TIP]
-> Pass `-e`/`--print-events` to `frooky` to also pretty-print each `hook-java`/`hook-native` event to the terminal as it's captured, in addition to writing it to the output file.
->
-> If you want to be fancy, you could even visualize them on a time line using tools like [Grafana](https://grafana.com/docs/grafana/latest/visualizations/simplified-exploration/logs/) or [Kibana](https://www.elastic.co/kibana) from the ELK-Stack — feed them the flattened, one-event-per-line output of `jq -c '.[]' output.json`.
+  Press Ctrl+C to stop...
+
+┌─ java (static) ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  time      :  2026-09-16T20:24:24.094Z
+  class     :  javax.crypto.Cipher
+  method    :  init(int opmode, java.security.Key key, java.security.SecureRandom random)
+  args in   :  int opmode
+                 ENCRYPT_MODE
+               java.security.Key key
+                 'android.security.keystore2.AndroidKeyStoreSecretKey@fe4744ec'
+               java.security.SecureRandom random
+                 'OpenSSLRandom'
+  returns   :  void
+  stack     :  javax.crypto.Cipher.init (Cipher.java:1158)
+               javax.crypto.Cipher.init (Cipher.java:1103)
+               org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:46)
+               org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)
+               org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌─ java (static) ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  time      :  2026-09-16T20:24:24.095Z
+  class     :  javax.crypto.Cipher
+  method    :  doFinal([B)
+  args in   :  [B
+                 'We ❤️ OWASP MAS 📱'
+  returns   :  [B
+                 ';.\tX..V\\F..=.RT+-nwEob_.2..=.."J........'
+  stack     :  javax.crypto.Cipher.doFinal (Cipher.java:2066)
+               org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:48)
+               org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)
+               org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)
+               org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```

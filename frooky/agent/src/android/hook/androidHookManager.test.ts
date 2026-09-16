@@ -93,5 +93,40 @@ describe("AndroidHookManager", () => {
       expect(results.length).toBe(2);
       expect(results.every((hooks) => hooks !== null && hooks.length > 0)).toBeTruthy();
     });
+
+    it("carries an overload's retType decoder settings onto the resolved JavaHook", async () => {
+      const manager = new AndroidHookManager(stackTrace, frookyAgent);
+      const retTypeSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "myDecoder" };
+      const hook: InputJavaHookNormalized = {
+        javaClass: "java.lang.String",
+        method: "indexOf",
+        hookSettings: DEFAULT_HOOK_SETTINGS,
+        decoderSettings: DEFAULT_DECODER_SETTINGS,
+        overloads: [{ params: ["int"], retType: retTypeSettings }],
+      };
+
+      const results = await Promise.all(await manager.resolveHooks([hook], 5));
+      const hooks = results[0] as JavaHook[];
+
+      expect(hooks.length).toBe(1);
+      expect(hooks[0].retTypeSettings).toEqual(retTypeSettings);
+    });
+
+    it("leaves retTypeSettings undefined when an overload does not declare a retType", async () => {
+      const manager = new AndroidHookManager(stackTrace, frookyAgent);
+      const hook: InputJavaHookNormalized = {
+        javaClass: "java.lang.String",
+        method: "indexOf",
+        hookSettings: DEFAULT_HOOK_SETTINGS,
+        decoderSettings: DEFAULT_DECODER_SETTINGS,
+        overloads: [{ params: ["int"] }],
+      };
+
+      const results = await Promise.all(await manager.resolveHooks([hook], 5));
+      const hooks = results[0] as JavaHook[];
+
+      expect(hooks.length).toBe(1);
+      expect(hooks[0].retTypeSettings).toBeUndefined();
+    });
   });
 });

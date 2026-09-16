@@ -1,7 +1,7 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
-import { InputParam, normalizeInputParam } from "./inputDecodableTypes";
+import { InputParam, InputRetTypeSettings, normalizeInputParam, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
@@ -14,6 +14,17 @@ export interface InputOverload {
    * Parameter type for this overload.
    */
   params: InputParam[];
+
+  /**
+   * Decoder settings applied to this overload's return value.
+   *
+   * The return type itself is never used - it is always resolved from Frida's own Java reflection
+   * at hook-registration time. The documented form is a bare decoder settings object (e.g.
+   * `{ decoder: "..." }`), but every form {@link InputRetTypeSettings} accepts is allowed, so
+   * declaring it the way native hooks do (`retType: type` or `retType: [type, decoderSettings]`)
+   * doesn't produce an invalid hook file - the type portion is simply ignored.
+   */
+  retType?: InputRetTypeSettings;
 }
 
 /**
@@ -65,6 +76,7 @@ function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSett
   return {
     ...overload,
     params: overload.params.map((param: InputParam) => normalizeInputParam(param, decoderSettings)),
+    retType: overload.retType ? normalizeInputRetTypeSettings(overload.retType, decoderSettings) : undefined,
   };
 }
 
@@ -74,8 +86,9 @@ function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSett
  * Exported so callers (e.g. the android hook validator) can normalize and validate hooks one at a time,
  * isolating a malformed param declaration on one hook from the rest of the group.
  *
- * Note: Java hooks have no `retType` - the return type is always resolved from Frida's own Java
- * reflection at hook-registration time, so there is nothing for the caller to declare.
+ * Note: Java hooks have no top-level `retType` - the return type is always resolved from Frida's
+ * own Java reflection at hook-registration time. An overload may still declare a `retType` decoder
+ * settings object (see {@link InputOverload.retType}) to control how that return value is decoded.
  *
  * @param javaClass - The java class the hook belongs to, taken from the enclosing hook group.
  * @param method - The raw hook definition: a plain method name, a `[method, decoderSettings]` tuple, or a detailed declaration.

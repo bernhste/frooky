@@ -72,7 +72,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       if (hook.method.returnType.className) {
         const retType = {
           type: hook.method.returnType.className,
-          settings: hook.decoderSettings,
+          settings: hook.retTypeSettings ?? hook.decoderSettings,
         };
         retTypeDecoder = this.resolveRetTypeDecoder(retType);
       }
@@ -271,6 +271,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
             params: normalizedParams,
             hookSettings: inputHook.hookSettings ?? DEFAULT_HOOK_SETTINGS,
             decoderSettings: inputHook.decoderSettings ?? DEFAULT_DECODER_SETTINGS,
+            retTypeSettings: overload.retType as DecoderSettings | undefined,
           });
         } catch (e) {
           logger.warn(`Skipping overload for method '${inputHook.method}(${paramTypes})'. The overload does not exist.`);

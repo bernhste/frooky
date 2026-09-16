@@ -1,14 +1,12 @@
 # Additional Settings and Best Practices
 
-frooky supports two kinds of settings that can be used regardless of hook type:
+frooky supports two kinds of settings that can be used regardless of hook type: `hookSettings` (below) and `decoderSettings` (see [Decoders](./decoders.md)).
 
 <!-- TOC -->
 
 - [Hook Settings](#hook-settings)
-- [Decoder Settings](#decoder-settings)
 - [Settings Precedence](#settings-precedence)
 - [Event Filter Based on Stack Trace](#event-filter-based-on-stack-trace)
-- [Stack Trace Limits](#stack-trace-limits)
 
 <!-- /TOC -->
 
@@ -21,25 +19,9 @@ frooky supports two kinds of settings that can be used regardless of hook type:
 | `stackTraceLimit`  | `number`   | `0`     | Limits the number of stack frames captured per event.                 |
 | `stackTraceFilter` | `string[]` | `[]`    | Regular expressions; only stack frames matching one of them are kept. |
 
-## Decoder Settings
-
-`decoderSettings` controls how a parameter's or return value's argument is decoded.
-
-| Setting        | Type       | Default     | Description                                                                                                                                                    |
-| -------------- | ---------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `maxRecursion` | `number`   | `10`        | Maximum recursion depth when decoding nested structures (nested arrays, lists, maps, structs, etc.).                                                           |
-| `decodeLimit`  | `number`   | `1000`      | Maximum number of elements decoded from lists, arrays, collections, maps, etc.                                                                                 |
-| `magicDecode`  | `boolean`  | `false`     | When enabled, frooky tries to guess the type of a value that isn't declared, or can't be deduced at runtime.                                                   |
-| `fastDecode`   | `boolean`  | `false`     | When enabled, decoders prioritize speed over detail (mostly by avoiding expensive Frida <-> native round trips).                                               |
-| `decoder`      | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder. Java only, see [`decoder`](./parameter-declaration.md#customdecoder-option-override-the-decoder). |
-| `decoderArg`   | `string`   | `undefined` | Name of another parameter passed to this parameter's decoder for additional context (e.g. a buffer's length).                                                  |
-| `paramFilter`  | `string[]` | `undefined` | Regular expressions; the event for this hook is only captured if the decoded value matches one of them.                                                        |
-
-`decoderSettings` can also be declared per-parameter, where they're combined with the `direction` option. See [Parameter Declaration](./parameter-declaration.md#decoders) and [Return Type Declaration](./return-type-declaration.md#decoders).
-
 ## Settings Precedence
 
-Both `hookSettings` and `decoderSettings` can be declared at multiple levels of a hook file, from farthest to closest:
+Both `hookSettings` and [`decoderSettings`](./decoders.md#decoder-settings) can be declared at multiple levels of a hook file, from farthest to closest:
 
 1. **Hard-coded defaults** (the tables above)
 2. **File-level `settings`** — applies to every hook group in the file
@@ -138,17 +120,3 @@ frooky will capture the events you are looking for, as well as many more, such a
 This method call is initiated by Android when `EncryptedSharedPreferences` are initiated. This library uses `SharedPreferences` to store an encryption key.
 
 These events are usually not of interest to security testers, who want to test the target app rather than OS libraries.
-
-## Stack Trace Limits
-
-By default, frooky will show all function calls of a stack trace. If this is too much, you can set a limit using the `stackTraceLimit` hook setting.
-
-```yaml
-javaClass: android.app.SharedPreferencesImpl$EditorImpl
-hookSettings:
-  stackTraceLimit: 5
-hooks:
-  - putString
-```
-
-This is supported by Java and native hooks.

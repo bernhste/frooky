@@ -86,3 +86,44 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings?: Dec
   }
   throw new Error(`Unrecognized InputRetType format: ${JSON.stringify(input)}`);
 }
+
+/**
+ * Flexible input format for declaring only the decoder settings of a return value, without a type.
+ *
+ * Used for Java overloads, where the return type is always resolved via Frida's own reflection and
+ * can never be declared - only how the returned value is decoded can be customized. Accepts every
+ * shape {@link InputRetType} does (as native hooks use), so that a user who is used to writing
+ * `retType: [type, decoderSettings]` or `retType: type` for native hooks doesn't end up with an
+ * invalid hook file by reusing that habit here. Any type given this way is simply ignored, since
+ * Java hooks have no use for it.
+ *
+ * | Case | Form                    | Example                                                          |
+ * |------|-------------------------|-------------------------------------------------------------------|
+ * | 1    | Type only (ignored)     | `"int"`                                                            |
+ * | 2    | Type (ignored) + settings | `["int", { decodeLimit: 10 }]`                                   |
+ * | 3    | Normalized `RetType` (type ignored) | `{ type: "int", settings: { magicDecode: false } }`   |
+ * | 4    | Decoder settings only (documented Java form) | `{ magicDecode: false }`                    |
+ *
+ * @public
+ */
+export type InputRetTypeSettings = InputRetType | Partial<DecoderSettings>;
+
+export function normalizeInputRetTypeSettings(input: InputRetTypeSettings, decoderSettings?: DecoderSettings): DecoderSettings {
+  const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
+
+  // Case 1: Type only (ignored) - "int"
+  if (typeof input === "string") {
+    return validateAndRepairDecoderSettings(mergedSettings);
+  } else if (Array.isArray(input)) {
+    // Case 2: Type (ignored) + decoder settings - ["int", { decodeLimit: 10 }]
+    const [, inlineSettings] = input as [string, Partial<DecoderSettings>];
+    return validateAndRepairDecoderSettings({ ...mergedSettings, ...inlineSettings });
+  } else if (typeof input === "object" && "type" in input) {
+    // Case 3: Normalized RetType object (type ignored) - { type: "int", settings: {...} }
+    return validateAndRepairDecoderSettings({ ...mergedSettings, ...(input as RetType).settings });
+  } else if (typeof input === "object") {
+    // Case 4: Decoder settings only - { decodeLimit: 10 }
+    return validateAndRepairDecoderSettings({ ...mergedSettings, ...(input as Partial<DecoderSettings>) });
+  }
+  throw new Error(`Unrecognized InputRetTypeSettings format: ${JSON.stringify(input)}`);
+}

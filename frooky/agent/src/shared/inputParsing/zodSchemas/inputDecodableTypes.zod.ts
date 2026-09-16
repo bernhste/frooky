@@ -11,3 +11,5 @@ const retTypeSchema = z.any();
 export const inputParamSchema = z.union([z.string(), z.tuple([z.string(), z.string()]), z.tuple([z.string(), inputParamSettingsSchema]), z.tuple([z.string(), z.string(), inputParamSettingsSchema]), paramSchema]);
 
 export const inputRetTypeSchema = z.union([z.string(), z.tuple([z.string(), decoderSettingsSchema.partial()]), retTypeSchema]);
+
+export const inputRetTypeSettingsSchema = z.union([inputRetTypeSchema, decoderSettingsSchema.partial()]);

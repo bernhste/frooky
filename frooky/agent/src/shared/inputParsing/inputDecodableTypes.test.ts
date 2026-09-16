@@ -1,6 +1,6 @@
 import { Decodable as RetType, Param } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../defaultValues";
-import { normalizeInputParam, normalizeInputRetType } from "./inputDecodableTypes";
+import { normalizeInputParam, normalizeInputRetType, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
 
 describe("inputDecodableTypes", () => {
@@ -59,6 +59,36 @@ describe("inputDecodableTypes", () => {
     it("should return RetType unchanged", () => {
       const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: false } };
       expect(normalizeInputRetType(retType)).toEqual(retType);
+    });
+  });
+
+  describe("normalizeInputRetTypeSettings()", () => {
+    it("normalizes a bare decoder settings object", () => {
+      expect(normalizeInputRetTypeSettings({ decodeLimit: 10 })).toEqual({ ...DEFAULT_DECODER_SETTINGS, decodeLimit: 10 });
+    });
+
+    it("merges a bare decoder settings object on top of the given base settings", () => {
+      expect(normalizeInputRetTypeSettings({ decodeLimit: 10 }, { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30 })).toEqual({
+        ...DEFAULT_DECODER_SETTINGS,
+        maxRecursion: 30,
+        decodeLimit: 10,
+      });
+    });
+
+    it("ignores a plain type string, falling back to the base settings", () => {
+      expect(normalizeInputRetTypeSettings("int", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30 })).toEqual({
+        ...DEFAULT_DECODER_SETTINGS,
+        maxRecursion: 30,
+      });
+    });
+
+    it("ignores the type in a [type, decoderSettings] tuple, keeping only the settings", () => {
+      expect(normalizeInputRetTypeSettings(["int", { decodeLimit: 10 }])).toEqual({ ...DEFAULT_DECODER_SETTINGS, decodeLimit: 10 });
+    });
+
+    it("ignores the type in a normalized RetType object, keeping only the settings", () => {
+      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: false } };
+      expect(normalizeInputRetTypeSettings(retType)).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: false });
     });
   });
 });
