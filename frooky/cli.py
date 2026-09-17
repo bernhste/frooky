@@ -6,7 +6,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from . import __version__
-from .frida_runner import FrookyRunner, RunnerOptions
+from .runner import FrookyRunner, RunnerOptions
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -65,18 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    parser = build_parser()
-    if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit(1)
-
-    args = parser.parse_args()
-
-    if args.resolver_timeout <= 0:
-        raise argparse.ArgumentTypeError(f"--resolver-timeout ({args.resolver_timeout}) is not a positive integer")
-
-    # Validate that the android agent is compiled and accessible
+def _validate_agent_dist() -> None:
+    """Make sure the compiled Frida agent is present before we try to inject it."""
     agent_dist_path = files("frooky") / "agent" / "dist"
     required_files = [agent_dist_path / "version.json", agent_dist_path / "agent-android.js"]
 
@@ -87,26 +77,25 @@ def main() -> int:
         )
         sys.exit(1)
 
-    # Validate device selection
+
+def _validate_device_selection(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     device_count = sum([args.usb, args.device is not None, args.remote, args.host is not None])
     if device_count > 1:
         parser.error("Use only one of -D/--device, -U/--usb, -R/--remote, or -H/--host.")
 
-    hook_paths = []
-    for hook in args.hooks:
-        hook_path = Path(hook)
-        if not hook_path.exists():
-            parser.error(f"Hooks file not found: {hook_path}")
-        hook_paths.append(hook_path.resolve())
 
-    script_paths = []
-    for script in args.user_scripts:
-        script_path = Path(script)
-        if not script_path.exists():
-            parser.error(f"Script file not found: {script_path}")
-        script_paths.append(script_path.resolve())
+def _resolve_paths(parser: argparse.ArgumentParser, paths: list[str], not_found_label: str) -> list[Path]:
+    resolved = []
+    for raw_path in paths:
+        path = Path(raw_path)
+        if not path.exists():
+            parser.error(f"{not_found_label} not found: {path}")
+        resolved.append(path.resolve())
+    return resolved
 
-    options = RunnerOptions(
+
+def _build_runner_options(args: argparse.Namespace, hook_paths: list[Path], script_paths: list[Path]) -> RunnerOptions:
+    return RunnerOptions(
         hook_paths=hook_paths,
         output_path=Path(args.output),
         device_id=args.device,
@@ -125,6 +114,26 @@ def main() -> int:
         agent_option_resolver_timeout=args.resolver_timeout,
         print_events=args.print_events,
     )
+
+
+def main() -> int:
+    parser = build_parser()
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+
+    args = parser.parse_args()
+
+    if args.resolver_timeout <= 0:
+        raise argparse.ArgumentTypeError(f"--resolver-timeout ({args.resolver_timeout}) is not a positive integer")
+
+    _validate_agent_dist()
+    _validate_device_selection(parser, args)
+
+    hook_paths = _resolve_paths(parser, args.hooks, "Hooks file")
+    script_paths = _resolve_paths(parser, args.user_scripts, "Script file")
+
+    options = _build_runner_options(args, hook_paths, script_paths)
 
     runner = FrookyRunner(options)
     return runner.run()

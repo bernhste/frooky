@@ -21,8 +21,14 @@ frooky/
 ├── frooky/                              # Main Python package (the "host")
 │   ├── __init__.py                      # Package initialization / version
 │   ├── __main__.py                      # `python -m frooky` entry point
-│   ├── cli.py                           # Argument parsing, CLI entry point
-│   ├── frida_runner.py                  # Core logic: attach/spawn, agent injection, hook loading
+│   ├── cli.py                           # Argument parsing, validation, CLI entry point
+│   ├── runner/                          # Core runner logic
+│   │   ├── runner.py                    # FrookyRunner orchestrator: run loop, header/status display
+│   │   ├── options.py                   # RunnerOptions dataclass
+│   │   ├── device.py                    # Frida device selection, platform detection, attach/spawn
+│   │   ├── config.py                    # Hook YAML/JSON loading, user script (-l) loading
+│   │   ├── messages.py                  # Frida message callbacks (agent + user script)
+│   │   └── output.py                    # ndjson output writing, event-count/status bookkeeping
 │   ├── pp_hook_event.py                 # Pretty-printing of captured hook events
 │   └── agent/                           # Frida agent (TypeScript)
 │       ├── package.json                 # npm scripts & dependencies
@@ -230,7 +236,7 @@ cd frooky/agent && npm run test:android -- -U -f <bundle-id-or-process>
 
 ### Modifying Python CLI/Host
 
-1. Edit [`frooky/cli.py`](../frooky/cli.py), [`frooky/frida_runner.py`](../frooky/frida_runner.py), or [`frooky/pp_hook_event.py`](../frooky/pp_hook_event.py)
+1. Edit [`frooky/cli.py`](../frooky/cli.py), the relevant module under [`frooky/runner/`](../frooky/runner/), or [`frooky/pp_hook_event.py`](../frooky/pp_hook_event.py)
 2. Changes are immediately available with `pip install -e .`
 3. Add/update tests in [`tests/unit/`](../tests/unit) (and [`tests/integration/`](../tests/integration) if device-facing behavior changed)
 4. Test with `frooky --help` or relevant commands, and `pytest tests/unit`
@@ -256,8 +262,14 @@ cd frooky/agent && npm run test:android -- -U -f <bundle-id-or-process>
 
 ### Python Side (host)
 
-- **[`frooky/cli.py`](../frooky/cli.py)**: Argument parsing (device selection, target selection, script/output options), CLI entry point
-- **[`frooky/frida_runner.py`](../frooky/frida_runner.py)**: Core logic for loading hooks, attaching/spawning processes, injecting the compiled agent
+- **[`frooky/cli.py`](../frooky/cli.py)**: Argument parsing (device selection, target selection, script/output options), validation, CLI entry point
+- **[`frooky/runner/`](../frooky/runner/)**: Core runner logic, split by concern:
+  - **[`runner.py`](../frooky/runner/runner.py)**: `FrookyRunner` orchestrator — wires the pieces below together, owns the run loop and header/status-line display
+  - **[`options.py`](../frooky/runner/options.py)**: `RunnerOptions` dataclass
+  - **[`device.py`](../frooky/runner/device.py)**: Frida device selection, platform detection, attach/spawn, device Frida-version probing
+  - **[`config.py`](../frooky/runner/config.py)**: Hook YAML/JSON file loading, user script (`-l`/`--load`) loading
+  - **[`messages.py`](../frooky/runner/messages.py)**: Frida message callbacks (agent hook events, user script output)
+  - **[`output.py`](../frooky/runner/output.py)**: ndjson output-file writing, event-count/last-event bookkeeping
 - **[`frooky/pp_hook_event.py`](../frooky/pp_hook_event.py)**: Pretty-printing of captured hook events to the terminal
 - **[`pyproject.toml`](../pyproject.toml)**: Project metadata, dependencies, build/lint/test configuration
 
@@ -299,7 +311,7 @@ cd frooky/agent && npm run test:android -- -U -f <bundle-id-or-process>
 
 ### iOS (not yet implemented)
 
-- `build.js` and `frooky/frida_runner.py` reference iOS as a target platform, and `tests/target-apps/ios/` exists for future test fixtures, but there is currently no `frooky/agent/src/ios/` source directory and no `build:*:ios` / `test:ios` npm scripts
+- `build.js` and `frooky/runner/device.py` reference iOS as a target platform, and `tests/target-apps/ios/` exists for future test fixtures, but there is currently no `frooky/agent/src/ios/` source directory and no `build:*:ios` / `test:ios` npm scripts
 - Do not assume iOS hooking works end-to-end; check current source/tests before implementing or documenting iOS-specific behavior
 
 ## Debugging Tips
