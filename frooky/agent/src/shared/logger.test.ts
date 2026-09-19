@@ -8,7 +8,7 @@ function createMockAgent(): FrookyAgent {
 }
 
 describe("logger", () => {
-  let spy: Spy | undefined;
+  let spy: Mock | undefined;
 
   beforeEach(() => {
     logger.setLogTo("console");
@@ -17,7 +17,7 @@ describe("logger", () => {
   });
 
   afterEach(() => {
-    spy?.restore();
+    spy?.mockRestore();
     spy = undefined;
   });
 
@@ -41,7 +41,7 @@ describe("logger", () => {
       expect(spy).toHaveBeenCalled();
       expect(eventSpy).not.toHaveBeenCalled();
 
-      eventSpy.restore();
+      eventSpy.mockRestore();
     });
 
     it("setVerbosity() and setLogTo() can be changed independently", () => {
@@ -56,7 +56,7 @@ describe("logger", () => {
       expect(warnSpy).toHaveBeenCalled();
       expect(spy).toHaveBeenCalled();
 
-      warnSpy.restore();
+      warnSpy.mockRestore();
     });
   });
 

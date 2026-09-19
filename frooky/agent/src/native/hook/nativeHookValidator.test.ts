@@ -38,14 +38,14 @@ describe("NativeHookValidator", () => {
   });
 
   describe("validateAndNormalizeHooks()", () => {
-    let warnSpy: Spy;
+    let warnSpy: Mock;
 
     beforeEach(() => {
       warnSpy = spyOn(logger, "warn");
     });
 
     afterEach(() => {
-      warnSpy.restore();
+      warnSpy.mockRestore();
     });
 
     it("returns an empty array when the config has no native hook groups", () => {
@@ -121,7 +121,7 @@ describe("NativeHookValidator", () => {
 
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [messageLines] = warnSpy.calls[0] as [string[]];
+      const [messageLines] = warnSpy.mock.calls[0] as [string[]];
       expect(messageLines[0]).toContain("Skipping hook for function with the symbol name '123' from module 'libc.so' due to an invalid declaration.");
     });
 
@@ -140,7 +140,7 @@ describe("NativeHookValidator", () => {
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free", "malloc"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [messageLines] = warnSpy.calls[0] as [string[]];
+      const [messageLines] = warnSpy.mock.calls[0] as [string[]];
       expect(messageLines[0]).toContain("Skipping hook for function with the symbol name 'bad' from module 'libc.so' due to an invalid declaration.");
     });
 
@@ -186,7 +186,7 @@ describe("NativeHookValidator", () => {
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
-      expect(warnSpy.calls.length).toBe(2);
+      expect(warnSpy.mock.calls.length).toBe(2);
     });
   });
 });

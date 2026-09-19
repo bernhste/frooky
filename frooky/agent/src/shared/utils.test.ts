@@ -147,7 +147,7 @@ describe("Utils", () => {
 
   describe("sleepMilliseconds()", () => {
     it("resolves", async () => {
-      await expect(() => sleepMilliseconds(1)).toResolve();
+      await expect(sleepMilliseconds(1)).resolves.toBeUndefined();
     });
 
     it("waits at least the given number of milliseconds before resolving", async () => {
@@ -159,7 +159,7 @@ describe("Utils", () => {
 
   describe("sleepSeconds()", () => {
     it("resolves", async () => {
-      await expect(() => sleepSeconds(0.001)).toResolve();
+      await expect(sleepSeconds(0.001)).resolves.toBeUndefined();
     });
 
     it("waits at least the given number of seconds before resolving", async () => {

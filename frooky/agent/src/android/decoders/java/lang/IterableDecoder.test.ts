@@ -67,8 +67,8 @@ describe("IterableDecoder", () => {
       const decoder = new IterableDecoder({ type: "java.util.List", settings: DEFAULT_DECODER_SETTINGS });
       decoder.decode(list);
 
-      expect(resolveDecoderSpy.calls.length).toBe(1);
-      resolveDecoderSpy.restore();
+      expect(resolveDecoderSpy.mock.calls.length).toBe(1);
+      resolveDecoderSpy.mockRestore();
     });
 
     it("should resolve a new decoder once per distinct runtime class, not once per element (decoderCache)", () => {
@@ -87,8 +87,8 @@ describe("IterableDecoder", () => {
       // per-element cache. The Object element falls back to ToStringDecoder (see
       // ReferenceTypeDecoder branch 7), which just calls toString() directly and doesn't
       // recursively resolve a decoder for getClass() the way GetterDecoder used to.
-      expect(resolveDecoderSpy.calls.length).toBe(2);
-      resolveDecoderSpy.restore();
+      expect(resolveDecoderSpy.mock.calls.length).toBe(2);
+      resolveDecoderSpy.mockRestore();
     });
 
     it("should truncate at decodeLimit and append a truncation marker", () => {

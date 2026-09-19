@@ -11,8 +11,8 @@ describe("javaConstants", () => {
 
       const constants = decodeConstantValues("android.view.MotionEvent", "ACTION_");
 
-      expect(constants).toContain({ type: "int", name: "ACTION_DOWN", value: actionDown });
-      expect(constants).toContain({ type: "int", name: "ACTION_UP", value: actionUp });
+      expect(constants).toContainEqual({ type: "int", name: "ACTION_DOWN", value: actionDown });
+      expect(constants).toContainEqual({ type: "int", name: "ACTION_UP", value: actionUp });
     });
 
     it("should only include constants whose name starts with the given prefix", () => {
@@ -29,7 +29,7 @@ describe("javaConstants", () => {
 
       expect(constants.length).toBeGreaterThan(0);
       expect(constants.every(({ name }) => name?.startsWith("AXIS_"))).toBe(true);
-      expect(constants).toContain({ type: "int", name: "AXIS_X", value: axisX });
+      expect(constants).toContainEqual({ type: "int", name: "AXIS_X", value: axisX });
     });
 
     it("should cache the result for the same class/prefix pair instead of re-reflecting", () => {
@@ -48,7 +48,7 @@ describe("javaConstants", () => {
 
       const constants = decodeConstantValues("javax.crypto.Cipher", "");
 
-      expect(constants).toContain({ type: "int", name: "ENCRYPT_MODE", value: encryptMode });
+      expect(constants).toContainEqual({ type: "int", name: "ENCRYPT_MODE", value: encryptMode });
     });
   });
 });

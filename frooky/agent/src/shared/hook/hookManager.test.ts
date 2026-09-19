@@ -107,7 +107,7 @@ describe("HookManager", () => {
   describe("pollUntilResolved()", () => {
     it("throws when timeoutSeconds is negative", async () => {
       const manager = createManager();
-      await expect(() => manager.exposedPollUntilResolved(() => null, "thing", -1)).toReject("Timeout must not be less than 0.");
+      await expect(manager.exposedPollUntilResolved(() => null, "thing", -1)).rejects.toThrow("Timeout must not be less than 0.");
     });
 
     it("resolves immediately when fn() returns a non-null result on the first call", async () => {
@@ -118,7 +118,7 @@ describe("HookManager", () => {
 
     it("throws a timeout error naming the label once the deadline passes without a result", async () => {
       const manager = createManager();
-      await expect(() => manager.exposedPollUntilResolved(() => null, "my-label", 0)).toReject(
+      await expect(manager.exposedPollUntilResolved(() => null, "my-label", 0)).rejects.toThrow(
         "frida resolver timed out resolving 'my-label' after 0 seconds.",
       );
     });
@@ -142,14 +142,14 @@ describe("HookManager", () => {
   });
 
   describe("resolveParamDecoders()", () => {
-    let warnSpy: Spy;
+    let warnSpy: Mock;
 
     beforeEach(() => {
       warnSpy = spyOn(logger, "warn");
     });
 
     afterEach(() => {
-      warnSpy.restore();
+      warnSpy.mockRestore();
     });
 
     it("resolves a decoder for each param and carries argIndex/direction/name/paramFilter through", () => {
@@ -226,14 +226,14 @@ describe("HookManager", () => {
   });
 
   describe("resolveDecoderArg()", () => {
-    let warnSpy: Spy;
+    let warnSpy: Mock;
 
     beforeEach(() => {
       warnSpy = spyOn(logger, "warn");
     });
 
     afterEach(() => {
-      warnSpy.restore();
+      warnSpy.mockRestore();
     });
 
     it("resolves the index and decoder of the referenced param, using its own type and the current param's settings", () => {

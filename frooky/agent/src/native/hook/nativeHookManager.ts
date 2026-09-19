@@ -37,6 +37,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             return [
               {
                 module: resolvedModule,
+                moduleName: resolvedModule.name,
                 symbolName: inputHook.symbol,
                 symbolAddress,
                 params: inputHook.params,

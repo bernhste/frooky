@@ -16,7 +16,7 @@ describe("configValidator", () => {
   // validateAndRepairFrookySettings() mutates DEFAULT_FROOKY_SETTINGS.hookSettings/.decoderSettings
   // in place, so every test restores it from this snapshot to stay isolated regardless of run order.
   let pristineFrookySettings: FrookySettings;
-  let warnSpy: Spy;
+  let warnSpy: Mock;
 
   beforeAll(() => {
     pristineFrookySettings = {
@@ -30,7 +30,7 @@ describe("configValidator", () => {
   });
 
   afterEach(() => {
-    warnSpy.restore();
+    warnSpy.mockRestore();
     DEFAULT_FROOKY_SETTINGS.hookSettings = { ...pristineFrookySettings.hookSettings };
     DEFAULT_FROOKY_SETTINGS.decoderSettings = { ...pristineFrookySettings.decoderSettings };
   });
@@ -68,7 +68,7 @@ describe("configValidator", () => {
       const invalidMetadata = { ...validMetadata, category: true as unknown as string };
       validateMetadata(invalidMetadata, "Android");
       expect(warnSpy).toHaveBeenCalled();
-      const [message] = warnSpy.calls[0] as [string];
+      const [message] = warnSpy.mock.calls[0] as [string];
       expect(message).toContain("The metadata contains invalid entries");
     });
   });
@@ -100,7 +100,7 @@ describe("configValidator", () => {
       });
 
       expect(warnSpy).toHaveBeenCalled();
-      const [lines] = warnSpy.calls[0] as [string[]];
+      const [lines] = warnSpy.mock.calls[0] as [string[]];
       expect(lines).toContain(`Hook setting "'stackTraceLimit'" contains invalid data:`);
       expect(lines).toContain(`The value for 'stackTraceLimit' was reset to the default: ${DEFAULT_HOOK_SETTINGS.stackTraceLimit}`);
     });
@@ -137,7 +137,7 @@ describe("configValidator", () => {
       expect(validateAndRepairDecoderSettings(incorrectInputDecoderSettings)).toEqual(DEFAULT_DECODER_SETTINGS);
 
       expect(warnSpy).toHaveBeenCalled();
-      const [lines] = warnSpy.calls[0] as [string[]];
+      const [lines] = warnSpy.mock.calls[0] as [string[]];
       expect(lines).toContain(`Decoder setting "'decodeLimit'" contains invalid data:`);
       expect(lines).toContain(`The value for 'decodeLimit' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS.decodeLimit)}`);
     });

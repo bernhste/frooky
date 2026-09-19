@@ -38,14 +38,14 @@ describe("AndroidHookValidator", () => {
   });
 
   describe("validateAndNormalizeHooks()", () => {
-    let warnSpy: Spy;
+    let warnSpy: Mock;
 
     beforeEach(() => {
       warnSpy = spyOn(logger, "warn");
     });
 
     afterEach(() => {
-      warnSpy.restore();
+      warnSpy.mockRestore();
     });
 
     it("returns an empty array when the config has no java hook groups", () => {
@@ -89,7 +89,7 @@ describe("AndroidHookValidator", () => {
 
       expect(result.map((hook) => hook.method)).toEqual(["validMethod"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [messageLines] = warnSpy.calls[0] as [string[]];
+      const [messageLines] = warnSpy.mock.calls[0] as [string[]];
       expect(messageLines[0]).toContain("Skipping hook for java method '123' from class 'com.example.Foo' due to an invalid declaration.");
     });
 
@@ -112,7 +112,7 @@ describe("AndroidHookValidator", () => {
 
       expect(result.map((hook) => hook.method)).toEqual(["foo", "baz"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [messageLines] = warnSpy.calls[0] as [string[]];
+      const [messageLines] = warnSpy.mock.calls[0] as [string[]];
       expect(messageLines[0]).toContain("Skipping hook for java method 'bad' from class 'com.example.Foo' due to an invalid declaration.");
     });
 
@@ -143,7 +143,7 @@ describe("AndroidHookValidator", () => {
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result.map((hook) => hook.method)).toEqual(["validMethod"]);
-      expect(warnSpy.calls.length).toBe(2);
+      expect(warnSpy.mock.calls.length).toBe(2);
     });
   });
 });
