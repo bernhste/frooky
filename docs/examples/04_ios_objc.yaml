@@ -1,0 +1,17 @@
+metadata:
+  platform: iOS
+  name: Objective-C proof of concept
+  description: Hooks two common Foundation methods. Selectors are prefixed with '-' (instance) or '+' (class method). Quote selectors, as a trailing ':' is YAML syntax.
+
+hookCollection:
+  - type: objc
+    objcClass: NSData
+    hooks:
+      # types are read from the method's type encoding, the 'id' argument is decoded by its runtime class
+      - "+dataWithBytes:length:"
+      - "-writeToFile:atomically:"
+
+  - type: objc
+    objcClass: NSURL
+    hooks:
+      - "+URLWithString:"

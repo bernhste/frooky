@@ -25,7 +25,15 @@ export type DecodedArgs = {
   out?: DecodedValue[];
 };
 
-export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
+// What FrookyAgent needs from a platform hook manager. iOS implements it directly and dispatches to one
+// HookManager per bridge (Objective-C, Swift), Android and native extend HookManager.
+export interface PlatformHookManager<TInputHook, THooks extends Hook> {
+  resolveHooks(inputHooks: TInputHook[], timeout: number, source?: string): Promise<Promise<THooks[] | null>[]>;
+  registerHooks(hooks: THooks[], source?: string): number;
+  unregisterHooks(hooks: THooks[]): void;
+}
+
+export abstract class HookManager<TInputHook, THooks extends Hook, TValue> implements PlatformHookManager<TInputHook, THooks> {
   constructor(
     private readonly decoderResolver: DecoderResolver<TValue>,
     protected readonly stackTrace: PlatformStackTrace,

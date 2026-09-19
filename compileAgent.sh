@@ -4,15 +4,33 @@ set -e
 cd ./frooky/agent
 npm ci
 
-case "$1" in
-    --prod)
-        npm run build:prod:android
+# optional second argument selects the platform, both are built by default
+case "$2" in
+    "")
+        PLATFORMS="android ios"
         ;;
-    --dev)
-        npm run build:dev:android
+    android|ios)
+        PLATFORMS="$2"
         ;;
     *)
-        echo "Usage: $0 {--prod|--dev}"
+        echo "Usage: $0 {--prod|--dev} [android|ios]"
         exit 1
         ;;
 esac
+
+case "$1" in
+    --prod)
+        MODE="prod"
+        ;;
+    --dev)
+        MODE="dev"
+        ;;
+    *)
+        echo "Usage: $0 {--prod|--dev} [android|ios]"
+        exit 1
+        ;;
+esac
+
+for PLATFORM in $PLATFORMS; do
+    npm run "build:$MODE:$PLATFORM"
+done

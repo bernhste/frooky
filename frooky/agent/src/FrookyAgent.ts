@@ -16,7 +16,7 @@ import { InputFrookyConfig } from "./shared/frookyConfig";
 import { Platform } from "./shared/frookyMetadata";
 import { FrookySettings } from "./shared/frookySettings";
 import { Hook } from "./shared/hook/hook";
-import { HookManager } from "./shared/hook/hookManager";
+import { PlatformHookManager } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { describeNativeTarget } from "./shared/inputParsing/inputNativeHookCollection";
 import { logger, LogLevel, LogTo } from "./shared/logger";
@@ -118,7 +118,7 @@ export class FrookyAgent {
   private eventCache: BaseEvent[] = [];
   private platform: Platform;
   private platformHookValidator: HookValidator<any, any>;
-  private platformHookManger: HookManager<any, any, any>;
+  private platformHookManger: PlatformHookManager<any, any>;
   private nativeHookValidator = new NativeHookValidator();
   private nativeHookManager: NativeHookManager;
   private resolverTimeoutSeconds: number;
@@ -132,7 +132,7 @@ export class FrookyAgent {
   constructor(
     platform: Platform,
     platformInputHookValidator: HookValidator<any, any>,
-    createPlatformHookManager: (frookyAgent: FrookyAgent) => HookManager<any, any, any>,
+    createPlatformHookManager: (frookyAgent: FrookyAgent) => PlatformHookManager<any, any>,
     platformStackTrace: PlatformStackTrace,
     logLevel: LogLevel = DEFAULT_SETTING_LOG_LEVEL,
     logTo: LogTo = DEFAULT_SETTING_LOG_TO,
@@ -309,7 +309,7 @@ export class FrookyAgent {
   // Resolves and installs hooks and returns how many were installed. A hook whose entry was removed while it
   // resolved (the config was reloaded) is not installed. `source` names the hook file in log messages.
   private async resolveAndRegisterHooks(
-    manager: HookManager<any, any, any>,
+    manager: PlatformHookManager<any, any>,
     pendingHooks: PendingHook[],
     kind: string,
     source: string,

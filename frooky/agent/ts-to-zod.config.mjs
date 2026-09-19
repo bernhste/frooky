@@ -34,6 +34,12 @@ export default [
   },
 
   {
+    name: "objc_hook_scope",
+    input: "src/shared/inputParsing/inputObjcHookCollection.ts",
+    output: "src/shared/inputParsing/zodSchemas/inputObjcHookCollection.zod.ts",
+  },
+
+  {
     name: "native_hook_scope",
     input: "src/shared/inputParsing/inputNativeHookCollection.ts",
     output: "src/shared/inputParsing/zodSchemas/inputNativeHookCollection.zod.ts",
