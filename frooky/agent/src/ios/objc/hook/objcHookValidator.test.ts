@@ -13,7 +13,7 @@ describe("ObjcHookValidator", () => {
   const validator = new ObjcHookValidator();
 
   it("only returns the objc hook groups of a mixed hookCollection", () => {
-    const objcGroup: InputObjcHookCollection = { type: "objc", objcClass: "NSData", hooks: [] };
+    const objcGroup: InputObjcHookCollection = { objcClass: "NSData", hooks: [] };
     const config = {
       hookCollection: [{ type: "native", module: "libSystem.B.dylib", hooks: [] }, objcGroup],
     } as unknown as InputFrookyConfig;
@@ -21,7 +21,7 @@ describe("ObjcHookValidator", () => {
   });
 
   it("normalizes a plain selector using the default settings", () => {
-    const config: InputFrookyConfig = { hookCollection: [{ type: "objc", objcClass: "NSData", hooks: ["-length"] }] };
+    const config: InputFrookyConfig = { hookCollection: [{ objcClass: "NSData", hooks: ["-length"] }] };
     const [hook] = validator.validateAndNormalizeHooks(config, defaultSettings);
     expect(hook.objcClass).toBe("NSData");
     expect(hook.method).toBe("-length");
@@ -30,7 +30,7 @@ describe("ObjcHookValidator", () => {
 
   it("skips an invalid hook without dropping the valid ones of the same group", () => {
     const config = {
-      hookCollection: [{ type: "objc", objcClass: "NSData", hooks: ["-length", { method: 42 }, "+dataWithBytes:length:"] }],
+      hookCollection: [{ objcClass: "NSData", hooks: ["-length", { method: 42 }, "+dataWithBytes:length:"] }],
     } as unknown as InputFrookyConfig;
     expect(validator.validateAndNormalizeHooks(config, defaultSettings).map((hook) => hook.method)).toEqual(["-length", "+dataWithBytes:length:"]);
   });

@@ -42,7 +42,14 @@ export interface InputNativeHookCollection {
 
 // Type guard function
 export function isNativeHookCollection(inputHookScope: object): inputHookScope is InputNativeHookCollection {
-  return "module" in inputHookScope && !("javaClass" in inputHookScope) && !("objcClass" in inputHookScope);
+  return (
+    "module" in inputHookScope &&
+    !("javaClass" in inputHookScope) &&
+    !("objcClass" in inputHookScope) &&
+    !("swiftClass" in inputHookScope) &&
+    !("swiftStruct" in inputHookScope) &&
+    !("swiftEnum" in inputHookScope)
+  );
 }
 
 /**

@@ -10,12 +10,14 @@ import { ObjcSelectorDecoder } from "./builtin/ObjcSelectorDecoder";
 import { ObjcStringDecoder } from "./builtin/ObjcStringDecoder";
 import { ObjcUnsupportedDecoder } from "./builtin/ObjcUnsupportedDecoder";
 import { NSDataDecoder } from "./foundation/NSDataDecoder";
+import { NSDictionaryDecoder } from "./foundation/NSDictionaryDecoder";
 
 export type ObjcDecoderConstructor = { new (decodable: Decodable): Decoder<NativePointer> };
 
 const CUSTOM_DECODER_REGISTRY: Record<string, ObjcDecoderConstructor> = {
   string: ObjcStringDecoder,
   data: NSDataDecoder,
+  dictionary: NSDictionaryDecoder,
 };
 
 const INTEGER_TYPES: Record<string, ObjcIntegerType> = {

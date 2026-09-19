@@ -24,7 +24,20 @@ describe("inputNativeHookCollection", () => {
     });
 
     it("returns false for an objc hook group (no module property)", () => {
-      expect(isNativeHookCollection({ type: "objc", objcClass: "NSString", hooks: [] })).toBeFalsy();
+      expect(isNativeHookCollection({ objcClass: "NSString", hooks: [] })).toBeFalsy();
+    });
+
+    it("returns false for a swift hook group (no module property)", () => {
+      expect(isNativeHookCollection({ swiftClass: "MyApp.Foo", hooks: [] })).toBeFalsy();
+    });
+
+    it("returns false for a swift struct or enum hook group", () => {
+      expect(isNativeHookCollection({ swiftStruct: "MyApp.Foo", hooks: [] })).toBeFalsy();
+      expect(isNativeHookCollection({ module: "MyApp", swiftEnum: "MyApp.Foo" })).toBeFalsy();
+    });
+
+    it("returns false when module and swiftClass are both present", () => {
+      expect(isNativeHookCollection({ module: "MyApp", swiftClass: "MyApp.Foo" })).toBeFalsy();
     });
 
     it("returns false when module and javaClass are both present", () => {

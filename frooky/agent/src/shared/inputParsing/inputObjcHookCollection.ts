@@ -39,10 +39,8 @@ export type InputObjcHook = string | [string, DecoderSettings] | InputObjcHookNo
  * The settings are optional here.
  *
  * @public
- * @discriminator {type}
  */
 export interface InputObjcHookCollection {
-  type: "objc";
   objcClass: string;
   hooks: InputObjcHook[];
   hookSettings?: InputHookSettings;
