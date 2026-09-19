@@ -1,5 +1,6 @@
 import { FrookyMetadata as InputFrookyMetadata } from "./frookyMetadata";
 import { InputJavaHookCollection } from "./inputParsing/inputJavaHookCollection";
+import { InputObjcHookCollection } from "./inputParsing/inputObjcHookCollection";
 import { InputNativeHookCollection } from "./inputParsing/inputNativeHookCollection";
 import { InputFrookySettings } from "./inputParsing/inputSettings";
 
@@ -20,5 +21,5 @@ export interface InputFrookyConfig {
   /**
    * Collection of hooks.
    */
-  hookCollection: (InputJavaHookCollection | InputNativeHookCollection)[];
+  hookCollection: (InputJavaHookCollection | InputObjcHookCollection | InputNativeHookCollection)[];
 }

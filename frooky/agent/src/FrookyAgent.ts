@@ -9,7 +9,7 @@ import { LogEvent } from "./shared/event/logEvent";
 import { InputFrookyConfig } from "./shared/frookyConfig";
 import { Platform } from "./shared/frookyMetadata";
 import { FrookySettings } from "./shared/frookySettings";
-import { HookManager } from "./shared/hook/hookManager";
+import { PlatformHookManager } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { logger, LogLevel, LogTo } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
@@ -22,7 +22,7 @@ export class FrookyAgent {
   private eventCache: BaseEvent[] = [];
   private platform: Platform;
   private platformHookValidator: HookValidator<any, any>;
-  private platformHookManger: HookManager<any, any, any>;
+  private platformHookManger: PlatformHookManager<any, any>;
   private nativeHookValidator = new NativeHookValidator();
   private nativeHookManager: NativeHookManager;
   private resolverTimeoutSeconds: number;
@@ -30,7 +30,7 @@ export class FrookyAgent {
   constructor(
     platform: Platform,
     platformInputHookValidator: HookValidator<any, any>,
-    createPlatformHookManager: (frookyAgent: FrookyAgent) => HookManager<any, any, any>,
+    createPlatformHookManager: (frookyAgent: FrookyAgent) => PlatformHookManager<any, any>,
     platformStackTrace: PlatformStackTrace,
     logLevel: LogLevel = DEFAULT_SETTING_LOG_LEVEL,
     logTo: LogTo = DEFAULT_SETTING_LOG_TO,

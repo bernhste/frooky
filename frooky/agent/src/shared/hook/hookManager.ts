@@ -25,7 +25,18 @@ export type DecodedArgs = {
   out?: DecodedValue[];
 };
 
-export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
+/**
+ * What {@link FrookyAgent} needs from a platform hook manager: resolve declared hooks, then register them.
+ *
+ * A platform may implement this directly (e.g. iOS, which composes several bridge specific managers)
+ * or by extending {@link HookManager} (e.g. Android, native).
+ */
+export interface PlatformHookManager<TInputHook, THooks extends Hook> {
+  resolveHooks(inputHooks: TInputHook[], timeout: number): Promise<Promise<THooks[] | null>[]>;
+  registerHooks(hooks: THooks[]): number;
+}
+
+export abstract class HookManager<TInputHook, THooks extends Hook, TValue> implements PlatformHookManager<TInputHook, THooks> {
   constructor(
     private readonly decoderResolver: DecoderResolver<TValue>,
     protected readonly stackTrace: PlatformStackTrace,

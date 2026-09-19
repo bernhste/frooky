@@ -9,6 +9,10 @@
     "build:prod:android": "node build.js android -c",
     "build:dev:android": "node build.js android",
     "build:watch:android": "node build.js android -t frida -w",
+    "build:prod:ios": "node build.js ios -c",
+    "build:dev:ios": "node build.js ios",
+    "build:watch:ios": "node build.js ios -t frida -w",
+    "test:ios": "npx frida-test -U -f 'com.apple.mobilesafari' ./src/ios ./src/shared ./src/native ./src/FrookyAgent.test.ts",
     "test:android": "npx frida-test -U -f 'com.google.android.dialer' ./src/android ./src/shared ./src/native ./src/FrookyAgent.test.ts"
   },
   "devDependencies": {

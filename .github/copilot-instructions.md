@@ -67,7 +67,7 @@ frooky/
 │   ├── scripts/android/                 # Shell helpers used by CI (adb prep, frida-server install, Appium)
 │   └── workflows/                       # CI/CD pipelines (see below)
 ├── pyproject.toml                       # Python project configuration (ruff, pytest, build config)
-├── compileAgent.sh                      # Thin wrapper around `npm run build:{prod,dev}:android`
+├── compileAgent.sh                      # Thin wrapper around `npm run build:{prod,dev}:{android,ios}`
 └── README.md                            # Main project documentation
 ```
 
@@ -80,10 +80,10 @@ Frooky uses a **two-stage build** that must be executed in order:
 1. **Agent Compilation** (TypeScript → JavaScript):
 
    ```bash
-   ./compileAgent.sh --prod    # Production build (minified), android only
-   ./compileAgent.sh --dev     # Development build (unminified), android only
+   ./compileAgent.sh --prod    # Production build (minified), android and ios (optional 2nd arg: android|ios)
+   ./compileAgent.sh --dev     # Development build (unminified), android and ios (optional 2nd arg: android|ios)
    ```
-    - Runs `npm ci` inside [`frooky/agent/`](../frooky/agent/), then `npm run build:{prod,dev}:android`
+    - Runs `npm ci` inside [`frooky/agent/`](../frooky/agent/), then `npm run build:{prod,dev}:{android,ios}`
     - Under the hood this calls `node build.js android [-c]`, which stages `src/android` + `src/shared` + `src/native` into a temp build dir, generates the hook-injection index file, and runs `frida-compile`
     - Outputs to [`frooky/agent/dist/`](../frooky/agent/dist/) as `agent-android.js` (+ `version.json`)
     - **CRITICAL**: Agent artifacts MUST exist before the Python package build

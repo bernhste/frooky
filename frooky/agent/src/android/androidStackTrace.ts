@@ -1,5 +1,5 @@
 import Java from "frida-java-bridge";
-import { PlatformStackTrace } from "../shared/platformStackTrace";
+import { buildNativeFrames, PlatformStackTrace } from "../shared/platformStackTrace";
 import { FilterMismatchError } from "../shared/utils";
 
 export const AndroidStackTrace: PlatformStackTrace = {
@@ -7,14 +7,7 @@ export const AndroidStackTrace: PlatformStackTrace = {
     // get native frames
     let nativeFrames: string[] = [];
     if (ctx && !stackTraceFilter?.length) {
-      try {
-        nativeFrames = Thread.backtrace(ctx, Backtracer.FUZZY)
-          .slice(0, limit)
-          .map((addr) => {
-            const sym = DebugSymbol.fromAddress(addr);
-            return `${sym.name ?? addr} (${sym.moduleName}:${sym.address})`;
-          });
-      } catch (_) {}
+      nativeFrames = buildNativeFrames(limit, ctx);
     }
 
     if (!Java.available) {
