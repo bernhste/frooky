@@ -1,17 +1,80 @@
 metadata:
+  name: iOS Hook Examples
   platform: iOS
-  name: Objective-C proof of concept
-  description: Hooks two common Foundation methods. Selectors are prefixed with '-' (instance) or '+' (class method). Quote selectors, as a trailing ':' is YAML syntax.
+  description: Examples of Objective-C and Swift method hooking on iOS
+  category: GENERAL
+  author: frooky dev team
+  version: 1
 
 hookCollection:
-  - type: objc
-    objcClass: NSData
+  # ---------------------------------------------------------------------------
+  # Objective-C: 'objcClass'
+  # A selector is prefixed with '-' (instance method) or '+' (class method). Without a prefix, both are hooked.
+  # Selectors must be quoted, as the trailing ':' is YAML syntax.
+  # Only methods the class implements itself can be hooked, not inherited ones.
+  # ---------------------------------------------------------------------------
+
+  # Parameter and return types are read from the method's type encoding.
+  # Objects (id) are decoded by their runtime class, e.g. NSData is decoded as hex.
+  - objcClass: NSData
     hooks:
-      # types are read from the method's type encoding, the 'id' argument is decoded by its runtime class
       - "+dataWithBytes:length:"
       - "-writeToFile:atomically:"
 
-  - type: objc
-    objcClass: NSURL
+  # Instance methods without arguments.
+  - objcClass: NSURL
     hooks:
+      - "-absoluteString"
       - "+URLWithString:"
+
+  # Wildcards match every loaded class. '*' matches any characters.
+  - objcClass: NSURL*
+    hooks:
+      - "-initWithString:"
+
+  # Settings on hook and decoder level.
+  - objcClass: NSUserDefaults
+    hookSettings:
+      stackTraceLimit: 8
+    decoderSettings:
+      decodeLimit: 200
+    hooks:
+      - "-setObject:forKey:"
+      # [selector, decoderSettings] shorthand: decode all objects with -description
+      - ["-objectForKey:", { decoder: string }]
+
+  # Declared params replace the types read from the method. They cover the explicit arguments only (not self and _cmd).
+  - objcClass: NSFileManager
+    hooks:
+      - method: "-createFileAtPath:contents:attributes:"
+        params:
+          - [id, path, { paramFilter: ["\\.plist$"] }]
+          - [id, contents, { decoder: data }]
+          - id
+
+  # ---------------------------------------------------------------------------
+  # Swift: 'swiftClass', 'swiftStruct', 'swiftEnum'
+  # The name can be qualified with the module. Types come from the demangled symbol of the method.
+  # Requires an arm64 device and an app with unstripped symbols.
+  # ---------------------------------------------------------------------------
+
+  - swiftClass: MyApp.LoginViewModel
+    hooks:
+      - authenticate # every overload
+      - authenticate(user:password:) # only the overload with these labels ('_' = unlabeled argument)
+      - ["logout", { maxRecursion: 3 }]
+
+  # Wildcards are matched against 'Module.Type'.
+  - swiftClass: MyApp.*ViewModel
+    hooks:
+      - viewDidLoad
+
+  # Methods of structs and enums are not listed by the Swift bridge. They are found by the symbols of the module.
+  - swiftStruct: MyApp.Credentials
+    hooks:
+      - validate
+      - init(user:password:)
+
+  - swiftEnum: MyApp.LoginState
+    hooks:
+      - isFinal

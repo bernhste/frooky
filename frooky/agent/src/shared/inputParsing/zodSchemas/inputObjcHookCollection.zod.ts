@@ -17,7 +17,6 @@ export const inputObjcHookNormalizedSchema = z.object({
 export const inputObjcHookSchema = z.union([z.string(), z.tuple([z.string(), decoderSettingsSchema]), inputObjcHookNormalizedSchema]);
 
 export const inputObjcHookCollectionSchema = z.object({
-    type: z.literal("objc"),
     objcClass: z.string(),
     hooks: z.array(inputObjcHookSchema),
     hookSettings: inputHookSettingsSchema.optional(),

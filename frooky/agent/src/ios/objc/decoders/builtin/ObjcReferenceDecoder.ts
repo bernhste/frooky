@@ -3,6 +3,7 @@ import { Decoder } from "../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { logger } from "../../../../shared/logger";
 import { NSDataDecoder } from "../foundation/NSDataDecoder";
+import { NSDictionaryDecoder } from "../foundation/NSDictionaryDecoder";
 import type { ObjcDecoderConstructor } from "../objcDecoderResolver";
 import { ObjcStringDecoder } from "./ObjcStringDecoder";
 
@@ -10,6 +11,7 @@ let classDecoderRegistry: Record<string, ObjcDecoderConstructor> | undefined;
 function getClassDecoderRegistry(): Record<string, ObjcDecoderConstructor> {
   return (classDecoderRegistry ??= {
     NSData: NSDataDecoder,
+    NSDictionary: NSDictionaryDecoder,
   });
 }
 

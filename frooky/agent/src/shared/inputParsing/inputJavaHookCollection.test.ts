@@ -11,7 +11,7 @@ describe("inputJavaHookCollection", () => {
     });
 
     it("returns false for an objc hook group (no javaClass property)", () => {
-      expect(isJavaHookScope({ type: "objc", objcClass: "NSString", hooks: [] })).toBeFalsy();
+      expect(isJavaHookScope({ objcClass: "NSString", hooks: [] })).toBeFalsy();
     });
 
     it("returns false for a native hook group (no javaClass property)", () => {
