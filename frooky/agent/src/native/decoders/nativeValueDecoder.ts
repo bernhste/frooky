@@ -29,6 +29,9 @@ const decodeWord = (input: NativePointer, signed: boolean): number | string => {
   return signed ? decodeSigned64(raw) : raw.toString();
 };
 
+// Reused by every float/double decode
+const floatScratch = Memory.alloc(8);
+
 const valueDecoders: Record<FridaFundamentalType, FundamentalValueDecoder> = {
   void: () => null,
   bool: (input) => input.toInt32() !== 0,
@@ -65,14 +68,12 @@ const valueDecoders: Record<FridaFundamentalType, FundamentalValueDecoder> = {
   // address, so it's written to scratch memory and read back as the FP type to
   // get a correct IEEE-754 reinterpretation instead of a numeric truncation.
   float: (input) => {
-    const scratch = Memory.alloc(4);
-    scratch.writeU32(input.toUInt32());
-    return scratch.readFloat();
+    floatScratch.writeU32(input.toUInt32());
+    return floatScratch.readFloat();
   },
   double: (input) => {
-    const scratch = Memory.alloc(8);
-    scratch.writeU64(uint64(input.toString()));
-    return scratch.readDouble();
+    floatScratch.writeU64(uint64(input.toString()));
+    return floatScratch.readDouble();
   },
 };
 
