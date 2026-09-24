@@ -85,6 +85,23 @@ describe("ArrayDecoder", () => {
 
       expect(decoder.decode(array as unknown as Java.Wrapper)).toEqual({ type: "[I", name: "myArray", value: [1] });
     });
+
+    it("should truncate a primitive array at decodeLimit and append a truncation marker", () => {
+      const array = Java.array("int", [1, 2, 3, 4, 5]);
+      const decoder = new ArrayDecoder({ type: "[I", settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 3 } });
+
+      expect(decoder.decode(array as unknown as Java.Wrapper)).toEqual({ type: "[I", value: [1, 2, 3, "[truncated at 3]"] });
+    });
+
+    it("should truncate an object array at decodeLimit and append a truncation marker", () => {
+      const array = Java.array("java.lang.String", ["a", "b", "c"]);
+      const decoder = new ArrayDecoder({ type: "[Ljava.lang.String;", settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 2 } });
+
+      expect(decoder.decode(array as unknown as Java.Wrapper)).toEqual({
+        type: "[Ljava.lang.String;",
+        value: ["a", "b", "[truncated at 2]"],
+      });
+    });
   });
 });
 

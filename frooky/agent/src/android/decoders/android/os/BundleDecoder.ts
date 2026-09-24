@@ -52,6 +52,18 @@ function getBoxedPrimitiveType(entry: Java.Wrapper, className: string): string |
   return primitiveType;
 }
 
+const TYPED_ARRAY_GETTERS: Record<string, string> = {
+  "[Z": "getBooleanArray",
+  "[B": "getByteArray",
+  "[C": "getCharArray",
+  "[S": "getShortArray",
+  "[I": "getIntArray",
+  "[J": "getLongArray",
+  "[F": "getFloatArray",
+  "[D": "getDoubleArray",
+  "[Ljava.lang.String;": "getStringArray",
+};
+
 /**
  * Decode all key/value pairs from a Bundle.
  */
@@ -62,7 +74,7 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
 
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i].toString();
-      values.push(this.decodeEntry(key, value.get(key)));
+      values.push(this.decodeEntry(value, key, value.get(key), true));
     }
 
     return {
@@ -71,7 +83,7 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
     };
   }
 
-  private decodeEntry(key: string, entry: Java.Wrapper | null): DecodedValue {
+  private decodeEntry(bundle: Java.Wrapper, key: string, entry: Java.Wrapper | null, isBundleValue: boolean): DecodedValue {
     if (entry == null) {
       return { type: "null", name: key, value: null };
     }
@@ -80,12 +92,7 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
     const className: string = entry.$className;
 
     if (className.startsWith("[")) {
-      const length: number = getReflectArray().getLength(entry);
-      const items: unknown[] = new Array(length);
-      for (let i = 0; i < length; i++) {
-        items[i] = this.decodeEntry(key, getReflectArray().get(entry, i)).value;
-      }
-      return { type: className, name: key, value: items };
+      return this.decodeArray(bundle, key, className, entry, isBundleValue);
     }
 
     const castEntry = Java.cast(entry, useCached(className));
@@ -100,5 +107,42 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
 
     const decoded = new ReferenceTypeDecoder({ type: className, name: key, settings }).decode(castEntry);
     return { type: decoded.type, name: key, value: (decoded.value as DecodedValue).value };
+  }
+
+  private decodeArray(bundle: Java.Wrapper, key: string, className: string, entry: Java.Wrapper, isBundleValue: boolean): DecodedValue {
+    const decodeLimit = this.settings.decodeLimit;
+    // only re-fetch through a typed getter for the extra itself - a nested array element reached
+    // via reflection below has no key of its own to re-fetch by
+    const typedGetter = isBundleValue ? TYPED_ARRAY_GETTERS[className] : undefined;
+
+    if (typedGetter) {
+      const getter: Java.MethodDispatcher = bundle[typedGetter];
+      const typedArray = getter.call(bundle, key) as ArrayLike<unknown> | null;
+      const items = typedArray == null ? [] : this.takeLimited(typedArray, typedArray.length, decodeLimit);
+      return { type: className, name: key, value: items };
+    }
+
+    const length: number = getReflectArray().getLength(entry);
+    const decodeLen = Math.min(length, decodeLimit);
+    const items: unknown[] = new Array(decodeLen);
+    for (let i = 0; i < decodeLen; i++) {
+      items[i] = this.decodeEntry(bundle, key, getReflectArray().get(entry, i), false).value;
+    }
+    if (length > decodeLen) {
+      items.push(`[truncated at ${decodeLimit}]`);
+    }
+    return { type: className, name: key, value: items };
+  }
+
+  private takeLimited(arrayLike: ArrayLike<unknown>, total: number, limit: number): unknown[] {
+    const decodeLen = Math.min(total, limit);
+    const items = new Array(decodeLen);
+    for (let i = 0; i < decodeLen; i++) {
+      items[i] = arrayLike[i];
+    }
+    if (total > decodeLen) {
+      items.push(`[truncated at ${limit}]`);
+    }
+    return items;
   }
 }

@@ -65,6 +65,59 @@ describe("BundleDecoder", () => {
     expect(decodeSingleEntry(bundle)).toEqual({ type: "[Ljava.lang.String;", name: "key", value: ["a", "b"] });
   });
 
+  it("should decode a byte array extra via the typed getter fast path (avoids reflect.Array per element)", () => {
+    const bundle = Bundle.$new();
+    bundle.putByteArray("key", Java.array("byte", [0x41, 0x42, 0x43]));
+
+    expect(decodeSingleEntry(bundle)).toEqual({ type: "[B", name: "key", value: [0x41, 0x42, 0x43] });
+  });
+
+  it("should decode a boolean array extra via the typed getter fast path", () => {
+    const bundle = Bundle.$new();
+    bundle.putBooleanArray("key", Java.array("boolean", [true, false, true]));
+
+    expect(decodeSingleEntry(bundle)).toEqual({ type: "[Z", name: "key", value: [true, false, true] });
+  });
+
+  it("should decode a CharSequence array extra via the generic reflection fallback (no typed getter registered)", () => {
+    const bundle = Bundle.$new();
+    const JavaString = Java.use("java.lang.String");
+    const items = Java.array("java.lang.CharSequence", [JavaString.$new("x"), JavaString.$new("y")]);
+    bundle.putCharSequenceArray("key", items);
+
+    expect(decodeSingleEntry(bundle)).toEqual({ type: "[Ljava.lang.CharSequence;", name: "key", value: ["x", "y"] });
+  });
+
+  it("should truncate an int array extra at decodeLimit and append a truncation marker (typed getter path)", () => {
+    const bundle = Bundle.$new();
+    bundle.putIntArray("key", Java.array("int", [1, 2, 3, 4, 5]));
+
+    const limitedDecoder = new BundleDecoder({
+      type: "android.os.Bundle",
+      settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 3 },
+    });
+
+    expect(limitedDecoder.decode(bundle).value[0]).toEqual({ type: "[I", name: "key", value: [1, 2, 3, "[truncated at 3]"] });
+  });
+
+  it("should truncate a CharSequence array extra at decodeLimit and append a truncation marker (reflection fallback path)", () => {
+    const bundle = Bundle.$new();
+    const JavaString = Java.use("java.lang.String");
+    const items = Java.array("java.lang.CharSequence", [JavaString.$new("a"), JavaString.$new("b"), JavaString.$new("c")]);
+    bundle.putCharSequenceArray("key", items);
+
+    const limitedDecoder = new BundleDecoder({
+      type: "android.os.Bundle",
+      settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 2 },
+    });
+
+    expect(limitedDecoder.decode(bundle).value[0]).toEqual({
+      type: "[Ljava.lang.CharSequence;",
+      name: "key",
+      value: ["a", "b", "[truncated at 2]"],
+    });
+  });
+
   it("should decode a null-valued extra without throwing (regression: used to crash reading '.value' of null)", () => {
     const bundle = Bundle.$new();
     bundle.putString("key", null);

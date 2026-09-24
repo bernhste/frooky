@@ -47,11 +47,20 @@ export class ArrayDecoder extends Decoder<Java.Wrapper> {
     const signature = this.type;
     const elementSignature = signature.startsWith("[") ? signature.substring(1) : signature;
     const elementType = elementTypeFromSignature(elementSignature);
+    const arrayLike = value as unknown as ArrayLike<unknown>;
+    const decodeLimit = this.settings.decodeLimit;
+    const total: number = arrayLike.length;
+    const decodeLen = Math.min(total, decodeLimit);
     let arrayValue: unknown[];
 
     if (JAVA_PRIMITIVE_TYPES.has(elementType)) {
-      // Frida unwraps primitive arrays to a JS-iterable directly
-      arrayValue = Array.from(value as unknown as ArrayLike<unknown>);
+      // Frida unwraps primitive arrays to a native-memory-backed proxy - index reads are direct
+      // memory reads, not bridge calls, so capping at decodeLimit here is about bounding the
+      // resulting JS array/payload size rather than avoiding bridge crossings
+      arrayValue = new Array(decodeLen);
+      for (let i = 0; i < decodeLen; i++) {
+        arrayValue[i] = arrayLike[i];
+      }
     } else {
       // complex java types or nested array
       const elementDecodable: Decodable = {
@@ -60,12 +69,15 @@ export class ArrayDecoder extends Decoder<Java.Wrapper> {
         settings: this.settings,
       };
       const elementDecoder = JavaDecoderResolver.resolveDecoder(elementDecodable);
-      const len = value.length;
-      arrayValue = new Array(len);
-      for (let i = 0; i < len; i++) {
+      arrayValue = new Array(decodeLen);
+      for (let i = 0; i < decodeLen; i++) {
         const el = value[i];
         arrayValue[i] = el == null ? null : elementDecoder.decode(el).value;
       }
+    }
+
+    if (total > decodeLen) {
+      arrayValue.push(`[truncated at ${decodeLimit}]`);
     }
 
     return {

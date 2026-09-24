@@ -6,11 +6,10 @@ export class ContentValuesDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     const result: Record<string, unknown> = {};
 
-    const keySet = value.keySet();
-    const iterator = keySet.iterator();
+    const keys = value.keySet().toArray();
 
-    while (iterator.hasNext()) {
-      const key = iterator.next().toString();
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i].toString();
       const val = value.get(key);
       result[key] = val != null ? val.toString() : null;
     }
