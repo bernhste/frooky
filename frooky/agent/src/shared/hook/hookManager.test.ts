@@ -76,7 +76,7 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     return this.resolveRetTypeDecoder(retType);
   }
 
-  public exposedMatchesFilter(decodedValue: DecodedValue, paramFilter?: string[]): boolean {
+  public exposedMatchesFilter(decodedValue: DecodedValue, paramFilter?: RegExp[]): boolean {
     return this.matchesFilter(decodedValue, paramFilter);
   }
 
@@ -169,7 +169,7 @@ describe("HookManager", () => {
       expect(result[1].argIndex).toBe(1);
       expect(result[1].direction).toBe("out");
       expect(result[1].name).toBe("b");
-      expect(result[1].paramFilter).toEqual(["^x"]);
+      expect(result[1].paramFilter).toEqual([/^x/]);
     });
 
     it("does not forward the 'direction' field to the decoder resolver", () => {
@@ -222,6 +222,19 @@ describe("HookManager", () => {
     it("returns an empty array for an empty params list", () => {
       const manager = createManager();
       expect(manager.exposedResolveParamDecoders([])).toEqual([]);
+    });
+
+    it("throws when a param using decoderArg shares its name with another param", () => {
+      const manager = createManager();
+      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "length" };
+      // two params are both named "buffer", so the decoderArg-using one's self-lookup by name resolves to 2 matches instead of 1
+      const params: Param[] = [
+        makeParam({ name: "length", type: "int" }),
+        makeParam({ name: "buffer", type: "pointer", settings: bufferSettings }),
+        makeParam({ name: "buffer", type: "pointer" }),
+      ];
+
+      expect(() => manager.exposedResolveParamDecoders(params)).toThrow("It was not possible fetching the decoder for decoderArg 'length'");
     });
   });
 
@@ -300,25 +313,25 @@ describe("HookManager", () => {
 
     it("returns true for non-string/non-number values regardless of the filter", () => {
       const manager = createManager();
-      expect(manager.exposedMatchesFilter({ type: "object", value: { nested: true } }, ["^won't match$"])).toBeTruthy();
-      expect(manager.exposedMatchesFilter({ type: "bool", value: true }, ["^won't match$"])).toBeTruthy();
-      expect(manager.exposedMatchesFilter({ type: "null", value: null }, ["^won't match$"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "object", value: { nested: true } }, [/^won't match$/])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "bool", value: true }, [/^won't match$/])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "null", value: null }, [/^won't match$/])).toBeTruthy();
     });
 
     it("returns true when the string value matches one of the filter patterns", () => {
       const manager = createManager();
-      expect(manager.exposedMatchesFilter({ type: "string", value: "hello world" }, ["^nope$", "^hello"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "string", value: "hello world" }, [/^nope$/, /^hello/])).toBeTruthy();
     });
 
     it("returns false when the string value matches none of the filter patterns", () => {
       const manager = createManager();
-      expect(manager.exposedMatchesFilter({ type: "string", value: "hello world" }, ["^nope$"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "string", value: "hello world" }, [/^nope$/])).toBeFalsy();
     });
 
     it("stringifies a numeric value before testing it against the filter patterns", () => {
       const manager = createManager();
-      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["^42$"])).toBeTruthy();
-      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["^43$"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, [/^42$/])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, [/^43$/])).toBeFalsy();
     });
   });
 
@@ -357,7 +370,7 @@ describe("HookManager", () => {
         return { type: "string", value };
       });
       const paramDecoders: ParamDecoder<TestValue>[] = [
-        { decoder: decoderA, argIndex: 0, direction: "in", name: "a", paramFilter: ["^nope$"] },
+        { decoder: decoderA, argIndex: 0, direction: "in", name: "a", paramFilter: [/^nope$/] },
         { decoder: decoderB, argIndex: 1, direction: "in", name: "b" },
       ];
 
@@ -392,21 +405,6 @@ describe("HookManager", () => {
       manager.exposedDecodeArgs(["4", "buf-ptr"], paramDecoders);
 
       expect(receivedDecoderArg).toEqual({ type: "int", value: 4 });
-    });
-
-    it("throws when the paramDecoder's own name does not appear exactly once among the given paramDecoders", () => {
-      const manager = createManager();
-      const decoderArgDecoder = new FakeDecoder({ type: "int", settings: DEFAULT_DECODER_SETTINGS });
-      const bufferDecoder = new FakeDecoder({ type: "pointer", settings: DEFAULT_DECODER_SETTINGS });
-      // both paramDecoders share the same (undefined) name, so the self-lookup by name resolves to 2 matches instead of 1
-      const paramDecoders: ParamDecoder<TestValue>[] = [
-        { decoder: bufferDecoder, argIndex: 0, direction: "in", decoderArg: "length", decoderArgIndex: 1, decoderArgDecoder },
-        { decoder: decoderArgDecoder, argIndex: 1, direction: "in" },
-      ];
-
-      expect(() => manager.exposedDecodeArgs(["buf-ptr", "4"], paramDecoders)).toThrow(
-        "It was not possible fetching the decoder for decoderArg 'length'",
-      );
     });
   });
 });

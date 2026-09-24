@@ -17,7 +17,7 @@ export type ParamDecoder<TValue> = {
   decoderArg?: string;
   decoderArgIndex?: number;
   decoderArgDecoder?: Decoder<TValue>;
-  paramFilter?: string[];
+  paramFilter?: RegExp[];
 };
 
 export type DecodedArgs = {
@@ -64,11 +64,21 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decoderArg: param.settings.decoderArg,
         decoderArgIndex: decoderArgResolution?.index,
         decoderArgDecoder: decoderArgResolution?.decoder,
-        paramFilter: param.settings.paramFilter,
+        paramFilter: param.settings.paramFilter?.map((pattern) => new RegExp(pattern)),
       };
       logger.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
       argDecoderSpecs.push(paramDecoder);
     });
+
+    for (const paramDecoder of argDecoderSpecs) {
+      if (paramDecoder.decoderArg && paramDecoder.decoderArgIndex !== undefined && paramDecoder.decoderArgDecoder) {
+        const matchingByName = argDecoderSpecs.filter((argDecoder) => argDecoder.name === paramDecoder.name);
+        if (matchingByName.length != 1) {
+          throw Error(`It was not possible fetching the decoder for decoderArg '${paramDecoder.decoderArg}'`);
+        }
+      }
+    }
+
     return argDecoderSpecs;
   }
 
@@ -102,14 +112,15 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return this.decoderResolver.resolveDecoder(retType);
   }
 
-  protected matchesFilter(decodedValue: DecodedValue, paramFilter?: string[]): boolean {
+  protected matchesFilter(decodedValue: DecodedValue, paramFilter?: RegExp[]): boolean {
     if (!paramFilter || paramFilter.length === 0) return true;
 
     const value = decodedValue.value;
 
     if (typeof value !== "string" && typeof value !== "number") return true;
 
-    return paramFilter.some((pattern) => new RegExp(pattern).test(String(value)));
+    const stringValue = String(value);
+    return paramFilter.some((pattern) => pattern.test(stringValue));
   }
 
   protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[]): DecodedValue[] {
@@ -117,11 +128,6 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     for (const paramDecoder of paramDecoders) {
       let decodedDecoderArg: any;
       if (paramDecoder.decoderArg && paramDecoder.decoderArgIndex !== undefined && paramDecoder.decoderArgDecoder) {
-        // decode the decoder argument
-        const decoderArgDecoderSpec = paramDecoders.filter((argDecoder) => argDecoder.name === paramDecoder.name);
-        if (decoderArgDecoderSpec.length != 1) {
-          throw Error(`It was not possible fetching the decoder for decoderArg '${paramDecoder.decoderArg}'`);
-        }
         decodedDecoderArg = paramDecoder.decoderArgDecoder.decode(args[paramDecoder.decoderArgIndex]);
       }
       var decodedValue = paramDecoder.decoder.decode(args[paramDecoder.argIndex], decodedDecoderArg);

@@ -12,14 +12,33 @@ export function wildcardPatternToRegExp(pattern: string): RegExp {
   return new RegExp(`^${segments.join("[^.]+")}$`);
 }
 
+const UUID_HEX_CHARS = "0123456789abcdef";
+
 /**
  * Generates a v4 UUID
  * @returns {string} v4 UUID (e.g. "6b5354ed-8c3e-476d-8999-96b2251d8a3c")
  */
 export function uuidv4(): string {
-  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c: string): string =>
-    ((+c ^ ((Math.random() * 16) >> (+c / 4))) & 15).toString(16),
-  );
+  const chars = new Array<string>(36);
+  for (let i = 0; i < 36; i++) {
+    switch (i) {
+      case 8:
+      case 13:
+      case 18:
+      case 23:
+        chars[i] = "-";
+        break;
+      case 14:
+        chars[i] = "4";
+        break;
+      case 19:
+        chars[i] = UUID_HEX_CHARS[(Math.random() * 4) | 8]; // one of 8, 9, a, b per RFC 4122
+        break;
+      default:
+        chars[i] = UUID_HEX_CHARS[(Math.random() * 16) | 0];
+    }
+  }
+  return chars.join("");
 }
 
 const HEX_TABLE: readonly string[] = Object.freeze(Array.from({ length: 256 }, (_, i) => (i < 16 ? "0" : "") + i.toString(16)));
