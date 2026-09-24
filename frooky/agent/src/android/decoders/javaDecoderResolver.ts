@@ -5,9 +5,9 @@ import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
-import { PrimitiveDecoder } from "./builtin/BasicDecoder";
 import { ConstantDecoder } from "./builtin/ConstantDecoder";
 import { HashCodeDecoder } from "./builtin/HashCodeDecoder";
+import { PrimitiveDecoder } from "./builtin/PrimitiveDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
 import { StringDecoder } from "./builtin/StringDecoder";
 

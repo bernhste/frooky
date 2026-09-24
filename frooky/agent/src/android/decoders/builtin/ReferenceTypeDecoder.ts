@@ -10,19 +10,7 @@ import { KeyGenParameterSpecDecoder } from "../android/security/keystore/KeyGenP
 import { IterableDecoder } from "../java/lang/IterableDecoder";
 import { MapDecoder } from "../java/util/MapDecoder";
 import { DecoderConstructor } from "../javaDecoderResolver";
-import { JavaReflectionMetadataDecoder, PrimitiveDecoder } from "./BasicDecoder";
 import { StringDecoder } from "./StringDecoder";
-
-// reflecting getters via GetterDecoder of objects of these classes recurses
-const REFLECTION_RECURSION_CLASSES = new Set([
-  "java.lang.Class",
-  "java.lang.reflect.Method",
-  "java.lang.reflect.Field",
-  "java.lang.reflect.Constructor",
-]);
-
-// objects of these classes are decoded using their toString() method. This is helpful, if there are no useful getters.
-const TO_STRING_CLASSES = new Set(["javax.security.auth.x500.X500Principal", "java.math.BigInteger", "java.util.Date"]);
 
 let classDecoderRegistry: Record<string, DecoderConstructor> | undefined;
 function getClassDecoderRegistry(): Record<string, DecoderConstructor> {
@@ -43,7 +31,7 @@ function getInterfaceDecoderRegistry(): Record<string, DecoderConstructor> {
   });
 }
 
-const decoderCache = new Map<string, DecoderConstructor>();
+const decoderCache = new Map<string, DecoderConstructor | null>();
 
 function collectInterfaces(javaClass: Java.Wrapper): Set<string> {
   const result = new Set<string>();
@@ -82,6 +70,7 @@ function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor |
     }
   }
 
+  decoderCache.set(value.$className, null);
   return null;
 }
 
@@ -102,22 +91,22 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
     logger.debug(`Resolving decoder for declared type: ${this.type}`);
 
     const decoderConstructor: DecoderConstructor =
-      // 1. instances of these classes are always decoded using toString()
-      (TO_STRING_CLASSES.has(value.$className) ? StringDecoder : undefined) ??
-      // 2. reflection metadata is self-referential (see REFLECTION_RECURSION_CLASSES) - decode it via
-      // toString() instead of reflecting its getters through GetterDecoder
-      (REFLECTION_RECURSION_CLASSES.has(value.$className) ? JavaReflectionMetadataDecoder : undefined) ??
-      // 3. java.lang.String is final and already unwrapped by Frida to a JS-friendly value - decode
-      // it as a primitive rather than falling through to GetterDecoder, which would otherwise
-      // reflect and invoke its getters (e.g. getBytes()) instead of using the string itself
-      (value.$className === "java.lang.String" ? PrimitiveDecoder : undefined) ??
-      // 4. class decoder for the runtime class exists
+      // 1. class decoder for the runtime class exists
       getClassDecoderRegistry()[value.$className] ??
-      // 5. interface decoder for declared interface type exists
+      // 2. interface decoder for declared interface type exists - a fast path that skips the
+      // reflective walk in step 3 when the declared type already names a registered interface
+      // directly; step 3 alone would resolve the same case (just slower), so if the interface
+      // registry ever grows to include two interfaces in a supertype/subtype relationship, make
+      // sure both steps still agree on which one wins
       getInterfaceDecoderRegistry()[this.type] ??
-      // 6. resolve the interfaces and use a decoder if implemented
+      // 3. resolve the interfaces and use a decoder if implemented
       resolveInterfaceDecoderClass(value) ??
-      // 7. try to string decode it as a fallback
+      // 4. no specific decoder is registered for this reference type - fall back to its Java
+      // toString() rather than reflecting its getters, which needs no per-class allowlist: this
+      // is correct for java.lang.String (toString() is itself), for a class with no useful
+      // "get"-prefixed methods (e.g. BigInteger), and for reflection metadata like Class/Method/
+      // Field, whose own getters point back at each other and would recurse without bound through
+      // GetterDecoder - this fallback never calls GetterDecoder, so that recursion can't happen here
       StringDecoder;
 
     const decoder = new decoderConstructor({

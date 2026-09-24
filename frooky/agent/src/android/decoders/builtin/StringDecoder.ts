@@ -14,9 +14,7 @@ export class StringDecoder extends Decoder<Java.Wrapper> {
       const decoded = hasMultiByteChars && isValidUtf8(bytes) ? toUtf8(bytes) : toAscii(bytes);
       decodedValue = decoded + (truncated ? "..." : "");
     } else {
-      // call the objects .toString()
-      const typedValue = Java.cast(value, Java.use(value.$className));
-      decodedValue = typedValue.toString();
+      decodedValue = value.toString();
     }
     return {
       type: this.type,

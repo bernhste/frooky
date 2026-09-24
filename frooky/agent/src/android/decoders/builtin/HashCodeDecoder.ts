@@ -20,8 +20,7 @@ export class HashCodeDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     let decodedValue: string | null = null;
     if (value != null) {
-      const typedValue = Java.cast(value, Java.use(value.$className));
-      const hash: number = typedValue.hashCode();
+      const hash: number = value.hashCode();
       decodedValue = `${value.$className}@${(hash >>> 0).toString(16)}`;
     }
     return {

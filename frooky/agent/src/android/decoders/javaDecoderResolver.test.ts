@@ -3,7 +3,7 @@ import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
-import { PrimitiveDecoder } from "./builtin/BasicDecoder";
+import { PrimitiveDecoder } from "./builtin/PrimitiveDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "./javaDecoderResolver";
 
