@@ -1,7 +1,7 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../../../shared/decoders/decodedValue";
-import { decodeGetterValues } from "../../../utils/decodeGetterValues";
+import { IntentDecoder } from "../IntentDecoder";
 
 export class ClipDataItemDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
@@ -10,7 +10,10 @@ export class ClipDataItemDecoder extends Decoder<Java.Wrapper> {
     const uri = value.getUri();
 
     const intentValue = value.getIntent();
-    const intent = intentValue != null ? decodeGetterValues(intentValue, ["get"], this.settings) : null;
+    const intent =
+      intentValue != null
+        ? new IntentDecoder({ type: "android.content.Intent", settings: this.settings }).decode(intentValue).value
+        : null;
 
     return {
       type: "android.content.ClipData.Item",

@@ -70,7 +70,7 @@ describe("ClipDataDecoder", () => {
     expect(findProperty("component")).toEqual({ type: "android.content.ComponentName", name: "component", value: null });
     expect(findProperty("categories")).toEqual({ type: "java.util.Set", name: "categories", value: null });
     expect(findProperty("extras")).toEqual({ type: "android.os.Bundle", name: "extras", value: null });
-    expect(findProperty("flags")).toEqual({ type: "int", name: "flags", value: 0 });
+    expect(findProperty("flags")).toEqual({ type: "android.content.IntentFlag", name: "flags", value: [] });
   });
 });
 

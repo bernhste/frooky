@@ -5,6 +5,7 @@ import { logger } from "../../../shared/logger";
 import { ClipDataDecoder } from "../android/content/clipData/ClipDataDecoder";
 import { ClipDataItemDecoder } from "../android/content/clipData/ClipDataItemDecoder";
 import { ContentValuesDecoder } from "../android/content/ContentValuesDecoder";
+import { IntentDecoder } from "../android/content/IntentDecoder";
 import { BundleDecoder } from "../android/os/BundleDecoder";
 import { KeyGenParameterSpecDecoder } from "../android/security/keystore/KeyGenParameterSpecDecoder";
 import { IterableDecoder } from "../java/lang/IterableDecoder";
@@ -20,6 +21,7 @@ function getClassDecoderRegistry(): Record<string, DecoderConstructor> {
     "android.os.Bundle": BundleDecoder,
     "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,
     "android.content.ContentValues": ContentValuesDecoder,
+    "android.content.Intent": IntentDecoder,
   });
 }
 
