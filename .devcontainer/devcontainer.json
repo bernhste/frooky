@@ -32,7 +32,8 @@
         "dbaeumer.vscode-eslint",
         "yzhang.markdown-all-in-one",
         "fwcd.kotlin",
-        "ms-vscode.cpptools"
+        "ms-vscode.cpptools",
+        "redhat.vscode-yaml"
       ]
     }
   }

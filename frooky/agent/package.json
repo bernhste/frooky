@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build:zodSchema": "npx ts-to-zod --all",
+    "build:jsonSchema": "npx tsx scripts/generateJsonSchema.ts",
     "build:prod:android": "node build.js android -c",
     "build:dev:android": "node build.js android",
     "build:watch:android": "node build.js android -t frida -w",
@@ -16,13 +17,14 @@
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^24.10.9",
     "chokidar": "^5.0.0",
+    "eslint": "^10.9.1",
     "frida-compile": "^19.0.4",
     "frida-java-bridge": "^7.0.11",
     "frida-objc-bridge": "^8.0.5",
     "frida-swift-bridge": "^3.0.2",
     "frida-test": "^0.4.0",
     "ts-to-zod": "^5.1.0",
-    "eslint": "^10.9.1"
+    "tsx": "^4.23.15"
   },
   "dependencies": {
     "js-yaml": "^4.1.1",

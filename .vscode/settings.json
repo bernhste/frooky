@@ -42,6 +42,9 @@
     "source.organizeImports": "explicit"
   },
   "eslint.validate": ["typescript", "javascript"],
+  "yaml.schemas": {
+    "./docs/schema/frooky-config.schema.json": "docs/examples/**/*.yaml"
+  },
   "kotlin.diagnostics.enabled": false,
   "markdown.extension.toc.levels": "2..6",
   "markdown.extension.toc.updateOnSave": true,
