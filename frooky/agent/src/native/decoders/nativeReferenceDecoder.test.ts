@@ -131,10 +131,10 @@ describe("NativeReferenceDecoder", () => {
       expect(makeDecoder("char").decode(scratch)).toEqual({ type: "char*", value: "hello" });
     });
 
-    it("should cap an unbounded char* read at the configured decodeLimit", () => {
+    it("should cap an unbounded char* read at the configured maxItems", () => {
       const scratch = Memory.alloc(16);
       scratch.writeUtf8String("hello world");
-      const decoder = makeDecoder("char", { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 5 });
+      const decoder = makeDecoder("char", { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 });
       expect(decoder.decode(scratch)).toEqual({ type: "char*", value: "hello" });
     });
 
@@ -158,10 +158,10 @@ describe("NativeReferenceDecoder", () => {
       expect(result).toEqual({ type: "void*", value: ["0x41424344", "ABCD"] });
     });
 
-    it("should clamp a void* length arg to the configured decodeLimit", () => {
+    it("should clamp a void* length arg to the configured maxItems", () => {
       const scratch = Memory.alloc(10);
       scratch.writeByteArray([0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a]);
-      const decoder = makeDecoder("void", { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 3 });
+      const decoder = makeDecoder("void", { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
       const result = decoder.decode(scratch, decodedArg(10));
       expect(result).toEqual({ type: "void*", value: ["0x414243", "ABC"] });
     });

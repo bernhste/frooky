@@ -15,12 +15,12 @@ const readWord = (input: NativePointer, signed: boolean): number | string => {
   return signed ? input.readS64().toString() : input.readU64().toString();
 };
 
-// Passing `decodeLimit` as the `size` argument to `readUtf8String()` is unsafe: Frida
+// Passing `maxItems` as the `size` argument to `readUtf8String()` is unsafe: Frida
 // reads up to `size` bytes eagerly rather than stopping at the first NUL, so a short
 // string sitting near the end of a small/mapped region can trigger an out-of-bounds
 // read. Read the (safely NUL-bounded) string first and only then cap its length in JS.
-const truncateToDecodeLimit = (value: string | null, decodeLimit: number): string | null =>
-  value !== null && value.length > decodeLimit ? value.slice(0, decodeLimit) : value;
+const truncateToMaxItems = (value: string | null, maxItems: number): string | null =>
+  value !== null && value.length > maxItems ? value.slice(0, maxItems) : value;
 
 // A length argument is usually declared as `int`/`size_t`/etc. On LP64 targets
 // NativeValueDecoder returns size_t/long/ssize_t/ulong/int64/uint64 as decimal
@@ -45,9 +45,9 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
         logger.debug(`void * Decoder: Decoder argument passed: ${length}`);
 
         let readLength: number;
-        if (length > setting.decodeLimit) {
-          logger.debug(`void * Decoder: Setting the argument value of ${length} to the max decode length of ${setting.decodeLimit}.`);
-          readLength = setting.decodeLimit;
+        if (length > setting.maxItems) {
+          logger.debug(`void * Decoder: Setting the argument value of ${length} to the max decode length of ${setting.maxItems}.`);
+          readLength = setting.maxItems;
         } else {
           readLength = length;
         }
@@ -67,7 +67,7 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
   char: (input, setting) => {
     // TODO: May be replaced in the future by a better string decoder
     try {
-      return truncateToDecodeLimit(input.readUtf8String(), setting.decodeLimit);
+      return truncateToMaxItems(input.readUtf8String(), setting.maxItems);
     } catch (e) {
       return input.readS8();
     }
@@ -84,7 +84,7 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
         }
         // logger.debug(`uchar * Decoder: Decoder argument passed: ${JSON.stringify(arg, null, 2)}.`);
 
-        const decodeLength = length > setting.decodeLimit ? setting.decodeLimit : length;
+        const decodeLength = length > setting.maxItems ? setting.maxItems : length;
         const rawBytes = input.readByteArray(decodeLength);
         logger.debug(`uchar * Decoder: Successfully read ${decodeLength} bytes of uchar *`);
         if (rawBytes !== null) {
@@ -93,7 +93,7 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
         }
       } else {
         try {
-          return truncateToDecodeLimit(input.readUtf8String(), setting.decodeLimit);
+          return truncateToMaxItems(input.readUtf8String(), setting.maxItems);
         } catch (e) {
           return input.readS8();
         }

@@ -5,9 +5,9 @@ export const DEFAULT_DECODE_AT: Direction = "in";
 
 export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
   fastDecode: false,
-  magicDecode: false,
-  maxRecursion: 10,
-  decodeLimit: 100,
+  hashCode: false,
+  maxDepth: 10,
+  maxItems: 100,
   decoder: undefined,
   decoderArg: undefined,
   paramFilter: undefined,

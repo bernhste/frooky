@@ -19,10 +19,18 @@ export class NativeHookEvent extends HookEvent {
   /** Address of the hooked function. */
   address?: NativePointer;
 
+  /**
+   * Identifies the hooked function, for compatibility with {@link DecoderSettings.hashCode}. Native
+   * hooks have no per-call instance the way java hooks do, so this is just the function's own address
+   * (the same value on every call to this hook) rather than a per-invocation identity.
+   */
+  hashCode?: string;
+
   constructor(hook: NativeHook, decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: string[]) {
     super(decodedArgs, returnValue, stackTrace);
     this.type += "-native";
     this.module = hook.module.name;
     this.symbol = hook.symbolName;
+    this.hashCode = hook.decoderSettings.hashCode ? hook.symbolAddress.toString() : undefined;
   }
 }

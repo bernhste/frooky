@@ -120,26 +120,26 @@ describe("configValidator", () => {
 
     it("fills in the default value for a missing property", () => {
       const incompleteInputDecoderSettings: InputDecoderSettings = {
-        decodeLimit: 30,
+        maxItems: 30,
       };
       expect(validateAndRepairDecoderSettings(incompleteInputDecoderSettings)).toEqual({
         fastDecode: false,
-        magicDecode: false,
-        maxRecursion: 10,
-        decodeLimit: 30,
+        hashCode: false,
+        maxDepth: 10,
+        maxItems: 30,
       });
     });
 
     it("resets a property to its default and warns when it does not match the schema", () => {
       const incorrectInputDecoderSettings: InputDecoderSettings = {
-        decodeLimit: false as unknown as number,
+        maxItems: false as unknown as number,
       };
       expect(validateAndRepairDecoderSettings(incorrectInputDecoderSettings)).toEqual(DEFAULT_DECODER_SETTINGS);
 
       expect(warnSpy).toHaveBeenCalled();
       const [lines] = warnSpy.mock.calls[0] as [string[]];
-      expect(lines).toContain(`Decoder setting "'decodeLimit'" contains invalid data:`);
-      expect(lines).toContain(`The value for 'decodeLimit' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS.decodeLimit)}`);
+      expect(lines).toContain(`Decoder setting "'maxItems'" contains invalid data:`);
+      expect(lines).toContain(`The value for 'maxItems' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS.maxItems)}`);
     });
 
     it("warns when the settings contain unknown properties", () => {
@@ -161,8 +161,8 @@ describe("configValidator", () => {
     });
 
     it("repairs and merges decoderSettings when provided, leaving hookSettings at its default", () => {
-      const result = validateAndRepairFrookySettings({ decoderSettings: { magicDecode: true } });
-      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, magicDecode: true });
+      const result = validateAndRepairFrookySettings({ decoderSettings: { maxDepth: 42 } });
+      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, maxDepth: 42 });
       expect(result.hookSettings).toEqual(pristineFrookySettings.hookSettings);
     });
 
@@ -205,7 +205,7 @@ describe("configValidator", () => {
         metadata: { name: "Test Config", platform: "Android" },
         settings: {
           hookSettings: { stackTraceLimit: 55 },
-          decoderSettings: { magicDecode: false },
+          decoderSettings: { maxDepth: 20 },
         },
         hookCollection: [],
       };
@@ -213,7 +213,7 @@ describe("configValidator", () => {
         metadata: { name: "Test Config", platform: "Android" },
         settings: {
           hookSettings: { ...pristineFrookySettings.hookSettings, stackTraceLimit: 55 },
-          decoderSettings: { ...pristineFrookySettings.decoderSettings, magicDecode: false },
+          decoderSettings: { ...pristineFrookySettings.decoderSettings, maxDepth: 20 },
         },
         hookCollection: [],
       };

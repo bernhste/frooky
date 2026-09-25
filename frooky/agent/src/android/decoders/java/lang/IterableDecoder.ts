@@ -11,12 +11,12 @@ export class IterableDecoder extends Decoder<Java.Wrapper> {
   decode(value: Java.Wrapper): DecodedValue {
     const values: DecodedValue[] = [];
     const iterator: Java.Wrapper = value.iterator();
-    const decodeLimit = this.settings.decodeLimit;
+    const maxItems = this.settings.maxItems;
 
     const decoderCache = new Map<string, Decoder<Java.Wrapper>>();
 
     let count = 0;
-    while (iterator.hasNext() && count < decodeLimit) {
+    while (iterator.hasNext() && count < maxItems) {
       const element = iterator.next();
       const className = element.$className;
 
@@ -37,7 +37,7 @@ export class IterableDecoder extends Decoder<Java.Wrapper> {
     if (iterator.hasNext()) {
       values.push({
         type: "java.lang.String",
-        value: `[truncated at ${decodeLimit}]`,
+        value: `[truncated at ${maxItems}]`,
       } as DecodedValue);
     }
 

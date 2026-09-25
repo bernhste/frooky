@@ -91,7 +91,7 @@ describe("IterableDecoder", () => {
       resolveDecoderSpy.mockRestore();
     });
 
-    it("should truncate at decodeLimit and append a truncation marker", () => {
+    it("should truncate at maxItems and append a truncation marker", () => {
       const ArrayList = Java.use("java.util.ArrayList");
       const list = ArrayList.$new();
       list.add("a");
@@ -100,7 +100,7 @@ describe("IterableDecoder", () => {
 
       const decoder = new IterableDecoder({
         type: "java.util.List",
-        settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 2 },
+        settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 2 },
       });
       const result = decoder.decode(list);
 

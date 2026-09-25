@@ -5,8 +5,8 @@ import { InputParamSettings } from "./inputSettings";
 
 describe("inputDecodableTypes", () => {
   describe("normalizeInputParam()", () => {
-    const inlineSettings: InputParamSettings = { direction: "out", maxRecursion: 10, decodeLimit: 10, fastDecode: false, magicDecode: true };
-    const expectedSettings = { maxRecursion: 10, decodeLimit: 10, fastDecode: false, magicDecode: true };
+    const inlineSettings: InputParamSettings = { direction: "out", maxDepth: 10, maxItems: 10, fastDecode: true };
+    const expectedSettings = { maxDepth: 10, maxItems: 10, fastDecode: true, hashCode: false };
 
     it("should normalize a valid string to Param", () => {
       expect(normalizeInputParam("testParam")).toEqual({ type: "testParam", direction: "in", settings: DEFAULT_DECODER_SETTINGS });
@@ -50,45 +50,45 @@ describe("inputDecodableTypes", () => {
     });
 
     it("should normalize a valid [string, Partial<DecoderSettings>] to a RetType", () => {
-      expect(normalizeInputRetType(["android.database.sqlite.SQLiteCursor", { decodeLimit: 10 }])).toEqual({
+      expect(normalizeInputRetType(["android.database.sqlite.SQLiteCursor", { maxItems: 10 }])).toEqual({
         type: "android.database.sqlite.SQLiteCursor",
-        settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 10 },
+        settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 10 },
       });
     });
 
     it("should return RetType unchanged", () => {
-      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: false } };
+      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, fastDecode: true } };
       expect(normalizeInputRetType(retType)).toEqual(retType);
     });
   });
 
   describe("normalizeInputRetTypeSettings()", () => {
     it("normalizes a bare decoder settings object", () => {
-      expect(normalizeInputRetTypeSettings({ decodeLimit: 10 })).toEqual({ ...DEFAULT_DECODER_SETTINGS, decodeLimit: 10 });
+      expect(normalizeInputRetTypeSettings({ maxItems: 10 })).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 10 });
     });
 
     it("merges a bare decoder settings object on top of the given base settings", () => {
-      expect(normalizeInputRetTypeSettings({ decodeLimit: 10 }, { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30 })).toEqual({
+      expect(normalizeInputRetTypeSettings({ maxItems: 10 }, { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30 })).toEqual({
         ...DEFAULT_DECODER_SETTINGS,
-        maxRecursion: 30,
-        decodeLimit: 10,
+        maxDepth: 30,
+        maxItems: 10,
       });
     });
 
     it("ignores a plain type string, falling back to the base settings", () => {
-      expect(normalizeInputRetTypeSettings("int", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30 })).toEqual({
+      expect(normalizeInputRetTypeSettings("int", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30 })).toEqual({
         ...DEFAULT_DECODER_SETTINGS,
-        maxRecursion: 30,
+        maxDepth: 30,
       });
     });
 
     it("ignores the type in a [type, decoderSettings] tuple, keeping only the settings", () => {
-      expect(normalizeInputRetTypeSettings(["int", { decodeLimit: 10 }])).toEqual({ ...DEFAULT_DECODER_SETTINGS, decodeLimit: 10 });
+      expect(normalizeInputRetTypeSettings(["int", { maxItems: 10 }])).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 10 });
     });
 
     it("ignores the type in a normalized RetType object, keeping only the settings", () => {
-      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: false } };
-      expect(normalizeInputRetTypeSettings(retType)).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: false });
+      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, fastDecode: true } };
+      expect(normalizeInputRetTypeSettings(retType)).toEqual({ ...DEFAULT_DECODER_SETTINGS, fastDecode: true });
     });
   });
 });

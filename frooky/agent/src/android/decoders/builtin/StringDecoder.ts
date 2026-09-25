@@ -9,7 +9,7 @@ export class StringDecoder extends Decoder<Java.Wrapper> {
     if (value == null) {
       decodedValue = value;
     } else if (this.type == "[B") {
-      const [bytes, truncated] = readBytesLimited(value as unknown as ArrayLike<number>, this.settings.decodeLimit);
+      const [bytes, truncated] = readBytesLimited(value as unknown as ArrayLike<number>, this.settings.maxItems);
       const hasMultiByteChars = bytes.some((byte) => byte >= 0x80);
       const decoded = hasMultiByteChars && isValidUtf8(bytes) ? toUtf8(bytes) : toAscii(bytes);
       decodedValue = decoded + (truncated ? "..." : "");

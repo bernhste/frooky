@@ -60,13 +60,13 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: true },
+          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeNativeHookCollection(hookCollection, settings);
 
         expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 });
-        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: true });
+        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 });
       });
 
       it("gives the hook group's own hookSettings/decoderSettings the highest precedence", () => {
@@ -75,17 +75,17 @@ describe("inputNativeHookCollection", () => {
           module: "libc.so",
           hooks: [],
           hookSettings: { stackTraceLimit: 99 },
-          decoderSettings: { magicDecode: false },
+          decoderSettings: { maxDepth: 7 },
         };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: true },
+          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeNativeHookCollection(hookCollection, settings);
 
         expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 99 });
-        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: false });
+        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 7 });
       });
     });
 
@@ -95,13 +95,13 @@ describe("inputNativeHookCollection", () => {
           type: "native",
           module: "libc.so",
           hookSettings: { stackTraceLimit: 30 },
-          decoderSettings: { maxRecursion: 30 },
+          decoderSettings: { maxDepth: 30 },
           hooks: [
             {
               symbol: "malloc",
               module: "libc.so",
               hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 },
-              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 },
+              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
             },
           ],
         };
@@ -109,7 +109,7 @@ describe("inputNativeHookCollection", () => {
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
         expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 });
-        expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 });
+        expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
       });
 
       it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
@@ -121,14 +121,14 @@ describe("inputNativeHookCollection", () => {
           type: "native",
           module: "libc.so",
           hookSettings: { stackTraceLimit: 30, stackTraceFilter: ["^group"] },
-          decoderSettings: { maxRecursion: 30, decodeLimit: 30 },
+          decoderSettings: { maxDepth: 30, maxItems: 30 },
           hooks: [
             {
               symbol: "malloc",
               module: "libc.so",
               // intentionally only overrides one field of each settings object
               hookSettings: { stackTraceLimit: 40 },
-              decoderSettings: { maxRecursion: 40 },
+              decoderSettings: { maxDepth: 40 },
             } as InputNativeHookNormalized,
           ],
         };
@@ -138,8 +138,8 @@ describe("inputNativeHookCollection", () => {
         expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ stackTraceLimit: 40, stackTraceFilter: ["^group"] });
         expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
-          maxRecursion: 40,
-          decodeLimit: 30,
+          maxDepth: 40,
+          maxItems: 30,
         });
       });
 
@@ -160,12 +160,12 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          decoderSettings: { maxRecursion: 30 },
+          decoderSettings: { maxDepth: 30 },
           hooks: [
             {
               symbol: "memcpy",
               module: "libc.so",
-              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 },
+              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
               params: ["void *"],
               retType: "void *",
             },
@@ -175,8 +175,8 @@ describe("inputNativeHookCollection", () => {
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
         const hook = result.hooks[0] as InputNativeHookNormalized;
 
-        expect(hook.params?.[0]).toEqual(normalizeInputParam("void *", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
-        expect(hook.retType).toEqual(normalizeInputRetType("void *", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
+        expect(hook.params?.[0]).toEqual(normalizeInputParam("void *", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 }));
+        expect(hook.retType).toEqual(normalizeInputRetType("void *", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 }));
       });
     });
 
@@ -279,7 +279,7 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          decoderSettings: { maxRecursion: 30 },
+          decoderSettings: { maxDepth: 30 },
           // A YAML author only ever writes a *partial* decoderSettings on a tuple hook (e.g. `{decoder: "string"}`);
           // the raw config is cast to the input types at the YAML boundary without being structurally checked
           // against them, so this models that real shape rather than the always-complete post-normalize shape.
@@ -293,7 +293,7 @@ describe("inputNativeHookCollection", () => {
             symbol: "malloc",
             module: "libc.so",
             hookSettings: DEFAULT_HOOK_SETTINGS,
-            decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30, decoder: "string" },
+            decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "string" },
           },
         ]);
       });

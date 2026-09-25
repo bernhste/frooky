@@ -11,8 +11,8 @@ import { InputParamSettings } from "./inputSettings";
  * |------|------------------------|----------------------------------------|-----------------------------------------------------------------------|
  * | 1    | Type only              | `string`                               | `"java.lang.String"`                                                  |
  * | 2    | Type + name            | `[string, string]`                     | `["java.lang.String", "value"]`                                       |
- * | 3    | Type + settings        | `[string, InputParamSettings]`         | `["[I", "vector" { direction: "in", maxRecursion: 5 }]`               |
- * | 4    | Type + name + settings | `[string, string, InputParamSettings]` | `["[B", "encryptedOutput", { direction: "in", magicDecode: false }]`  |
+ * | 3    | Type + settings        | `[string, InputParamSettings]`         | `["[I", "vector" { direction: "in", maxDepth: 5 }]`               |
+ * | 4    | Type + name + settings | `[string, string, InputParamSettings]` | `["[B", "encryptedOutput", { direction: "in", fastDecode: true }]`  |
  * | 5    | Normalized object      | `Param`                                | `{ type: int, name: age, direction: "in", settings: { ... }}`         |
  *
  * Note: Internally we only use the normalized version. The other forms are used to add flexibility for the frooky input file.
@@ -33,13 +33,13 @@ export function normalizeInputParam(input: InputParam, decoderSettings?: Decoder
       const [type, name] = input;
       return { type, direction: DEFAULT_DECODE_AT, settings: mergedSettings, name };
     }
-    // Case 3: Type + options - ["[I", { direction: "in", maxRecursion: 5 }]
+    // Case 3: Type + options - ["[I", { direction: "in", maxDepth: 5 }]
     if (input.length === 2 && typeof input[1] === "object") {
       const [type, { direction, ...inlineDecoderSettings }] = input as [string, InputParamSettings];
       const validatedDecoderSettings = validateAndRepairDecoderSettings({ ...DEFAULT_DECODER_SETTINGS, ...inlineDecoderSettings });
       return { type, direction: direction ?? DEFAULT_DECODE_AT, settings: validatedDecoderSettings };
     }
-    // Case 4: Type + name + options - ["[B", "encryptedOutput", { direction: "in", magicDecode: false }]
+    // Case 4: Type + name + options - ["[B", "encryptedOutput", { direction: "in", fastDecode: true }]
     if (input.length === 3) {
       const [type, name, { direction, ...inlineDecoderSettings }] = input as [string, string, InputParamSettings];
       const validatedDecoderSettings = validateAndRepairDecoderSettings({ ...DEFAULT_DECODER_SETTINGS, ...inlineDecoderSettings });
@@ -58,8 +58,8 @@ export function normalizeInputParam(input: InputParam, decoderSettings?: Decoder
  * | Case | Form                    | Type                        | Example                                                          |
  * |------|-------------------------|-----------------------------|------------------------------------------------------------------|
  * | 1    | Type only               | `string`                    | `"int"`                                                          |
- * | 2    | Type + decoder settings | `[string, DecoderSettings]` | `["android.database.sqlite.SQLiteCursor", { decodeLimit: 10 }]`  |
- * | 3    | Normalized object       | `DecodableType`             | `{ type: int, decoderSettings: { magicDecode: false }}`          |
+ * | 2    | Type + decoder settings | `[string, DecoderSettings]` | `["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]`  |
+ * | 3    | Normalized object       | `DecodableType`             | `{ type: int, decoderSettings: { fastDecode: true }}`          |
  *
  *  Note: Internally we only use the normalized version. The other forms are used to add flexibility for the frooky input file.
  *
@@ -77,7 +77,7 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings?: Dec
   if (typeof input === "string") {
     return { type: input, settings: validatedMergedSettings };
   } else if (Array.isArray(input)) {
-    // Case 2: Type + decoder settings - ["android.database.sqlite.SQLiteCursor", { decodeLimit: 10 }]
+    // Case 2: Type + decoder settings - ["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]
     const [type, inlineSettings] = input as [string, Partial<DecoderSettings>];
     return { type, settings: { ...validatedMergedSettings, ...inlineSettings } };
   } else if (typeof input === "object") {
@@ -100,9 +100,9 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings?: Dec
  * | Case | Form                    | Example                                                          |
  * |------|-------------------------|-------------------------------------------------------------------|
  * | 1    | Type only (ignored)     | `"int"`                                                            |
- * | 2    | Type (ignored) + settings | `["int", { decodeLimit: 10 }]`                                   |
- * | 3    | Normalized `RetType` (type ignored) | `{ type: "int", settings: { magicDecode: false } }`   |
- * | 4    | Decoder settings only (documented Java form) | `{ magicDecode: false }`                    |
+ * | 2    | Type (ignored) + settings | `["int", { maxItems: 10 }]`                                   |
+ * | 3    | Normalized `RetType` (type ignored) | `{ type: "int", settings: { fastDecode: true } }`   |
+ * | 4    | Decoder settings only (documented Java form) | `{ fastDecode: true }`                    |
  *
  * @public
  */
@@ -115,14 +115,14 @@ export function normalizeInputRetTypeSettings(input: InputRetTypeSettings, decod
   if (typeof input === "string") {
     return validateAndRepairDecoderSettings(mergedSettings);
   } else if (Array.isArray(input)) {
-    // Case 2: Type (ignored) + decoder settings - ["int", { decodeLimit: 10 }]
+    // Case 2: Type (ignored) + decoder settings - ["int", { maxItems: 10 }]
     const [, inlineSettings] = input as [string, Partial<DecoderSettings>];
     return validateAndRepairDecoderSettings({ ...mergedSettings, ...inlineSettings });
   } else if (typeof input === "object" && "type" in input) {
     // Case 3: Normalized RetType object (type ignored) - { type: "int", settings: {...} }
     return validateAndRepairDecoderSettings({ ...mergedSettings, ...(input as RetType).settings });
   } else if (typeof input === "object") {
-    // Case 4: Decoder settings only - { decodeLimit: 10 }
+    // Case 4: Decoder settings only - { maxItems: 10 }
     return validateAndRepairDecoderSettings({ ...mergedSettings, ...(input as Partial<DecoderSettings>) });
   }
   throw new Error(`Unrecognized InputRetTypeSettings format: ${JSON.stringify(input)}`);

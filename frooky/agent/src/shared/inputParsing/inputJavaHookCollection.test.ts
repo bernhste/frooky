@@ -51,13 +51,13 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: [] };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: true },
+          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeJavaHookCollection(hookCollection, settings);
 
         expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 });
-        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: true });
+        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 });
       });
 
       it("gives the hook group's own hookSettings/decoderSettings the highest precedence", () => {
@@ -66,17 +66,17 @@ describe("inputJavaHookCollection", () => {
           javaClass: "com.example.Foo",
           hooks: [],
           hookSettings: { stackTraceLimit: 99 },
-          decoderSettings: { magicDecode: false },
+          decoderSettings: { maxDepth: 7 },
         };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, magicDecode: true },
+          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeJavaHookCollection(hookCollection, settings);
 
         expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 99 });
-        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, magicDecode: false });
+        expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 7 });
       });
     });
 
@@ -86,13 +86,13 @@ describe("inputJavaHookCollection", () => {
           type: "java",
           javaClass: "com.example.Foo",
           hookSettings: { stackTraceLimit: 30 },
-          decoderSettings: { maxRecursion: 30 },
+          decoderSettings: { maxDepth: 30 },
           hooks: [
             {
               javaClass: "com.example.Foo",
               method: "bar",
               hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 },
-              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 },
+              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
             },
           ],
         };
@@ -100,7 +100,7 @@ describe("inputJavaHookCollection", () => {
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 });
-        expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 });
+        expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
       });
 
       it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
@@ -112,14 +112,14 @@ describe("inputJavaHookCollection", () => {
           type: "java",
           javaClass: "com.example.Foo",
           hookSettings: { stackTraceLimit: 30, stackTraceFilter: ["^group"] },
-          decoderSettings: { maxRecursion: 30, decodeLimit: 30 },
+          decoderSettings: { maxDepth: 30, maxItems: 30 },
           hooks: [
             {
               javaClass: "com.example.Foo",
               method: "bar",
               // intentionally only overrides one field of each settings object
               hookSettings: { stackTraceLimit: 40 },
-              decoderSettings: { maxRecursion: 40 },
+              decoderSettings: { maxDepth: 40 },
             } as InputJavaHookNormalized,
           ],
         };
@@ -129,8 +129,8 @@ describe("inputJavaHookCollection", () => {
         expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ stackTraceLimit: 40, stackTraceFilter: ["^group"] });
         expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
-          maxRecursion: 40,
-          decodeLimit: 30,
+          maxDepth: 40,
+          maxItems: 30,
         });
       });
 
@@ -151,12 +151,12 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          decoderSettings: { maxRecursion: 30 },
+          decoderSettings: { maxDepth: 30 },
           hooks: [
             {
               javaClass: "com.example.Foo",
               method: "bar",
-              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 },
+              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
               overloads: [{ params: ["int"] }],
             },
           ],
@@ -165,7 +165,7 @@ describe("inputJavaHookCollection", () => {
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
         const hook = result.hooks[0] as InputJavaHookNormalized;
 
-        expect(hook.overloads?.[0].params[0]).toEqual(normalizeInputParam("int", { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 40 }));
+        expect(hook.overloads?.[0].params[0]).toEqual(normalizeInputParam("int", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 }));
       });
     });
 
@@ -226,7 +226,7 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          decoderSettings: { maxRecursion: 30 },
+          decoderSettings: { maxDepth: 30 },
           hooks: [
             {
               javaClass: "com.example.Foo",
@@ -239,7 +239,7 @@ describe("inputJavaHookCollection", () => {
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
         const hook = result.hooks[0] as InputJavaHookNormalized;
 
-        expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30, decoder: "myDecoder" });
+        expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "myDecoder" });
       });
 
       it("leaves an overload's retType undefined when not declared", () => {
@@ -263,14 +263,14 @@ describe("inputJavaHookCollection", () => {
           const hookCollection: InputJavaHookCollection = {
             type: "java",
             javaClass: "com.example.Foo",
-            decoderSettings: { maxRecursion: 30 },
+            decoderSettings: { maxDepth: 30 },
             hooks: [{ javaClass: "com.example.Foo", method: "bar", overloads: [{ params: ["int"], retType: "int" }] }],
           };
 
           const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
           const hook = result.hooks[0] as InputJavaHookNormalized;
 
-          expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30 });
+          expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 30 });
         });
 
         it("accepts a [type, decoderSettings] tuple, keeping only the settings", () => {
@@ -328,7 +328,7 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          decoderSettings: { maxRecursion: 30 },
+          decoderSettings: { maxDepth: 30 },
           // A YAML author only ever writes a *partial* decoderSettings on a tuple hook (e.g. `{decoder: "string"}`);
           // the raw config is cast to the input types at the YAML boundary without being structurally checked
           // against them, so this models that real shape rather than the always-complete post-normalize shape.
@@ -342,7 +342,7 @@ describe("inputJavaHookCollection", () => {
             javaClass: "com.example.Foo",
             method: "bar",
             hookSettings: DEFAULT_HOOK_SETTINGS,
-            decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxRecursion: 30, decoder: "string" },
+            decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "string" },
           },
         ]);
       });

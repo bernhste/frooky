@@ -25,10 +25,10 @@ describe("HexDecoder", () => {
       expect(result).toEqual({ type: "[B", name: "myParam", value: expectedHex });
     });
 
-    it("should truncate a '[B' byte array longer than decodeLimit and append an ellipsis", () => {
+    it("should truncate a '[B' byte array longer than maxItems and append an ellipsis", () => {
       const rawBytes = [0x41, 0x42, 0x43, 0x44, 0x45];
       const bytes = Java.array("byte", rawBytes);
-      const decoder = new HexDecoder({ type: "[B", settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 3 } });
+      const decoder = new HexDecoder({ type: "[B", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 } });
 
       const result = decoder.decode(bytes as unknown as Java.Wrapper);
 
@@ -36,10 +36,10 @@ describe("HexDecoder", () => {
       expect(result).toEqual({ type: "[B", value: expectedHex + "..." });
     });
 
-    it("should not append an ellipsis when the byte array is exactly decodeLimit long", () => {
+    it("should not append an ellipsis when the byte array is exactly maxItems long", () => {
       const rawBytes = [0x41, 0x42, 0x43];
       const bytes = Java.array("byte", rawBytes);
-      const decoder = new HexDecoder({ type: "[B", settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 3 } });
+      const decoder = new HexDecoder({ type: "[B", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 } });
 
       const result = decoder.decode(bytes as unknown as Java.Wrapper);
 

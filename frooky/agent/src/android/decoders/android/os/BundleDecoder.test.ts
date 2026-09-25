@@ -88,19 +88,19 @@ describe("BundleDecoder", () => {
     expect(decodeSingleEntry(bundle)).toEqual({ type: "[Ljava.lang.CharSequence;", name: "key", value: ["x", "y"] });
   });
 
-  it("should truncate an int array extra at decodeLimit and append a truncation marker (typed getter path)", () => {
+  it("should truncate an int array extra at maxItems and append a truncation marker (typed getter path)", () => {
     const bundle = Bundle.$new();
     bundle.putIntArray("key", Java.array("int", [1, 2, 3, 4, 5]));
 
     const limitedDecoder = new BundleDecoder({
       type: "android.os.Bundle",
-      settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 3 },
+      settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 },
     });
 
     expect(limitedDecoder.decode(bundle).value[0]).toEqual({ type: "[I", name: "key", value: [1, 2, 3, "[truncated at 3]"] });
   });
 
-  it("should truncate a CharSequence array extra at decodeLimit and append a truncation marker (reflection fallback path)", () => {
+  it("should truncate a CharSequence array extra at maxItems and append a truncation marker (reflection fallback path)", () => {
     const bundle = Bundle.$new();
     const JavaString = Java.use("java.lang.String");
     const items = Java.array("java.lang.CharSequence", [JavaString.$new("a"), JavaString.$new("b"), JavaString.$new("c")]);
@@ -108,7 +108,7 @@ describe("BundleDecoder", () => {
 
     const limitedDecoder = new BundleDecoder({
       type: "android.os.Bundle",
-      settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 2 },
+      settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 2 },
     });
 
     expect(limitedDecoder.decode(bundle).value[0]).toEqual({

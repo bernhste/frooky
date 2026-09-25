@@ -7,10 +7,10 @@ export const hookSettingsSchema = z.object({
 });
 
 export const decoderSettingsSchema = z.object({
-    maxRecursion: z.number(),
-    decodeLimit: z.number(),
-    magicDecode: z.boolean(),
+    maxDepth: z.number(),
+    maxItems: z.number(),
     fastDecode: z.boolean(),
+    hashCode: z.boolean(),
     decoder: z.string().optional(),
     decoderArg: z.string().optional(),
     paramFilter: z.array(z.string()).optional()

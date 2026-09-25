@@ -26,21 +26,14 @@ export interface DecoderSettings {
    *
    * @example 10
    */
-  maxRecursion: number;
+  maxDepth: number;
 
   /**
    * Maximum number of elements to decode in lists, arrays, collections, maps etc.. May be increased when decoding 'char *' or 'void *' data types in native code.
    *
    * @example 1000
    */
-  decodeLimit: number;
-
-  /**
-   * When enabled, frooky tries to guess the type of a value in case it is not declared in the hook, or it is not possible to deduct it at runtime.
-   *
-   * @defaultValue false
-   */
-  magicDecode: boolean;
+  maxItems: number;
 
   /**
    * When enabled, the decoders are instructed to prioritize speed over details. Mostly, this mean avoiding expensive Frida <-> native roundtrip.
@@ -48,6 +41,16 @@ export interface DecoderSettings {
    * @defaultValue false
    */
   fastDecode: boolean;
+
+  /**
+   * When enabled, hooks compute and report an identifier for "which instance/target this call belongs
+   * to", to let callers correlate events. For java hooks this is `Object.hashCode()` of the instance
+   * (a Frida <-> Java bridge round-trip on every call); for native hooks this is the hooked function's
+   * address, which is already available at no extra cost. Off by default for parity with the java cost.
+   *
+   * @defaultValue false
+   */
+  hashCode: boolean;
 
   /**
    * Overrides the type decoder.

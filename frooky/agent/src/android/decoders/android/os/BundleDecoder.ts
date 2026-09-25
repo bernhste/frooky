@@ -110,7 +110,7 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
   }
 
   private decodeArray(bundle: Java.Wrapper, key: string, className: string, entry: Java.Wrapper, isBundleValue: boolean): DecodedValue {
-    const decodeLimit = this.settings.decodeLimit;
+    const maxItems = this.settings.maxItems;
     // only re-fetch through a typed getter for the extra itself - a nested array element reached
     // via reflection below has no key of its own to re-fetch by
     const typedGetter = isBundleValue ? TYPED_ARRAY_GETTERS[className] : undefined;
@@ -118,18 +118,18 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
     if (typedGetter) {
       const getter: Java.MethodDispatcher = bundle[typedGetter];
       const typedArray = getter.call(bundle, key) as ArrayLike<unknown> | null;
-      const items = typedArray == null ? [] : this.takeLimited(typedArray, typedArray.length, decodeLimit);
+      const items = typedArray == null ? [] : this.takeLimited(typedArray, typedArray.length, maxItems);
       return { type: className, name: key, value: items };
     }
 
     const length: number = getReflectArray().getLength(entry);
-    const decodeLen = Math.min(length, decodeLimit);
+    const decodeLen = Math.min(length, maxItems);
     const items: unknown[] = new Array(decodeLen);
     for (let i = 0; i < decodeLen; i++) {
       items[i] = this.decodeEntry(bundle, key, getReflectArray().get(entry, i), false).value;
     }
     if (length > decodeLen) {
-      items.push(`[truncated at ${decodeLimit}]`);
+      items.push(`[truncated at ${maxItems}]`);
     }
     return { type: className, name: key, value: items };
   }

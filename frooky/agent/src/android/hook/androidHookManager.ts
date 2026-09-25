@@ -138,7 +138,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         }
 
         // collect the field type
-        const fieldType = hookManager.buildFieldType(this as Java.Wrapper);
+        const fieldType = hookManager.buildFieldType(this as Java.Wrapper, hook.decoderSettings.hashCode);
 
         // add the event to the event log
         hookManager.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, stackTrace));
@@ -298,12 +298,13 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     return result;
   }
 
-  private buildFieldType(method: Java.Wrapper): FieldType {
+  private buildFieldType(method: Java.Wrapper, computeHashCode: boolean): FieldType {
     const isStatic =
       method === null || method === undefined || method.$handle === null || method.$handle === undefined || method.$className === undefined;
 
     const fieldType = isStatic ? "static" : "instance";
-    const hashCode = isStatic ? undefined : (method.hashCode() >>> 0).toString(16);
+    // hashCode() is a Frida <-> Java bridge round-trip, so it's only computed when explicitly requested
+    const hashCode = !isStatic && computeHashCode ? (method.hashCode() >>> 0).toString(16) : undefined;
     return { fieldType, hashCode };
   }
 }

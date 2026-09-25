@@ -4,6 +4,10 @@ import { FilterMismatchError } from "../shared/utils";
 
 export const AndroidStackTrace: PlatformStackTrace = {
   build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): string[] {
+    // avoid the (unfiltered) native backtrace and the full Java.perform()/Java.backtrace() round-trip
+    // below when no frames were asked for - both are expensive and this runs on every intercepted call
+    if (limit <= 0 && !stackTraceFilter?.length) return [];
+
     // get native frames
     let nativeFrames: string[] = [];
     if (ctx && !stackTraceFilter?.length) {

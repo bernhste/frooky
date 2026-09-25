@@ -31,7 +31,7 @@ describe("StringDecoder", () => {
 
       const result = decoder.decode(bytes as unknown as Java.Wrapper);
 
-      const expectedAscii = toAscii(new Uint8Array([0x41, 0x42, 0x43]), DEFAULT_DECODER_SETTINGS.decodeLimit);
+      const expectedAscii = toAscii(new Uint8Array([0x41, 0x42, 0x43]), DEFAULT_DECODER_SETTINGS.maxItems);
       expect(result).toEqual({ type: "[B", value: expectedAscii });
     });
 
@@ -46,7 +46,7 @@ describe("StringDecoder", () => {
 
       const result = decoder.decode(bytes as unknown as Java.Wrapper);
 
-      const expectedUtf8 = toUtf8(new Uint8Array(utf8Bytes), DEFAULT_DECODER_SETTINGS.decodeLimit);
+      const expectedUtf8 = toUtf8(new Uint8Array(utf8Bytes), DEFAULT_DECODER_SETTINGS.maxItems);
       expect(result).toEqual({ type: "[B", value: expectedUtf8 });
       expect(result.value).toBe("héllo");
     });
@@ -62,14 +62,14 @@ describe("StringDecoder", () => {
 
       const result = decoder.decode(bytes as unknown as Java.Wrapper);
 
-      const expectedAscii = toAscii(new Uint8Array(invalidUtf8Bytes), DEFAULT_DECODER_SETTINGS.decodeLimit);
+      const expectedAscii = toAscii(new Uint8Array(invalidUtf8Bytes), DEFAULT_DECODER_SETTINGS.maxItems);
       expect(result).toEqual({ type: "[B", value: expectedAscii });
     });
 
-    it("should truncate a '[B' byte array longer than decodeLimit and append an ellipsis", () => {
+    it("should truncate a '[B' byte array longer than maxItems and append an ellipsis", () => {
       const rawBytes = [0x41, 0x42, 0x43, 0x44, 0x45]; // "ABCDE"
       const bytes = Java.array("byte", rawBytes);
-      const decoder = new StringDecoder({ type: "[B", settings: { ...DEFAULT_DECODER_SETTINGS, decodeLimit: 3 } });
+      const decoder = new StringDecoder({ type: "[B", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 } });
 
       const result = decoder.decode(bytes as unknown as Java.Wrapper);
 
