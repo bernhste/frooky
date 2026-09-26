@@ -112,7 +112,9 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
       return undefined;
     }
 
-    const decoder = this.decoderResolver.resolveDecoder({ type: params[index].type, settings: param.settings });
+    // the referenced param's own settings: the referencing param's settings may name a custom decoder
+    // (e.g. `decoder: string` on a buffer) that must not be applied to the length it references
+    const decoder = this.decoderResolver.resolveDecoder({ type: params[index].type, settings: params[index].settings });
     return { index, decoder };
   }
 

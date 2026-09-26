@@ -1,4 +1,13 @@
-import { FilterMismatchError, sleepMilliseconds, sleepSeconds, toAscii, toHex, toHexAndAscii, uuidv4, wildcardPatternToRegExp } from "./utils";
+import {
+  FilterMismatchError,
+  sleepMilliseconds,
+  sleepSeconds,
+  toAscii,
+  toHex,
+  trimIncompleteUtf8Tail,
+  uuidv4,
+  wildcardPatternToRegExp,
+} from "./utils";
 
 describe("Utils", () => {
   describe("wildcardPatternToRegExp()", () => {
@@ -96,6 +105,27 @@ describe("Utils", () => {
     });
   });
 
+  describe("trimIncompleteUtf8Tail()", () => {
+    it("keeps bytes whose last character is complete", () => {
+      const bytes = new Uint8Array([0x61, 0xc3, 0xbc]); // "aü"
+      expect(Array.from(trimIncompleteUtf8Tail(bytes))).toEqual([0x61, 0xc3, 0xbc]);
+    });
+
+    it("removes a 2-byte character missing its continuation byte", () => {
+      expect(Array.from(trimIncompleteUtf8Tail(new Uint8Array([0x61, 0xc3])))).toEqual([0x61]);
+    });
+
+    it("removes a 4-byte character missing its last continuation byte", () => {
+      // "a🙂" is 0x61 0xf0 0x9f 0x99 0x82
+      expect(Array.from(trimIncompleteUtf8Tail(new Uint8Array([0x61, 0xf0, 0x9f, 0x99])))).toEqual([0x61]);
+    });
+
+    it("keeps plain ASCII and empty input unchanged", () => {
+      expect(Array.from(trimIncompleteUtf8Tail(new Uint8Array([0x61, 0x62])))).toEqual([0x61, 0x62]);
+      expect(Array.from(trimIncompleteUtf8Tail(new Uint8Array([])))).toEqual([]);
+    });
+  });
+
   describe("toAscii()", () => {
     it("decodes printable bytes to their ASCII characters", () => {
       const bytes = Uint8Array.from([72, 101, 108, 108, 111]); // "Hello"
@@ -120,28 +150,6 @@ describe("Utils", () => {
     it("throws a RangeError for a negative length", () => {
       const bytes = Uint8Array.from([72]);
       expect(() => toAscii(bytes, -1)).toThrow("Length cannot be negative");
-    });
-  });
-
-  describe("toHexAndAscii()", () => {
-    it("returns the same tuple as calling toHex() and toAscii() separately", () => {
-      const bytes = Uint8Array.from([72, 101, 108, 108, 111]);
-      expect(toHexAndAscii(bytes)).toEqual([toHex(bytes), toAscii(bytes)]);
-    });
-
-    it("applies the length truncation and ellipsis to both parts", () => {
-      const bytes = Uint8Array.from([72, 101, 108, 108, 111]);
-      expect(toHexAndAscii(bytes, 3)).toEqual(["0x48656c...", "Hel..."]);
-    });
-
-    it("applies a custom placeholder to the ASCII part only", () => {
-      const bytes = Uint8Array.from([72, 0, 105]);
-      expect(toHexAndAscii(bytes, Infinity, "?")).toEqual(["0x480069", "H?i"]);
-    });
-
-    it("throws a RangeError for a negative length", () => {
-      const bytes = Uint8Array.from([72]);
-      expect(() => toHexAndAscii(bytes, -1)).toThrow("Length cannot be negative");
     });
   });
 

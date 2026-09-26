@@ -3,8 +3,10 @@ import { Decodable } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { logger } from "../../shared/logger";
-import { toHexAndAscii } from "../../shared/utils";
+import { toHex } from "../../shared/utils";
+import { parseLengthArgValue } from "./nativeDecoderArg";
 import { FridaFundamentalType, FridaReferenceType } from "./nativeFridaType";
+import { decodeNativeString } from "./nativeStringDecoder";
 
 type ReferenceDecoder = (input: NativePointer, setting: DecoderSettings, arg?: DecodedValue) => any;
 
@@ -15,21 +17,12 @@ const readWord = (input: NativePointer, signed: boolean): number | string => {
   return signed ? input.readS64().toString() : input.readU64().toString();
 };
 
-// Passing `maxItems` as the `size` argument to `readUtf8String()` is unsafe: Frida
-// reads up to `size` bytes eagerly rather than stopping at the first NUL, so a short
-// string sitting near the end of a small/mapped region can trigger an out-of-bounds
-// read. Read the (safely NUL-bounded) string first and only then cap its length in JS.
-const truncateToMaxItems = (value: string | null, maxItems: number): string | null =>
-  value !== null && value.length > maxItems ? value.slice(0, maxItems) : value;
-
-// A length argument is usually declared as `int`/`size_t`/etc. On LP64 targets
-// NativeValueDecoder returns size_t/long/ssize_t/ulong/int64/uint64 as decimal
-// strings (to preserve full 64-bit precision), so a decoded length arg may
-// legitimately be a numeric string rather than a `number` - accept both.
-const parseLengthArgValue = (value: unknown): number | undefined => {
-  if (typeof value === "number") return value;
-  if (typeof value === "string" && /^-?\d+$/.test(value)) return Number(value);
-  return undefined;
+// Reads a buffer of `length` bytes, at most `maxItems` of them, as a hex string. A buffer longer than
+// `maxItems` ends with "...".
+const readHex = (input: NativePointer, length: number, maxItems: number): string | null => {
+  const rawBytes = input.readByteArray(Math.min(length, maxItems));
+  if (rawBytes === null) return null;
+  return toHex(new Uint8Array(rawBytes)) + (length > maxItems ? "..." : "");
 };
 
 const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
@@ -43,20 +36,7 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
           throw Error(`void * Decoder: Argument must be a number, but it is: ${arg.value}`);
         }
         logger.debug(`void * Decoder: Decoder argument passed: ${length}`);
-
-        let readLength: number;
-        if (length > setting.maxItems) {
-          logger.debug(`void * Decoder: Setting the argument value of ${length} to the max decode length of ${setting.maxItems}.`);
-          readLength = setting.maxItems;
-        } else {
-          readLength = length;
-        }
-        const rawBytes = input.readByteArray(readLength);
-        logger.debug(`void * Decoder: Successfully read ${readLength} bytes`);
-        if (rawBytes !== null) {
-          var bytes = new Uint8Array(rawBytes);
-          return toHexAndAscii(bytes);
-        }
+        return readHex(input, length, setting.maxItems);
       }
     } catch (e) {
       logger.warn(`Unable to decode void *: ${e}`);
@@ -64,39 +44,18 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
     }
   },
   bool: (input) => input.readU8() !== 0,
-  char: (input, setting) => {
-    // TODO: May be replaced in the future by a better string decoder
-    try {
-      return truncateToMaxItems(input.readUtf8String(), setting.maxItems);
-    } catch (e) {
-      return input.readS8();
-    }
-  },
+  char: (input, setting, arg) => decodeNativeString(input, setting, arg, "char *"),
   int8: (input) => input.readS8(),
   uchar: (input, setting, arg) => {
-    // TODO: should be generalized to be usable by other reference decoders (char *, int8....)
-    // for now, we assume, that the first argument is the length of the array as an int
     try {
       if (arg) {
         const length = parseLengthArgValue(arg.value);
         if (length === undefined) {
           throw Error(`Argument for uchar * decoder must be a number, but it is: ${arg.value}`);
         }
-        // logger.debug(`uchar * Decoder: Decoder argument passed: ${JSON.stringify(arg, null, 2)}.`);
-
-        const decodeLength = length > setting.maxItems ? setting.maxItems : length;
-        const rawBytes = input.readByteArray(decodeLength);
-        logger.debug(`uchar * Decoder: Successfully read ${decodeLength} bytes of uchar *`);
-        if (rawBytes !== null) {
-          var bytes = new Uint8Array(rawBytes);
-          return toHexAndAscii(bytes);
-        }
+        return readHex(input, length, setting.maxItems);
       } else {
-        try {
-          return truncateToMaxItems(input.readUtf8String(), setting.maxItems);
-        } catch (e) {
-          return input.readS8();
-        }
+        return decodeNativeString(input, setting, undefined, "unsigned char *");
       }
     } catch (e) {
       logger.warn(`Unable to decode uchar *: ${e}`);

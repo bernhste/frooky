@@ -122,7 +122,7 @@ describe("NativeHookValidator", () => {
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
       expect(warnSpy).toHaveBeenCalled();
       const [messageLines] = warnSpy.mock.calls[0] as [string[]];
-      expect(messageLines[0]).toContain("Skipping hook for function with the symbol name '123' from module 'libc.so' due to an invalid declaration.");
+      expect(messageLines[0]).toContain("Skipping hook for native function '123' from module 'libc.so' due to an invalid declaration.");
     });
 
     it("skips a hook whose param declaration is in an unrecognized format, without aborting the rest of the group", () => {
@@ -141,7 +141,7 @@ describe("NativeHookValidator", () => {
       expect(result.map((hook) => hook.symbol)).toEqual(["free", "malloc"]);
       expect(warnSpy).toHaveBeenCalled();
       const [messageLines] = warnSpy.mock.calls[0] as [string[]];
-      expect(messageLines[0]).toContain("Skipping hook for function with the symbol name 'bad' from module 'libc.so' due to an invalid declaration.");
+      expect(messageLines[0]).toContain("Skipping hook for native function 'bad' from module 'libc.so' due to an invalid declaration.");
     });
 
     it("skips a hook whose retType declaration is in an unrecognized format, without aborting the rest of the group", () => {

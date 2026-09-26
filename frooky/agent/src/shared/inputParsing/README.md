@@ -13,7 +13,6 @@ hookCollection:
       - $init
       - getKeyPair
 
-
   - javaClass: android.security.AttestedKeyPair
     hooks:
       - method: $init
@@ -23,14 +22,14 @@ hookCollection:
 **Example 2**: Parameters
 
 ```yaml
-  - module: libssl.so
-    hooks:
-      - symbol: EVP_EncryptInit_ex
-        retType: int
-        params:
-          - "EVP_CIPHER_CTX *"
-          - ["const EVP_CIPHER *", type]
-          - { type: "ENGINE *", name: "impl" }
+- module: libssl.so
+  hooks:
+    - symbol: EVP_EncryptInit_ex
+      retType: int
+      params:
+        - "EVP_CIPHER_CTX *"
+        - ["const EVP_CIPHER *", type]
+        - { type: "ENGINE *", name: "impl" }
 ```
 
 These are all valid ways which give the user flexibility. But internally it introduces complexity when working with the different types.

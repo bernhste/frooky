@@ -392,8 +392,8 @@ class TestValuePassingNative:
         assert len(events) == 1
         event = events[0]
         # data = {0x48, 0x65, 0x6C, 0x6C, 0x6F} ("Hello"); the function XORs each byte with 0xFF in place.
-        assert event["argsIn"][0]["value"] == ["0x48656c6c6f", "Hello"]
-        assert event["argsOut"][0]["value"] == ["0xb79a939390", "....."]
+        assert event["argsIn"][0]["value"] == "0x48656c6c6f"
+        assert event["argsOut"][0]["value"] == "0xb79a939390"
 
     def test_null_terminated_buffer_with_direction_inout(self, run_frooky, count_matched_events):
         """Without `decoderArg`, a `char *`/`unsigned char *` decodes as a NUL-terminated C string."""

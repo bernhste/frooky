@@ -107,14 +107,14 @@ class TestHookStatus:
         now[0] = 102.5
 
         assert status.busy
-        assert status.describe() == "Resolving hooks: 38 hooked, 4 classes/modules pending (gives up in 3s)"
+        assert status.describe() == "Resolving hooks: 38 hooked, 4 modules pending (gives up in 3s)"
 
     def test_leaves_out_the_countdown_once_the_timeout_passed(self):
         status, now = self.make()
         status.update(38, 4)
         now[0] = 106.0
 
-        assert status.describe() == "Resolving hooks: 38 hooked, 4 classes/modules pending"
+        assert status.describe() == "Resolving hooks: 38 hooked, 4 modules pending"
 
     def test_shows_the_hook_count_when_nothing_is_pending(self):
         status, _now = self.make()
@@ -148,7 +148,7 @@ class TestStatusBar:
 
         bar = feed.render_status_bar().plain
 
-        assert re.match(r"^ \S Resolving hooks: 38 hooked, 4 classes/modules pending .*  \|  Events: 0 $", bar)
+        assert re.match(r"^ \S Resolving hooks: 38 hooked, 4 modules pending .*  \|  Events: 0 $", bar)
         assert "✓" not in bar
 
     def test_shows_a_check_mark_and_the_hook_count_when_done(self):

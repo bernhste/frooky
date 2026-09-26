@@ -28,7 +28,7 @@ A decoder's behavior is controlled by `decoderSettings`:
 
 | Setting      | Type       | Default     | Description                                                                                                                                                                   |
 | ------------ | ---------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `decoder`    | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder. Java only, see [`decoder`](#decoder-override-the-default-decoder).                                               |
+| `decoder`    | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder, see [`decoder`](#decoder-override-the-default-decoder).                                                          |
 | `decoderArg` | `string`   | `undefined` | Name of another parameter passed to this parameter's decoder for additional context (e.g. a buffer's length).                                                                 |
 | `maxDepth`   | `number`   | `10`        | Maximum number of nested levels decoded (arrays, lists, maps, bundles, etc.). Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).       |
 | `maxItems`   | `number`   | `100`       | Maximum number of elements decoded per array, list, map, etc., or bytes per buffer. Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values). |
@@ -130,10 +130,10 @@ This function retrieves the digest data from `ctx` and moves it into `md`. So in
 
 ### `decoder`: Override the Default Decoder
 
-For some Java types, frooky's built-in decoders are not sufficient to give the captured value meaningful context (for example, a bitmask `int` where the individual flags matter more than the raw number). In these cases, you can select one of frooky's registered custom decoders by name using `decoder`.
+For some types, frooky's built-in decoders are not sufficient to give the captured value meaningful context (for example, a bitmask `int` where the individual flags matter more than the raw number). In these cases, you can select one of frooky's registered custom decoders by name using `decoder`.
 
 > [!NOTE]
-> The currently registered decoders are:
+> The currently registered decoders for Java hooks are:
 >
 > - `string`: decodes a `byte[]` as text, or calls `toString()` on any other reference type
 > - `hashCode`: renders a reference type as `<class>@<hashCode>`, without invoking a custom `toString()` override
@@ -168,18 +168,32 @@ hooks:
 
 This decodes the `opmode` argument of [`Cipher.init(int, Key)`](<https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key)>) to `"ENCRYPT_MODE"`, `"DECRYPT_MODE"`, etc. instead of the raw `int`, by matching it against `Cipher`'s own declared constants.
 
-Native hooks will support the same option once implemented, for example to decode a `byte *` using the built-in `toStringDecoder`:
+Native hooks have one registered decoder:
+
+- `string`: decodes a pointer (`void *`, ...) as a UTF-8 string, or as ASCII if the bytes aren't valid UTF-8. Without a `decoderArg`, the string ends at its NUL terminator. With a `decoderArg`, that parameter's value is the buffer length, so buffers that aren't NUL-terminated can be decoded too. A NUL byte inside the buffer still ends the string. At most `maxItems` bytes are decoded, and a longer string ends with `...`.
+
+`char *` is always decoded this way, and so is `unsigned char *` without a `decoderArg`, so they don't need `decoder: string`.
+
+[`read`](https://www.man7.org/linux/man-pages/man2/read.2.html) fills `buf` with up to `count` bytes that are not NUL-terminated, so `count` is passed as the length:
 
 ```yaml
-params:
-  - [byte *, name, { decoder: string }]
+module: libc.so
+hooks:
+  - symbol: read
+    retType: ssize_t
+    params:
+      - [int, fd]
+      - [void *, buf, { direction: out, decoderArg: count, decoder: string, maxItems: 200 }]
+      - [size_t, count]
 ```
+
+`count` is the size of the buffer, not the number of bytes `read` wrote, which is the return value. Unless the buffer contains a NUL byte, bytes after the data that was read are decoded too, up to `maxItems`.
 
 ### `maxItems` and `maxDepth`: Limit Large and Nested Values
 
 Hooks run inside the target app on every call, so frooky bounds how much of a value it decodes.
 
-`maxItems` limits the number of elements decoded from a single array, collection or buffer. Anything beyond it is dropped and a `"[truncated at N]"` marker is appended in its place. For `ContentValues`, whose output is a key/value object, the marker is added as a key with the value `null`. Java byte arrays decoded as `string` or `hex` end with `...` instead, and native buffers are cut off without a marker.
+`maxItems` limits the number of elements decoded from a single array, collection or buffer. Anything beyond it is dropped and a `"[truncated at N]"` marker is appended in its place. For `ContentValues`, whose output is a key/value object, the marker is added as a key with the value `null`. Byte buffers decoded as text or hex end with `...` instead: Java byte arrays with the `string` or `hex` decoder, native strings, and native buffers decoded as hex (`void *`, and `unsigned char *` with a `decoderArg`).
 
 `maxDepth` limits how many nested levels are decoded. The hooked value itself is level 1, and each container (array, collection, map, bundle, object decoded through its getters) decodes its elements one level deeper. A container found below `maxDepth` is not expanded; its value is replaced by `"[max depth reached]"`. Leaf values, such as primitives and strings, are always decoded. With `maxDepth: 1`, a `List<List<String>>` shows the outer list, but each inner list is replaced by the marker.
 

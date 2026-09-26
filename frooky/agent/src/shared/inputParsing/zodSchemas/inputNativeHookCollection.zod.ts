@@ -6,20 +6,20 @@ import { inputParamSchema, inputRetTypeSchema } from "./inputDecodableTypes.zod"
 import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputSettings.zod";
 
 export const inputNativeHookNormalizedSchema = z.object({
-    symbol: z.string(),
-    module: z.string(),
-    params: z.array(inputParamSchema).optional(),
-    retType: inputRetTypeSchema.optional(),
-    hookSettings: hookSettingsSchema.optional(),
-    decoderSettings: decoderSettingsSchema.optional()
+  symbol: z.string(),
+  module: z.string(),
+  params: z.array(inputParamSchema).optional(),
+  retType: inputRetTypeSchema.optional(),
+  hookSettings: hookSettingsSchema.optional(),
+  decoderSettings: decoderSettingsSchema.optional(),
 });
 
 export const inputNativeHookSchema = z.union([z.string(), z.tuple([z.string(), decoderSettingsSchema]), inputNativeHookNormalizedSchema]);
 
 export const inputNativeHookCollectionSchema = z.object({
-    type: z.literal("native"),
-    module: z.string(),
-    hooks: z.array(inputNativeHookSchema),
-    hookSettings: inputHookSettingsSchema.optional(),
-    decoderSettings: inputDecoderSettingsSchema.optional()
+  type: z.literal("native"),
+  module: z.string(),
+  hooks: z.array(inputNativeHookSchema),
+  hookSettings: inputHookSettingsSchema.optional(),
+  decoderSettings: inputDecoderSettingsSchema.optional(),
 });

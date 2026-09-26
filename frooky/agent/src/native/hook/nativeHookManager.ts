@@ -161,7 +161,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       try {
         hook.listener = Interceptor.attach(hook.symbolAddress, callbacks);
       } catch (e) {
-        logger.warn(`Failed to hook native function '${hook.symbolName}' in module '${hook.moduleName}': ${e}`);
+        logger.warn(`Failed to hook ${hook.moduleName}!${hook.symbolName}: ${e}`);
         continue;
       }
       countSuccessfulHooks++;
@@ -181,7 +181,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       logger.debug(`Resolving symbol '${symbol}' in module '${module.name}'.`);
       return module.getExportByName(symbol);
     } catch (e) {
-      throw Error(`Skipping hook for native function '${symbol}'. This symbol does not exist in module '${module.name}'.`);
+      throw Error(`Skipping hook for '${symbol}'. This symbol does not exist in module '${module.name}'.`);
     }
   }
 

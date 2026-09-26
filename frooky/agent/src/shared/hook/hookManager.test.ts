@@ -197,8 +197,8 @@ describe("HookManager", () => {
       expect(bufferDecoder.decoderArg).toBe("length");
       expect(bufferDecoder.decoderArgIndex).toBe(0);
       expect(bufferDecoder.decoderArgDecoder).toBeDefined();
-      // the decoderArg decoder is resolved using the referenced param's type, but the current param's settings
-      expect(resolver.resolveCalls[1]).toEqual({ type: "int", settings: bufferSettings });
+      // the decoderArg decoder is resolved using the referenced param's own type and settings
+      expect(resolver.resolveCalls[1]).toEqual({ type: "int", settings: params[0].settings });
     });
 
     it("skips the param and warns when settings.decoderArg names a non-existent parameter", () => {
@@ -251,18 +251,23 @@ describe("HookManager", () => {
       warnSpy.mockRestore();
     });
 
-    it("resolves the index and decoder of the referenced param, using its own type and the current param's settings", () => {
+    it("resolves the index and decoder of the referenced param, using its own type and settings", () => {
       const resolver = new FakeDecoderResolver();
       const manager = createManager(resolver);
-      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "length" };
-      const params: Param[] = [makeParam({ name: "length", type: "int" }), makeParam({ name: "buffer", type: "pointer", settings: bufferSettings })];
+      // the buffer's custom decoder must not be applied to the length it references
+      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "length", decoder: "string" };
+      const lengthSettings = { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 };
+      const params: Param[] = [
+        makeParam({ name: "length", type: "int", settings: lengthSettings }),
+        makeParam({ name: "buffer", type: "pointer", settings: bufferSettings }),
+      ];
 
       const resolution = manager.exposedResolveDecoderArg(params[1], 1, params);
 
       expect(resolution).toBeDefined();
       expect(resolution!.index).toBe(0);
       expect(resolution!.decoder).toBeDefined();
-      expect(resolver.resolveCalls).toEqual([{ type: "int", settings: bufferSettings }]);
+      expect(resolver.resolveCalls).toEqual([{ type: "int", settings: lengthSettings }]);
       expect(warnSpy).not.toHaveBeenCalled();
     });
 

@@ -32,7 +32,7 @@ def normalize_level(level: str) -> str:
 
 class HookStatus:
     """The hooks segment at the start of the status bar, e.g.
-    `Resolving hooks: 38 hooked, 4 classes/modules pending (gives up in 3s)`, then `Hooks: 38`.
+    `Resolving hooks: 38 hooked, 4 modules pending (gives up in 3s)`, then `Hooks: 38`.
 
     It is busy (the bar shows a spinner) until the agent's first progress report and while anything
     is pending. The countdown restarts whenever resolving starts again, e.g. on a reload, and is
@@ -63,7 +63,7 @@ class HookStatus:
             return "Loading hooks..."
         if self.pending == 0:
             return f"Hooks: {self.hooked:,}"
-        text = f"Resolving hooks: {self.hooked:,} hooked, {self.pending} classes/modules pending"
+        text = f"Resolving hooks: {self.hooked:,} hooked, {self.pending} modules pending"
         seconds_left = math.ceil(self._deadline - self._clock())
         return f"{text} (gives up in {seconds_left}s)" if seconds_left > 0 else text
 

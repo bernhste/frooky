@@ -231,25 +231,31 @@ export function toUtf8(bytes: Uint8Array, length: number = Infinity): string {
 }
 
 /**
- * Fast bytes to hexadecimal and ASCII conversion.
- * @param bytes - Bytes to be decoded.
- * @param length - Number of bytes which will be decoded. Defaults to Infinity.
- * @param placeholder - Placeholder for ascii representation of not-printable bytes. Defaults to "."
- * @returns A tuple [hex, ascii] with the decoded representations.
- * @throws {RangeError} If length is negative.
+ * Removes a multi-byte UTF-8 character cut off at the end of `bytes`, e.g. by a read limit, so the
+ * remaining bytes can still be decoded as UTF-8. Returns `bytes` unchanged if its last character is complete.
+ * @param bytes - Bytes to trim.
+ * @returns `bytes` without an incomplete trailing character.
  */
-export function toHexAndAscii(bytes: Uint8Array, length: number = Infinity, placeholder: string = "."): [string, string] {
-  const [lengthToDecode, ellipsis] = getDecodeBounds(bytes.length, length);
-  const hexArray = new Array(lengthToDecode);
-  const asciiArray = new Array(lengthToDecode);
-
-  for (let i = 0; i < lengthToDecode; i++) {
+export function trimIncompleteUtf8Tail(bytes: Uint8Array): Uint8Array {
+  // walk back over at most 3 continuation bytes (10xxxxxx) to the lead byte of the last character
+  for (let i = bytes.length - 1; i >= Math.max(0, bytes.length - 4); i--) {
     const byte = bytes[i];
-    hexArray[i] = HEX_TABLE[byte];
-    asciiArray[i] = isPrintable(byte) ? String.fromCharCode(byte) : placeholder;
+    if ((byte & 0xc0) === 0x80) continue;
+    const sequenceLength = byte < 0x80 ? 1 : (byte & 0xe0) === 0xc0 ? 2 : (byte & 0xf0) === 0xe0 ? 3 : (byte & 0xf8) === 0xf0 ? 4 : 1;
+    return i + sequenceLength > bytes.length ? bytes.subarray(0, i) : bytes;
   }
+  return bytes;
+}
 
-  return ["0x" + hexArray.join("") + ellipsis, asciiArray.join("") + ellipsis];
+/**
+ * Decodes bytes as text: as UTF-8 if they contain multi-byte characters and are valid UTF-8,
+ * otherwise as ASCII with a placeholder for non-printable bytes.
+ * @param bytes - Bytes to decode.
+ * @returns The decoded string.
+ */
+export function bytesToString(bytes: Uint8Array): string {
+  const hasMultiByteChars = bytes.some((byte) => byte >= 0x80);
+  return hasMultiByteChars && isValidUtf8(bytes) ? toUtf8(bytes) : toAscii(bytes);
 }
 
 export function sleepMilliseconds(milliSeconds: number): Promise<void> {

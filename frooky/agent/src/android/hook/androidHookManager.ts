@@ -299,7 +299,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     if (resolvedMethod) {
       return resolvedMethod;
     } else {
-      throw Error(`Skipping hook for ${inputHook.method}. This method does not exist in class ${javaClass.$className}.`);
+      throw Error(`Skipping hook for '${inputHook.method}'. This method does not exist in class '${javaClass.$className}'.`);
     }
   }
 

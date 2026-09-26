@@ -131,11 +131,17 @@ describe("NativeReferenceDecoder", () => {
       expect(makeDecoder("char").decode(scratch)).toEqual({ type: "char*", value: "hello" });
     });
 
-    it("should cap an unbounded char* read at the configured maxItems", () => {
+    it("should cap an unbounded char* read at the configured maxItems and append an ellipsis", () => {
       const scratch = Memory.alloc(16);
       scratch.writeUtf8String("hello world");
       const decoder = makeDecoder("char", { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 });
-      expect(decoder.decode(scratch)).toEqual({ type: "char*", value: "hello" });
+      expect(decoder.decode(scratch)).toEqual({ type: "char*", value: "hello..." });
+    });
+
+    it("should use a char* length arg as the string length (via the native string decoder)", () => {
+      const scratch = Memory.alloc(16);
+      scratch.writeUtf8String("hello world");
+      expect(makeDecoder("char").decode(scratch, decodedArg(4))).toEqual({ type: "char*", value: "hell" });
     });
 
     it("should decode uchar* as a UTF-8 string when no length arg is given", () => {
@@ -144,26 +150,33 @@ describe("NativeReferenceDecoder", () => {
       expect(makeDecoder("uchar").decode(scratch)).toEqual({ type: "uchar*", value: "world" });
     });
 
-    it("should decode void* to hex/ascii using a numeric length arg", () => {
+    it("should decode void* to hex using a numeric length arg", () => {
       const scratch = Memory.alloc(4);
       scratch.writeByteArray([0x41, 0x42, 0x43, 0x44]);
       const result = makeDecoder("void").decode(scratch, decodedArg(4));
-      expect(result).toEqual({ type: "void*", value: ["0x41424344", "ABCD"] });
+      expect(result).toEqual({ type: "void*", value: "0x41424344" });
     });
 
     it("should decode void* using a decimal-string length arg (size_t-typed length regression)", () => {
       const scratch = Memory.alloc(4);
       scratch.writeByteArray([0x41, 0x42, 0x43, 0x44]);
       const result = makeDecoder("void").decode(scratch, decodedArg("4"));
-      expect(result).toEqual({ type: "void*", value: ["0x41424344", "ABCD"] });
+      expect(result).toEqual({ type: "void*", value: "0x41424344" });
     });
 
-    it("should clamp a void* length arg to the configured maxItems", () => {
+    it("should clamp a void* length arg to the configured maxItems and append an ellipsis", () => {
       const scratch = Memory.alloc(10);
       scratch.writeByteArray([0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a]);
       const decoder = makeDecoder("void", { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
       const result = decoder.decode(scratch, decodedArg(10));
-      expect(result).toEqual({ type: "void*", value: ["0x414243", "ABC"] });
+      expect(result).toEqual({ type: "void*", value: "0x414243..." });
+    });
+
+    it("should not append an ellipsis when the void* length arg is exactly maxItems", () => {
+      const scratch = Memory.alloc(3);
+      scratch.writeByteArray([0x41, 0x42, 0x43]);
+      const decoder = makeDecoder("void", { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
+      expect(decoder.decode(scratch, decodedArg(3))).toEqual({ type: "void*", value: "0x414243" });
     });
 
     it("should return null for void* when the length arg isn't a number or numeric string", () => {
@@ -172,11 +185,11 @@ describe("NativeReferenceDecoder", () => {
       expect(result).toEqual({ type: "void*", value: null });
     });
 
-    it("should decode uchar* to hex/ascii using a numeric length arg", () => {
+    it("should decode uchar* to hex using a numeric length arg", () => {
       const scratch = Memory.alloc(3);
       scratch.writeByteArray([0x58, 0x59, 0x5a]);
       const result = makeDecoder("uchar").decode(scratch, decodedArg(3));
-      expect(result).toEqual({ type: "uchar*", value: ["0x58595a", "XYZ"] });
+      expect(result).toEqual({ type: "uchar*", value: "0x58595a" });
     });
 
     it("should cache the value decoder on second call", () => {

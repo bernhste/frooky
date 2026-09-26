@@ -2,6 +2,7 @@ import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { NativeDecoderResolver } from "./nativeDecoderResolver";
 import { NativeFallbackDecoder } from "./nativeFallbackDecoder";
 import { NativeReferenceDecoder } from "./nativeReferenceDecoder";
+import { NativeStringDecoder } from "./nativeStringDecoder";
 import { NativeValueDecoder } from "./nativeValueDecoder";
 
 describe("NativeDecoderResolver", () => {
@@ -51,6 +52,18 @@ describe("NativeDecoderResolver", () => {
       const decoder = NativeDecoderResolver.resolveDecoder({ type: "MyStruct*", settings: DEFAULT_DECODER_SETTINGS });
       expect(decoder instanceof NativeFallbackDecoder).toBeTruthy();
       expect(decoder.decode(ptr(0x12345678))).toEqual({ type: "MyStruct*", value: "0x12345678" });
+    });
+
+    it("should resolve `decoder: string` to a NativeStringDecoder regardless of the declared type", () => {
+      const decoder = NativeDecoderResolver.resolveDecoder({ type: "void *", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "string" } });
+      expect(decoder instanceof NativeStringDecoder).toBeTruthy();
+      expect(decoder.decode(Memory.allocUtf8String("hello"))).toEqual({ type: "void *", value: "hello" });
+    });
+
+    it("should throw a descriptive error for an unknown custom decoder", () => {
+      expect(() => NativeDecoderResolver.resolveDecoder({ type: "void *", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "nope" } })).toThrow(
+        'Unknown custom decoder: "nope"',
+      );
     });
   });
 });

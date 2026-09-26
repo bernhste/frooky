@@ -51,7 +51,7 @@ class TestOnProgress:
             runner.feed.status("Events: 0")
 
             runner._on_progress({"frooky": "progress", "hooked": 30, "pending": 4})
-            assert "Resolving hooks: 30 hooked, 4 classes/modules pending" in runner.feed.render_status_bar().plain
+            assert "Resolving hooks: 30 hooked, 4 modules pending" in runner.feed.render_status_bar().plain
 
             runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0})
             assert runner.feed.render_status_bar().plain == " ✓ Hooks: 38  |  Events: 0 "
