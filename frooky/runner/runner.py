@@ -143,9 +143,8 @@ class FrookyRunner:
         self._update_status_line()
 
     def _apply_hook_file_changes(self, watcher: HookFileWatcher) -> None:
-        """Send changed hook files to the agent, which re-hooks only what changed."""
+        """Send changed hook files to the agent, which re-hooks only what changed and reports the result."""
         for path, hook_config in watcher.poll():
-            print(f"  Hook file changed, updating hooks: {path}")
             self.script.exports_sync.update_frooky_config(str(path), hook_config)
 
     def run(self) -> int:

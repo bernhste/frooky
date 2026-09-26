@@ -1,4 +1,4 @@
-import { FrookyAgent } from "./FrookyAgent";
+import { describeReload, FrookyAgent } from "./FrookyAgent";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "./shared/defaultValues";
 import { stopEventSender } from "./shared/event/eventSender";
 import { InputFrookyConfig } from "./shared/frookyConfig";
@@ -219,25 +219,63 @@ describe("FrookyAgent", () => {
       expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
     });
 
-    it("retries hooks that failed to resolve in the previous version", async () => {
-      const { agent, rawManager } = setup(["a"], ["a"]);
-      rawManager.resolveHooks.mockResolvedValueOnce([Promise.resolve(null)]);
+    it("does not retry unchanged hooks that failed to resolve in the previous version", async () => {
+      const { agent, rawManager } = setup(["a", "b"], ["a", "c"]);
+      rawManager.resolveHooks.mockResolvedValueOnce([Promise.resolve(null), Promise.resolve([fakeHook()])]);
 
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
 
       expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
-      expect(rawManager.registerHooks).toHaveBeenCalledTimes(1);
+      expect(resolvedNames(rawManager.resolveHooks.mock.calls[1])).toEqual(["c"]);
     });
 
     it("keeps the loaded hooks when the reloaded config is invalid", async () => {
       const { agent, rawManager } = setup(["a"]);
+      const logSpy = spyOn(console, "log");
 
-      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
-      await agent.loadFrookyConfig({ metadata: { name: "No hookCollection" } } as InputFrookyConfig, "hooks.yaml");
+      try {
+        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+        await agent.loadFrookyConfig({ metadata: { name: "No hookCollection" } } as InputFrookyConfig, "/tmp/hooks.yaml");
 
-      expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
-      expect(warnSpy).toHaveBeenCalled();
+        expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+        const lastLine = String(logSpy.mock.calls[logSpy.mock.calls.length - 1]?.[0]);
+        expect(lastLine.startsWith("  Not reloaded hooks.yaml, keeping the previous version: ")).toBe(true);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
+    it("prints one summary line per reload instead of 'Resolved Hooks'", async () => {
+      const { agent } = setup(["a", "b"], ["b", "c"]);
+      const logSpy = spyOn(console, "log");
+
+      try {
+        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+
+        expect(logSpy.mock.calls.map((call) => call[0])).toEqual([
+          "Resolved Hooks: 2",
+          "  Reloaded hooks.yaml: 1 added (1 method hooked), 1 removed, 1 unchanged",
+        ]);
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("describeReload()", () => {
+    it("counts declarations and lists what the added ones resolved to", () => {
+      expect(describeReload(2, 3, 1, 1, 0, 38)).toBe("2 added (3 methods hooked, 1 function hooked, 1 failed), 38 unchanged");
+    });
+
+    it("reports added declarations that resolved to nothing", () => {
+      expect(describeReload(1, 0, 0, 0, 0, 0)).toBe("1 added (nothing hooked)");
+    });
+
+    it("reports only removals and says so when nothing changed", () => {
+      expect(describeReload(0, 0, 0, 0, 1, 1)).toBe("1 removed, 1 unchanged");
+      expect(describeReload(0, 0, 0, 0, 0, 5)).toBe("no changes");
     });
   });
 });

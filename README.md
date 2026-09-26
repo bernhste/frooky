@@ -61,7 +61,7 @@ frooky -U -f org.owasp.mastestapp hooks_*.yaml
 frooky -U -f org.owasp.mastestapp -w hooks.yaml
 ```
 
-With `-w`/`--watch`, frooky applies a hook file whenever you save it. Only hooks whose declaration or effective settings changed are hooked again. Removed hooks are unhooked, unchanged hooks keep running, and hooks that previously failed to resolve are retried. If the file cannot be parsed, the previous version stays active.
+With `-w`/`--watch`, frooky applies a hook file whenever you save it. Only hooks whose declaration or effective settings changed are hooked again. Removed hooks are unhooked, and unchanged hooks keep running. Unchanged hooks that failed to resolve are not retried; edit them or restart frooky to try again. If the file cannot be parsed, the previous version stays active.
 
 See `frooky -h` for more options.
 

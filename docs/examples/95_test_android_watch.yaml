@@ -1,0 +1,22 @@
+metadata:
+  name: Android Hooks for Testing
+  version: 1
+  author: frooky dev
+  platform: Android
+
+
+hookCollection:
+  # java types which are converted to "string" type in javascript
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+    - method: receiveString
+      overloads:
+      - params:
+        - [java.lang.String, receivedString, {maxItems: 10}]
+
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+    - method: receiveInt
+      overloads:
+      - params:
+        - [int, integer, {maxItems: 10, argFilter: ["^2147483647$", "^23$"]}]

@@ -27,6 +27,41 @@ type LoadedHookEntry = {
 
 type PendingHook = { inputHook: unknown; entry: LoadedHookEntry };
 
+/** The file name of a config id, which the host sets to the hook file path. */
+function configLabel(configId: string): string {
+  return configId.split(/[\\/]/).pop() || configId;
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+/**
+ * Summarizes a reload in hook declarations, e.g. `1 added (2 methods hooked), 1 removed, 3 unchanged`.
+ * The counts in parentheses are resolved hooks (one per overload or function) of the added declarations.
+ */
+export function describeReload(
+  added: number,
+  hookedMethods: number,
+  hookedFunctions: number,
+  failed: number,
+  removed: number,
+  unchanged: number,
+): string {
+  if (added === 0 && removed === 0) return "no changes";
+  const parts: string[] = [];
+  if (added > 0) {
+    const details: string[] = [];
+    if (hookedMethods > 0) details.push(`${plural(hookedMethods, "method")} hooked`);
+    if (hookedFunctions > 0) details.push(`${plural(hookedFunctions, "function")} hooked`);
+    if (failed > 0) details.push(`${failed} failed`);
+    parts.push(`${added} added (${details.length > 0 ? details.join(", ") : "nothing hooked"})`);
+  }
+  if (removed > 0) parts.push(`${removed} removed`);
+  if (unchanged > 0) parts.push(`${unchanged} unchanged`);
+  return parts.join(", ");
+}
+
 /**
  * Main application class for Frooky.
  * Manages configuration, events, and lifecycle of a frooky session.
@@ -99,7 +134,7 @@ export class FrookyAgent {
    * If a config with the same `configId` was loaded before, the new config replaces it
    * incrementally: hooks whose normalized declaration is unchanged are left untouched (no class,
    * module or symbol lookup), hooks that are gone are removed, and only new or changed hooks are
-   * resolved and installed. Hooks of the previous version that failed to resolve are retried.
+   * resolved and installed. Hooks that failed to resolve are not retried unless their declaration changes.
    * An invalid config is rejected and leaves the previously loaded version in place.
    *
    * The diff happens synchronously before the first `await`, so consecutive calls apply in order.
@@ -117,7 +152,11 @@ export class FrookyAgent {
     try {
       validFrookyConfig = validateAndRepairFrookyConfig(inputFrookyConfig, this.platform);
     } catch (e) {
-      logger.warn(`Skipping frooky config: ${e}`);
+      if (configId !== undefined && this.loadedConfigs.has(configId)) {
+        console.log(`  Not reloaded ${configLabel(configId)}, keeping the previous version: ${e}`);
+      } else {
+        logger.warn(`Skipping frooky config: ${e}`);
+      }
       return;
     }
 
@@ -146,7 +185,7 @@ export class FrookyAgent {
           continue;
         }
         const previousEntry = previousEntries?.get(fingerprint);
-        if (previousEntry && previousEntry.state !== "failed") {
+        if (previousEntry) {
           entries.set(fingerprint, previousEntry);
           countUnchanged++;
           continue;
@@ -166,9 +205,9 @@ export class FrookyAgent {
       if (previousEntry.state === "installed" && previousEntry.hooks) {
         const manager = fingerprint.startsWith("native:") ? this.nativeHookManager : this.platformHookManger;
         manager.unregisterHooks(previousEntry.hooks);
-        countRemoved += previousEntry.hooks.length;
       }
       previousEntry.state = "removed";
+      countRemoved++;
     }
     this.loadedConfigs.set(id, entries);
 
@@ -177,13 +216,6 @@ export class FrookyAgent {
     const hookSuffix = configName ? ` from frooky configuration '${configName}'` : "";
 
     logger.info(`Frooky configuration${nameSuffix} successfully parsed`);
-    if (previousEntries) {
-      // printed unconditionally, like 'Resolved Hooks' below, so the user sees what a reload did
-      console.log(
-        `Updating frooky configuration${nameSuffix}: ${platformToResolve.length + nativeToResolve.length} new or changed, ` +
-          `${countUnchanged} unchanged, ${countRemoved} hooks removed`,
-      );
-    }
 
     // async resolve the new hooks and register them
     const [countSuccessfulPlatformHooks, countSuccessfulNativeHooks] = await Promise.all([
@@ -197,9 +229,17 @@ export class FrookyAgent {
       }),
     ]);
 
-    // printed unconditionally (bypassing the logger's own verbosity setting) so external tooling
-    // can detect when this config is done resolving, independent of -v/-vv.
-    console.log(`Resolved Hooks: ${countSuccessfulPlatformHooks + countSuccessfulNativeHooks}`);
+    // printed unconditionally (bypassing the logger's own verbosity setting): the user sees what a
+    // reload did, and external tooling detects when the initial load is done resolving.
+    if (previousEntries) {
+      const countAdded = platformToResolve.length + nativeToResolve.length;
+      const countFailed = [...platformToResolve, ...nativeToResolve].filter(({ entry }) => entry.state === "failed").length;
+      console.log(
+        `  Reloaded ${configLabel(id)}: ${describeReload(countAdded, countSuccessfulPlatformHooks, countSuccessfulNativeHooks, countFailed, countRemoved, countUnchanged)}`,
+      );
+    } else {
+      console.log(`Resolved Hooks: ${countSuccessfulPlatformHooks + countSuccessfulNativeHooks}`);
+    }
   }
 
   /**
