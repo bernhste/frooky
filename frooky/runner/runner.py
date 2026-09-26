@@ -13,12 +13,13 @@ from rich.live import Live
 from rich.text import Text
 
 from .._version import __version__ as frooky_version
-from .config import load_hook_configs, load_user_scripts
+from .config import load_hook_config, load_hook_configs, load_user_scripts
 from .device import attach_or_spawn, describe_target, detect_platform, get_device, get_device_frida_version
+from .keys import KeyListener
 from .messages import create_message_handler
 from .options import RunnerOptions
 from .output import OutputWriter
-from .watcher import HookFileWatcher
+from .watcher import HookFileWatcher, print_reload_error
 
 
 class FrookyRunner:
@@ -40,6 +41,8 @@ class FrookyRunner:
         self._stop_event = threading.Event()
         self._stop_reason: Optional[str] = None
         self._crash = None
+        self._reload_requested = threading.Event()
+        self._key_listener = KeyListener(self._on_key)
 
     def _stop_live_terminal(self):
         self._live.stop()
@@ -51,6 +54,11 @@ class FrookyRunner:
         self._stop_reason = reason
         self._crash = crash
         self._stop_event.set()
+
+    def _on_key(self, key: str) -> None:
+        """Called on the key listener thread for every key press."""
+        if key in ("r", "R"):
+            self._reload_requested.set()
 
     def _describe_stop_reason(self) -> str:
         if self._crash is not None:
@@ -136,7 +144,10 @@ class FrookyRunner:
             lines.append(f"{logo_part}   {info_part}")
 
         lines.append("")
-        lines.append("  Press Ctrl+C to stop...")
+        if self._key_listener.active:
+            lines.append("  Press R to reload the hook files and retry failed hooks, Ctrl+C to stop...")
+        else:
+            lines.append("  Press Ctrl+C to stop...")
         lines.append("")
 
         print("\n".join(lines))
@@ -146,6 +157,21 @@ class FrookyRunner:
         """Send changed hook files to the agent, which re-hooks only what changed and reports the result."""
         for path, hook_config in watcher.poll():
             self.script.exports_sync.update_frooky_config(str(path), hook_config)
+
+    def _reload_hook_files(self, watcher: Optional[HookFileWatcher]) -> None:
+        """Reload every hook file and retry the hooks that failed to resolve; installed, unchanged hooks stay."""
+        if watcher:
+            watcher.poll()
+            reloaded = watcher.current()
+        else:
+            reloaded = []
+            for path in dict.fromkeys(self.options.hook_paths):
+                try:
+                    reloaded.append((path, load_hook_config(path)))
+                except Exception as e:
+                    print_reload_error(path, e)
+        for path, hook_config in reloaded:
+            self.script.exports_sync.update_frooky_config(str(path), hook_config, True)
 
     def run(self) -> int:
         """Run the Frooky hooks."""
@@ -162,6 +188,7 @@ class FrookyRunner:
             script_path = files("frooky") / "agent" / "dist" / f"agent-{self.platform}.js"
             script_source = script_path.read_text(encoding="utf-8")
 
+            self._key_listener.start()
             self._print_header()
 
             # Load any user-provided scripts before the frooky agent
@@ -192,7 +219,10 @@ class FrookyRunner:
             # firing because we lost the connection to the target/agent.
             while not self._stop_event.is_set():
                 time.sleep(0.5)
-                if watcher:
+                if self._reload_requested.is_set():
+                    self._reload_requested.clear()
+                    self._reload_hook_files(watcher)
+                elif watcher:
                     self._apply_hook_file_changes(watcher)
 
         except KeyboardInterrupt:
@@ -204,6 +234,7 @@ class FrookyRunner:
             self._stop_reason = f"error: {e}"
 
         finally:
+            self._key_listener.stop()
             if self.script:
                 try:
                     self.script.unload()

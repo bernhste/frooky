@@ -150,7 +150,7 @@ $ frooky -U -f org.owasp.mastestapp  docs/examples/01_android.yaml -e
                                               Hook files: 1
                                               Output: output.json
 
-  Press Ctrl+C to stop...
+  Press R to reload the hook files and retry failed hooks, Ctrl+C to stop...
 
 ┌─ java (static) ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
   time      :  2026-09-16T20:24:24.094Z

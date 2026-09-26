@@ -36,26 +36,34 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
+/** What a reload did, counted in hook declarations except for the resolved `hooked*` counts. */
+export type ReloadSummary = {
+  added: number;
+  retried: number;
+  hookedMethods: number;
+  hookedFunctions: number;
+  failed: number;
+  removed: number;
+  unchanged: number;
+};
+
 /**
- * Summarizes a reload in hook declarations, e.g. `1 added (2 methods hooked), 1 removed, 3 unchanged`.
- * The counts in parentheses are resolved hooks (one per overload or function) of the added declarations.
+ * Summarizes a reload, e.g. `1 added, 2 retried (2 methods hooked, 1 failed), 1 removed, 3 unchanged`.
+ * The parentheses list what the added and retried declarations resolved to (one hook per overload or function).
  */
-export function describeReload(
-  added: number,
-  hookedMethods: number,
-  hookedFunctions: number,
-  failed: number,
-  removed: number,
-  unchanged: number,
-): string {
-  if (added === 0 && removed === 0) return "no changes";
+export function describeReload(summary: ReloadSummary): string {
+  const { added, retried, hookedMethods, hookedFunctions, failed, removed, unchanged } = summary;
+  if (added === 0 && retried === 0 && removed === 0) return "no changes";
+  const resolved: string[] = [];
+  if (added > 0) resolved.push(`${added} added`);
+  if (retried > 0) resolved.push(`${retried} retried`);
   const parts: string[] = [];
-  if (added > 0) {
+  if (resolved.length > 0) {
     const details: string[] = [];
     if (hookedMethods > 0) details.push(`${plural(hookedMethods, "method")} hooked`);
     if (hookedFunctions > 0) details.push(`${plural(hookedFunctions, "function")} hooked`);
     if (failed > 0) details.push(`${failed} failed`);
-    parts.push(`${added} added (${details.length > 0 ? details.join(", ") : "nothing hooked"})`);
+    parts.push(`${resolved.join(", ")} (${details.length > 0 ? details.join(", ") : "nothing hooked"})`);
   }
   if (removed > 0) parts.push(`${removed} removed`);
   if (unchanged > 0) parts.push(`${unchanged} unchanged`);
@@ -134,7 +142,8 @@ export class FrookyAgent {
    * If a config with the same `configId` was loaded before, the new config replaces it
    * incrementally: hooks whose normalized declaration is unchanged are left untouched (no class,
    * module or symbol lookup), hooks that are gone are removed, and only new or changed hooks are
-   * resolved and installed. Hooks that failed to resolve are not retried unless their declaration changes.
+   * resolved and installed. Hooks that failed to resolve are only retried if `retryFailed` is set
+   * or their declaration changed.
    * An invalid config is rejected and leaves the previously loaded version in place.
    *
    * The diff happens synchronously before the first `await`, so consecutive calls apply in order.
@@ -142,8 +151,9 @@ export class FrookyAgent {
    * @param inputFrookyConfig - The configuration to add.
    * @param configId - Identifies the config across reloads (the host uses the hook file path).
    *   Without an id, the config is always added as a new one.
+   * @param retryFailed - Also resolve unchanged hooks that failed to resolve in the previous version.
    */
-  public async loadFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string) {
+  public async loadFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string, retryFailed = false) {
     logger.debug("Loading frooky configuration.");
 
     // validate frooky config
@@ -176,6 +186,7 @@ export class FrookyAgent {
     const platformToResolve: PendingHook[] = [];
     const nativeToResolve: PendingHook[] = [];
     let countUnchanged = 0;
+    let countRetried = 0;
 
     const diff = (kind: string, inputHooks: unknown[], toResolve: PendingHook[]) => {
       for (const inputHook of inputHooks) {
@@ -185,12 +196,17 @@ export class FrookyAgent {
           continue;
         }
         const previousEntry = previousEntries?.get(fingerprint);
-        if (previousEntry) {
+        if (previousEntry && !(retryFailed && previousEntry.state === "failed")) {
           entries.set(fingerprint, previousEntry);
           countUnchanged++;
           continue;
         }
-        const entry: LoadedHookEntry = { state: "pending" };
+        // a retried hook keeps its entry, so it is not counted as removed below
+        const entry: LoadedHookEntry = previousEntry ?? { state: "pending" };
+        if (previousEntry) {
+          previousEntry.state = "pending";
+          countRetried++;
+        }
         entries.set(fingerprint, entry);
         toResolve.push({ inputHook, entry });
       }
@@ -232,11 +248,17 @@ export class FrookyAgent {
     // printed unconditionally (bypassing the logger's own verbosity setting): the user sees what a
     // reload did, and external tooling detects when the initial load is done resolving.
     if (previousEntries) {
-      const countAdded = platformToResolve.length + nativeToResolve.length;
-      const countFailed = [...platformToResolve, ...nativeToResolve].filter(({ entry }) => entry.state === "failed").length;
-      console.log(
-        `  Reloaded ${configLabel(id)}: ${describeReload(countAdded, countSuccessfulPlatformHooks, countSuccessfulNativeHooks, countFailed, countRemoved, countUnchanged)}`,
-      );
+      const toResolve = [...platformToResolve, ...nativeToResolve];
+      const summary = describeReload({
+        added: toResolve.length - countRetried,
+        retried: countRetried,
+        hookedMethods: countSuccessfulPlatformHooks,
+        hookedFunctions: countSuccessfulNativeHooks,
+        failed: toResolve.filter(({ entry }) => entry.state === "failed").length,
+        removed: countRemoved,
+        unchanged: countUnchanged,
+      });
+      console.log(`  Reloaded ${configLabel(id)}: ${summary}`);
     } else {
       console.log(`Resolved Hooks: ${countSuccessfulPlatformHooks + countSuccessfulNativeHooks}`);
     }

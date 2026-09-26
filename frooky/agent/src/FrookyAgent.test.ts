@@ -230,6 +230,24 @@ describe("FrookyAgent", () => {
       expect(resolvedNames(rawManager.resolveHooks.mock.calls[1])).toEqual(["c"]);
     });
 
+    it("retries only the failed hooks when asked to, leaving installed ones in place", async () => {
+      const { agent, rawManager } = setup(["a", "b"], ["a", "b"]);
+      rawManager.resolveHooks.mockResolvedValueOnce([Promise.resolve(null), Promise.resolve([fakeHook()])]);
+      const logSpy = spyOn(console, "log");
+
+      try {
+        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml", true);
+
+        expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
+        expect(resolvedNames(rawManager.resolveHooks.mock.calls[1])).toEqual(["a"]);
+        expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+        expect(logSpy.mock.calls[1]?.[0]).toBe("  Reloaded hooks.yaml: 1 retried (1 method hooked), 1 unchanged");
+      } finally {
+        logSpy.mockRestore();
+      }
+    });
+
     it("keeps the loaded hooks when the reloaded config is invalid", async () => {
       const { agent, rawManager } = setup(["a"]);
       const logSpy = spyOn(console, "log");
@@ -265,17 +283,27 @@ describe("FrookyAgent", () => {
   });
 
   describe("describeReload()", () => {
+    const none = { added: 0, retried: 0, hookedMethods: 0, hookedFunctions: 0, failed: 0, removed: 0, unchanged: 0 };
+
     it("counts declarations and lists what the added ones resolved to", () => {
-      expect(describeReload(2, 3, 1, 1, 0, 38)).toBe("2 added (3 methods hooked, 1 function hooked, 1 failed), 38 unchanged");
+      expect(describeReload({ ...none, added: 2, hookedMethods: 3, hookedFunctions: 1, failed: 1, unchanged: 38 })).toBe(
+        "2 added (3 methods hooked, 1 function hooked, 1 failed), 38 unchanged",
+      );
+    });
+
+    it("lists added and retried declarations together", () => {
+      expect(describeReload({ ...none, added: 1, retried: 4, hookedMethods: 1, failed: 4, unchanged: 35 })).toBe(
+        "1 added, 4 retried (1 method hooked, 4 failed), 35 unchanged",
+      );
     });
 
     it("reports added declarations that resolved to nothing", () => {
-      expect(describeReload(1, 0, 0, 0, 0, 0)).toBe("1 added (nothing hooked)");
+      expect(describeReload({ ...none, added: 1 })).toBe("1 added (nothing hooked)");
     });
 
     it("reports only removals and says so when nothing changed", () => {
-      expect(describeReload(0, 0, 0, 0, 1, 1)).toBe("1 removed, 1 unchanged");
-      expect(describeReload(0, 0, 0, 0, 0, 5)).toBe("no changes");
+      expect(describeReload({ ...none, removed: 1, unchanged: 1 })).toBe("1 removed, 1 unchanged");
+      expect(describeReload({ ...none, unchanged: 5 })).toBe("no changes");
     });
   });
 });

@@ -52,7 +52,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         "--watch",
         action="store_true",
         default=False,
-        help="Watch the hook files and apply changes while running. Only new or changed hooks are re-hooked.",
+        help="Watch the hook files and apply changes while running. Only new or changed hooks are re-hooked. Press R to also retry hooks that failed to resolve.",
     )
 
 

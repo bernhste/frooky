@@ -44,13 +44,13 @@ rpc.exports = {
       .then(() => frookyAgent.loadFrookyConfigs(frookyConfigs, configIds))
       .catch((e) => console.error(`[!] Error loading frooky configs: ${String(e)}`));
   },
-  // replaces the config loaded under configId, re-hooking only what changed
-  updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig) {
+  // replaces the config loaded under configId, re-hooking only what changed; retryFailed also retries hooks that failed to resolve
+  updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig, retryFailed?: boolean) {
     if (!frookyAgentReady) {
       throw new Error("[!] frookyAgent is not initialized. Call initFrookyAgent() first.");
     }
     frookyAgentReady
-      .then(() => frookyAgent.loadFrookyConfig(frookyConfig, configId))
+      .then(() => frookyAgent.loadFrookyConfig(frookyConfig, configId, retryFailed ?? false))
       .catch((e) => console.error(`[!] Error updating frooky config: ${String(e)}`));
   },
 };

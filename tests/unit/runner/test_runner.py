@@ -246,6 +246,44 @@ class TestRunWatch:
         assert exit_code == 0
         script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": [{"module": "libc.so", "hooks": ["open"]}]})
 
+    def test_r_reloads_every_hook_file_and_retries_failed_hooks(self, monkeypatch, tmp_path):
+        runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)
+
+        self._run_editing(monkeypatch, runner, [lambda: runner._on_key("r")])
+
+        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": []}, True)
+
+    def test_r_picks_up_file_changes_without_watch(self, monkeypatch, tmp_path):
+        runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
+        new_content = "hookCollection:\n  - module: libc.so\n    hooks: [open]\n"
+
+        def edit_and_press_r():
+            _rewrite(hook_file, new_content)
+            runner._on_key("R")
+
+        self._run_editing(monkeypatch, runner, [edit_and_press_r])
+
+        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": [{"module": "libc.so", "hooks": ["open"]}]}, True)
+
+    def test_r_keeps_previous_version_when_hook_file_is_broken(self, monkeypatch, tmp_path, capsys):
+        runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
+
+        def break_and_press_r():
+            _rewrite(hook_file, "hookCollection: [\n")
+            runner._on_key("r")
+
+        self._run_editing(monkeypatch, runner, [break_and_press_r])
+
+        script.exports_sync.update_frooky_config.assert_not_called()
+        assert "Not reloaded hooks.yaml, keeping the previous version" in capsys.readouterr().err
+
+    def test_ignores_other_keys(self, monkeypatch, tmp_path):
+        runner, script, _hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)
+
+        self._run_editing(monkeypatch, runner, [lambda: runner._on_key("x")])
+
+        script.exports_sync.update_frooky_config.assert_not_called()
+
     def test_does_not_watch_without_flag(self, monkeypatch, tmp_path):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
 

@@ -159,11 +159,15 @@ class TestValuePassingJava:
             "receiveNestedPrimitivesArray",
         ]
         hooks_yaml = "\n".join(f"      - {method}" for method in methods)
-        hook_file = textwrap.dedent(f"""\
+        hook_file = (
+            textwrap.dedent(f"""\
             hookCollection:
               - javaClass: {MASTG_CLASS}
                 hooks:
-            """) + hooks_yaml + "\n"
+            """)
+            + hooks_yaml
+            + "\n"
+        )
 
         run_frooky(hook_file, TARGET_APP)
 
