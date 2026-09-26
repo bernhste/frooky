@@ -1,5 +1,5 @@
 import Java from "frida-java-bridge";
-import { Decoder } from "../../../../shared/decoders/baseDecoder";
+import { RecursiveDecoder } from "../../../../shared/decoders/recursiveDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { GetterDecoder } from "../../builtin/GetterDecoder";
 import { IntentFlagDecoder } from "./IntentFlagDecoder";
@@ -10,8 +10,8 @@ import { IntentFlagDecoder } from "./IntentFlagDecoder";
  * the raw flags int decoded to its human-readable FLAG_* names, and the caller info the system
  * attaches to identify who launched it.
  */
-export class IntentDecoder extends Decoder<Java.Wrapper> {
-  decode(value: Java.Wrapper): DecodedValue {
+export class IntentDecoder extends RecursiveDecoder<Java.Wrapper> {
+  protected decodeRecursive(value: Java.Wrapper): DecodedValue {
     // value.get(key)-style callers that only know the declared type (Object, Parcelable, ...) hand
     // us a wrapper bound to that narrower type - re-cast to Intent itself so its own getters resolve
     const intent = Java.cast(value, Java.use("android.content.Intent"));

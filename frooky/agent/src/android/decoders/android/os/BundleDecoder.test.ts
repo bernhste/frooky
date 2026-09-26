@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { MAX_DEPTH_MARKER } from "../../../../shared/decoders/recursiveDecoder";
 import { DEFAULT_DECODER_SETTINGS } from "../../../../shared/defaultValues";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { BundleDecoder } from "./BundleDecoder";
@@ -145,6 +146,36 @@ describe("BundleDecoder", () => {
     const result = decoder.decode(bundle);
 
     expect(result).toEqual({ type: "android.os.Bundle", value: [] });
+  });
+
+  it("should truncate the extras at maxItems and append a truncation marker", () => {
+    const bundle = Bundle.$new();
+    bundle.putString("a", "1");
+    bundle.putString("b", "2");
+    bundle.putString("c", "3");
+
+    const limitedDecoder = new BundleDecoder({ type: "android.os.Bundle", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 2 } });
+    const values = limitedDecoder.decode(bundle).value as DecodedValue[];
+
+    expect(values.length).toBe(3);
+    expect(values[2]).toEqual({ type: "java.lang.String", value: "[truncated at 2]" });
+  });
+
+  it("should replace a nested Bundle and an array extra with a max depth marker once maxDepth is used up", () => {
+    const inner = Bundle.$new();
+    inner.putString("innerKey", "x");
+    const bundle = Bundle.$new();
+    bundle.putBundle("nested", inner);
+    bundle.putIntArray("array", Java.array("int", [1, 2]));
+    bundle.putString("string", "y");
+
+    const limitedDecoder = new BundleDecoder({ type: "android.os.Bundle", settings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 1 } });
+    const values = limitedDecoder.decode(bundle).value as DecodedValue[];
+    const findEntry = (name: string): DecodedValue | undefined => values.find((entry) => entry.name === name);
+
+    expect(findEntry("nested")).toEqual({ type: "android.os.Bundle", name: "nested", value: MAX_DEPTH_MARKER });
+    expect(findEntry("array")).toEqual({ type: "[I", name: "array", value: MAX_DEPTH_MARKER });
+    expect(findEntry("string")).toEqual({ type: "java.lang.String", name: "string", value: "y" });
   });
 });
 

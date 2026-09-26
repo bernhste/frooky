@@ -1,6 +1,7 @@
 import type Java from "frida-java-bridge";
-import { Decoder } from "../../../shared/decoders/baseDecoder";
+import { RecursiveDecoder } from "../../../shared/decoders/recursiveDecoder";
 import { Decodable } from "../../../shared/decoders/decodable";
+import { DecoderSettings } from "../../../shared/frookySettings";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "../javaDecoderResolver";
 
@@ -42,8 +43,8 @@ function elementTypeFromSignature(element: string): string {
   return element;
 }
 
-export class ArrayDecoder extends Decoder<Java.Wrapper> {
-  decode(value: Java.Wrapper): DecodedValue {
+export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
+  protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     const signature = this.type;
     const elementSignature = signature.startsWith("[") ? signature.substring(1) : signature;
     const elementType = elementTypeFromSignature(elementSignature);
@@ -66,7 +67,7 @@ export class ArrayDecoder extends Decoder<Java.Wrapper> {
       const elementDecodable: Decodable = {
         type: elementType,
         name: this.name,
-        settings: this.settings,
+        settings: childSettings,
       };
       const elementDecoder = JavaDecoderResolver.resolveDecoder(elementDecodable);
       arrayValue = new Array(decodeLen);

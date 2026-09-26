@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
+import { MAX_DEPTH_MARKER } from "../../../../shared/decoders/recursiveDecoder";
 import { DEFAULT_DECODER_SETTINGS } from "../../../../shared/defaultValues";
 import { JavaDecoderResolver } from "../../javaDecoderResolver";
 import { IterableDecoder } from "./IterableDecoder";
@@ -111,6 +112,38 @@ describe("IterableDecoder", () => {
           { type: "java.lang.String", value: "b" },
           { type: "java.lang.String", value: "[truncated at 2]" },
         ],
+      });
+    });
+
+    it("should replace a nested collection with a max depth marker once maxDepth is used up", () => {
+      const ArrayList = Java.use("java.util.ArrayList");
+      const inner = ArrayList.$new();
+      inner.add("a");
+      const outer = ArrayList.$new();
+      outer.add(inner);
+
+      const decoder = new IterableDecoder({ type: "java.util.List", settings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 1 } });
+      const result = decoder.decode(outer);
+
+      expect(result).toEqual({
+        type: "java.util.List",
+        value: [{ type: "java.util.ArrayList", value: { type: "java.util.ArrayList", value: MAX_DEPTH_MARKER } }],
+      });
+    });
+
+    it("should decode a nested collection when maxDepth allows it", () => {
+      const ArrayList = Java.use("java.util.ArrayList");
+      const inner = ArrayList.$new();
+      inner.add("a");
+      const outer = ArrayList.$new();
+      outer.add(inner);
+
+      const decoder = new IterableDecoder({ type: "java.util.List", settings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 2 } });
+      const result = decoder.decode(outer);
+
+      expect(result).toEqual({
+        type: "java.util.List",
+        value: [{ type: "java.util.ArrayList", value: { type: "java.util.ArrayList", value: [{ type: "java.lang.String", value: "a" }] } }],
       });
     });
   });

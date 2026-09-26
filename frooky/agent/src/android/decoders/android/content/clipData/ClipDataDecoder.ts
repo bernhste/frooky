@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
-import { Decoder } from "../../../../../shared/decoders/baseDecoder";
+import { RecursiveDecoder } from "../../../../../shared/decoders/recursiveDecoder";
+import { DecoderSettings } from "../../../../../shared/frookySettings";
 import { DecodedValue } from "../../../../../shared/decoders/decodedValue";
 import { ClipDataItemDecoder } from "./ClipDataItemDecoder";
 
@@ -17,21 +18,24 @@ function decodeDescription(description: Java.Wrapper): { label: string | null; m
   };
 }
 
-export class ClipDataDecoder extends Decoder<Java.Wrapper> {
-  decode(value: Java.Wrapper): DecodedValue {
+export class ClipDataDecoder extends RecursiveDecoder<Java.Wrapper> {
+  protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     const items: DecodedValue[] = [];
 
     const itemCount: number = value.getItemCount().valueOf();
+    const maxItems = this.settings.maxItems;
+    const decodeLen = Math.min(itemCount, maxItems);
 
-    for (let i = 0; i < itemCount; i++) {
-      const item = value.getItemAt(i);
+    const clipDataItemDecoder = new ClipDataItemDecoder({
+      type: "android.content.ClipData.Item",
+      settings: childSettings,
+    });
 
-      const clipDataItemDecoder = new ClipDataItemDecoder({
-        type: "android.content.ClipData.Item",
-        settings: this.settings,
-      });
-
-      items.push(clipDataItemDecoder.decode(item));
+    for (let i = 0; i < decodeLen; i++) {
+      items.push(clipDataItemDecoder.decode(value.getItemAt(i)));
+    }
+    if (itemCount > decodeLen) {
+      items.push({ type: "java.lang.String", value: `[truncated at ${maxItems}]` });
     }
 
     return {

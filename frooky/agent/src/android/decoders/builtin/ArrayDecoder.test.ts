@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
+import { MAX_DEPTH_MARKER } from "../../../shared/decoders/recursiveDecoder";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
 import { ArrayDecoder } from "./ArrayDecoder";
 
@@ -101,6 +102,26 @@ describe("ArrayDecoder", () => {
         type: "[Ljava.lang.String;",
         value: ["a", "b", "[truncated at 2]"],
       });
+    });
+
+    it("returns a max depth marker instead of the elements when maxDepth is used up", () => {
+      const array = Java.array("int", [1, 2, 3]);
+      const decoder = new ArrayDecoder({ type: "[I", settings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 0 } });
+
+      expect(decoder.decode(array as unknown as Java.Wrapper)).toEqual({ type: "[I", value: MAX_DEPTH_MARKER });
+    });
+
+    it("decodes the elements one level deeper, replacing nested containers once maxDepth is used up", () => {
+      const list = Java.use("java.util.ArrayList").$new();
+      list.add("a");
+      const array = Java.array("java.lang.Object", [list, "b"]);
+
+      const decoder = new ArrayDecoder({ type: "[Ljava.lang.Object;", settings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 1 } });
+
+      expect(decoder.decode(array as unknown as Java.Wrapper).value).toEqual([
+        { type: "java.util.ArrayList", value: MAX_DEPTH_MARKER },
+        { type: "java.lang.String", value: "b" },
+      ]);
     });
   });
 });

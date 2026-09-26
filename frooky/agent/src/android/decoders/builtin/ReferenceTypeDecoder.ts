@@ -35,6 +35,11 @@ function getInterfaceDecoderRegistry(): Record<string, DecoderConstructor> {
 
 const decoderCache = new Map<string, DecoderConstructor | null>();
 
+let javaObject: Java.Wrapper | undefined;
+function getJavaObject(): Java.Wrapper {
+  return (javaObject ??= Java.use("java.lang.Object"));
+}
+
 function collectInterfaces(javaClass: Java.Wrapper): Set<string> {
   const result = new Set<string>();
 
@@ -62,7 +67,11 @@ function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor |
   const cachedDecoder = decoderCache.get(value.$className);
   if (cachedDecoder !== undefined) return cachedDecoder;
 
-  const interfaces = collectInterfaces(value.class);
+  // getClass(), not `.class`: `.class` is the class of the wrapper's static type (e.g. java.lang.Object
+  // for an element read from an Object[]), and caching its (empty) interface set under the runtime
+  // class name would disable the interface decoders for that class for every later value. The cast
+  // is needed because a wrapper typed as an interface (e.g. java.util.Set) has no getClass()
+  const interfaces = collectInterfaces(Java.cast(value, getJavaObject()).getClass());
   const registry = getInterfaceDecoderRegistry();
   for (const iface of interfaces) {
     const interfaceDecoder = registry[iface];

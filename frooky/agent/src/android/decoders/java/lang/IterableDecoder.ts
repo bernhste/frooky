@@ -1,16 +1,25 @@
 // iterableDecoder.ts
-import type Java from "frida-java-bridge";
+import Java from "frida-java-bridge";
 import { Decoder } from "../../../../shared/decoders/baseDecoder";
+import { RecursiveDecoder } from "../../../../shared/decoders/recursiveDecoder";
+import { DecoderSettings } from "../../../../shared/frookySettings";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { JavaDecoderResolver } from "../../javaDecoderResolver";
+
+let javaIterable: Java.Wrapper | undefined;
+function getJavaIterable(): Java.Wrapper {
+  return (javaIterable ??= Java.use("java.lang.Iterable"));
+}
 
 /**
  * Decode any java.lang.Iterable by walking its iterator().
  */
-export class IterableDecoder extends Decoder<Java.Wrapper> {
-  decode(value: Java.Wrapper): DecodedValue {
+export class IterableDecoder extends RecursiveDecoder<Java.Wrapper> {
+  protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     const values: DecodedValue[] = [];
-    const iterator: Java.Wrapper = value.iterator();
+    // the wrapper can be typed as a supertype without iterator() (e.g. java.lang.Object for an element
+    // of another collection), so cast it to Iterable first
+    const iterator: Java.Wrapper = Java.cast(value, getJavaIterable()).iterator();
     const maxItems = this.settings.maxItems;
 
     const decoderCache = new Map<string, Decoder<Java.Wrapper>>();
@@ -25,7 +34,7 @@ export class IterableDecoder extends Decoder<Java.Wrapper> {
         elementDecoder = JavaDecoderResolver.resolveDecoder({
           type: className,
           name: this.name,
-          settings: this.settings,
+          settings: childSettings,
         });
         decoderCache.set(className, elementDecoder);
       }

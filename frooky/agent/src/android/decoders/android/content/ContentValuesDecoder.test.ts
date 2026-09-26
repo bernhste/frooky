@@ -35,6 +35,22 @@ describe("ContentValuesDecoder", () => {
 
     expect(result).toEqual({ type: "android.content.ContentValues", value: {} });
   });
+
+  it("should truncate at maxItems and add a truncation marker key", () => {
+    const values = ContentValues.$new();
+    values.put("a", "1");
+    values.put("b", "2");
+    values.put("c", "3");
+
+    const limitedDecoder = new ContentValuesDecoder({
+      type: "android.content.ContentValues",
+      settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 2 },
+    });
+    const result = limitedDecoder.decode(values).value as Record<string, unknown>;
+
+    expect(Object.keys(result).length).toBe(3);
+    expect(result["[truncated at 2]"]).toBe(null);
+  });
 });
 
 export {};

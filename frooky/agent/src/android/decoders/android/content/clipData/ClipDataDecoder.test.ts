@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../../../shared/decoders/decodedValue";
+import { MAX_DEPTH_MARKER } from "../../../../../shared/decoders/recursiveDecoder";
 import { DEFAULT_DECODER_SETTINGS } from "../../../../../shared/defaultValues";
 import { ClipDataDecoder } from "./ClipDataDecoder";
 
@@ -71,6 +72,29 @@ describe("ClipDataDecoder", () => {
     expect(findProperty("categories")).toEqual({ type: "java.util.Set", name: "categories", value: null });
     expect(findProperty("extras")).toEqual({ type: "android.os.Bundle", name: "extras", value: null });
     expect(findProperty("flags")).toEqual({ type: "android.content.IntentFlag", name: "flags", value: [] });
+  });
+
+  it("should truncate the items at maxItems and append a truncation marker", () => {
+    const clip = newPlainText("label", "first");
+    clip.addItem(newTextItem("second"));
+
+    const limitedDecoder = new ClipDataDecoder({ type: "android.content.ClipData", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 1 } });
+    const result = limitedDecoder.decode(clip);
+
+    expect(result.value.itemCount).toBe(2);
+    expect(result.value.items).toEqual([
+      { type: "android.content.ClipData.Item", value: { htmlText: null, text: "first", uri: null, intent: null } },
+      { type: "java.lang.String", value: "[truncated at 1]" },
+    ]);
+  });
+
+  it("should replace an item's Intent with a max depth marker once maxDepth is used up", () => {
+    const clip = newIntentClip("label", Intent.$new("android.intent.action.VIEW"));
+
+    const limitedDecoder = new ClipDataDecoder({ type: "android.content.ClipData", settings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 2 } });
+    const result = limitedDecoder.decode(clip);
+
+    expect(result.value.items[0].value.intent).toBe(MAX_DEPTH_MARKER);
   });
 });
 

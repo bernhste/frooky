@@ -1,5 +1,5 @@
 import Java from "frida-java-bridge";
-import { Decoder } from "../../../../shared/decoders/baseDecoder";
+import { childSettings, isMaxDepthReached, MAX_DEPTH_MARKER, RecursiveDecoder } from "../../../../shared/decoders/recursiveDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../../../shared/frookySettings";
 import { ReferenceTypeDecoder } from "../../builtin/ReferenceTypeDecoder";
@@ -67,14 +67,19 @@ const TYPED_ARRAY_GETTERS: Record<string, string> = {
 /**
  * Decode all key/value pairs from a Bundle.
  */
-export class BundleDecoder extends Decoder<Java.Wrapper> {
-  decode(value: Java.Wrapper): DecodedValue {
+export class BundleDecoder extends RecursiveDecoder<Java.Wrapper> {
+  protected decodeRecursive(value: Java.Wrapper, entrySettings: DecoderSettings): DecodedValue {
     const values: DecodedValue[] = [];
     const keys = value.keySet().toArray();
+    const maxItems = this.settings.maxItems;
+    const decodeLen = Math.min(keys.length, maxItems);
 
-    for (let i = 0; i < keys.length; i++) {
+    for (let i = 0; i < decodeLen; i++) {
       const key = keys[i].toString();
-      values.push(this.decodeEntry(value, key, value.get(key), true));
+      values.push(this.decodeEntry(value, key, value.get(key), true, entrySettings));
+    }
+    if (keys.length > decodeLen) {
+      values.push({ type: "java.lang.String", value: `[truncated at ${maxItems}]` });
     }
 
     return {
@@ -83,16 +88,21 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
     };
   }
 
-  private decodeEntry(bundle: Java.Wrapper, key: string, entry: Java.Wrapper | null, isBundleValue: boolean): DecodedValue {
+  private decodeEntry(
+    bundle: Java.Wrapper,
+    key: string,
+    entry: Java.Wrapper | null,
+    isBundleValue: boolean,
+    settings: DecoderSettings,
+  ): DecodedValue {
     if (entry == null) {
       return { type: "null", name: key, value: null };
     }
 
-    const settings: DecoderSettings = this.settings;
     const className: string = entry.$className;
 
     if (className.startsWith("[")) {
-      return this.decodeArray(bundle, key, className, entry, isBundleValue);
+      return this.decodeArray(bundle, key, className, entry, isBundleValue, settings);
     }
 
     const castEntry = Java.cast(entry, useCached(className));
@@ -109,8 +119,19 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
     return { type: decoded.type, name: key, value: (decoded.value as DecodedValue).value };
   }
 
-  private decodeArray(bundle: Java.Wrapper, key: string, className: string, entry: Java.Wrapper, isBundleValue: boolean): DecodedValue {
-    const maxItems = this.settings.maxItems;
+  private decodeArray(
+    bundle: Java.Wrapper,
+    key: string,
+    className: string,
+    entry: Java.Wrapper,
+    isBundleValue: boolean,
+    settings: DecoderSettings,
+  ): DecodedValue {
+    if (isMaxDepthReached(settings)) {
+      return { type: className, name: key, value: MAX_DEPTH_MARKER };
+    }
+
+    const maxItems = settings.maxItems;
     // only re-fetch through a typed getter for the extra itself - a nested array element reached
     // via reflection below has no key of its own to re-fetch by
     const typedGetter = isBundleValue ? TYPED_ARRAY_GETTERS[className] : undefined;
@@ -125,8 +146,9 @@ export class BundleDecoder extends Decoder<Java.Wrapper> {
     const length: number = getReflectArray().getLength(entry);
     const decodeLen = Math.min(length, maxItems);
     const items: unknown[] = new Array(decodeLen);
+    const elementSettings = childSettings(settings);
     for (let i = 0; i < decodeLen; i++) {
-      items[i] = this.decodeEntry(bundle, key, getReflectArray().get(entry, i), false).value;
+      items[i] = this.decodeEntry(bundle, key, getReflectArray().get(entry, i), false, elementSettings).value;
     }
     if (length > decodeLen) {
       items.push(`[truncated at ${maxItems}]`);

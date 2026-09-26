@@ -1,19 +1,18 @@
 import Java from "frida-java-bridge";
-import { Decoder } from "../../../../../shared/decoders/baseDecoder";
+import { RecursiveDecoder } from "../../../../../shared/decoders/recursiveDecoder";
+import { DecoderSettings } from "../../../../../shared/frookySettings";
 import { DecodedValue } from "../../../../../shared/decoders/decodedValue";
 import { IntentDecoder } from "../IntentDecoder";
 
-export class ClipDataItemDecoder extends Decoder<Java.Wrapper> {
-  decode(value: Java.Wrapper): DecodedValue {
+export class ClipDataItemDecoder extends RecursiveDecoder<Java.Wrapper> {
+  protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     const htmlText = value.getHtmlText();
     const text = value.getText();
     const uri = value.getUri();
 
     const intentValue = value.getIntent();
     const intent =
-      intentValue != null
-        ? new IntentDecoder({ type: "android.content.Intent", settings: this.settings }).decode(intentValue).value
-        : null;
+      intentValue != null ? new IntentDecoder({ type: "android.content.Intent", settings: childSettings }).decode(intentValue).value : null;
 
     return {
       type: "android.content.ClipData.Item",

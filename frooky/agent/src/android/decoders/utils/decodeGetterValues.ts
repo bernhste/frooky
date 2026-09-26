@@ -55,6 +55,8 @@ function getPublicNonArgumentMethodNames(className: string, prefixes: string[]):
  * (e.g. a declared supertype), which would otherwise resolve every lookup below to `undefined`. A
  * getter can still fail to invoke (unset property, hidden-API policy, missing on this API level) -
  * every such failure is decoded as `null` for that property rather than aborting the whole call.
+ * `settings` are the settings to decode the properties with, i.e. the child settings of the
+ * {@link RecursiveDecoder} that owns `instance`.
  */
 export function decodeGetterValues(instance: Java.Wrapper, prefixes: string[], settings: DecoderSettings): DecodedValue[] {
   const descriptors = getPublicNonArgumentMethodNames(instance.$className, prefixes);
