@@ -92,6 +92,19 @@ class TestCreateMessageHandler:
 
         feed.event.assert_not_called()
 
+    def test_progress_report_goes_to_on_progress_and_not_to_the_output(self, tmp_path):
+        output = OutputWriter(tmp_path / "out.json")
+        feed = MagicMock()
+        on_progress = MagicMock()
+        on_message = create_message_handler(output, feed, print_events=True, on_progress=on_progress)
+        progress = {"frooky": "progress", "hooked": 38, "pending": 4}
+
+        on_message({"type": "send", "payload": progress}, None)
+
+        on_progress.assert_called_once_with(progress)
+        feed.log.assert_not_called()
+        assert not output.output_path.exists()
+
 
 class TestCreateLogHandler:
     def test_forwards_level_text_and_source(self):

@@ -26,6 +26,8 @@ rpc.exports = {
             logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
             logTo ?? DEFAULT_SETTING_LOG_TO,
             resolverTimeoutSeconds ?? DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
+            // an object payload, which the host tells apart from the event batches (arrays)
+            (progress) => send({ frooky: "progress", ...progress }),
           );
           resolve();
         } catch (e) {

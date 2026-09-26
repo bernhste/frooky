@@ -30,6 +30,9 @@ export const DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS = 5;
 // specifies the interval between cached events are send back to the host
 export const SEND_INTERVAL_MS = 100;
 
+// the minimum interval between two hook resolving progress reports to the host
+export const PROGRESS_INTERVAL_MS = 250;
+
 // specifies the interval during frida module and classes lookup
 // we wait this manyt ms befor anoter attemnt is made to resolve unhooked classes
 export const HOOK_LOOKUP_INTERVAL_MS = 1000;

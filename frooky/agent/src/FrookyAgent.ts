@@ -1,7 +1,12 @@
 import { NativeHookManager } from "./native/hook/nativeHookManager";
 import { NativeHookValidator } from "./native/hook/nativeHookValidator";
 import { validateAndRepairFrookyConfig } from "./shared/configValidator";
-import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "./shared/defaultValues";
+import {
+  DEFAULT_SETTING_LOG_LEVEL,
+  DEFAULT_SETTING_LOG_TO,
+  DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
+  PROGRESS_INTERVAL_MS,
+} from "./shared/defaultValues";
 import { BaseEvent } from "./shared/event/baseEvent";
 import { startEventSender } from "./shared/event/eventSender";
 import { HookEvent } from "./shared/event/hookEvent";
@@ -18,13 +23,16 @@ import { stableStringify } from "./shared/utils";
 
 /**
  * State of one normalized hook declaration of a loaded config.
- * `target` is the hooked class method or module symbol, if known; `hooks` are the resolved hooks
- * (one per overload or function), set once installed.
+ * `target` is the hooked class method or module symbol and `lookup` the class or module it waits
+ * for, if known; `hooks` are the resolved hooks (one per overload or function) and `hookedCount`
+ * how many of them were installed, set once installed.
  */
 type LoadedHookEntry = {
   state: "pending" | "installed" | "failed" | "removed";
   target?: string;
+  lookup?: string;
   hooks?: Hook[];
+  hookedCount?: number;
 };
 
 type PendingHook = { inputHook: unknown; entry: LoadedHookEntry };
@@ -38,6 +46,20 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
+/** The class or module a normalized hook declaration waits for until it can be resolved. */
+function lookupOf(kind: string, inputHook: unknown): string | undefined {
+  if (typeof inputHook !== "object" || inputHook === null) return undefined;
+  const hook = inputHook as { javaClass?: string; module?: string };
+  const lookup = hook.javaClass ?? hook.module;
+  return lookup ? `${kind}:${lookup}` : undefined;
+}
+
+/** A normalized hook declaration for log messages, e.g. `com.example.Foo.bar` or `libfoo.so!open`. */
+function describeInputHook(inputHook: unknown): string {
+  const target = targetOf("", inputHook);
+  return target ? target.slice(1) : JSON.stringify(inputHook);
+}
+
 /**
  * The class method or module symbol a normalized hook declaration targets. A declaration whose other
  * properties (overloads, settings, ...) changed keeps its target, so a reload reports it as updated.
@@ -49,6 +71,13 @@ function targetOf(kind: string, inputHook: unknown): string | undefined {
   if (hook.module && hook.symbol) return `${kind}:${hook.module}!${hook.symbol}`;
   return undefined;
 }
+
+/**
+ * Live state of hook resolving across all loaded configs, reported to the host while hooks resolve:
+ * `hooked` counts installed hooks (one per overload or function), `pending` the classes and modules
+ * that are still being looked up.
+ */
+export type HookProgress = { hooked: number; pending: number };
 
 /** What resolving hooks did: installed hooks (one per overload or function) and the declarations that failed to resolve. */
 export type HookedSummary = {
@@ -116,6 +145,8 @@ export class FrookyAgent {
   // hooks of every loaded config, keyed by config id and then by the fingerprint of the normalized hook
   private loadedConfigs = new Map<string, Map<string, LoadedHookEntry>>();
   private anonymousConfigCount = 0;
+  private reportProgress?: (progress: HookProgress) => void;
+  private progressTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     platform: Platform,
@@ -125,6 +156,7 @@ export class FrookyAgent {
     logLevel: LogLevel = DEFAULT_SETTING_LOG_LEVEL,
     logTo: LogTo = DEFAULT_SETTING_LOG_TO,
     resolverTimeoutSeconds: number = DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
+    reportProgress?: (progress: HookProgress) => void,
   ) {
     //initialize asynchronous sender
     startEventSender(this.eventCache);
@@ -132,6 +164,7 @@ export class FrookyAgent {
     this.platform = platform;
     this.platformHookValidator = platformInputHookValidator;
     this.resolverTimeoutSeconds = resolverTimeoutSeconds;
+    this.reportProgress = reportProgress;
     this.nativeHookManager = new NativeHookManager(platformStackTrace, this);
     this.platformHookManger = createPlatformHookManager(this);
 
@@ -176,6 +209,8 @@ export class FrookyAgent {
       total.failed += summary.failed;
     }
     logger.info(describeReady(total));
+    // also when no config was valid, so the host stops waiting for a report
+    this.scheduleProgressReport();
   }
 
   /**
@@ -199,6 +234,7 @@ export class FrookyAgent {
   public async loadFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string, retryFailed = false) {
     const isReload = configId !== undefined && this.loadedConfigs.has(configId);
     const summary = await this.applyFrookyConfig(inputFrookyConfig, configId, retryFailed);
+    this.scheduleProgressReport();
     if (!summary) return;
     const verb = !isReload ? "Loaded" : retryFailed ? "Reloaded" : "Updated";
     const label = configId !== undefined ? configLabel(configId) : (inputFrookyConfig.metadata?.name ?? "frooky config");
@@ -260,7 +296,7 @@ export class FrookyAgent {
           continue;
         }
         // a retried hook keeps its entry, so it is not counted as removed below
-        const entry: LoadedHookEntry = previousEntry ?? { state: "pending", target: targetOf(kind, inputHook) };
+        const entry: LoadedHookEntry = previousEntry ?? { state: "pending", target: targetOf(kind, inputHook), lookup: lookupOf(kind, inputHook) };
         if (previousEntry) {
           previousEntry.state = "pending";
           countRetried++;
@@ -303,6 +339,7 @@ export class FrookyAgent {
     const hookSuffix = configName ? ` from frooky configuration '${configName}'` : "";
 
     logger.debug(`Frooky configuration${nameSuffix} successfully parsed`);
+    this.scheduleProgressReport();
 
     // async resolve the new hooks and register them
     const [countSuccessfulPlatformHooks, countSuccessfulNativeHooks] = await Promise.all([
@@ -344,28 +381,70 @@ export class FrookyAgent {
         pendingHooks.map((pendingHook) => pendingHook.inputHook),
         this.resolverTimeoutSeconds,
       );
-      await Promise.allSettled(
+      const settled = await Promise.allSettled(
         hookPromises.map((hookPromise, i) =>
           hookPromise.then((hooks) => {
             const entry = pendingHooks[i]?.entry;
             if (!entry || entry.state === "removed") return;
+            this.scheduleProgressReport();
             if (!hooks) {
               entry.state = "failed";
               return;
             }
-            countSuccessfulHooks += manager.registerHooks(hooks);
+            const hookedCount = manager.registerHooks(hooks);
+            countSuccessfulHooks += hookedCount;
             entry.hooks = hooks;
+            entry.hookedCount = hookedCount;
             entry.state = "installed";
           }),
         ),
       );
+      // a hook whose resolving or registering threw is neither installed nor pending anymore
+      settled.forEach((result, i) => {
+        const entry = pendingHooks[i]?.entry;
+        if (result.status !== "rejected" || !entry || entry.state !== "pending") return;
+        entry.state = "failed";
+        logger.warn(
+          `Failed to hook ${describeInputHook(pendingHooks[i]?.inputHook)}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+        );
+        this.scheduleProgressReport();
+      });
     } catch (e) {
       for (const { entry } of pendingHooks) {
         if (entry.state === "pending") entry.state = "failed";
       }
+      this.scheduleProgressReport();
       logger.error(`Error while resolving ${label} hooks: ${String(e)}`);
     }
     return countSuccessfulHooks;
+  }
+
+  /** The current {@link HookProgress} across all loaded configs. */
+  public hookProgress(): HookProgress {
+    let hooked = 0;
+    const pendingLookups = new Set<unknown>();
+    for (const entries of this.loadedConfigs.values()) {
+      for (const entry of entries.values()) {
+        if (entry.state === "installed") hooked += entry.hookedCount ?? 0;
+        // a declaration without a known class or module counts on its own
+        else if (entry.state === "pending") pendingLookups.add(entry.lookup ?? entry);
+      }
+    }
+    return { hooked, pending: pendingLookups.size };
+  }
+
+  /**
+   * Reports the {@link HookProgress} to the host shortly, at most once per {@link PROGRESS_INTERVAL_MS}.
+   * The report is taken when it is sent, so it always has the latest state, including the final one
+   * with nothing pending.
+   */
+  private scheduleProgressReport(): void {
+    const reportProgress = this.reportProgress;
+    if (!reportProgress || this.progressTimer !== null) return;
+    this.progressTimer = setTimeout(() => {
+      this.progressTimer = null;
+      reportProgress(this.hookProgress());
+    }, PROGRESS_INTERVAL_MS);
   }
 
   /**

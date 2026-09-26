@@ -42,6 +42,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   /** Removes hooks previously installed by {@link registerHooks}. Hooks that were never installed are ignored. */
   public abstract unregisterHooks(hooks: THooks[]): void;
 
+  /** Polls `fn` until it returns a value. `label` names what is looked up in the timeout error, e.g. `Module 'libfoo.so'`. */
   protected async pollUntilResolved<T>(fn: () => T | null, label: string, timeoutSeconds: number): Promise<T> {
     if (timeoutSeconds < 0) throw Error(`Timeout must not be less than 0.`);
     const deadline = Date.now() + timeoutSeconds * 1000;
@@ -50,7 +51,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
       if (result !== null) return result;
       await new Promise((r) => setTimeout(r, HOOK_LOOKUP_INTERVAL_MS));
     }
-    throw Error(`'${label}' not found within ${timeoutSeconds} seconds.`);
+    throw Error(`${label} not found within ${timeoutSeconds} seconds. Skipping the hooks declared for it.`);
   }
 
   protected resolveParamDecoders(params: Param[]): ParamDecoder<TValue>[] {

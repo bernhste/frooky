@@ -43,6 +43,22 @@ class TestUpdateStatusLine:
             runner._stop_live_terminal()
 
 
+class TestOnProgress:
+    def test_updates_the_hook_status_in_the_status_bar(self, tmp_path):
+        runner = make_runner(tmp_path, agent_option_resolver_timeout=5)
+        try:
+            runner.feed.hook_status(runner._hook_status)
+            runner.feed.status("Events: 0")
+
+            runner._on_progress({"frooky": "progress", "hooked": 30, "pending": 4})
+            assert "Resolving hooks: 30 hooked, 4 classes/modules pending" in runner.feed.render_status_bar().plain
+
+            runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0})
+            assert runner.feed.render_status_bar().plain == " ✓ Hooks: 38  |  Events: 0 "
+        finally:
+            runner._stop_live_terminal()
+
+
 class TestOnSessionDetached:
     def test_sets_stop_reason_and_event(self, tmp_path):
         runner = make_runner(tmp_path)

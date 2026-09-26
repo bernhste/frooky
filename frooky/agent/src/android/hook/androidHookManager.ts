@@ -239,7 +239,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
           logger.debug(`${resolvedClasses.length} Java class(es) matching wildcard pattern '${javaClassName}' resolved.`);
           return resolvedClasses;
         },
-        javaClassName,
+        `Java class matching '${javaClassName}'`,
         timeoutSeconds,
       );
     }
@@ -257,7 +257,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
           return null;
         }
       },
-      javaClassName,
+      `Java class '${javaClassName}'`,
       timeoutSeconds,
     );
   }

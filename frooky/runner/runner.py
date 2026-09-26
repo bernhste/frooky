@@ -12,12 +12,15 @@ import frida
 from .._version import __version__ as frooky_version
 from .config import load_hook_config, load_hook_configs, load_user_scripts
 from .device import attach_or_spawn, describe_target, detect_platform, get_device, get_device_frida_version
-from .feed import Feed
+from .feed import Feed, HookStatus
 from .keys import KeyListener
 from .messages import create_log_handler, create_message_handler
 from .options import RunnerOptions
 from .output import OutputWriter
 from .watcher import HookFileWatcher, describe_reload_error
+
+# DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS in the agent's defaultValues.ts, used when no -t is given
+AGENT_DEFAULT_RESOLVER_TIMEOUT_SECONDS = 5
 
 
 class FrookyRunner:
@@ -34,6 +37,8 @@ class FrookyRunner:
         self.device_frida_version: Optional[str] = None
         self.output = OutputWriter(options.output_path)
         self.feed = Feed()
+        timeout = options.agent_option_resolver_timeout
+        self._hook_status = HookStatus(timeout if timeout is not None else AGENT_DEFAULT_RESOLVER_TIMEOUT_SECONDS)
         self.feed.start()
         self._stop_event = threading.Event()
         self._stop_reason: Optional[str] = None
@@ -56,6 +61,10 @@ class FrookyRunner:
         """Called on the key listener thread for every key press."""
         if key in ("r", "R"):
             self._reload_requested.set()
+
+    def _on_progress(self, progress: dict) -> None:
+        """Called on Frida's thread with the agent's hook resolving progress, shown in the status bar."""
+        self._hook_status.update(int(progress.get("hooked", 0)), int(progress.get("pending", 0)))
 
     def _on_reload_error(self, path: Path, error: Exception) -> None:
         self.feed.log("warn", describe_reload_error(path, error))
@@ -85,7 +94,7 @@ class FrookyRunner:
         if len(self.output.last_event) > max_event_len:
             event_display += "..."
 
-        status = f"  Events: {self.output.event_count:,}  |  Last: {event_display}"
+        status = f"Events: {self.output.event_count:,}  |  Last: {event_display}"
         self.feed.status(status)
 
     def _print_header(self) -> None:
@@ -192,12 +201,13 @@ class FrookyRunner:
 
             self._key_listener.start()
             self._print_header()
+            self.feed.hook_status(self._hook_status)
 
             # Load any user-provided scripts before the frooky agent
             self.user_scripts = load_user_scripts(self.session, self.options.user_scripts, self.feed)
 
             self.script = self.session.create_script(script_source)
-            self.script.on("message", create_message_handler(self.output, self.feed, self.options.print_events, self._update_status_line))
+            self.script.on("message", create_message_handler(self.output, self.feed, self.options.print_events, self._update_status_line, self._on_progress))
             self.script.set_log_handler(create_log_handler(self.feed))
             self.script.load()
 

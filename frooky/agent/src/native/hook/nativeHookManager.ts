@@ -199,7 +199,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           return null;
         }
       },
-      moduleName,
+      `Module '${moduleName}'`,
       timeoutSeconds,
     );
   }

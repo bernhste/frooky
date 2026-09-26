@@ -6,9 +6,16 @@ from .feed import Feed
 from .output import OutputWriter
 
 
-def create_message_handler(output: OutputWriter, feed: Feed, print_events: bool, on_event: Optional[Callable[[], None]] = None):
+def create_message_handler(
+    output: OutputWriter,
+    feed: Feed,
+    print_events: bool,
+    on_event: Optional[Callable[[], None]] = None,
+    on_progress: Optional[Callable[[dict], None]] = None,
+):
     """Build the frooky agent's message callback: writes hook/log events to the output file
-    and optionally prints them to the feed, calling on_event after each event in a batch."""
+    and optionally prints them to the feed, calling on_event after each event in a batch.
+    Hook resolving progress reports ({"frooky": "progress", "hooked": n, "pending": n}) go to on_progress."""
 
     def on_message(message, data):
         msg_type = message.get("type")
@@ -22,6 +29,11 @@ def create_message_handler(output: OutputWriter, feed: Feed, print_events: bool,
             return
 
         payload = message.get("payload")
+
+        if isinstance(payload, dict) and payload.get("frooky") == "progress":
+            if on_progress:
+                on_progress(payload)
+            return
 
         # The agent always batches hook/log events as a JSON array (see eventSender.ts).
         if not isinstance(payload, list):
