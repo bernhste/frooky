@@ -64,7 +64,7 @@ hookCollection:
 **Decoder settings** (at file, group, hook or param level; lower levels override higher ones):
 - `direction: in | out | inout`: use `out` or `inout` for buffers the callee fills (e.g. `Cipher.doFinal(byte[] output, ...)`, `RAND_bytes`).
 - `decoder: <name>` (Java only), which must be one of the registered names: `string`, `hashCode`, `intentFlag`, `intentUriFlag`, `constant`. The schema does **not** check these names. If in doubt, check `CUSTOM_DECODER_REGISTRY` in `frooky/agent/src/android/decoders/javaDecoderResolver.ts`. Use `string` to show `byte[]` as text.
-- `maxDepth` (default 10), `maxItems` (default 100), `fastDecode`, `hashCode` (instance correlation id), `paramFilter` (a regex list; only capture calls whose decoded value matches).
+- `maxDepth` (default 10), `maxItems` (default 100), `hashCode` (instance correlation id), `argFilter` (a regex list; only capture calls whose decoded value matches).
 
 **Hook settings:** `stackTraceLimit` (default 0 = no stack trace) and `stackTraceFilter` (a regex list; an event is kept only if a captured frame matches). The filter works without a limit; the limit only controls how many frames end up in the event. Filters on app package prefixes (e.g. `"^org\\.owasp\\."`) are the usual way to drop framework noise.
 

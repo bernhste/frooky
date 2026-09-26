@@ -47,6 +47,13 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("hooks", nargs="+", help="Path(s) to your input hook YAML file(s)")
     parser.add_argument("-o", "--output", metavar="PATH", default="output.json", help="File PATH for the frooky event log ndjson (default: output.json)")
     parser.add_argument("-e", "--print-events", action="store_true", default=False, help="Print the captured events to the terminal")
+    parser.add_argument(
+        "-w",
+        "--watch",
+        action="store_true",
+        default=False,
+        help="Watch the hook files and apply changes while running. Only new or changed hooks are re-hooked.",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -113,6 +120,7 @@ def _build_runner_options(args: argparse.Namespace, hook_paths: list[Path], scri
         agent_option_very_verbose=args.vv,
         agent_option_resolver_timeout=args.resolver_timeout,
         print_events=args.print_events,
+        watch=args.watch,
     )
 
 

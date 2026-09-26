@@ -326,8 +326,8 @@ class TestValuePassingJava:
 
         assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"}) == 0
 
-    def test_param_filter_only_captures_matching_values(self, run_frooky, count_matched_events):
-        """`paramFilter` (see decoders.md) only captures the event if a decoded value matches."""
+    def test_arg_filter_only_captures_matching_values(self, run_frooky, count_matched_events):
+        """`argFilter` (see decoders.md) only captures the event if a decoded value matches."""
         matching_hook_file = textwrap.dedent(f"""\
             hookCollection:
               - javaClass: {MASTG_CLASS}
@@ -335,12 +335,12 @@ class TestValuePassingJava:
                   - method: receiveInt
                     overloads:
                       - params:
-                          - [int, arg, {{paramFilter: ['^2147483647$']}}]
+                          - [int, arg, {{argFilter: ['^2147483647$']}}]
             """)
         run_frooky(matching_hook_file, TARGET_APP)
         assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 1
 
-    def test_param_filter_excludes_non_matching_values(self, run_frooky, count_matched_events):
+    def test_arg_filter_excludes_non_matching_values(self, run_frooky, count_matched_events):
         non_matching_hook_file = textwrap.dedent(f"""\
             hookCollection:
               - javaClass: {MASTG_CLASS}
@@ -348,9 +348,9 @@ class TestValuePassingJava:
                   - method: receiveInt
                     overloads:
                       - params:
-                          - [int, arg, {{paramFilter: ['^0$']}}]
+                          - [int, arg, {{argFilter: ['^0$']}}]
             """)
-        # this hook is the only one declared, and paramFilter excludes it entirely (a
+        # this hook is the only one declared, and argFilter excludes it entirely (a
         # FilterMismatchError drops the event before it's ever logged), so no events at all
         # are expected to be written.
         run_frooky(non_matching_hook_file, TARGET_APP, expect_events=False)

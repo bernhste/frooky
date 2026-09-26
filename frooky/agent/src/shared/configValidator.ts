@@ -28,7 +28,7 @@ export function validateAndRepairFrookyConfig(frookyConfig: InputFrookyConfig, p
   }
 
   if (!frookyConfig.settings) {
-    frookyConfig.settings = DEFAULT_FROOKY_SETTINGS;
+    frookyConfig.settings = { ...DEFAULT_FROOKY_SETTINGS };
     return frookyConfig;
   } else {
     // validate and repair settings
@@ -42,7 +42,8 @@ export function validateAndRepairFrookyConfig(frookyConfig: InputFrookyConfig, p
 
 export function validateAndRepairFrookySettings(inputSettings: InputFrookySettings): FrookySettings {
   logger.debug(`Validating frooky settings`);
-  const validFrookySettings: FrookySettings = DEFAULT_FROOKY_SETTINGS;
+  // copy, so one config's settings never leak into the defaults of the next (or a reloaded) config
+  const validFrookySettings: FrookySettings = { ...DEFAULT_FROOKY_SETTINGS };
 
   // validate and repair hook settings
   if (inputSettings.hookSettings) {

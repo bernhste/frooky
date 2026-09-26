@@ -26,3 +26,4 @@ class RunnerOptions:
     agent_option_very_verbose: bool = False
     agent_option_resolver_timeout: Optional[int] = None
     print_events: bool = False
+    watch: bool = False

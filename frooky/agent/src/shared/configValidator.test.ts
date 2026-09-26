@@ -123,7 +123,6 @@ describe("configValidator", () => {
         maxItems: 30,
       };
       expect(validateAndRepairDecoderSettings(incompleteInputDecoderSettings)).toEqual({
-        fastDecode: false,
         hashCode: false,
         maxDepth: 10,
         maxItems: 30,
@@ -154,6 +153,11 @@ describe("configValidator", () => {
       expect(validateAndRepairFrookySettings({})).toEqual(pristineFrookySettings);
     });
 
+    it("does not modify the default settings (they are shared by every config, also across reloads)", () => {
+      validateAndRepairFrookySettings({ hookSettings: { stackTraceLimit: 42 }, decoderSettings: { maxDepth: 42 } });
+      expect(DEFAULT_FROOKY_SETTINGS).toEqual(pristineFrookySettings);
+    });
+
     it("repairs and merges hookSettings when provided, leaving decoderSettings at its default", () => {
       const result = validateAndRepairFrookySettings({ hookSettings: { stackTraceLimit: 42 } });
       expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, stackTraceLimit: 42 });
@@ -169,10 +173,10 @@ describe("configValidator", () => {
     it("repairs both hookSettings and decoderSettings when both are provided", () => {
       const result = validateAndRepairFrookySettings({
         hookSettings: { stackTraceLimit: 7 },
-        decoderSettings: { fastDecode: true },
+        decoderSettings: { hashCode: true },
       });
       expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, stackTraceLimit: 7 });
-      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, fastDecode: true });
+      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, hashCode: true });
     });
   });
 
@@ -225,7 +229,7 @@ describe("configValidator", () => {
         metadata: { name: "Test Config", platform: "Android" },
         settings: {
           hookSettings: { stackTraceLimit: "10" as unknown as number },
-          decoderSettings: { fastDecode: 10 as unknown as boolean },
+          decoderSettings: { hashCode: 10 as unknown as boolean },
         },
         hookCollection: [],
       };

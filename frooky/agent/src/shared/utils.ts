@@ -12,6 +12,24 @@ export function wildcardPatternToRegExp(pattern: string): RegExp {
   return new RegExp(`^${segments.join("[^.]+")}$`);
 }
 
+/**
+ * `JSON.stringify` with object keys sorted, so two structurally equal values always produce the same
+ * string regardless of key order. Used to fingerprint normalized hooks when a config is reloaded.
+ * @param value - A JSON-compatible value.
+ * @returns The canonical JSON string.
+ */
+export function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, val) =>
+    val && typeof val === "object" && !Array.isArray(val)
+      ? Object.fromEntries(
+          Object.keys(val)
+            .sort()
+            .map((k) => [k, val[k]]),
+        )
+      : val,
+  );
+}
+
 const UUID_HEX_CHARS = "0123456789abcdef";
 
 /**

@@ -51,7 +51,7 @@ for (const hookCollectionVariant of jsonSchema.properties.hookCollection.items.a
 // e.g. in the `[type, DecoderSettings]` tuple shorthand) is used instead of the partial
 // InputDecoderSettings/InputHookSettings it's aliased from. Strip `required` from any object
 // node whose own properties are exactly a decoder- or hook-settings shape, wherever it's nested.
-const decoderSettingsKeys = ["maxDepth", "maxItems", "fastDecode", "hashCode", "decoder", "decoderArg", "paramFilter"];
+const decoderSettingsKeys = ["maxDepth", "maxItems", "hashCode", "decoder", "decoderArg", "argFilter"];
 const hookSettingsKeys = ["stackTraceLimit", "stackTraceFilter"];
 
 function isExactly(propertyKeys: string[], knownKeys: string[]): boolean {

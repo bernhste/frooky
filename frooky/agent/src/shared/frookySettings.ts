@@ -36,13 +36,6 @@ export interface DecoderSettings {
   maxItems: number;
 
   /**
-   * When enabled, the decoders are instructed to prioritize speed over details. Mostly, this mean avoiding expensive Frida <-> native roundtrip.
-   *
-   * @defaultValue false
-   */
-  fastDecode: boolean;
-
-  /**
    * When enabled, hooks compute and report an identifier for "which instance/target this call belongs
    * to", to let callers correlate events. For java hooks this is `Object.hashCode()` of the instance
    * (a Frida <-> Java bridge round-trip on every call); for native hooks this is the hooked function's
@@ -67,11 +60,13 @@ export interface DecoderSettings {
   decoderArg?: string;
 
   /**
-   * Regular expressions for how an argument is filtered
+   * Regular expressions matched against the decoded argument value (the value passed at runtime, not the
+   * parameter's type or name). The event is only captured if the value matches at least one of them.
+   * Only string and number values are filtered; other values always pass.
    *
    * @defaultValue undefined
    */
-  paramFilter?: string[];
+  argFilter?: string[];
 }
 
 export interface FrookySettings {

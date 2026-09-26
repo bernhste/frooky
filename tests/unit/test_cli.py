@@ -120,6 +120,12 @@ class TestArgumentParsing:
 
         assert args.print_events is True
 
+    def test_watch_flag(self):
+        parser = build_parser()
+
+        assert parser.parse_args(["-F", "-w", "hooks.yaml"]).watch is True
+        assert parser.parse_args(["-F", "hooks.yaml"]).watch is False
+
     def test_output_override(self):
         parser = build_parser()
         args = parser.parse_args(["-F", "-o", "custom.ndjson", "hooks.yaml"])

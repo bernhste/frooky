@@ -56,7 +56,12 @@ frooky -U -f org.owasp.mastestapp storage.yaml crypto.yaml
 
 # Spawn and load multiple hook files using globs (hooks are merged)
 frooky -U -f org.owasp.mastestapp hooks_*.yaml
+
+# Watch the hook files and apply changes while the app keeps running
+frooky -U -f org.owasp.mastestapp -w hooks.yaml
 ```
+
+With `-w`/`--watch`, frooky applies a hook file whenever you save it. Only hooks whose declaration or effective settings changed are hooked again. Removed hooks are unhooked, unchanged hooks keep running, and hooks that previously failed to resolve are retried. If the file cannot be parsed, the previous version stays active.
 
 See `frooky -h` for more options.
 

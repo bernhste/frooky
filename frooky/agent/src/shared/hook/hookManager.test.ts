@@ -60,6 +60,8 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     return 0;
   }
 
+  public unregisterHooks(): void {}
+
   public exposedPollUntilResolved<T>(fn: () => T | null, label: string, timeoutSeconds: number): Promise<T> {
     return this.pollUntilResolved(fn, label, timeoutSeconds);
   }
@@ -76,8 +78,8 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     return this.resolveRetTypeDecoder(retType);
   }
 
-  public exposedMatchesFilter(decodedValue: DecodedValue, paramFilter?: RegExp[]): boolean {
-    return this.matchesFilter(decodedValue, paramFilter);
+  public exposedMatchesFilter(decodedValue: DecodedValue, argFilter?: RegExp[]): boolean {
+    return this.matchesFilter(decodedValue, argFilter);
   }
 
   public exposedDecodeArgs(args: TestValue[], paramDecoders: ParamDecoder<TestValue>[]): DecodedValue[] {
@@ -152,11 +154,11 @@ describe("HookManager", () => {
       warnSpy.mockRestore();
     });
 
-    it("resolves a decoder for each param and carries argIndex/direction/name/paramFilter through", () => {
+    it("resolves a decoder for each param and carries argIndex/direction/name/argFilter through", () => {
       const manager = createManager();
       const params: Param[] = [
         makeParam({ name: "a", type: "int", direction: "in" }),
-        makeParam({ name: "b", type: "string", direction: "out", settings: { ...DEFAULT_DECODER_SETTINGS, paramFilter: ["^x"] } }),
+        makeParam({ name: "b", type: "string", direction: "out", settings: { ...DEFAULT_DECODER_SETTINGS, argFilter: ["^x"] } }),
       ];
 
       const result = manager.exposedResolveParamDecoders(params);
@@ -165,11 +167,11 @@ describe("HookManager", () => {
       expect(result[0].argIndex).toBe(0);
       expect(result[0].direction).toBe("in");
       expect(result[0].name).toBe("a");
-      expect(result[0].paramFilter).toBeUndefined();
+      expect(result[0].argFilter).toBeUndefined();
       expect(result[1].argIndex).toBe(1);
       expect(result[1].direction).toBe("out");
       expect(result[1].name).toBe("b");
-      expect(result[1].paramFilter).toEqual([/^x/]);
+      expect(result[1].argFilter).toEqual([/^x/]);
     });
 
     it("does not forward the 'direction' field to the decoder resolver", () => {
@@ -301,12 +303,12 @@ describe("HookManager", () => {
   });
 
   describe("matchesFilter()", () => {
-    it("returns true when no paramFilter is given", () => {
+    it("returns true when no argFilter is given", () => {
       const manager = createManager();
       expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, undefined)).toBeTruthy();
     });
 
-    it("returns true when paramFilter is an empty array", () => {
+    it("returns true when argFilter is an empty array", () => {
       const manager = createManager();
       expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, [])).toBeTruthy();
     });
@@ -361,7 +363,7 @@ describe("HookManager", () => {
       expect(manager.exposedDecodeArgs([], [])).toEqual([]);
     });
 
-    it("throws FilterMismatchError and stops processing once a decoded value fails its paramFilter", () => {
+    it("throws FilterMismatchError and stops processing once a decoded value fails its argFilter", () => {
       const manager = createManager();
       const decoderA = new FakeDecoder({ type: "string", settings: DEFAULT_DECODER_SETTINGS }, (value) => ({ type: "string", value }));
       let decoderBCalled = false;
@@ -370,7 +372,7 @@ describe("HookManager", () => {
         return { type: "string", value };
       });
       const paramDecoders: ParamDecoder<TestValue>[] = [
-        { decoder: decoderA, argIndex: 0, direction: "in", name: "a", paramFilter: [/^nope$/] },
+        { decoder: decoderA, argIndex: 0, direction: "in", name: "a", argFilter: [/^nope$/] },
         { decoder: decoderB, argIndex: 1, direction: "in", name: "b" },
       ];
 

@@ -5,8 +5,8 @@ import { InputParamSettings } from "./inputSettings";
 
 describe("inputDecodableTypes", () => {
   describe("normalizeInputParam()", () => {
-    const inlineSettings: InputParamSettings = { direction: "out", maxDepth: 10, maxItems: 10, fastDecode: true };
-    const expectedSettings = { maxDepth: 10, maxItems: 10, fastDecode: true, hashCode: false };
+    const inlineSettings: InputParamSettings = { direction: "out", maxDepth: 10, maxItems: 10, hashCode: true };
+    const expectedSettings = { maxDepth: 10, maxItems: 10, hashCode: true };
 
     it("should normalize a valid string to Param", () => {
       expect(normalizeInputParam("testParam")).toEqual({ type: "testParam", direction: "in", settings: DEFAULT_DECODER_SETTINGS });
@@ -57,7 +57,7 @@ describe("inputDecodableTypes", () => {
     });
 
     it("should return RetType unchanged", () => {
-      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, fastDecode: true } };
+      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true } };
       expect(normalizeInputRetType(retType)).toEqual(retType);
     });
   });
@@ -87,8 +87,8 @@ describe("inputDecodableTypes", () => {
     });
 
     it("ignores the type in a normalized RetType object, keeping only the settings", () => {
-      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, fastDecode: true } };
-      expect(normalizeInputRetTypeSettings(retType)).toEqual({ ...DEFAULT_DECODER_SETTINGS, fastDecode: true });
+      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true } };
+      expect(normalizeInputRetTypeSettings(retType)).toEqual({ ...DEFAULT_DECODER_SETTINGS, hashCode: true });
     });
   });
 });

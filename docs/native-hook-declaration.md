@@ -110,10 +110,10 @@ To hook a symbol while also overriding its `decoderSettings`, write the hook as 
 ```yaml
 module: libc.so
 hooks:
-  - [malloc, { fastDecode: true }]
+  - [malloc, { hashCode: true }]
 ```
 
-This hooks `malloc` from `libc.so`, with `fastDecode` enabled for that hook only.
+This hooks `malloc` from `libc.so`, with `hashCode` enabled for that hook only, so its events carry the function's address.
 
 ## Decoding Arguments and Return Values
 

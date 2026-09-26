@@ -1,5 +1,6 @@
 """Unit tests for the FrookyRunner orchestrator's non-Frida wiring."""
 
+import os
 from unittest.mock import MagicMock
 
 from frooky.runner import FrookyRunner, RunnerOptions
@@ -192,3 +193,69 @@ class TestRunSessionLoss:
 
         assert exit_code == 0
         assert "Stopped: stopped by user (Ctrl+C)" in capsys.readouterr().out
+
+
+class TestRunWatch:
+    """run() with --watch: changed hook files are sent to the agent while running."""
+
+    def _make_wired_runner(self, monkeypatch, tmp_path, watch):
+        hook_file = tmp_path / "hooks.yaml"
+        hook_file.write_text("hookCollection: []\n")
+
+        device = MagicMock()
+        device.name = "Test Device"
+        device.id = "test-device"
+        session = MagicMock()
+        script = MagicMock()
+        session.create_script.return_value = script
+
+        monkeypatch.setattr("frooky.runner.runner.get_device", lambda options: device)
+        monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
+        monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
+        monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")
+        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths: [])
+
+        runner = FrookyRunner(RunnerOptions(hook_paths=[hook_file], output_path=tmp_path / "out.json", attach_pid=1234, watch=watch))
+        return runner, script, hook_file
+
+    def _run_editing(self, monkeypatch, runner, edits):
+        """Run the main loop, applying one edit per loop tick, then stop."""
+        pending = list(edits)
+
+        def fake_sleep(seconds):
+            if not pending:
+                raise KeyboardInterrupt
+            pending.pop(0)()
+
+        monkeypatch.setattr("frooky.runner.runner.time.sleep", fake_sleep)
+        return runner.run()
+
+    def test_loads_configs_with_their_file_paths_as_ids(self, monkeypatch, tmp_path):
+        runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
+
+        self._run_editing(monkeypatch, runner, [])
+
+        script.exports_sync.load_frooky_configs.assert_called_once_with([{"hookCollection": []}], [str(hook_file)])
+
+    def test_sends_changed_hook_file_to_agent(self, monkeypatch, tmp_path):
+        runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)
+        new_content = "hookCollection:\n  - module: libc.so\n    hooks: [open]\n"
+
+        exit_code = self._run_editing(monkeypatch, runner, [lambda: _rewrite(hook_file, new_content)])
+
+        assert exit_code == 0
+        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": [{"module": "libc.so", "hooks": ["open"]}]})
+
+    def test_does_not_watch_without_flag(self, monkeypatch, tmp_path):
+        runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
+
+        self._run_editing(monkeypatch, runner, [lambda: _rewrite(hook_file, "hookCollection: [{module: x, hooks: [y]}]\n")])
+
+        script.exports_sync.update_frooky_config.assert_not_called()
+
+
+def _rewrite(path, content):
+    """Write new content and bump the mtime, which a same-tick rewrite might otherwise not change."""
+    path.write_text(content)
+    st = path.stat()
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))

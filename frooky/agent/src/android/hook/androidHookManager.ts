@@ -25,32 +25,43 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(JavaDecoderResolver, platformStackTrace, frookyAgent);
   }
+  // every hook currently claiming an overload, keyed by its ArtMethod handle. Several configs may declare
+  // the same overload: the most recently registered claim is active, and removing it falls back to the
+  // previous claim instead of unhooking a method another config still wants.
+  // frida-java-bridge keeps the installed replacement on the Method wrapper object (and snapshots the
+  // ArtMethod on every install), so all installs and reverts of one overload go through the same wrapper.
+  private readonly overloadClaims = new Map<
+    string,
+    { method: Java.Method; claims: { hook: JavaHook; implementation: Java.MethodImplementation }[] }
+  >();
+
   async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number): Promise<Promise<JavaHook[] | null>[]> {
     logger.debug(`Resolving Java hooks`);
 
-    const uniqueClasses: string[] = [...new Set(inputHooks.map((inputHook) => inputHook.javaClass))];
-    return uniqueClasses.flatMap((javaClass) => {
-      const javaClassesPromise = this.resolveJavaClass(javaClass, timeout).catch((e) => {
-        logger.warn(`${e}`);
-        return [] as Java.Wrapper[];
-      });
-      return inputHooks
-        .filter((inputHook) => inputHook.javaClass === javaClass)
-        .map(async (inputHook): Promise<JavaHook[] | null> => {
-          const resolvedJavaClasses = await javaClassesPromise;
-          if (resolvedJavaClasses.length === 0) return null;
-
-          const hooks: JavaHook[] = [];
-          for (const resolvedJavaClass of resolvedJavaClasses) {
-            try {
-              const method = this.resolveMethod(resolvedJavaClass, inputHook);
-              hooks.push(...this.resolveOverloads(method, inputHook));
-            } catch (e) {
-              logger.warn(e instanceof Error ? e.message : String(e));
-            }
-          }
-          return hooks.length > 0 ? hooks : null;
+    // each class is resolved once, no matter how many hooks target it
+    const javaClassPromises = new Map<string, Promise<Java.Wrapper[]>>();
+    return inputHooks.map(async (inputHook): Promise<JavaHook[] | null> => {
+      let javaClassesPromise = javaClassPromises.get(inputHook.javaClass);
+      if (!javaClassesPromise) {
+        javaClassesPromise = this.resolveJavaClass(inputHook.javaClass, timeout).catch((e) => {
+          logger.warn(`${e}`);
+          return [] as Java.Wrapper[];
         });
+        javaClassPromises.set(inputHook.javaClass, javaClassesPromise);
+      }
+      const resolvedJavaClasses = await javaClassesPromise;
+      if (resolvedJavaClasses.length === 0) return null;
+
+      const hooks: JavaHook[] = [];
+      for (const resolvedJavaClass of resolvedJavaClasses) {
+        try {
+          const method = this.resolveMethod(resolvedJavaClass, inputHook);
+          hooks.push(...this.resolveOverloads(method, inputHook));
+        } catch (e) {
+          logger.warn(e instanceof Error ? e.message : String(e));
+        }
+      }
+      return hooks.length > 0 ? hooks : null;
     });
   }
 
@@ -78,7 +89,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         retTypeDecoder = this.resolveRetTypeDecoder(retType);
       }
 
-      hook.method.implementation = function (...args: Java.Wrapper[]) {
+      const implementation = function (this: Java.Wrapper, ...args: Java.Wrapper[]) {
         // collect the stack trace and filter
         let stackTrace: string[];
         try {
@@ -146,9 +157,43 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         return returnValue;
       };
 
+      const key = hook.method.handle.toString();
+      const overload = this.overloadClaims.get(key) ?? { method: hook.method, claims: [] };
+      try {
+        overload.method.implementation = implementation;
+      } catch (e) {
+        logger.warn(`Failed to hook ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+        continue;
+      }
+      overload.claims.push({ hook, implementation });
+      this.overloadClaims.set(key, overload);
+
       countSuccessfulHooks++;
     }
     return countSuccessfulHooks;
+  }
+
+  unregisterHooks(hooks: JavaHook[]): void {
+    for (const hook of hooks) {
+      const key = hook.method.handle.toString();
+      const overload = this.overloadClaims.get(key);
+      const index = overload ? overload.claims.findIndex((claim) => claim.hook === hook) : -1;
+      if (!overload || index < 0) continue;
+
+      const { claims } = overload;
+      claims.splice(index, 1);
+      // only the last claim is active, an older one can be dropped without touching the method
+      if (index < claims.length) continue;
+
+      const previous = claims[claims.length - 1];
+      if (!previous) this.overloadClaims.delete(key);
+      try {
+        // null reverts the method to its original implementation
+        overload.method.implementation = previous?.implementation ?? null;
+      } catch (e) {
+        logger.warn(`Failed to unhook ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+      }
+    }
   }
 
   private buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {

@@ -18,39 +18,38 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number): Promise<Promise<NativeHook[] | null>[]> {
     logger.debug(`Resolving native hooks`);
 
-    const uniqueModules: string[] = [...new Map(inputHooks.map((inputHook) => [inputHook.module, inputHook])).keys()];
-
-    return uniqueModules.flatMap((moduleName) => {
-      const modulePromise = this.resolveModule(moduleName, timeout).catch((e) => {
+    // each module is resolved once, no matter how many hooks target it
+    const modulePromises = new Map<string, Promise<Module | null>>();
+    return inputHooks.map(async (inputHook): Promise<NativeHook[] | null> => {
+      let modulePromise = modulePromises.get(inputHook.module);
+      if (!modulePromise) {
+        modulePromise = this.resolveModule(inputHook.module, timeout).catch((e) => {
+          logger.warn(`${e}`);
+          return null;
+        });
+        modulePromises.set(inputHook.module, modulePromise);
+      }
+      const resolvedModule = await modulePromise;
+      if (!resolvedModule) return null;
+      try {
+        const symbolAddress = this.resolveSymbol(inputHook.symbol, resolvedModule);
+        logger.debug(`Address of function symbol '${inputHook.symbol}' found: ${symbolAddress}.`);
+        return [
+          {
+            module: resolvedModule,
+            moduleName: resolvedModule.name,
+            symbolName: inputHook.symbol,
+            symbolAddress,
+            params: inputHook.params,
+            retType: inputHook.retType,
+            hookSettings: inputHook.hookSettings,
+            decoderSettings: inputHook.decoderSettings,
+          },
+        ] as NativeHook[];
+      } catch (e) {
         logger.warn(`${e}`);
         return null;
-      });
-
-      return inputHooks
-        .filter((inputHook) => inputHook.module === moduleName)
-        .map(async (inputHook): Promise<NativeHook[] | null> => {
-          const resolvedModule = await modulePromise;
-          if (!resolvedModule) return null;
-          try {
-            const symbolAddress = this.resolveSymbol(inputHook.symbol, resolvedModule);
-            logger.debug(`Address of function symbol '${inputHook.symbol}' found: ${symbolAddress}.`);
-            return [
-              {
-                module: resolvedModule,
-                moduleName: resolvedModule.name,
-                symbolName: inputHook.symbol,
-                symbolAddress,
-                params: inputHook.params,
-                retType: inputHook.retType,
-                hookSettings: inputHook.hookSettings,
-                decoderSettings: inputHook.decoderSettings,
-              },
-            ] as NativeHook[];
-          } catch (e) {
-            logger.warn(`${e}`);
-            return null;
-          }
-        });
+      }
     });
   }
 
@@ -85,7 +84,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       const argSlots = planArgSlots(hook.params);
       const floatRetSlot = planFloatRetTypeSlot(hook.retType);
 
-      Interceptor.attach(hook.symbolAddress, {
+      const callbacks: InvocationListenerCallbacks = {
         onEnter: function (args: NativePointer[]) {
           this.filtered = false;
 
@@ -157,10 +156,24 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           // send add to event log
           hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, stackTrace));
         },
-      });
+      };
+
+      try {
+        hook.listener = Interceptor.attach(hook.symbolAddress, callbacks);
+      } catch (e) {
+        logger.warn(`Failed to hook native function '${hook.symbolName}' in module '${hook.moduleName}': ${e}`);
+        continue;
+      }
       countSuccessfulHooks++;
     }
     return countSuccessfulHooks;
+  }
+
+  public unregisterHooks(hooks: NativeHook[]): void {
+    for (const hook of hooks) {
+      hook.listener?.detach();
+      hook.listener = undefined;
+    }
   }
 
   private resolveSymbol(symbol: string, module: Module): NativePointer {

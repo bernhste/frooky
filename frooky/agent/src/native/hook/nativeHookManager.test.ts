@@ -80,14 +80,35 @@ describe("NativeHookManager", () => {
       // resolveHooks()), so it can't be 0 here the way the "module does not exist" case above
       // uses it - a 0s deadline never lets the poll loop attempt even the real, already-loaded
       // libc.so module once (see pollUntilResolved()), which would fail this test for the wrong reason.
-      const results = await Promise.all(
-        await manager.resolveHooks([nativeHook("libDoesNotExist.so", "foo"), nativeHook("libc.so", "malloc")], 1),
-      );
+      const results = await Promise.all(await manager.resolveHooks([nativeHook("libDoesNotExist.so", "foo"), nativeHook("libc.so", "malloc")], 1));
 
       expect(results.length).toBe(2);
       const [missingModuleResult, resolvedResult] = results;
       expect(missingModuleResult).toBeNull();
       expect((resolvedResult as NativeHook[])[0].symbolName).toBe("malloc");
+    });
+  });
+
+  // installs a real Interceptor hook on libc's atoi() and calls it from the test; other threads of
+  // the host process may call it too, so this only asserts on calls from before/after the detach
+  describe("registerHooks() / unregisterHooks()", () => {
+    it("detaches the Interceptor listener", async () => {
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new NativeHookManager(stackTrace, agent);
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi")], 5));
+      const atoi = new NativeFunction(hooks![0].symbolAddress, "int", ["pointer"]);
+      const input = Memory.allocUtf8String("42");
+
+      expect(manager.registerHooks(hooks!)).toBe(1);
+      expect(hooks![0].listener).toBeDefined();
+      expect(atoi(input)).toBe(42);
+      expect((agent.addEventToLog as unknown as Mock).mock.calls.length).toBeGreaterThan(0);
+
+      manager.unregisterHooks(hooks!);
+      expect(hooks![0].listener).toBeUndefined();
+      (agent.addEventToLog as unknown as Mock).mockClear();
+      expect(atoi(input)).toBe(42);
+      expect((agent.addEventToLog as unknown as Mock).mock.calls.length).toBe(0);
     });
   });
 });

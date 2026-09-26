@@ -24,7 +24,7 @@ Primitives, `java.lang.String`, `void` and arrays are handled by `PrimitiveDecod
 2. Model the implementation on an existing one. `android/os/BundleDecoder.ts` shows the performance patterns to follow:
    - Cache `Java.use(...)` wrappers and reflective lookups at module level. `decode()` runs on every hooked call inside the target app.
    - Decode nested values by delegating to `JavaDecoderResolver.resolveDecoder(...)` or `ReferenceTypeDecoder`, passing `this.settings` along. Don't reimplement primitive or array handling.
-   - Respect `settings.maxItems` (append `"[truncated at N]"`) and `settings.maxDepth`. If there's a cheaper, less detailed path, use it when `settings.fastDecode` is set.
+   - Respect `settings.maxItems` (append `"[truncated at N]"`) and `settings.maxDepth`.
    - Handle `null` and falsy values (`0`, `false`) explicitly. Earlier regressions treated them as absent.
    - Return `long` values as decimal strings to avoid precision loss.
 3. Register the decoder with its fully qualified class name. Inner classes use `$`, e.g. `android.content.ClipData$Item`.

@@ -1,3 +1,4 @@
+import Java from "frida-java-bridge";
 import { FrookyAgent } from "../../FrookyAgent";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
@@ -129,4 +130,81 @@ describe("AndroidHookManager", () => {
       expect(hooks[0].retTypeSettings).toBeUndefined();
     });
   });
+
+  // These install real hooks, on java.lang.Integer.reverse(int): a pure, static method the host
+  // process has no reason to call, invoked from the test itself. Every test reverts its hooks.
+  describe("registerHooks() / unregisterHooks()", () => {
+    // the stack trace limit tells apart which hook's implementation ran
+    function setup() {
+      const calledLimits: number[] = [];
+      const recordingStackTrace: PlatformStackTrace = {
+        build: (limit: number) => {
+          calledLimits.push(limit);
+          return [];
+        },
+      };
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(recordingStackTrace, agent);
+      const resolve = async (stackTraceLimit: number) => {
+        const hook: InputJavaHookNormalized = {
+          ...javaHook("java.lang.Integer", "reverse"),
+          hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit },
+        };
+        const [hooks] = await Promise.all(await manager.resolveHooks([hook], 5));
+        return hooks as JavaHook[];
+      };
+      const reverse = (value: number): number => Java.use("java.lang.Integer").reverse(value);
+      return { manager, resolve, reverse, calledLimits };
+    }
+
+    it("reverts the method to its original implementation", async () => {
+      const { manager, resolve, reverse, calledLimits } = setup();
+      const hooks = await resolve(1);
+
+      expect(manager.registerHooks(hooks)).toBe(1);
+      expect(reverse(1)).toBe(-2147483648);
+      expect(calledLimits).toEqual([1]);
+
+      manager.unregisterHooks(hooks);
+      expect(hooks[0].method.implementation).toBeNull();
+      expect(reverse(1)).toBe(-2147483648);
+      expect(calledLimits).toEqual([1]);
+    });
+
+    it("falls back to the previous hook of the same overload, then reverts once both are gone", async () => {
+      const { manager, resolve, reverse, calledLimits } = setup();
+      // resolved separately, as two configs would, so each holds its own Method wrapper
+      const first = await resolve(1);
+      const second = await resolve(2);
+      manager.registerHooks(first);
+      manager.registerHooks(second);
+
+      reverse(1);
+      manager.unregisterHooks(second);
+      reverse(1);
+      manager.unregisterHooks(first);
+      reverse(1);
+
+      expect(calledLimits).toEqual([2, 1]);
+      expect(first[0].method.implementation).toBeNull();
+      expect(second[0].method.implementation).toBeNull();
+    });
+
+    it("dropping an older, inactive hook keeps the newer one installed", async () => {
+      const { manager, resolve, reverse, calledLimits } = setup();
+      const first = await resolve(1);
+      const second = await resolve(2);
+      manager.registerHooks(first);
+      manager.registerHooks(second);
+
+      manager.unregisterHooks(first);
+      reverse(1);
+      manager.unregisterHooks(second);
+      reverse(1);
+
+      expect(calledLimits).toEqual([2]);
+    });
+  });
 });
+
+export {};

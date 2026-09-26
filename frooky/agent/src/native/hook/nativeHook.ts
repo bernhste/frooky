@@ -12,4 +12,7 @@ export interface NativeHook extends Hook {
   symbolName: string;
   symbolAddress: NativePointer;
   params?: Param[];
+
+  /** The Interceptor listener while the hook is installed, used to detach it again. */
+  listener?: InvocationListener;
 }

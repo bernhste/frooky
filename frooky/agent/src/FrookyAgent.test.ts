@@ -14,13 +14,32 @@ function fakeHook(overrides: Partial<Hook> = {}): Hook {
   return { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };
 }
 
-// FrookyAgent only ever calls resolveHooks()/registerHooks() on the platform hook manager it is
-// handed, so a plain fake covering those two methods stands in for the real (Android/iOS) one.
-function fakePlatformHookManager(): { resolveHooks: Mock; registerHooks: Mock } {
+// FrookyAgent only ever calls resolveHooks()/registerHooks()/unregisterHooks() on the platform hook manager
+// it is handed, so a plain fake covering those methods stands in for the real (Android/iOS) one.
+function fakePlatformHookManager(): { resolveHooks: Mock; registerHooks: Mock; unregisterHooks: Mock } {
   return {
     resolveHooks: fn(async (): Promise<Promise<Hook[] | null>[]> => []),
     registerHooks: fn((): number => 0),
+    unregisterHooks: fn((): void => {}),
   };
+}
+
+// resolves every normalized hook (a string in these tests) to one fake hook tagged with its name
+function fakeResolvingHookManager(): { resolveHooks: Mock; registerHooks: Mock; unregisterHooks: Mock } {
+  const manager = fakePlatformHookManager();
+  manager.resolveHooks.mockImplementation(async (inputHooks: string[]) =>
+    inputHooks.map((name) => Promise.resolve([fakeHook({ retType: { type: name } as Hook["retType"] })])),
+  );
+  manager.registerHooks.mockImplementation((hooks: Hook[]) => hooks.length);
+  return manager;
+}
+
+function resolvedNames(call: unknown[]): string[] {
+  return call[0] as string[];
+}
+
+function hookNames(call: unknown[]): string[] {
+  return (call[0] as Hook[]).map((hook) => hook.retType!.type);
 }
 
 function fakePlatformHookValidator(normalizedHooks: unknown[] = []): HookValidator<any, any> {
@@ -89,7 +108,10 @@ describe("FrookyAgent", () => {
       const rawManager = fakePlatformHookManager();
       rawManager.resolveHooks.mockResolvedValue([Promise.resolve([hookA]), Promise.resolve(null)]);
       rawManager.registerHooks.mockReturnValue(1);
-      const { agent } = createAgent(fakePlatformHookValidator(["normalized-hook"]), rawManager as unknown as HookManager<any, any, any>);
+      const { agent } = createAgent(
+        fakePlatformHookValidator(["normalized-hook-a", "normalized-hook-b"]),
+        rawManager as unknown as HookManager<any, any, any>,
+      );
 
       await agent.loadFrookyConfig(makeConfig());
 
@@ -126,8 +148,7 @@ describe("FrookyAgent", () => {
     it("logs an error for a config whose hook manager throws synchronously, and still loads the remaining configs", async () => {
       const rawManager = fakePlatformHookManager();
       // A resolveHooks() implementation that throws outright (rather than returning a rejected
-      // promise) isn't caught by loadFrookyConfig()'s own .catch() - only loadFrookyConfigs()'s
-      // per-config try/catch stands between a single bad platform implementation and the whole batch.
+      // promise) must only fail its own config, not the whole batch.
       rawManager.resolveHooks.mockImplementationOnce(() => {
         throw new Error("synchronous boom");
       });
@@ -137,7 +158,86 @@ describe("FrookyAgent", () => {
       await agent.loadFrookyConfigs([makeConfig({ metadata: { name: "Broken" } }), makeConfig({ metadata: { name: "Healthy" } })]);
 
       expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
-      expect(errorSpy).toHaveBeenCalledWith("Error during loading of the frooky config: Error: synchronous boom");
+      expect(errorSpy).toHaveBeenCalledWith("Error while resolving platform hooks: Error: synchronous boom");
+    });
+  });
+
+  describe("loadFrookyConfig() with a config id (reload)", () => {
+    function setup(...hookSets: string[][]) {
+      const rawManager = fakeResolvingHookManager();
+      const validator = fakePlatformHookValidator();
+      for (const hooks of hookSets) {
+        (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce(hooks);
+      }
+      const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>);
+      return { agent, rawManager };
+    }
+
+    it("does not resolve or touch any hook when the reloaded config is unchanged", async () => {
+      const { agent, rawManager } = setup(["a", "b"], ["b", "a"]);
+
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+
+      expect(rawManager.resolveHooks).toHaveBeenCalledTimes(1);
+      expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+    });
+
+    it("only resolves added hooks and only unregisters removed ones", async () => {
+      const { agent, rawManager } = setup(["a", "b"], ["b", "c"]);
+
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+
+      expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
+      expect(resolvedNames(rawManager.resolveHooks.mock.calls[1])).toEqual(["c"]);
+      expect(rawManager.unregisterHooks).toHaveBeenCalledTimes(1);
+      expect(hookNames(rawManager.unregisterHooks.mock.calls[0])).toEqual(["a"]);
+    });
+
+    it("treats configs with different ids independently", async () => {
+      const { agent, rawManager } = setup(["a"], ["b"]);
+
+      await agent.loadFrookyConfig(makeConfig(), "first.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "second.yaml");
+
+      expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
+      expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+    });
+
+    it("never installs a hook that was removed while it was still resolving", async () => {
+      const { agent, rawManager } = setup(["slow"], []);
+      let resolveSlow: (hooks: Hook[]) => void = () => {};
+      rawManager.resolveHooks.mockImplementationOnce(async () => [new Promise<Hook[]>((resolve) => (resolveSlow = resolve))]);
+
+      const firstLoad = agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+      resolveSlow([fakeHook()]);
+      await firstLoad;
+
+      expect(rawManager.registerHooks).not.toHaveBeenCalled();
+      expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+    });
+
+    it("retries hooks that failed to resolve in the previous version", async () => {
+      const { agent, rawManager } = setup(["a"], ["a"]);
+      rawManager.resolveHooks.mockResolvedValueOnce([Promise.resolve(null)]);
+
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+
+      expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
+      expect(rawManager.registerHooks).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps the loaded hooks when the reloaded config is invalid", async () => {
+      const { agent, rawManager } = setup(["a"]);
+
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+      await agent.loadFrookyConfig({ metadata: { name: "No hookCollection" } } as InputFrookyConfig, "hooks.yaml");
+
+      expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
     });
   });
 });

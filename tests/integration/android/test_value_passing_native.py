@@ -475,19 +475,22 @@ class TestValuePassingNative:
         expected = {"module": MODULE_VALUE, "symbol": "receive_ldouble", "argsIn": [], "argsOut": []}
         assert count_matched_events(expected) == 1
 
-    def test_short_form_with_decoder_settings_tuple(self, run_frooky, count_matched_events):
+    def test_short_form_with_decoder_settings_tuple(self, run_frooky, find_matched_events):
         """`[<symbol name>, {<decoder settings>}]` tuple: override decoderSettings without the expanded form."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_VALUE}
                 hooks:
-                  - [receive_int, {{fastDecode: true}}]
+                  - [receive_int, {{hashCode: true}}]
             """)
 
         run_frooky(hook_file, TARGET_APP)
 
-        # short form still means no params/retType, regardless of the decoderSettings override.
-        assert count_matched_events({"module": MODULE_VALUE, "symbol": "receive_int", "argsIn": [], "argsOut": []}) == 1
+        # short form still means no params/retType, regardless of the decoderSettings override,
+        # and the override itself is applied: hashCode adds the function's address to the event.
+        events = find_matched_events({"module": MODULE_VALUE, "symbol": "receive_int", "argsIn": [], "argsOut": []})
+        assert len(events) == 1
+        assert events[0].get("hashCode")
 
     def test_stack_trace_limit(self, run_frooky, find_matched_events):
         """`stackTraceLimit` (see native-hook-declaration.md) caps how many stack frames are captured.

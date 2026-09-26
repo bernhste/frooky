@@ -18,6 +18,7 @@ from .device import attach_or_spawn, describe_target, detect_platform, get_devic
 from .messages import create_message_handler
 from .options import RunnerOptions
 from .output import OutputWriter
+from .watcher import HookFileWatcher
 
 
 class FrookyRunner:
@@ -112,7 +113,7 @@ class FrookyRunner:
             "Target": describe_target(self.device, self.options),
         }
         output_info = {
-            "Hook files": str(len(self.options.hook_paths)),
+            "Hook files": str(len(self.options.hook_paths)) + (" (watching for changes)" if self.options.watch else ""),
             "Output": str(self.options.output_path),
         }
 
@@ -140,6 +141,12 @@ class FrookyRunner:
 
         print("\n".join(lines))
         self._update_status_line()
+
+    def _apply_hook_file_changes(self, watcher: HookFileWatcher) -> None:
+        """Send changed hook files to the agent, which re-hooks only what changed."""
+        for path, hook_config in watcher.poll():
+            print(f"  Hook file changed, updating hooks: {path}")
+            self.script.exports_sync.update_frooky_config(str(path), hook_config)
 
     def run(self) -> int:
         """Run the Frooky hooks."""
@@ -173,8 +180,11 @@ class FrookyRunner:
                 log_level = "warn"
             self.script.exports_sync.init_frooky_agent(log_level, "console", self.options.agent_option_resolver_timeout)
 
-            targets = load_hook_configs(self.options.hook_paths)
-            self.script.exports_sync.load_frooky_configs(targets)
+            watcher = HookFileWatcher(self.options.hook_paths) if self.options.watch else None
+            hook_configs = watcher.configs if watcher else load_hook_configs(self.options.hook_paths)
+            # the file paths identify the configs, so the agent can replace them when a file changes
+            config_ids = [str(path) for path in self.options.hook_paths]
+            self.script.exports_sync.load_frooky_configs(hook_configs, config_ids)
 
             if self.options.spawn:
                 self.device.resume(self.spawned_pid)
@@ -183,6 +193,8 @@ class FrookyRunner:
             # firing because we lost the connection to the target/agent.
             while not self._stop_event.is_set():
                 time.sleep(0.5)
+                if watcher:
+                    self._apply_hook_file_changes(watcher)
 
         except KeyboardInterrupt:
             print("\b\b  ", end="", flush=True)

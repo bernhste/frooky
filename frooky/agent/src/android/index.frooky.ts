@@ -35,12 +35,22 @@ rpc.exports = {
     });
     frookyAgentReady.catch((e) => console.error(`[!] Error initializing frookyAgent: ${String(e)}`));
   },
-  loadFrookyConfigs(frookyConfigs: InputFrookyConfig[]) {
+  // configIds (index-aligned, e.g. the hook file paths) let later updateFrookyConfig() calls replace a config
+  loadFrookyConfigs(frookyConfigs: InputFrookyConfig[], configIds?: string[]) {
     if (!frookyAgentReady) {
       throw new Error("[!] frookyAgent is not initialized. Call initFrookyAgent() first.");
     }
     frookyAgentReady
-      .then(() => frookyAgent.loadFrookyConfigs(frookyConfigs))
+      .then(() => frookyAgent.loadFrookyConfigs(frookyConfigs, configIds))
       .catch((e) => console.error(`[!] Error loading frooky configs: ${String(e)}`));
+  },
+  // replaces the config loaded under configId, re-hooking only what changed
+  updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig) {
+    if (!frookyAgentReady) {
+      throw new Error("[!] frookyAgent is not initialized. Call initFrookyAgent() first.");
+    }
+    frookyAgentReady
+      .then(() => frookyAgent.loadFrookyConfig(frookyConfig, configId))
+      .catch((e) => console.error(`[!] Error updating frooky config: ${String(e)}`));
   },
 };
