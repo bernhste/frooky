@@ -1,4 +1,4 @@
-import { describeReload, FrookyAgent } from "./FrookyAgent";
+import { describeHooked, describeLoad, describeReady, FrookyAgent } from "./FrookyAgent";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "./shared/defaultValues";
 import { stopEventSender } from "./shared/event/eventSender";
 import { InputFrookyConfig } from "./shared/frookyConfig";
@@ -117,7 +117,7 @@ describe("FrookyAgent", () => {
 
       expect(rawManager.registerHooks).toHaveBeenCalledTimes(1);
       expect(rawManager.registerHooks).toHaveBeenCalledWith([hookA]);
-      expect(infoSpy).toHaveBeenCalledWith("Successfully hooked 1 Android methods from frooky configuration 'Test Config'");
+      expect(infoSpy).toHaveBeenCalledWith("Loaded Test Config: 2 new; hooked 1 method, 1 not resolved");
     });
 
     it("logs an error and does not throw when the hook manager's resolveHooks() rejects", async () => {
@@ -131,7 +131,7 @@ describe("FrookyAgent", () => {
       expect(rawManager.registerHooks).not.toHaveBeenCalled();
     });
 
-    it("does not report a hook count when every hook group failed to resolve", async () => {
+    it("reports every hook as not resolved when every hook group failed to resolve", async () => {
       const rawManager = fakePlatformHookManager();
       rawManager.resolveHooks.mockResolvedValue([Promise.resolve(null)]);
       const { agent } = createAgent(fakePlatformHookValidator(["normalized-hook"]), rawManager as unknown as HookManager<any, any, any>);
@@ -139,8 +139,7 @@ describe("FrookyAgent", () => {
       await agent.loadFrookyConfig(makeConfig());
 
       expect(rawManager.registerHooks).not.toHaveBeenCalled();
-      const summaryLogged = infoSpy.mock.calls.some(([message]) => String(message).includes("Successfully hooked"));
-      expect(summaryLogged).toBeFalsy();
+      expect(infoSpy).toHaveBeenCalledWith("Loaded Test Config: 1 new; hooked nothing, 1 not resolved");
     });
   });
 
@@ -159,6 +158,18 @@ describe("FrookyAgent", () => {
 
       expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
       expect(errorSpy).toHaveBeenCalledWith("Error while resolving platform hooks: Error: synchronous boom");
+    });
+
+    it("logs one 'Hooks ready' line for all configs once they are resolved", async () => {
+      const rawManager = fakeResolvingHookManager();
+      const validator = fakePlatformHookValidator();
+      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce(["a", "b"]);
+      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce(["c"]);
+      const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>);
+
+      await agent.loadFrookyConfigs([makeConfig(), makeConfig()], ["first.yaml", "second.yaml"]);
+
+      expect(infoSpy.mock.calls.map((call) => call[0])).toEqual(["Hooks ready: 3 hooked (3 methods)"]);
     });
   });
 
@@ -233,77 +244,93 @@ describe("FrookyAgent", () => {
     it("retries only the failed hooks when asked to, leaving installed ones in place", async () => {
       const { agent, rawManager } = setup(["a", "b"], ["a", "b"]);
       rawManager.resolveHooks.mockResolvedValueOnce([Promise.resolve(null), Promise.resolve([fakeHook()])]);
-      const logSpy = spyOn(console, "log");
 
-      try {
-        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
-        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml", true);
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml", true);
 
-        expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
-        expect(resolvedNames(rawManager.resolveHooks.mock.calls[1])).toEqual(["a"]);
-        expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
-        expect(logSpy.mock.calls[1]?.[0]).toBe("  Reloaded hooks.yaml: 1 retried (1 method hooked), 1 unchanged");
-      } finally {
-        logSpy.mockRestore();
-      }
+      expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
+      expect(resolvedNames(rawManager.resolveHooks.mock.calls[1])).toEqual(["a"]);
+      expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+      expect(infoSpy.mock.calls[1]?.[0]).toBe("Reloaded hooks.yaml: 1 retried, 1 unchanged; hooked 1 method");
     });
 
     it("keeps the loaded hooks when the reloaded config is invalid", async () => {
       const { agent, rawManager } = setup(["a"]);
-      const logSpy = spyOn(console, "log");
 
-      try {
-        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
-        await agent.loadFrookyConfig({ metadata: { name: "No hookCollection" } } as InputFrookyConfig, "/tmp/hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+      await agent.loadFrookyConfig({ metadata: { name: "No hookCollection" } } as InputFrookyConfig, "/tmp/hooks.yaml");
 
-        expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
-        const lastLine = String(logSpy.mock.calls[logSpy.mock.calls.length - 1]?.[0]);
-        expect(lastLine.startsWith("  Not reloaded hooks.yaml, keeping the previous version: ")).toBe(true);
-      } finally {
-        logSpy.mockRestore();
-      }
+      expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+      const lastWarning = String(warnSpy.mock.calls[warnSpy.mock.calls.length - 1]?.[0]);
+      expect(lastWarning.startsWith("Not reloaded hooks.yaml, keeping the previous version: ")).toBe(true);
     });
 
-    it("prints one summary line per reload instead of 'Resolved Hooks'", async () => {
+    it("logs one summary line per load", async () => {
       const { agent } = setup(["a", "b"], ["b", "c"]);
-      const logSpy = spyOn(console, "log");
 
-      try {
-        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
-        await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
 
-        expect(logSpy.mock.calls.map((call) => call[0])).toEqual([
-          "Resolved Hooks: 2",
-          "  Reloaded hooks.yaml: 1 added (1 method hooked), 1 removed, 1 unchanged",
-        ]);
-      } finally {
-        logSpy.mockRestore();
-      }
+      expect(infoSpy.mock.calls.map((call) => call[0])).toEqual([
+        "Loaded hooks.yaml: 2 new; hooked 2 methods",
+        "Updated hooks.yaml: 1 new, 1 removed, 1 unchanged; hooked 1 method",
+      ]);
+    });
+
+    it("counts a changed declaration of the same method as updated", async () => {
+      const rawManager = fakeResolvingHookManager();
+      const validator = fakePlatformHookValidator();
+      const before = { javaClass: "com.example.Foo", method: "bar" };
+      const after = { javaClass: "com.example.Foo", method: "bar", overloads: [{ params: ["int"] }] };
+      const other = { javaClass: "com.example.Foo", method: "baz" };
+      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce([before, other]);
+      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce([after]);
+      const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>);
+
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+
+      expect(infoSpy.mock.calls[1]?.[0]).toBe("Updated hooks.yaml: 1 updated, 1 removed; hooked 1 method");
     });
   });
 
-  describe("describeReload()", () => {
-    const none = { added: 0, retried: 0, hookedMethods: 0, hookedFunctions: 0, failed: 0, removed: 0, unchanged: 0 };
+  describe("describeLoad()", () => {
+    const none = { added: 0, updated: 0, removed: 0, retried: 0, unchanged: 0, hookedMethods: 0, hookedFunctions: 0, failed: 0 };
 
-    it("counts declarations and lists what the added ones resolved to", () => {
-      expect(describeReload({ ...none, added: 2, hookedMethods: 3, hookedFunctions: 1, failed: 1, unchanged: 38 })).toBe(
-        "2 added (3 methods hooked, 1 function hooked, 1 failed), 38 unchanged",
+    it("lists the changes, then what the new, updated and retried declarations resolved to", () => {
+      expect(describeLoad({ ...none, added: 2, updated: 1, hookedMethods: 3, hookedFunctions: 1, failed: 1, unchanged: 38 })).toBe(
+        "2 new, 1 updated, 38 unchanged; hooked 3 methods and 1 function, 1 not resolved",
       );
     });
 
-    it("lists added and retried declarations together", () => {
-      expect(describeReload({ ...none, added: 1, retried: 4, hookedMethods: 1, failed: 4, unchanged: 35 })).toBe(
-        "1 added, 4 retried (1 method hooked, 4 failed), 35 unchanged",
+    it("lists retried declarations", () => {
+      expect(describeLoad({ ...none, retried: 4, failed: 4, unchanged: 35 })).toBe("4 retried, 35 unchanged; hooked nothing, 4 not resolved");
+    });
+
+    it("leaves out the hooked part when only removing", () => {
+      expect(describeLoad({ ...none, removed: 1, unchanged: 1 })).toBe("1 removed, 1 unchanged");
+    });
+
+    it("says so when nothing changed", () => {
+      expect(describeLoad({ ...none, unchanged: 5 })).toBe("no changes");
+    });
+  });
+
+  describe("describeHooked()", () => {
+    it("uses singular and plural", () => {
+      expect(describeHooked({ hookedMethods: 1, hookedFunctions: 2, failed: 0 })).toBe("hooked 1 method and 2 functions");
+    });
+  });
+
+  describe("describeReady()", () => {
+    it("reports the total and splits it by kind", () => {
+      expect(describeReady({ hookedMethods: 30, hookedFunctions: 8, failed: 4 })).toBe(
+        "Hooks ready: 38 hooked (30 methods, 8 functions), 4 not resolved",
       );
     });
 
-    it("reports added declarations that resolved to nothing", () => {
-      expect(describeReload({ ...none, added: 1 })).toBe("1 added (nothing hooked)");
-    });
-
-    it("reports only removals and says so when nothing changed", () => {
-      expect(describeReload({ ...none, removed: 1, unchanged: 1 })).toBe("1 removed, 1 unchanged");
-      expect(describeReload({ ...none, unchanged: 5 })).toBe("no changes");
+    it("reports when nothing was hooked", () => {
+      expect(describeReady({ hookedMethods: 0, hookedFunctions: 0, failed: 0 })).toBe("Hooks ready: 0 hooked");
     });
   });
 });

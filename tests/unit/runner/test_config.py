@@ -43,8 +43,9 @@ class TestLoadUserScripts:
         session = MagicMock()
         script_mock = session.create_script.return_value
 
-        scripts = load_user_scripts(session, [script_path])
+        scripts = load_user_scripts(session, [script_path], MagicMock())
 
         session.create_script.assert_called_once_with("console.log('hi')")
+        script_mock.set_log_handler.assert_called_once()
         script_mock.load.assert_called_once()
         assert scripts == [script_mock]

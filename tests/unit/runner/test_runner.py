@@ -32,13 +32,13 @@ class TestUpdateStatusLine:
         try:
             runner.output.last_event = "x" * 100
             runner.output.event_count = 3
-            runner._live.update = MagicMock()
+            runner.feed.status = MagicMock()
 
             runner._update_status_line()
 
-            rendered_text = runner._live.update.call_args.args[0]
-            assert "Events: 3" in rendered_text.plain
-            assert "..." in rendered_text.plain
+            status = runner.feed.status.call_args.args[0]
+            assert "Events: 3" in status
+            assert "..." in status
         finally:
             runner._stop_live_terminal()
 
@@ -159,7 +159,7 @@ class TestRunSessionLoss:
         monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
         monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
         monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")
-        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths: [])
+        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed: [])
         monkeypatch.setattr("frooky.runner.runner.load_hook_configs", lambda paths: [])
 
         defaults = {"hook_paths": [hook_file], "output_path": tmp_path / "out.json", "attach_pid": 1234}
@@ -213,7 +213,7 @@ class TestRunWatch:
         monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
         monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
         monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")
-        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths: [])
+        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed: [])
 
         runner = FrookyRunner(RunnerOptions(hook_paths=[hook_file], output_path=tmp_path / "out.json", attach_pid=1234, watch=watch))
         return runner, script, hook_file
@@ -237,21 +237,23 @@ class TestRunWatch:
 
         script.exports_sync.load_frooky_configs.assert_called_once_with([{"hookCollection": []}], [str(hook_file)])
 
-    def test_sends_changed_hook_file_to_agent(self, monkeypatch, tmp_path):
+    def test_sends_changed_hook_file_to_agent(self, monkeypatch, tmp_path, capsys):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)
         new_content = "hookCollection:\n  - module: libc.so\n    hooks: [open]\n"
 
         exit_code = self._run_editing(monkeypatch, runner, [lambda: _rewrite(hook_file, new_content)])
 
         assert exit_code == 0
+        assert "Change detected in hooks.yaml, updating hooks..." in capsys.readouterr().out
         script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": [{"module": "libc.so", "hooks": ["open"]}]})
 
-    def test_r_reloads_every_hook_file_and_retries_failed_hooks(self, monkeypatch, tmp_path):
+    def test_r_reloads_every_hook_file_and_retries_failed_hooks(self, monkeypatch, tmp_path, capsys):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)
 
         self._run_editing(monkeypatch, runner, [lambda: runner._on_key("r")])
 
         script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": []}, True)
+        assert "Reloading hook files and retrying unresolved hooks..." in capsys.readouterr().out
 
     def test_r_picks_up_file_changes_without_watch(self, monkeypatch, tmp_path):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
@@ -275,7 +277,7 @@ class TestRunWatch:
         self._run_editing(monkeypatch, runner, [break_and_press_r])
 
         script.exports_sync.update_frooky_config.assert_not_called()
-        assert "Not reloaded hooks.yaml, keeping the previous version" in capsys.readouterr().err
+        assert "Not reloaded hooks.yaml, keeping the previous version" in capsys.readouterr().out
 
     def test_ignores_other_keys(self, monkeypatch, tmp_path):
         runner, script, _hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)

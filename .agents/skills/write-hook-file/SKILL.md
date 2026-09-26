@@ -76,7 +76,7 @@ From the repo root (needs `npm ci` in `frooky/agent` once):
 node .agents/skills/write-hook-file/validate.cjs hooks.yaml
 ```
 
-This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf` mismatches, the deepest path in the error output usually points at the actual mistake. The validator catches structural errors, but not wrong class, method or decoder names; those only show up at runtime as `Resolved Hooks` counts and agent warnings (`frooky -vv`).
+This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf` mismatches, the deepest path in the error output usually points at the actual mistake. The validator catches structural errors, but not wrong class, method or decoder names; those only show up at runtime in the `Hooks ready: ... not resolved` summary, agent warnings, and debug logs (`frooky -vv`).
 
 ## Review checklist
 

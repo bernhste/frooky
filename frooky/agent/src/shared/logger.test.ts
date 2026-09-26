@@ -1,4 +1,3 @@
-import chalk from "chalk";
 import type { FrookyAgent } from "../FrookyAgent";
 import { LogEvent } from "./event/logEvent";
 import { logger, LogLevel } from "./logger";
@@ -94,23 +93,22 @@ describe("logger", () => {
   });
 
   describe("message formatting", () => {
-    it("formats a single string message as '[level] message'", () => {
+    it("passes a single string message through without a level prefix or colors", () => {
       logger.setVerbosity("info");
 
       spy = spyOn(console, "log");
       logger.info("connected");
 
-      expect(spy).toHaveBeenCalledWith(chalk.blue("[info] connected"));
+      expect(spy).toHaveBeenCalledWith("connected");
     });
 
-    it("formats an array message as an indented multi-line block", () => {
+    it("joins an array message into one multi-line message", () => {
       logger.setVerbosity("debug");
 
       spy = spyOn(console, "debug");
       logger.debug(["line one", "line two"]);
 
-      const expected = chalk.green("[debug]:\n    line one\n    line two");
-      expect(spy).toHaveBeenCalledWith(expected);
+      expect(spy).toHaveBeenCalledWith("line one\nline two");
     });
   });
 
@@ -162,7 +160,7 @@ describe("logger", () => {
       expect(spy).not.toHaveBeenCalled();
       expect(captured).toBeDefined();
       expect(captured!.level).toBe("error");
-      expect(captured!.msg).toBe("[error] decoder error");
+      expect(captured!.msg).toBe("decoder error");
     });
 
     it("logs a console error and does not throw when logTo is 'eventlog' but no agent was set", () => {
@@ -175,7 +173,7 @@ describe("logger", () => {
       }).not.toThrow();
 
       expect(spy).toHaveBeenCalledWith(
-        chalk.red("[error] Cannot log to eventLog, since no frooky agent is set. Make sure to set the agent using setAgent(frookyAgent) first."),
+        "Cannot log to eventLog, since no frooky agent is set. Make sure to set the agent using setAgent(frookyAgent) first.",
       );
     });
   });

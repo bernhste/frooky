@@ -20,8 +20,8 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
     # frooky agent options group
     agent_options = parser.add_argument_group("frooky agent options")
-    agent_options.add_argument("-v", action="store_true", help="shows up to info logs from the frooky agent.")
-    agent_options.add_argument("-vv", action="store_true", help="shows all logs including debug logs from the frooky agent.")
+    agent_options.add_argument("-v", action="store_true", help="also show debug logs from the frooky agent (info, warnings and errors are always shown).")
+    agent_options.add_argument("-vv", action="store_true", help="same as -v.")
     agent_options.add_argument("-t", "--resolver-timeout", metavar="SECONDS", type=int, default=5, help="Timeout in seconds for module/class lookup (default: 5)")
 
     # Script loading options

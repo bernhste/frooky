@@ -24,8 +24,12 @@ def _stat(path: Path) -> Optional[_FileStat]:
     return st.st_mtime_ns, st.st_size, st.st_ino
 
 
+def describe_reload_error(path: Path, error: Exception) -> str:
+    return f"Not reloaded {path.name}, keeping the previous version: {error}"
+
+
 def print_reload_error(path: Path, error: Exception) -> None:
-    print(f"  Not reloaded {path.name}, keeping the previous version: {error}", file=sys.stderr)
+    print(describe_reload_error(path, error), file=sys.stderr)
 
 
 @dataclass

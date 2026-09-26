@@ -18,10 +18,12 @@ import { stableStringify } from "./shared/utils";
 
 /**
  * State of one normalized hook declaration of a loaded config.
- * `hooks` are the resolved hooks (one per overload or function), set once installed.
+ * `target` is the hooked class method or module symbol, if known; `hooks` are the resolved hooks
+ * (one per overload or function), set once installed.
  */
 type LoadedHookEntry = {
   state: "pending" | "installed" | "failed" | "removed";
+  target?: string;
   hooks?: Hook[];
 };
 
@@ -36,38 +38,67 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-/** What a reload did, counted in hook declarations except for the resolved `hooked*` counts. */
-export type ReloadSummary = {
-  added: number;
-  retried: number;
+/**
+ * The class method or module symbol a normalized hook declaration targets. A declaration whose other
+ * properties (overloads, settings, ...) changed keeps its target, so a reload reports it as updated.
+ */
+function targetOf(kind: string, inputHook: unknown): string | undefined {
+  if (typeof inputHook !== "object" || inputHook === null) return undefined;
+  const hook = inputHook as { javaClass?: string; method?: string; module?: string; symbol?: string };
+  if (hook.javaClass && hook.method) return `${kind}:${hook.javaClass}.${hook.method}`;
+  if (hook.module && hook.symbol) return `${kind}:${hook.module}!${hook.symbol}`;
+  return undefined;
+}
+
+/** What resolving hooks did: installed hooks (one per overload or function) and the declarations that failed to resolve. */
+export type HookedSummary = {
   hookedMethods: number;
   hookedFunctions: number;
   failed: number;
+};
+
+/** What loading a config did, counted in hook declarations except for the {@link HookedSummary} counts. */
+export type LoadSummary = HookedSummary & {
+  added: number;
+  updated: number;
   removed: number;
+  retried: number;
   unchanged: number;
 };
 
+/** Describes what resolving hooks did, e.g. `hooked 2 methods and 1 function, 3 not resolved`. */
+export function describeHooked({ hookedMethods, hookedFunctions, failed }: HookedSummary): string {
+  const hooked: string[] = [];
+  if (hookedMethods > 0) hooked.push(plural(hookedMethods, "method"));
+  if (hookedFunctions > 0) hooked.push(plural(hookedFunctions, "function"));
+  const text = hooked.length > 0 ? `hooked ${hooked.join(" and ")}` : "hooked nothing";
+  return failed > 0 ? `${text}, ${failed} not resolved` : text;
+}
+
 /**
- * Summarizes a reload, e.g. `1 added, 2 retried (2 methods hooked, 1 failed), 1 removed, 3 unchanged`.
- * The parentheses list what the added and retried declarations resolved to (one hook per overload or function).
+ * Summarizes a reload, e.g. `1 new, 1 updated, 1 removed, 3 unchanged; hooked 2 methods`.
+ * The part after the semicolon lists what the new, updated and retried declarations resolved to.
  */
-export function describeReload(summary: ReloadSummary): string {
-  const { added, retried, hookedMethods, hookedFunctions, failed, removed, unchanged } = summary;
-  if (added === 0 && retried === 0 && removed === 0) return "no changes";
-  const resolved: string[] = [];
-  if (added > 0) resolved.push(`${added} added`);
-  if (retried > 0) resolved.push(`${retried} retried`);
-  const parts: string[] = [];
-  if (resolved.length > 0) {
-    const details: string[] = [];
-    if (hookedMethods > 0) details.push(`${plural(hookedMethods, "method")} hooked`);
-    if (hookedFunctions > 0) details.push(`${plural(hookedFunctions, "function")} hooked`);
-    if (failed > 0) details.push(`${failed} failed`);
-    parts.push(`${resolved.join(", ")} (${details.length > 0 ? details.join(", ") : "nothing hooked"})`);
-  }
-  if (removed > 0) parts.push(`${removed} removed`);
-  if (unchanged > 0) parts.push(`${unchanged} unchanged`);
-  return parts.join(", ");
+export function describeLoad(summary: LoadSummary): string {
+  const { added, updated, removed, retried, unchanged } = summary;
+  const changes: string[] = [];
+  if (added > 0) changes.push(`${added} new`);
+  if (updated > 0) changes.push(`${updated} updated`);
+  if (removed > 0) changes.push(`${removed} removed`);
+  if (retried > 0) changes.push(`${retried} retried`);
+  if (changes.length === 0) return "no changes";
+  if (unchanged > 0) changes.push(`${unchanged} unchanged`);
+  const text = changes.join(", ");
+  return added + updated + retried > 0 ? `${text}; ${describeHooked(summary)}` : text;
+}
+
+/** The message logged once the hook files given at startup are resolved, e.g. `Hooks ready: 38 hooked (30 methods, 8 functions), 4 not resolved`. */
+export function describeReady({ hookedMethods, hookedFunctions, failed }: HookedSummary): string {
+  const kinds: string[] = [];
+  if (hookedMethods > 0) kinds.push(plural(hookedMethods, "method"));
+  if (hookedFunctions > 0) kinds.push(plural(hookedFunctions, "function"));
+  const text = `Hooks ready: ${hookedMethods + hookedFunctions} hooked${kinds.length > 0 ? ` (${kinds.join(", ")})` : ""}`;
+  return failed > 0 ? `${text}, ${failed} not resolved` : text;
 }
 
 /**
@@ -108,36 +139,48 @@ export class FrookyAgent {
     logger.setAgent(this);
     logger.setVerbosity(logLevel);
     logger.setLogTo(logTo);
-    logger.info("Logger initialized");
+    logger.debug("Logger initialized");
 
     // printing some context infos
-    logger.info("Initializing frooky");
-    logger.info(`Declared target platform: ${this.platform}`);
-    logger.info(`Target platform: ${Process.platform}`);
-    logger.info(`Target frida version: ${Frida.version}`);
-    logger.info(`Target arch: ${Process.arch}`);
+    logger.debug("Initializing frooky");
+    logger.debug(`Declared target platform: ${this.platform}`);
+    logger.debug(`Target platform: ${Process.platform}`);
+    logger.debug(`Target frida version: ${Frida.version}`);
+    logger.debug(`Target arch: ${Process.arch}`);
     logger.debug(`Target process:\n${JSON.stringify(Process, null, 2)}}`);
   }
 
   /**
    * Loads hook configs, resolves their hooks and runs them. All configs are applied immediately and
    * resolve concurrently, so a later {@link loadFrookyConfig} call for the same id always wins.
+   * Once all are resolved, logs one `Hooks ready: ...` summary for all configs; the host and its
+   * integration tests wait for it.
    *
    * @param inputFrookyConfigs - The frooky configs to add.
    * @param configIds - Optional ids, index-aligned with `inputFrookyConfigs`, see {@link loadFrookyConfig}.
    */
   public async loadFrookyConfigs(inputFrookyConfigs: InputFrookyConfig[], configIds?: string[]) {
-    await Promise.all(
+    const summaries = await Promise.all(
       inputFrookyConfigs.map((inputFrookyConfig, i) =>
-        this.loadFrookyConfig(inputFrookyConfig, configIds?.[i]).catch((e) => {
+        this.applyFrookyConfig(inputFrookyConfig, configIds?.[i]).catch((e) => {
           logger.error(`Error during loading of the frooky config: ${String(e)}`);
+          return undefined;
         }),
       ),
     );
+    const total: HookedSummary = { hookedMethods: 0, hookedFunctions: 0, failed: 0 };
+    for (const summary of summaries) {
+      if (!summary) continue;
+      total.hookedMethods += summary.hookedMethods;
+      total.hookedFunctions += summary.hookedFunctions;
+      total.failed += summary.failed;
+    }
+    logger.info(describeReady(total));
   }
 
   /**
-   * Validates a {@link InputFrookyConfig} and installs its hooks.
+   * Validates a {@link InputFrookyConfig}, installs its hooks and logs a summary of what changed,
+   * e.g. `Updated hooks.yaml: 1 new, 3 unchanged; hooked 2 methods`.
    *
    * If a config with the same `configId` was loaded before, the new config replaces it
    * incrementally: hooks whose normalized declaration is unchanged are left untouched (no class,
@@ -154,6 +197,20 @@ export class FrookyAgent {
    * @param retryFailed - Also resolve unchanged hooks that failed to resolve in the previous version.
    */
   public async loadFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string, retryFailed = false) {
+    const isReload = configId !== undefined && this.loadedConfigs.has(configId);
+    const summary = await this.applyFrookyConfig(inputFrookyConfig, configId, retryFailed);
+    if (!summary) return;
+    const verb = !isReload ? "Loaded" : retryFailed ? "Reloaded" : "Updated";
+    const label = configId !== undefined ? configLabel(configId) : (inputFrookyConfig.metadata?.name ?? "frooky config");
+    logger.info(`${verb} ${label}: ${describeLoad(summary)}`);
+  }
+
+  /**
+   * Applies a config as described in {@link loadFrookyConfig}, without logging a summary.
+   *
+   * @returns What changed, or `undefined` if the config was invalid.
+   */
+  private async applyFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string, retryFailed = false): Promise<LoadSummary | undefined> {
     logger.debug("Loading frooky configuration.");
 
     // validate frooky config
@@ -163,11 +220,11 @@ export class FrookyAgent {
       validFrookyConfig = validateAndRepairFrookyConfig(inputFrookyConfig, this.platform);
     } catch (e) {
       if (configId !== undefined && this.loadedConfigs.has(configId)) {
-        console.log(`  Not reloaded ${configLabel(configId)}, keeping the previous version: ${e}`);
+        logger.warn(`Not reloaded ${configLabel(configId)}, keeping the previous version: ${e}`);
       } else {
         logger.warn(`Skipping frooky config: ${e}`);
       }
-      return;
+      return undefined;
     }
 
     const validatedFrookySettings = validFrookyConfig.settings as FrookySettings;
@@ -185,6 +242,7 @@ export class FrookyAgent {
     const entries = new Map<string, LoadedHookEntry>();
     const platformToResolve: PendingHook[] = [];
     const nativeToResolve: PendingHook[] = [];
+    const addedEntries: LoadedHookEntry[] = [];
     let countUnchanged = 0;
     let countRetried = 0;
 
@@ -202,10 +260,12 @@ export class FrookyAgent {
           continue;
         }
         // a retried hook keeps its entry, so it is not counted as removed below
-        const entry: LoadedHookEntry = previousEntry ?? { state: "pending" };
+        const entry: LoadedHookEntry = previousEntry ?? { state: "pending", target: targetOf(kind, inputHook) };
         if (previousEntry) {
           previousEntry.state = "pending";
           countRetried++;
+        } else {
+          addedEntries.push(entry);
         }
         entries.set(fingerprint, entry);
         toResolve.push({ inputHook, entry });
@@ -215,6 +275,7 @@ export class FrookyAgent {
     diff("native", validNativeHook, nativeToResolve);
 
     // remove hooks that are no longer declared; pending ones are dropped once they resolve
+    const removedTargets = new Map<string, number>();
     let countRemoved = 0;
     for (const [fingerprint, previousEntry] of previousEntries ?? []) {
       if (entries.get(fingerprint) === previousEntry) continue;
@@ -224,44 +285,48 @@ export class FrookyAgent {
       }
       previousEntry.state = "removed";
       countRemoved++;
+      if (previousEntry.target) removedTargets.set(previousEntry.target, (removedTargets.get(previousEntry.target) ?? 0) + 1);
     }
     this.loadedConfigs.set(id, entries);
+
+    // a declaration that replaced a removed one with the same target was updated, not added and removed
+    let countUpdated = 0;
+    for (const { target } of addedEntries) {
+      const removedCount = target ? (removedTargets.get(target) ?? 0) : 0;
+      if (removedCount === 0) continue;
+      removedTargets.set(target!, removedCount - 1);
+      countUpdated++;
+    }
 
     const configName = inputFrookyConfig.metadata?.name;
     const nameSuffix = configName ? ` '${configName}'` : "";
     const hookSuffix = configName ? ` from frooky configuration '${configName}'` : "";
 
-    logger.info(`Frooky configuration${nameSuffix} successfully parsed`);
+    logger.debug(`Frooky configuration${nameSuffix} successfully parsed`);
 
     // async resolve the new hooks and register them
     const [countSuccessfulPlatformHooks, countSuccessfulNativeHooks] = await Promise.all([
       this.resolveAndRegisterHooks(this.platformHookManger, platformToResolve, "platform").then((count) => {
-        if (count > 0) logger.info(`Successfully hooked ${count} ${this.platform} methods${hookSuffix}`);
+        if (count > 0) logger.debug(`Successfully hooked ${count} ${this.platform} methods${hookSuffix}`);
         return count;
       }),
       this.resolveAndRegisterHooks(this.nativeHookManager, nativeToResolve, "native").then((count) => {
-        if (count > 0) logger.info(`Successfully hooked ${count} native functions${hookSuffix}`);
+        if (count > 0) logger.debug(`Successfully hooked ${count} native functions${hookSuffix}`);
         return count;
       }),
     ]);
 
-    // printed unconditionally (bypassing the logger's own verbosity setting): the user sees what a
-    // reload did, and external tooling detects when the initial load is done resolving.
-    if (previousEntries) {
-      const toResolve = [...platformToResolve, ...nativeToResolve];
-      const summary = describeReload({
-        added: toResolve.length - countRetried,
-        retried: countRetried,
-        hookedMethods: countSuccessfulPlatformHooks,
-        hookedFunctions: countSuccessfulNativeHooks,
-        failed: toResolve.filter(({ entry }) => entry.state === "failed").length,
-        removed: countRemoved,
-        unchanged: countUnchanged,
-      });
-      console.log(`  Reloaded ${configLabel(id)}: ${summary}`);
-    } else {
-      console.log(`Resolved Hooks: ${countSuccessfulPlatformHooks + countSuccessfulNativeHooks}`);
-    }
+    const toResolve = [...platformToResolve, ...nativeToResolve];
+    return {
+      added: addedEntries.length - countUpdated,
+      updated: countUpdated,
+      removed: countRemoved - countUpdated,
+      retried: countRetried,
+      unchanged: countUnchanged,
+      hookedMethods: countSuccessfulPlatformHooks,
+      hookedFunctions: countSuccessfulNativeHooks,
+      failed: toResolve.filter(({ entry }) => entry.state === "failed").length,
+    };
   }
 
   /**

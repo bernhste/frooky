@@ -1,32 +1,31 @@
 from __future__ import annotations
 
-import sys
 from typing import Callable, Optional
 
-from ..pp_hook_event import pp_hook_event
+from .feed import Feed
 from .output import OutputWriter
 
 
-def create_message_handler(output: OutputWriter, print_events: bool, on_event: Optional[Callable[[], None]] = None):
+def create_message_handler(output: OutputWriter, feed: Feed, print_events: bool, on_event: Optional[Callable[[], None]] = None):
     """Build the frooky agent's message callback: writes hook/log events to the output file
-    and optionally pretty-prints them, calling on_event after each event in a batch."""
+    and optionally prints them to the feed, calling on_event after each event in a batch."""
 
     def on_message(message, data):
         msg_type = message.get("type")
 
         if msg_type == "error":
-            print(f"Agent error: {message.get('stack') or message.get('description') or message}", file=sys.stderr)
+            feed.log("error", f"Agent error: {message.get('stack') or message.get('description') or message}")
             return
 
         if msg_type != "send":
-            print("MSG", message)
+            feed.log("warn", f"Unexpected agent message: {message}")
             return
 
         payload = message.get("payload")
 
         # The agent always batches hook/log events as a JSON array (see eventSender.ts).
         if not isinstance(payload, list):
-            print("MSG", payload)
+            feed.log("warn", f"Unexpected agent message: {payload}")
             return
 
         output.append(payload)
@@ -36,20 +35,29 @@ def create_message_handler(output: OutputWriter, print_events: bool, on_event: O
             if on_event:
                 on_event()
             if print_events:
-                pp_hook_event(event)
+                feed.event(event)
 
     return on_message
 
 
-def create_user_script_message_handler(script_name: str):
-    """Build a message handler that prints a user script's send()/console.log output and errors."""
+def create_log_handler(feed: Feed, source: Optional[str] = None):
+    """Build a Frida log handler that prints a script's console.log()/warn()/error() output to the feed."""
+
+    def on_log(level: str, text: str) -> None:
+        feed.log(level, text, source)
+
+    return on_log
+
+
+def create_user_script_message_handler(script_name: str, feed: Feed):
+    """Build a message handler that prints a user script's send() output and errors to the feed."""
 
     def on_message(message, data):
         if message.get("type") == "send":
-            print(f"[{script_name}] {message.get('payload')}")
+            feed.log("info", str(message.get("payload")), script_name)
         elif message.get("type") == "error":
-            print(f"[{script_name}] {message.get('stack', message.get('description'))}", file=sys.stderr)
+            feed.log("error", str(message.get("stack", message.get("description"))), script_name)
         else:
-            print(f"[{script_name}] {message}")
+            feed.log("info", str(message), script_name)
 
     return on_message

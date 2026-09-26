@@ -24,7 +24,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       let modulePromise = modulePromises.get(inputHook.module);
       if (!modulePromise) {
         modulePromise = this.resolveModule(inputHook.module, timeout).catch((e) => {
-          logger.warn(`${e}`);
+          logger.warn(e instanceof Error ? e.message : String(e));
           return null;
         });
         modulePromises.set(inputHook.module, modulePromise);
@@ -47,7 +47,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           },
         ] as NativeHook[];
       } catch (e) {
-        logger.warn(`${e}`);
+        logger.warn(e instanceof Error ? e.message : String(e));
         return null;
       }
     });

@@ -1,4 +1,3 @@
-import chalk from "chalk";
 import { FrookyAgent } from "../FrookyAgent";
 import { LogEvent } from "./event/logEvent";
 
@@ -13,14 +12,6 @@ const levelOrder: Record<LogLevel, number> = {
   debug: 4,
 };
 
-const levelColors: Record<LogLevel, (msg: string) => string> = {
-  none: (msg) => msg,
-  info: chalk.blue,
-  warn: chalk.yellow,
-  error: chalk.red,
-  debug: chalk.green,
-};
-
 let frooky: FrookyAgent;
 let verbosity: LogLevel = "error";
 let logTo: LogTo = "console";
@@ -29,21 +20,17 @@ function shouldLog(level: LogLevel): boolean {
   return levelOrder[verbosity] >= levelOrder[level];
 }
 
-function format(level: LogLevel, msg: string | string[]): string {
-  if (Array.isArray(msg)) {
-    const lines = msg.map((m) => `    ${m}`).join("\n");
-    return `[${level}]:\n${lines}`;
-  }
-  return `[${level}] ${msg}`;
+/** Plain text only: the level is conveyed by the console method, and the host does the coloring. */
+function format(msg: string | string[]): string {
+  return Array.isArray(msg) ? msg.join("\n") : msg;
 }
 
 function emit(level: LogLevel, msg: string | string[]): void {
   if (!shouldLog(level)) return;
 
-  const formatted = format(level, msg);
+  const out = format(msg);
 
   if (logTo === "console") {
-    const out = levelColors[level](formatted);
     switch (level) {
       case "info":
         console.log(out);
@@ -63,12 +50,10 @@ function emit(level: LogLevel, msg: string | string[]): void {
     }
   } else if (logTo === "eventlog") {
     if (!frooky) {
-      console.error(
-        chalk.red("[error] Cannot log to eventLog, since no frooky agent is set. Make sure to set the agent using setAgent(frookyAgent) first."),
-      );
+      console.error("Cannot log to eventLog, since no frooky agent is set. Make sure to set the agent using setAgent(frookyAgent) first.");
       return;
     }
-    frooky.addEventToLog(new LogEvent(level, formatted));
+    frooky.addEventToLog(new LogEvent(level, out));
   }
 }
 

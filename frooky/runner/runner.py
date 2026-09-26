@@ -1,25 +1,23 @@
 from __future__ import annotations
 
 import json
-import sys
 import threading
 import time
 from importlib.resources import files
+from pathlib import Path
 from typing import Optional
 
 import frida
-from rich.console import Console
-from rich.live import Live
-from rich.text import Text
 
 from .._version import __version__ as frooky_version
 from .config import load_hook_config, load_hook_configs, load_user_scripts
 from .device import attach_or_spawn, describe_target, detect_platform, get_device, get_device_frida_version
+from .feed import Feed
 from .keys import KeyListener
-from .messages import create_message_handler
+from .messages import create_log_handler, create_message_handler
 from .options import RunnerOptions
 from .output import OutputWriter
-from .watcher import HookFileWatcher, print_reload_error
+from .watcher import HookFileWatcher, describe_reload_error
 
 
 class FrookyRunner:
@@ -35,9 +33,8 @@ class FrookyRunner:
         self.spawned_pid: Optional[int] = None
         self.device_frida_version: Optional[str] = None
         self.output = OutputWriter(options.output_path)
-        self._console = Console(stderr=False)
-        self._live = Live("", console=self._console, refresh_per_second=4, transient=False)
-        self._live.start()
+        self.feed = Feed()
+        self.feed.start()
         self._stop_event = threading.Event()
         self._stop_reason: Optional[str] = None
         self._crash = None
@@ -45,7 +42,7 @@ class FrookyRunner:
         self._key_listener = KeyListener(self._on_key)
 
     def _stop_live_terminal(self):
-        self._live.stop()
+        self.feed.stop()
 
     def _on_session_detached(self, reason: str, crash) -> None:
         """Called by Frida (on its own thread) when the session to the target is lost."""
@@ -60,6 +57,9 @@ class FrookyRunner:
         if key in ("r", "R"):
             self._reload_requested.set()
 
+    def _on_reload_error(self, path: Path, error: Exception) -> None:
+        self.feed.log("warn", describe_reload_error(path, error))
+
     def _describe_stop_reason(self) -> str:
         if self._crash is not None:
             return f"process crashed ({self._crash.summary})"
@@ -73,11 +73,11 @@ class FrookyRunner:
         return 0 if self._stop_reason in (None, "user interrupt") else 1
 
     def _print_summary(self) -> None:
-        print()
-        print(f"  Stopped: {self._describe_stop_reason()}")
-        print(f"  Events captured: {self.output.event_count:,}")
-        print(f"  Output written to: {self.options.output_path}")
-        print()
+        self.feed.print()
+        self.feed.print(f"  Stopped: {self._describe_stop_reason()}")
+        self.feed.print(f"  Events captured: {self.output.event_count:,}")
+        self.feed.print(f"  Output written to: {self.options.output_path}")
+        self.feed.print()
 
     def _update_status_line(self) -> None:
         max_event_len = 60
@@ -86,7 +86,7 @@ class FrookyRunner:
             event_display += "..."
 
         status = f"  Events: {self.output.event_count:,}  |  Last: {event_display}"
-        self._live.update(Text(status, style="reverse"))
+        self.feed.status(status)
 
     def _print_header(self) -> None:
         """Print the Frooky header with session information."""
@@ -150,16 +150,18 @@ class FrookyRunner:
             lines.append("  Press Ctrl+C to stop...")
         lines.append("")
 
-        print("\n".join(lines))
+        self.feed.print("\n".join(lines))
         self._update_status_line()
 
     def _apply_hook_file_changes(self, watcher: HookFileWatcher) -> None:
         """Send changed hook files to the agent, which re-hooks only what changed and reports the result."""
         for path, hook_config in watcher.poll():
+            self.feed.log("info", f"Change detected in {path.name}, updating hooks...")
             self.script.exports_sync.update_frooky_config(str(path), hook_config)
 
     def _reload_hook_files(self, watcher: Optional[HookFileWatcher]) -> None:
         """Reload every hook file and retry the hooks that failed to resolve; installed, unchanged hooks stay."""
+        self.feed.log("info", "Reloading hook files and retrying unresolved hooks...")
         if watcher:
             watcher.poll()
             reloaded = watcher.current()
@@ -169,7 +171,7 @@ class FrookyRunner:
                 try:
                     reloaded.append((path, load_hook_config(path)))
                 except Exception as e:
-                    print_reload_error(path, e)
+                    self._on_reload_error(path, e)
         for path, hook_config in reloaded:
             self.script.exports_sync.update_frooky_config(str(path), hook_config, True)
 
@@ -192,21 +194,18 @@ class FrookyRunner:
             self._print_header()
 
             # Load any user-provided scripts before the frooky agent
-            self.user_scripts = load_user_scripts(self.session, self.options.user_scripts)
+            self.user_scripts = load_user_scripts(self.session, self.options.user_scripts, self.feed)
 
             self.script = self.session.create_script(script_source)
-            self.script.on("message", create_message_handler(self.output, self.options.print_events, self._update_status_line))
+            self.script.on("message", create_message_handler(self.output, self.feed, self.options.print_events, self._update_status_line))
+            self.script.set_log_handler(create_log_handler(self.feed))
             self.script.load()
 
-            if self.options.agent_option_verbose:
-                log_level = "info"
-            elif self.options.agent_option_very_verbose:
-                log_level = "debug"
-            else:
-                log_level = "warn"
+            # info, warnings and errors are always shown; -v/-vv add the agent's debug logs
+            log_level = "debug" if self.options.agent_option_verbose or self.options.agent_option_very_verbose else "info"
             self.script.exports_sync.init_frooky_agent(log_level, "console", self.options.agent_option_resolver_timeout)
 
-            watcher = HookFileWatcher(self.options.hook_paths) if self.options.watch else None
+            watcher = HookFileWatcher(self.options.hook_paths, self._on_reload_error) if self.options.watch else None
             hook_configs = watcher.configs if watcher else load_hook_configs(self.options.hook_paths)
             # the file paths identify the configs, so the agent can replace them when a file changes
             config_ids = [str(path) for path in self.options.hook_paths]
@@ -230,7 +229,7 @@ class FrookyRunner:
             self._stop_reason = "user interrupt"
 
         except Exception as e:
-            print(f"Error: {e}", file=sys.stderr)
+            self.feed.log("error", f"Error: {e}")
             self._stop_reason = f"error: {e}"
 
         finally:

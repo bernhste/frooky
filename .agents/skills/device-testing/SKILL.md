@@ -65,11 +65,11 @@ pytest tests/integration/android -k <pattern>
 
 ```bash
 ./compileAgent.sh --dev
-frooky -U -f <package> -e -vv hooks.yaml   # -e prints events, -vv shows agent debug logs
+frooky -U -f <package> -e -vv hooks.yaml   # -e prints events, -vv adds agent debug logs
 ```
 
 ## Troubleshooting
 
-- `Resolved Hooks: 0`: the class or module isn't loaded yet or the name is wrong. Try `-t 15`, and check the name with `frida -U <app>` → `Java.use("...")`.
+- `Hooks ready: 0 hooked` or `N not resolved`: the class or module isn't loaded yet or the name is wrong. Try `-t 15`, and check the name with `frida -U <app>` → `Java.use("...")`.
 - `unable to connect to remote frida-server` or a version-mismatch error: restart frida-server on the device with the matching version.
 - Appium session errors in integration tests: the host relay can drop connections, and the tests retry a few times. Check that Appium is running on the host (`curl $APPIUM_URL/status`).

@@ -44,7 +44,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       let javaClassesPromise = javaClassPromises.get(inputHook.javaClass);
       if (!javaClassesPromise) {
         javaClassesPromise = this.resolveJavaClass(inputHook.javaClass, timeout).catch((e) => {
-          logger.warn(`${e}`);
+          logger.warn(e instanceof Error ? e.message : String(e));
           return [] as Java.Wrapper[];
         });
         javaClassPromises.set(inputHook.javaClass, javaClassesPromise);

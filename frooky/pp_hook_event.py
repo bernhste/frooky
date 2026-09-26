@@ -1,7 +1,7 @@
 import pprint as _pprint
 
-_SEP_LEN = 120
-_LINE_MAX = 119
+_DEFAULT_WIDTH = 120
+_MIN_WIDTH = 60
 _WRAP_INDENT = "    "
 _LABEL_ARGS_IN = "  args in   :  "
 _LABEL_ARGS_OUT = "  args out  :  "
@@ -20,31 +20,42 @@ _C_TYPE_N = "\033[32m"
 _DECODED_VALUE_KEYS = {"type", "value", "name"}
 
 
-def _top_border(label: str, color: str) -> str:
+def _top_border(label: str, color: str, width: int) -> str:
     tag = f" {label} "
-    dashes = "─" * (_SEP_LEN - len(tag) - 3)
+    dashes = "─" * max(width - len(tag) - 3, 0)
     return f"{_C_BORDER}┌─{color}{tag}{_C_BORDER}{dashes}┐{_C_RESET}"
 
 
-def _bot_border() -> str:
-    return f"{_C_BORDER}└{'─' * (_SEP_LEN - 2)}┘{_C_RESET}"
+def _bot_border(width: int) -> str:
+    return f"{_C_BORDER}└{'─' * (width - 2)}┘{_C_RESET}"
 
 
 def _kv(key: str, val: str) -> str:
     return f"{_C_KEY}{key}{_C_VAL}{val}{_C_RESET}"
 
 
-def _print_wrapped(line: str, continuation_indent: str) -> None:
-    if len(line) <= _LINE_MAX:
-        print(line)
-        return
-    cont = continuation_indent + _WRAP_INDENT
-    avail = _LINE_MAX - len(cont)
-    print(line[:_LINE_MAX])
-    remainder = line[_LINE_MAX:]
-    while remainder:
-        print(f"{cont}{remainder[:avail]}")
-        remainder = remainder[avail:]
+class _Lines:
+    """Collects the lines of one event box, wrapping long lines to the box width."""
+
+    def __init__(self, width: int):
+        self.width = width
+        self.line_max = width - 1
+        self.lines: list[str] = []
+
+    def add(self, line: str) -> None:
+        self.lines.append(line)
+
+    def add_wrapped(self, line: str, continuation_indent: str) -> None:
+        if len(line) <= self.line_max:
+            self.lines.append(line)
+            return
+        cont = continuation_indent + _WRAP_INDENT
+        avail = max(self.line_max - len(cont), 1)
+        self.lines.append(line[: self.line_max])
+        remainder = line[self.line_max :]
+        while remainder:
+            self.lines.append(f"{cont}{remainder[:avail]}")
+            remainder = remainder[avail:]
 
 
 def _is_decoded_value(v) -> bool:
@@ -83,70 +94,77 @@ def _format_signature(name: str, args: list) -> str:
     return f"{name}({params})"
 
 
-def _pprint_indented(v, indent: str) -> None:
-    formatted = _pprint.pformat(v, width=_LINE_MAX - len(indent), compact=True)
+def _pprint_indented(out: _Lines, v, indent: str) -> None:
+    formatted = _pprint.pformat(v, width=max(out.line_max - len(indent), 20), compact=True)
     for line in formatted.splitlines():
-        _print_wrapped(f"{indent}{line}", indent)
+        out.add_wrapped(f"{indent}{line}", indent)
 
 
-def _print_decoded_values(label: str, args: list) -> None:
+def _add_decoded_values(out: _Lines, label: str, args: list) -> None:
     continuation = " " * len(label)
     value_indent = continuation + "  "
     for i, a in enumerate(args):
         prefix = label if i == 0 else continuation
         t = a.get("type", "?")
         name = a.get("name")
-        _print_wrapped(f"{prefix}{t + ' ' + name if name else t}", continuation)
+        out.add_wrapped(f"{prefix}{t + ' ' + name if name else t}", continuation)
         v = _unwrap(a.get("value"))
         if v is not None:
-            _pprint_indented(v, value_indent)
+            _pprint_indented(out, v, value_indent)
 
 
-def _print_return(return_val: dict) -> None:
+def _add_return(out: _Lines, return_val: dict) -> None:
     if not return_val:
         return
     t = return_val.get("type", "?")
     v = _unwrap(return_val.get("value"))
-    print(f"{_LABEL_RET}{t}")
+    out.add(f"{_LABEL_RET}{t}")
     if t != "void" and v is not None:
-        _pprint_indented(v, " " * len(_LABEL_RET) + "  ")
+        _pprint_indented(out, v, " " * len(_LABEL_RET) + "  ")
 
 
-def _print_stack(stack_trace: list) -> None:
+def _add_stack(out: _Lines, stack_trace: list) -> None:
     continuation = " " * len(_LABEL_STACK)
     for i, frame in enumerate(stack_trace):
-        _print_wrapped(f"{_LABEL_STACK if i == 0 else continuation}{frame}", continuation)
+        out.add_wrapped(f"{_LABEL_STACK if i == 0 else continuation}{frame}", continuation)
 
 
-def _pp_hook(hook: dict, label: str, color: str, id_key: str, id_label: str, fn_key: str, fn_label: str) -> None:
-    """Shared pretty-printer for Java and native hook events."""
+def _format_hook(out: _Lines, hook: dict, label: str, color: str, id_key: str, id_label: str, fn_key: str, fn_label: str) -> None:
+    """Shared formatter for Java and native hook events."""
     args_in = hook.get("argsIn") or []
     args_out = hook.get("argsOut") or []
     return_val = hook.get("returnValue")
     stack = hook.get("stackTrace") or []
 
-    print(_top_border(label, color))
-    print(_kv("  time      :  ", hook.get("timestamp", "?")))
-    print(_kv(f"  {id_label:<10}:  ", hook.get(id_key, "?")))
-    print(_kv(f"  {fn_label:<10}:  ", _format_signature(hook.get(fn_key, "?"), args_in)))
+    out.add(_top_border(label, color, out.width))
+    out.add(_kv("  time      :  ", hook.get("timestamp", "?")))
+    out.add(_kv(f"  {id_label:<10}:  ", hook.get(id_key, "?")))
+    out.add(_kv(f"  {fn_label:<10}:  ", _format_signature(hook.get(fn_key, "?"), args_in)))
 
     if args_in:
-        _print_decoded_values(_LABEL_ARGS_IN, args_in)
+        _add_decoded_values(out, _LABEL_ARGS_IN, args_in)
     if args_out:
-        _print_decoded_values(_LABEL_ARGS_OUT, args_out)
+        _add_decoded_values(out, _LABEL_ARGS_OUT, args_out)
     if return_val:
-        _print_return(return_val)
+        _add_return(out, return_val)
     if stack:
-        _print_stack(stack)
+        _add_stack(out, stack)
 
-    print(_bot_border())
+    out.add(_bot_border(out.width))
 
 
-def pp_hook_event(hook: dict) -> None:
-    """Pretty-print a NativeHookEvent or JavaHookEvent dict to the CLI."""
+def format_hook_event(hook: dict, width: int = _DEFAULT_WIDTH) -> list[str]:
+    """Format a NativeHookEvent or JavaHookEvent dict as the lines of a box `width` columns wide, with ANSI colors."""
+    out = _Lines(max(width, _MIN_WIDTH))
     if "java" in hook.get("type", ""):
         field_type = hook.get("fieldType", {})
         ft_str = field_type.get("fieldType", str(field_type)) if isinstance(field_type, dict) else str(field_type)
-        _pp_hook(hook, f"java ({ft_str})", _C_TYPE_J, "javaClassName", "class", "method", "method")
+        _format_hook(out, hook, f"java ({ft_str})", _C_TYPE_J, "javaClassName", "class", "method", "method")
     else:
-        _pp_hook(hook, "native", _C_TYPE_N, "module", "module", "symbol", "function")
+        _format_hook(out, hook, "native", _C_TYPE_N, "module", "module", "symbol", "function")
+    return out.lines
+
+
+def pp_hook_event(hook: dict, width: int = _DEFAULT_WIDTH) -> None:
+    """Pretty-print a NativeHookEvent or JavaHookEvent dict to stdout."""
+    print("\n".join(format_hook_event(hook, width)))

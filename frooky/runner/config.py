@@ -7,7 +7,8 @@ from pathlib import Path
 import frida
 import yaml
 
-from .messages import create_user_script_message_handler
+from .feed import Feed
+from .messages import create_log_handler, create_user_script_message_handler
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +27,14 @@ def load_hook_configs(hook_paths: list[Path]) -> list[dict]:
     return [load_hook_config(hook_path) for hook_path in hook_paths]
 
 
-def load_user_scripts(session: frida.core.Session, script_paths: list[Path]) -> list[frida.core.Script]:
+def load_user_scripts(session: frida.core.Session, script_paths: list[Path], feed: Feed) -> list[frida.core.Script]:
     """Load user-provided scripts (-l/--load) before the frooky agent runs."""
     scripts = []
     for script_path in script_paths:
         source = Path(script_path).read_text(encoding="utf-8")
         script = session.create_script(source)
-        script.on("message", create_user_script_message_handler(script_path.name))
+        script.on("message", create_user_script_message_handler(script_path.name, feed))
+        script.set_log_handler(create_log_handler(feed, script_path.name))
         script.load()
         scripts.append(script)
     return scripts

@@ -45,8 +45,8 @@ MAIN_ACTIVITY = "org.owasp.mastestapp.MainActivity"
 FROOKY_WORKING_DIR = Path(__file__).parent
 FROOKY_OUTPUT_NAME = "output.json"
 
-# if this patterns appears on stdout, frooky hooked all hooks and is read
-FROOKY_READY_PATTERN = re.compile(r"Resolved Hooks:\s*(\d+)")
+# if this pattern appears on stdout, frooky resolved all hooks and is ready
+FROOKY_READY_PATTERN = re.compile(r"Hooks ready:\s*(\d+) hooked")
 
 
 def _matches_subset_pattern_recursive(event, pattern):
@@ -245,7 +245,7 @@ def _wait_for_frooky(process, chunks):
         if process.poll() is not None:
             _fail(f"frooky exited with {process.returncode} before resolving hooks", process, chunks)
         time.sleep(0.5)
-    _fail("frooky never reported 'Resolved Hooks: <n>' with n > 0", process, chunks)
+    _fail("frooky never reported 'Hooks ready: <n> hooked' with n > 0", process, chunks)
 
 
 def _wait_for_events(process, chunks, output_file_path):

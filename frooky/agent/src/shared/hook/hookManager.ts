@@ -50,7 +50,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
       if (result !== null) return result;
       await new Promise((r) => setTimeout(r, HOOK_LOOKUP_INTERVAL_MS));
     }
-    throw Error(`frida resolver timed out resolving '${label}' after ${timeoutSeconds} seconds.`);
+    throw Error(`'${label}' not found within ${timeoutSeconds} seconds.`);
   }
 
   protected resolveParamDecoders(params: Param[]): ParamDecoder<TValue>[] {
