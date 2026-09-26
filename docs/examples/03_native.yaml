@@ -115,7 +115,7 @@ hookCollection:
       retType: ssize_t
       params:
       - [int, fd]
-      - [void *, buf, { direction: out, decoderArg: count, maxItems: 20 }]
+      - [void *, buf, { direction: inout, decoderArg: count, decoder: string, maxItems: 100 }]
       - [size_t, count]
 
   # Use `decoder: string` to decode a buffer as text instead of hex/ASCII.

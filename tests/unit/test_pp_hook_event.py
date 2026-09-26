@@ -1,6 +1,6 @@
 """Unit tests for the pure formatting/decoding logic in pp_hook_event."""
 
-from frooky.pp_hook_event import _format_signature, _is_decoded_value, _unwrap, pp_hook_event
+from frooky.pp_hook_event import _format_signature, _is_decoded_value, _unwrap, format_hook_event, pp_hook_event
 
 
 class TestIsDecodedValue:
@@ -157,3 +157,19 @@ class TestPpHookEvent:
         out = capsys.readouterr().out
         assert "libc.so" in out
         assert "strcpy()" in out
+
+    def test_long_string_is_wrapped_as_a_single_repr(self):
+        value = "a b\r" + "x" * 300
+        hook = {
+            "type": "native-hook",
+            "module": "libc.so",
+            "symbol": "read",
+            "argsIn": [{"type": "void *", "name": "buf", "value": value}],
+        }
+
+        lines = format_hook_event(hook, width=80)
+
+        value_lines = lines[lines.index("  args in   :  void * buf") + 1 : -1]
+        assert all(len(line) <= 79 for line in value_lines)
+        assert not value_lines[0].lstrip().startswith("(")
+        assert "".join(line.strip() for line in value_lines) == repr(value)

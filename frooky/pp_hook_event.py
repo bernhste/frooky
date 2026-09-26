@@ -95,6 +95,11 @@ def _format_signature(name: str, args: list) -> str:
 
 
 def _pprint_indented(out: _Lines, v, indent: str) -> None:
+    # pformat splits a long string into a parenthesized ('...' '...') concatenation, breaking at
+    # whitespace and line endings, so strings stay a single repr and add_wrapped hard-wraps them.
+    if isinstance(v, str):
+        out.add_wrapped(f"{indent}{v!r}", indent)
+        return
     formatted = _pprint.pformat(v, width=max(out.line_max - len(indent), 20), compact=True)
     for line in formatted.splitlines():
         out.add_wrapped(f"{indent}{line}", indent)

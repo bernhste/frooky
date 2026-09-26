@@ -23,16 +23,12 @@ function readCString(input: NativePointer, limit: number): [bytes: Uint8Array, t
 }
 
 /**
- * Reads exactly `length` bytes (capped at `limit`), then cuts them at the first NUL byte, if any.
+ * Reads exactly `length` bytes (capped at `limit`). NUL bytes are part of the data, not a terminator: with
+ * an explicit length, the buffer may legitimately contain them (e.g. binary data from `read`).
  */
 function readBoundedString(input: NativePointer, length: number, limit: number): [bytes: Uint8Array, truncated: boolean] {
-  const readLength = Math.min(length, limit);
-  const rawBytes = input.readByteArray(readLength);
+  const rawBytes = input.readByteArray(Math.min(length, limit));
   const bytes = rawBytes === null ? new Uint8Array(0) : new Uint8Array(rawBytes);
-  const nulIndex = bytes.indexOf(0);
-  if (nulIndex !== -1) {
-    return [bytes.subarray(0, nulIndex), false];
-  }
   return [bytes, length > limit];
 }
 
@@ -41,8 +37,8 @@ function readBoundedString(input: NativePointer, length: number, limit: number):
  * decoding goes through this function, both `decoder: string` and the default for `char *`.
  *
  * Without `arg`, the string ends at its NUL terminator. With `arg` (the decoded `decoderArg`), its value
- * is the buffer length, so buffers that aren't NUL-terminated can be decoded too; a NUL inside the
- * buffer still ends the string. Either way, at most `settings.maxItems` bytes are decoded, and a longer
+ * is the buffer length and exactly that many bytes are decoded, including any NUL bytes (shown as `.` when
+ * decoded as ASCII). Either way, at most `settings.maxItems` bytes are decoded, and a longer
  * string ends with `...`.
  *
  * @param type - The declared type, used in the warning when the string can't be read.

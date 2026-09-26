@@ -170,7 +170,7 @@ This decodes the `opmode` argument of [`Cipher.init(int, Key)`](<https://develop
 
 Native hooks have one registered decoder:
 
-- `string`: decodes a pointer (`void *`, ...) as a UTF-8 string, or as ASCII if the bytes aren't valid UTF-8. Without a `decoderArg`, the string ends at its NUL terminator. With a `decoderArg`, that parameter's value is the buffer length, so buffers that aren't NUL-terminated can be decoded too. A NUL byte inside the buffer still ends the string. At most `maxItems` bytes are decoded, and a longer string ends with `...`.
+- `string`: decodes a pointer (`void *`, ...) as a UTF-8 string, or as ASCII if the bytes aren't valid UTF-8. Without a `decoderArg`, the string ends at its NUL terminator. With a `decoderArg`, that parameter's value is the buffer length and exactly that many bytes are decoded, so buffers that aren't NUL-terminated can be decoded too. NUL bytes inside the buffer don't end the string; they are decoded like any other byte (as `.` when decoded as ASCII). At most `maxItems` bytes are decoded, and a longer string ends with `...`.
 
 `char *` is always decoded this way, and so is `unsigned char *` without a `decoderArg`, so they don't need `decoder: string`.
 
@@ -187,7 +187,7 @@ hooks:
       - [size_t, count]
 ```
 
-`count` is the size of the buffer, not the number of bytes `read` wrote, which is the return value. Unless the buffer contains a NUL byte, bytes after the data that was read are decoded too, up to `maxItems`.
+`count` is the size of the buffer, not the number of bytes `read` wrote, which is the return value. Bytes after the data that was read are decoded too, up to `maxItems`.
 
 ### `maxItems` and `maxDepth`: Limit Large and Nested Values
 

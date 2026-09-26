@@ -59,9 +59,9 @@ describe("NativeStringDecoder", () => {
       expect(makeDecoder().decode(buffer, lengthArg("2")).value).toBe("ab");
     });
 
-    it("should stop at a NUL byte inside the decoderArg length", () => {
+    it("should decode NUL bytes inside the decoderArg length instead of stopping at them", () => {
       const buffer = writeBytes([0x61, 0x62, 0x00, 0x63, 0x64]);
-      expect(makeDecoder().decode(buffer, lengthArg(5)).value).toBe("ab");
+      expect(makeDecoder().decode(buffer, lengthArg(5)).value).toBe("ab.cd");
     });
 
     it("should cap the decoderArg length at maxItems and append an ellipsis", () => {
