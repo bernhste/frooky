@@ -175,12 +175,12 @@ class TestValuePassingJava:
             assert count_matched_events({"javaClassName": MASTG_CLASS, "method": method}) == 1, f"{method} did not fire exactly once."
 
     def test_decode_limit_truncates_collections(self, run_frooky, find_matched_events):
-        """`decodeLimit` caps how many elements of a List/Collection get decoded (see decoders.md)."""
+        """`maxItems` caps how many elements of a List/Collection get decoded (see decoders.md)."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - javaClass: {MASTG_CLASS}
                 decoderSettings:
-                  decodeLimit: 2
+                  maxItems: 2
                 hooks:
                   - receiveList
             """)

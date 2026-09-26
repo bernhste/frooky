@@ -24,8 +24,8 @@ def _stat(path: Path) -> Optional[_FileStat]:
     return st.st_mtime_ns, st.st_size, st.st_ino
 
 
-def _print_error(path: Path, error: Exception) -> None:
-    print(f"Hook file {path} not reloaded, keeping the previous version: {error}", file=sys.stderr)
+def print_reload_error(path: Path, error: Exception) -> None:
+    print(f"  Not reloaded {path.name}, keeping the previous version: {error}", file=sys.stderr)
 
 
 @dataclass
@@ -43,7 +43,7 @@ class HookFileWatcher:
     ``on_error`` and retried on its next modification; the previous version stays in effect.
     """
 
-    def __init__(self, hook_paths: list[Path], on_error: Callable[[Path, Exception], None] = _print_error):
+    def __init__(self, hook_paths: list[Path], on_error: Callable[[Path, Exception], None] = print_reload_error):
         self._on_error = on_error
         self._files: dict[Path, _WatchedFile] = {}
         # take the stat before reading, so a change made while loading is picked up by the next poll
@@ -52,6 +52,10 @@ class HookFileWatcher:
                 stat = _stat(path)
                 self._files[path] = _WatchedFile(path, stat, load_hook_config(path))
         self.configs: list[Any] = [self._files[path].config for path in hook_paths]
+
+    def current(self) -> list[tuple[Path, Any]]:
+        """Return ``(path, config)`` for every watched hook file, as of the last poll."""
+        return [(watched.path, watched.config) for watched in self._files.values()]
 
     def poll(self) -> list[tuple[Path, Any]]:
         """Return ``(path, config)`` for every hook file whose parsed content changed since the last poll."""
