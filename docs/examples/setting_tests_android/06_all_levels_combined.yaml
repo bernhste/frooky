@@ -4,26 +4,25 @@ metadata:
   author: frooky dev
   platform: Android
 
-# default setttings from DEFAULT_FROOKY_SETTINGS: FrookySettings
+# default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings
 # settings:
 #   hookSettings:
 #     stackTraceLimit: 0
 #     stackTraceFilter: []
 #   decoderSettings:
-#     fastDecode: false,
-#     magicDecode: false,
-#     maxRecursion: 10,
-#     decodeLimit: 1000,
-#     customDecoder: undefined,
-#     decoderArg: undefined,
-#     paramFilter: undefined,
+#     hashCode: false
+#     maxDepth: 10
+#     maxItems: 100
+#     decoder: undefined
+#     decoderArg: undefined
+#     argFilter: undefined
 
 settings:
   hookSettings:
     stackTraceLimit: 5
   decoderSettings:
-    maxRecursion: 1
-    decodeLimit: 1
+    maxDepth: 1
+    maxItems: 1
 
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
@@ -31,26 +30,26 @@ hookCollection:
       stackTraceLimit: 30
       stackTraceFilter: ["^L3"]
     decoderSettings:
-      maxRecursion: 30
-      decodeLimit: 30
+      maxDepth: 30
+      maxItems: 30
     hooks:
     - method: receiveIntArray
       hookSettings:
         stackTraceLimit: 40
         stackTraceFilter: ["^L4"]
       decoderSettings:
-        maxRecursion: 40
-        decodeLimit: 40
+        maxDepth: 40
+        maxItems: 40
       overloads:
       - params:
-        - ["[I", arg, { maxRecursion: 50, decodeLimit: 50 }]
+        - ["[I", arg, { maxDepth: 50, maxItems: 50 }]
 
 # All levels set a value for this single hook/param, from farthest to closest:
-#   1. default (hard-coded)           -> stackTraceLimit=0,  maxRecursion=10, decodeLimit=1000
-#   2. file-level `settings:`         -> stackTraceLimit=5,  maxRecursion=1,  decodeLimit=1
-#   3. hook group (`javaClass` block) -> stackTraceLimit=30, maxRecursion=30, decodeLimit=30
-#   4. individual hook (`method:` block) -> stackTraceLimit=40, maxRecursion=40, decodeLimit=40
-#   5. param (`arg`, decoder settings only, closest level) -> maxRecursion=50, decodeLimit=50
+#   1. default (hard-coded)           -> stackTraceLimit=0,  maxDepth=10, maxItems=100
+#   2. file-level `settings:`         -> stackTraceLimit=5,  maxDepth=1,  maxItems=1
+#   3. hook group (`javaClass` block) -> stackTraceLimit=30, maxDepth=30, maxItems=30
+#   4. individual hook (`method:` block) -> stackTraceLimit=40, maxDepth=40, maxItems=40
+#   5. param (`arg`, decoder settings only, closest level) -> maxDepth=50, maxItems=50
 #
 # Each level overrides everything farther away, and only the fields it actually sets - anything it
 # leaves out falls through to the next level out.

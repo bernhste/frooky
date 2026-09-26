@@ -7,21 +7,15 @@ metadata:
 # global settings for the hooks in this hook file.
 settings:
   hookSettings:
-    stackTraceLimit: 5               # Sets stackTraceLimit to 10 for all hooks
+    stackTraceLimit: 5               # Sets stackTraceLimit to 5 for all hooks
     # stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply.
   decoderSettings:
-    fastDecode: true                  # If set, the decoders are instructed to 
-# prioritize speed over details. Mostly, this mean avoiding expensive Frida <-> 
-# native roundtrip.
-    magicDecode: true                 # If set, frooky tries to guess the type 
-# of a value in case it is not declared in the hook, or it is not possible to 
-# deduct it at runtime
-    maxRecursion: 1                   # Sets the cutoff limit for the recursion 
-# depth when decoding nested data structures, such as nested arrays, lists, sets, 
-# maps, structs etc.
-    decodeLimit: 11                   # Sets the limit of how many elements of a
-# enumerable data structures, such as arrays, lists, dictionaries etc. are 
-# decoded
+    # Sets the cutoff limit for the recursion depth when decoding nested data
+    # structures, such as nested arrays, lists, sets, maps, structs etc.
+    maxDepth: 1
+    # Sets the limit of how many elements of enumerable data structures, such
+    # as arrays, lists, dictionaries etc. are decoded.
+    maxItems: 11
 
 hookCollection:
   # java primitive types
@@ -33,7 +27,7 @@ hookCollection:
     - method: receiveInt
       overloads:
       - params:
-        - [int, integer, {decodeLimit: 10, filter:[2147483647, 23]}]
+        - [int, integer, {maxItems: 10, argFilter: ["^2147483647$", "^23$"]}]
     - receiveLong
     - receiveFloat
     - receiveDouble
@@ -45,7 +39,7 @@ hookCollection:
     - method: receiveString
       overloads:
       - params:
-        - [java.lang.String, receivedString, {decodeLimit: 10}]
+        - [java.lang.String, receivedString, {maxItems: 10}]
 
 
   # primitive java arrays
@@ -53,10 +47,8 @@ hookCollection:
     hookSettings:
       stackTraceLimit: 5
     decoderSettings:
-      fastDecode: false
-      magicDecode: false
-      maxRecursion: 5
-      decodeLimit: 5
+      maxDepth: 5
+      maxItems: 5
     hooks:
     - receiveStringArray
     - receiveBooleanArray
@@ -65,7 +57,7 @@ hookCollection:
     - method: receiveIntArray
       overloads:
       - params:
-        - ["[I", receivedInteger, { decodeLimit: 50 }]
+        - ["[I", receivedInteger, { maxItems: 50 }]
     - receiveIntArray
     - receiveLongArray
     - receiveFloatArray
@@ -283,8 +275,6 @@ hookCollection:
 
 # decode argument: null terminated string 
   - module: libreceiveString.so
-    decoderSettings:
-      magicDecode: false
     hooks:
     - symbol: receive_cstring
       params:
@@ -309,8 +299,6 @@ hookCollection:
   - module: libreceiveString.so
     hookSettings:
       stackTraceLimit: 10
-    decoderSettings:
-      magicDecode: false
     hooks:
     - symbol: receive_cstring
       params: 
@@ -329,6 +317,6 @@ hookCollection:
     - symbol: open
       retType: int
       params:
-      - [const char *, path, { paramFilter: ['^/sdcard', '^/storage/emulated']}]
+      - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated']}]
       - [int, flags]
       - [mode_t, mode]

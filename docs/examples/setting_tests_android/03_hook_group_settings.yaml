@@ -4,26 +4,25 @@ metadata:
   author: frooky dev
   platform: Android
 
-# default setttings from DEFAULT_FROOKY_SETTINGS: FrookySettings
+# default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings
 # settings:
 #   hookSettings:
 #     stackTraceLimit: 0
 #     stackTraceFilter: []
 #   decoderSettings:
-#     fastDecode: false,
-#     magicDecode: false,
-#     maxRecursion: 10,
-#     decodeLimit: 1000,
-#     decoder: undefined,
-#     decoderArg: undefined,
-#     paramFilter: undefined,
+#     hashCode: false
+#     maxDepth: 10
+#     maxItems: 100
+#     decoder: undefined
+#     decoderArg: undefined
+#     argFilter: undefined
 
 settings:
   hookSettings:
     stackTraceLimit: 5
   decoderSettings:
-    maxRecursion: 1
-    decodeLimit: 1
+    maxDepth: 1
+    maxItems: 1
 
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
@@ -31,8 +30,8 @@ hookCollection:
       stackTraceLimit: 30
       stackTraceFilter: ["^L3"]
     decoderSettings:
-      maxRecursion: 30
-      decodeLimit: 30
+      maxDepth: 30
+      maxItems: 30
     hooks:
     - receiveNestedObjectArray
 
@@ -43,7 +42,6 @@ hookCollection:
 # expected applied settings for `receiveNestedObjectArray`:
 #   stackTraceLimit:   30        (group; overrides file's 5 and default's 0)
 #   stackTraceFilter:  ["^L3"]   (group; overrides file's [] )
-#   maxRecursion:      30        (group; overrides file's 1 and default's 10)
-#   decodeLimit:       30        (group; overrides file's 1 and default's 1000)
-#   magicDecode:       false     (default; never overridden at any level here)
-#   fastDecode:        false     (default; never overridden at any level here)
+#   maxDepth:          30        (group; overrides file's 1 and default's 10)
+#   maxItems:          30        (group; overrides file's 1 and default's 100)
+#   hashCode:          false     (default; never overridden at any level here)

@@ -10,16 +10,13 @@ metadata:
         Example: 
 
         ```
-        globalSettings
+        settings:
           hookSettings:
-            hookTimeout:     1
             stackTraceLimit: 10
             stackTraceFilter: ['^(?!android).*']
           decoderSettings:
-            fastDecode: true
-            magicDecode: true 
-            maxRecursion: 5
-            decodeLimit: 100
+            maxDepth: 5
+            maxItems: 100
         ``` 
 
       2. Hook and Decoder Settings 
@@ -31,14 +28,11 @@ metadata:
         ```
         <specific-hook>
           hookSettings:
-            hookTimeout:     1
             stackTraceLimit: 10
             stackTraceFilter: ['^(?!android).*']
           decoderSettings:
-            fastDecode: true
-            magicDecode: true 
-            maxRecursion: 5
-            decodeLimit: 100
+            maxDepth: 5
+            maxItems: 100
         ```
 
       3. Parameter Settings
@@ -49,10 +43,8 @@ metadata:
         
         ```
         direction: out
-        fastDecode: true
-        magicDecode: true 
-        maxRecursion: 5
-        decodeLimit: 100
+        maxDepth: 5
+        maxItems: 100
         ```
 
       4. Return Type Settings
@@ -62,10 +54,8 @@ metadata:
         Example: 
         
         ```
-        fastDecode: true
-        magicDecode: true 
-        maxRecursion: 5
-        decodeLimit: 100
+        maxDepth: 5
+        maxItems: 100
         ```
   version: 1
   author: frooky dev
@@ -77,10 +67,8 @@ settings:
     stackTraceLimit: 10
     stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply.
   decoderSettings:
-    fastDecode: true                  # If set, the decoders are instructed to prioritize speed over details. Mostly, this mean avoiding expensive Frida <-> native roundtrip.
-    magicDecode: true                 # If set, frooky tries to guess the type of a value in case it is not declared in the hook, or it is not possible to deduct it at runtime
-    maxRecursion: 1                   # Sets the cutoff limit for the recursion depth when decoding nested data structures, such as nested arrays, lists, sets, maps, structs etc.
-    decodeLimit: 11                   # Sets the limit of how many elements of a enumerable data structures, such as arrays, lists, dictionaries etc. are decoded
+    maxDepth: 1                       # Sets the cutoff limit for the recursion depth when decoding nested data structures, such as nested arrays, lists, sets, maps, structs etc.
+    maxItems: 11                      # Sets the limit of how many elements of a enumerable data structures, such as arrays, lists, dictionaries etc. are decoded
 
 hookCollection:
   # simple method declaration
@@ -99,7 +87,7 @@ hookCollection:
     hookSettings:
       stackTraceLimit: 2
     decoderSettings:
-      decodeLimit: 22
+      maxItems: 22
     hooks:
       - receiveShort
       - receiveInt
@@ -109,7 +97,7 @@ hookCollection:
     hookSettings:
       stackTraceLimit: 3
     decoderSettings:
-      decodeLimit: 33
+      maxItems: 33
     hooks:
       - method: receiveLong
 
@@ -118,7 +106,7 @@ hookCollection:
     hookSettings:
       stackTraceLimit: 4
     decoderSettings:
-      decodeLimit: 44
+      maxItems: 44
     hooks:
     - receiveFloat
     - receiveDouble
@@ -132,7 +120,7 @@ hookCollection:
     - method: receiveIntArray
       overloads:
       - params:
-        - ["[I", {decodeLimit: 55}]
+        - ["[I", {maxItems: 55}]
 
   # PARTIAL local parameter settings take priority over global setting, form [type, name, settings]
   - javaClass: org.owasp.mastestapp.MastgTest

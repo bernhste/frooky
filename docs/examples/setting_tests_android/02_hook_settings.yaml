@@ -4,26 +4,25 @@ metadata:
   author: frooky dev
   platform: Android
 
-# default setttings from DEFAULT_FROOKY_SETTINGS: FrookySettings 
+# default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings 
 # settings:
 #   hookSettings:
 #     stackTraceLimit: 0
 #     stackTraceFilter: []
 #   decoderSettings:
-#     fastDecode: false,
-#     magicDecode: false,
-#     maxRecursion: 10,
-#     decodeLimit: 1000,
-#     decoder: undefined,
-#     decoderArg: undefined,
-#     paramFilter: undefined,
+#     hashCode: false
+#     maxDepth: 10
+#     maxItems: 100
+#     decoder: undefined
+#     decoderArg: undefined
+#     argFilter: undefined
 
 settings:
   hookSettings:
     stackTraceLimit: 5
   decoderSettings:
-    maxRecursion: 1
-    decodeLimit: 1
+    maxDepth: 1
+    maxItems: 1
 
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest

@@ -92,8 +92,6 @@ hookCollection:
   - module: libreceiveString.so
     hookSettings:
       stackTraceLimit: 0
-    decoderSettings:
-      magicDecode: false
     hooks:
     - symbol: receive_cstring
       params: 
@@ -112,7 +110,7 @@ hookCollection:
       retType: ssize_t
       params:
       - [int, fd]
-      - [void *, buf, { direction: out, decoderArg: count, decodeLimit: 200 }]
+      - [void *, buf, { direction: out, decoderArg: count, maxItems: 200 }]
       - [size_t, count]
 
 
@@ -138,6 +136,6 @@ hookCollection:
     - symbol: open
       retType: int
       params:
-      - [const char *, path, { paramFilter: ['^/sdcard', '^/storage/emulated']}]
+      - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated']}]
       - [int, flags]
       - [mode_t, mode]
