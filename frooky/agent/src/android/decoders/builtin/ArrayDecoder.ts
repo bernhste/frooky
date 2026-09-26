@@ -44,6 +44,15 @@ function elementTypeFromSignature(element: string): string {
 }
 
 export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
+  public decode(value: Java.Wrapper, arg?: any): DecodedValue {
+    // a null array argument or return value (e.g. `selectionArgs` in ContentProvider#query) arrives as
+    // a plain JS null - checked before the depth limit so null is never reported as truncated
+    if (value == null) {
+      return { type: this.type, name: this.name, value: null };
+    }
+    return super.decode(value, arg);
+  }
+
   protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     const signature = this.type;
     const elementSignature = signature.startsWith("[") ? signature.substring(1) : signature;

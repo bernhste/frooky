@@ -34,6 +34,18 @@ describe("ArrayDecoder", () => {
       expect(decoder.decode(array as unknown as Java.Wrapper)).toEqual({ type: "[I", value: [] });
     });
 
+    it("decodes a null array as null instead of throwing", () => {
+      const decoder = new ArrayDecoder({ type: "[Ljava.lang.String;", name: "selectionArgs", settings: DEFAULT_DECODER_SETTINGS });
+
+      expect(decoder.decode(null as unknown as Java.Wrapper)).toEqual({ type: "[Ljava.lang.String;", name: "selectionArgs", value: null });
+    });
+
+    it("decodes a null array as null even when maxDepth is exhausted", () => {
+      const decoder = new ArrayDecoder({ type: "[I", settings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 0 } });
+
+      expect(decoder.decode(null as unknown as Java.Wrapper)).toEqual({ type: "[I", value: null });
+    });
+
     it("decodes an object array of Strings via the resolved element decoder", () => {
       const array = Java.array("java.lang.String", ["a", "b"]);
       const decoder = new ArrayDecoder({ type: "[Ljava.lang.String;", settings: DEFAULT_DECODER_SETTINGS });

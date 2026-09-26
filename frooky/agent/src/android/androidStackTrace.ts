@@ -37,20 +37,22 @@ export const AndroidStackTrace: PlatformStackTrace = {
     Java.perform(() => {
       try {
         const javaStackTrace = Java.backtrace();
-        javaFrames = javaStackTrace.frames
-          .slice(0, limit)
-          .map((frame) => `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`);
+        javaFrames = javaStackTrace.frames.map((frame) => `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`);
       } catch (_) {}
     });
 
+    // with a limit, the filter only searches the captured frames, which lets it ignore app frames deep
+    // down the stack (e.g. framework code running inside an app's onCreate). Without a limit (default
+    // 0) it searches the whole stack - searching zero frames would drop every event
     if (stackTraceFilter && stackTraceFilter.length > 0) {
-      const matches = javaFrames.some((line) => stackTraceFilter.some((pattern) => new RegExp(pattern).test(line)));
+      const searchedFrames = limit > 0 ? javaFrames.slice(0, limit) : javaFrames;
+      const matches = searchedFrames.some((line) => stackTraceFilter.some((pattern) => new RegExp(pattern).test(line)));
       if (!matches) {
         throw new FilterMismatchError();
       }
-      return javaFrames;
+      return javaFrames.slice(0, limit);
     }
 
-    return [...nativeFrames, ...javaFrames];
+    return [...nativeFrames, ...javaFrames.slice(0, limit)];
   },
 };
