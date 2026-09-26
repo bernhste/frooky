@@ -23,15 +23,19 @@ export interface HookSettings {
 export interface DecoderSettings {
   /**
    * Maximum recursion depth for nested structure decoding.
+   * Must be at least 1.
    *
    * @example 10
+   * @minimum 1
    */
   maxDepth: number;
 
   /**
    * Maximum number of elements to decode in lists, arrays, collections, maps etc.. May be increased when decoding 'char *' or 'void *' data types in native code.
+   * Must be at least 1.
    *
    * @example 1000
+   * @minimum 1
    */
   maxItems: number;
 

@@ -29,8 +29,8 @@ A decoder's behavior is controlled by `decoderSettings`:
 | ------------ | ---------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `decoder`    | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder. Java only, see [`decoder`](#decoder-override-the-decoder).                                         |
 | `decoderArg` | `string`   | `undefined` | Name of another parameter passed to this parameter's decoder for additional context (e.g. a buffer's length).                                                   |
-| `maxDepth`   | `number`   | `10`        | Maximum recursion depth when decoding nested structures (nested arrays, lists, maps, structs, etc.).                                                            |
-| `maxItems`   | `number`   | `100`       | Maximum number of elements decoded from lists, arrays, collections, maps, etc.                                                                                  |
+| `maxDepth`   | `number`   | `10`        | Maximum recursion depth when decoding nested structures (nested arrays, lists, maps, structs, etc.). Must be at least `1`.                                      |
+| `maxItems`   | `number`   | `100`       | Maximum number of elements decoded from lists, arrays, collections, maps, etc. Must be at least `1`.                                                            |
 | `hashCode`   | `boolean`  | `false`     | Adds an identifier to each event: `Object.hashCode()` of the instance for Java hooks, the function's address for native hooks.                                  |
 | `argFilter`  | `string[]` | `undefined` | Regular expressions matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them. |
 

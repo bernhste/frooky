@@ -55,10 +55,12 @@
           "type": "object",
           "properties": {
             "maxDepth": {
-              "type": "number"
+              "type": "number",
+              "minimum": 1
             },
             "maxItems": {
-              "type": "number"
+              "type": "number",
+              "minimum": 1
             },
             "hashCode": {
               "type": "boolean"
@@ -110,10 +112,12 @@
                           "type": "object",
                           "properties": {
                             "maxDepth": {
-                              "type": "number"
+                              "type": "number",
+                              "minimum": 1
                             },
                             "maxItems": {
-                              "type": "number"
+                              "type": "number",
+                              "minimum": 1
                             },
                             "hashCode": {
                               "type": "boolean"
@@ -182,10 +186,12 @@
                                           "type": "object",
                                           "properties": {
                                             "maxDepth": {
-                                              "type": "number"
+                                              "type": "number",
+                                              "minimum": 1
                                             },
                                             "maxItems": {
-                                              "type": "number"
+                                              "type": "number",
+                                              "minimum": 1
                                             },
                                             "hashCode": {
                                               "type": "boolean"
@@ -223,10 +229,12 @@
                                           "type": "object",
                                           "properties": {
                                             "maxDepth": {
-                                              "type": "number"
+                                              "type": "number",
+                                              "minimum": 1
                                             },
                                             "maxItems": {
-                                              "type": "number"
+                                              "type": "number",
+                                              "minimum": 1
                                             },
                                             "hashCode": {
                                               "type": "boolean"
@@ -272,10 +280,12 @@
                                             "type": "object",
                                             "properties": {
                                               "maxDepth": {
-                                                "type": "number"
+                                                "type": "number",
+                                                "minimum": 1
                                               },
                                               "maxItems": {
-                                                "type": "number"
+                                                "type": "number",
+                                                "minimum": 1
                                               },
                                               "hashCode": {
                                                 "type": "boolean"
@@ -306,10 +316,12 @@
                                     "type": "object",
                                     "properties": {
                                       "maxDepth": {
-                                        "type": "number"
+                                        "type": "number",
+                                        "minimum": 1
                                       },
                                       "maxItems": {
-                                        "type": "number"
+                                        "type": "number",
+                                        "minimum": 1
                                       },
                                       "hashCode": {
                                         "type": "boolean"
@@ -354,10 +366,12 @@
                           "type": "object",
                           "properties": {
                             "maxDepth": {
-                              "type": "number"
+                              "type": "number",
+                              "minimum": 1
                             },
                             "maxItems": {
-                              "type": "number"
+                              "type": "number",
+                              "minimum": 1
                             },
                             "hashCode": {
                               "type": "boolean"
@@ -402,10 +416,12 @@
                 "type": "object",
                 "properties": {
                   "maxDepth": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 1
                   },
                   "maxItems": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 1
                   },
                   "hashCode": {
                     "type": "boolean"
@@ -457,10 +473,12 @@
                           "type": "object",
                           "properties": {
                             "maxDepth": {
-                              "type": "number"
+                              "type": "number",
+                              "minimum": 1
                             },
                             "maxItems": {
-                              "type": "number"
+                              "type": "number",
+                              "minimum": 1
                             },
                             "hashCode": {
                               "type": "boolean"
@@ -524,10 +542,12 @@
                                     "type": "object",
                                     "properties": {
                                       "maxDepth": {
-                                        "type": "number"
+                                        "type": "number",
+                                        "minimum": 1
                                       },
                                       "maxItems": {
-                                        "type": "number"
+                                        "type": "number",
+                                        "minimum": 1
                                       },
                                       "hashCode": {
                                         "type": "boolean"
@@ -565,10 +585,12 @@
                                     "type": "object",
                                     "properties": {
                                       "maxDepth": {
-                                        "type": "number"
+                                        "type": "number",
+                                        "minimum": 1
                                       },
                                       "maxItems": {
-                                        "type": "number"
+                                        "type": "number",
+                                        "minimum": 1
                                       },
                                       "hashCode": {
                                         "type": "boolean"
@@ -612,10 +634,12 @@
                                   "type": "object",
                                   "properties": {
                                     "maxDepth": {
-                                      "type": "number"
+                                      "type": "number",
+                                      "minimum": 1
                                     },
                                     "maxItems": {
-                                      "type": "number"
+                                      "type": "number",
+                                      "minimum": 1
                                     },
                                     "hashCode": {
                                       "type": "boolean"
@@ -660,10 +684,12 @@
                           "type": "object",
                           "properties": {
                             "maxDepth": {
-                              "type": "number"
+                              "type": "number",
+                              "minimum": 1
                             },
                             "maxItems": {
-                              "type": "number"
+                              "type": "number",
+                              "minimum": 1
                             },
                             "hashCode": {
                               "type": "boolean"
@@ -708,10 +734,12 @@
                 "type": "object",
                 "properties": {
                   "maxDepth": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 1
                   },
                   "maxItems": {
-                    "type": "number"
+                    "type": "number",
+                    "minimum": 1
                   },
                   "hashCode": {
                     "type": "boolean"

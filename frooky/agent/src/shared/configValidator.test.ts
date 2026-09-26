@@ -141,6 +141,18 @@ describe("configValidator", () => {
       expect(lines).toContain(`The value for 'maxItems' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS.maxItems)}`);
     });
 
+    for (const key of ["maxItems", "maxDepth"] as const) {
+      for (const value of [0, -1]) {
+        it(`resets ${key} to its default and warns when it is ${value}`, () => {
+          expect(validateAndRepairDecoderSettings({ [key]: value })).toEqual(DEFAULT_DECODER_SETTINGS);
+
+          expect(warnSpy).toHaveBeenCalled();
+          const [lines] = warnSpy.mock.calls[0] as [string[]];
+          expect(lines).toContain(`Decoder setting "'${key}'" contains invalid data:`);
+        });
+      }
+    }
+
     it("warns when the settings contain unknown properties", () => {
       const unknownInputDecoderSettings = { someOtherSetting: false };
       validateAndRepairDecoderSettings(unknownInputDecoderSettings as InputDecoderSettings);
