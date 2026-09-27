@@ -1,6 +1,6 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings } from "../frookySettings";
-import { normalizeInputParam } from "./inputDecodableTypes";
+import { normalizeInputParams } from "./inputDecodableTypes";
 import { InputJavaHookCollection, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookCollection } from "./inputJavaHookCollection";
 
 describe("inputJavaHookCollection", () => {
@@ -165,7 +165,7 @@ describe("inputJavaHookCollection", () => {
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
         const hook = result.hooks[0] as InputJavaHookNormalized;
 
-        expect(hook.overloads?.[0].params[0]).toEqual(normalizeInputParam("int", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 }));
+        expect(hook.overloads?.[0].params[0]).toEqual(normalizeInputParams(["int"], { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 })[0]);
       });
     });
 
@@ -214,7 +214,7 @@ describe("inputJavaHookCollection", () => {
           method: "bar",
           overloads: [
             {
-              params: [normalizeInputParam("int", DEFAULT_DECODER_SETTINGS), normalizeInputParam("java.lang.String", DEFAULT_DECODER_SETTINGS)],
+              params: normalizeInputParams(["int", "java.lang.String"], DEFAULT_DECODER_SETTINGS),
             },
           ],
           hookSettings: DEFAULT_HOOK_SETTINGS,

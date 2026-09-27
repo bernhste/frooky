@@ -69,11 +69,9 @@ export function validateAndRepairHookSettings(settings: InputHookSettings): Hook
     for (const issue of result.error.issues) {
       const key = issue.path[0] as keyof HookSettings;
       (settings as Record<keyof HookSettings, unknown>)[key] = DEFAULT_HOOK_SETTINGS[key];
-      logger.warn([
-        `Hook setting "'${key}'" contains invalid data:`,
-        z.prettifyError(result.error),
-        `The value for '${key}' was reset to the default: ${DEFAULT_HOOK_SETTINGS[key]}`,
-      ]);
+      logger.warn(
+        `Hook setting "'${key}'" contains invalid data:\n${z.prettifyError(result.error)}\nThe value for '${key}' was reset to the default: ${DEFAULT_HOOK_SETTINGS[key]}`,
+      );
     }
   }
 
@@ -97,11 +95,9 @@ export function validateAndRepairDecoderSettings(settings: InputDecoderSettings)
     for (const issue of result.error.issues) {
       const key = issue.path[0] as keyof DecoderSettings;
       (settings as Record<keyof DecoderSettings, unknown>)[key] = DEFAULT_DECODER_SETTINGS[key];
-      logger.warn([
-        `Decoder setting "'${String(key)}'" contains invalid data:`,
-        z.prettifyError(result.error),
-        `The value for '${String(key)}' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS[key])}`,
-      ]);
+      logger.warn(
+        `Decoder setting "'${String(key)}'" contains invalid data:\n${z.prettifyError(result.error)}\nThe value for '${String(key)}' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS[key])}`,
+      );
     }
   }
 

@@ -1,19 +1,19 @@
 import { Decodable as RetType, Param } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../defaultValues";
-import { normalizeInputParam, normalizeInputRetType, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
+import { normalizeInputParams, normalizeInputRetType, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
 
 describe("inputDecodableTypes", () => {
-  describe("normalizeInputParam()", () => {
+  describe("normalizeInputParams(), param formats", () => {
     const inlineSettings: InputParamSettings = { direction: "out", maxDepth: 10, maxItems: 10, hashCode: true };
     const expectedSettings = { maxDepth: 10, maxItems: 10, hashCode: true };
 
     it("should normalize a valid string to Param", () => {
-      expect(normalizeInputParam("testParam")).toEqual({ type: "testParam", direction: "in", settings: DEFAULT_DECODER_SETTINGS });
+      expect(normalizeInputParams(["testParam"])[0]).toEqual({ type: "testParam", direction: "in", settings: DEFAULT_DECODER_SETTINGS });
     });
 
     it("should normalize [string, string] to a valid Param", () => {
-      expect(normalizeInputParam(["testParam", "paramName"])).toEqual({
+      expect(normalizeInputParams([["testParam", "paramName"]])[0]).toEqual({
         type: "testParam",
         name: "paramName",
         direction: "in",
@@ -22,7 +22,7 @@ describe("inputDecodableTypes", () => {
     });
 
     it("should normalize a valid [string, InputParamSettings] to Param", () => {
-      expect(normalizeInputParam(["testParam", inlineSettings])).toEqual({
+      expect(normalizeInputParams([["testParam", inlineSettings]])[0]).toEqual({
         type: "testParam",
         direction: "out",
         settings: expectedSettings,
@@ -30,7 +30,7 @@ describe("inputDecodableTypes", () => {
     });
 
     it("should normalize to a valid [string, string, InputParamSettings] to Param", () => {
-      expect(normalizeInputParam(["testParam", "paramName", inlineSettings])).toEqual({
+      expect(normalizeInputParams([["testParam", "paramName", inlineSettings]])[0]).toEqual({
         type: "testParam",
         name: "paramName",
         direction: "out",
@@ -40,7 +40,35 @@ describe("inputDecodableTypes", () => {
 
     it("should return Param unchanged", () => {
       const param: Param = { type: "testParam", name: "paramName", direction: "out", settings: expectedSettings };
-      expect(normalizeInputParam(param)).toEqual(param);
+      expect(normalizeInputParams([param])[0]).toEqual(param);
+    });
+  });
+
+  describe("normalizeInputParams(), decoderArg references", () => {
+    it("accepts a decoderArg that names another param", () => {
+      const params = normalizeInputParams(["int", ["const void *", { decoderArg: "count" }], ["size_t", "count"]]);
+      expect(params[1].settings.decoderArg).toBe("count");
+      expect(params[2].name).toBe("count");
+    });
+
+    it("throws when no param has the decoderArg name", () => {
+      expect(() => normalizeInputParams(["int", ["const void *", { decoderArg: "count" }], "size_t"])).toThrow(
+        "decoderArg: no parameter named 'count' found. Name the parameter whose runtime value you want to pass to the decoder.",
+      );
+    });
+
+    it("throws when decoderArg references the param itself", () => {
+      expect(() => normalizeInputParams([["const void *", "buf", { decoderArg: "buf" }], "size_t"])).toThrow("refers to the parameter itself");
+    });
+
+    it("throws when decoderArg names more than one param", () => {
+      expect(() =>
+        normalizeInputParams([
+          ["const void *", { decoderArg: "n" }],
+          ["size_t", "n"],
+          ["int", "n"],
+        ]),
+      ).toThrow("more than one parameter is named");
     });
   });
 

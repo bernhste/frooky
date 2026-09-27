@@ -89,8 +89,8 @@ describe("AndroidHookValidator", () => {
 
       expect(result.map((hook) => hook.method)).toEqual(["validMethod"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [messageLines] = warnSpy.mock.calls[0] as [string[]];
-      expect(messageLines[0]).toContain("Skipping hook for java method '123' from class 'com.example.Foo' due to an invalid declaration.");
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("Skipping hook for java method '123' from class 'com.example.Foo' due to an invalid declaration:");
     });
 
     it("skips a hook whose overload param declaration is in an unrecognized format, without aborting the rest of the group", () => {
@@ -112,8 +112,8 @@ describe("AndroidHookValidator", () => {
 
       expect(result.map((hook) => hook.method)).toEqual(["foo", "baz"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [messageLines] = warnSpy.mock.calls[0] as [string[]];
-      expect(messageLines[0]).toContain("Skipping hook for java method 'bad' from class 'com.example.Foo' due to an invalid declaration.");
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("Skipping hook for java method 'bad' from class 'com.example.Foo' due to an invalid declaration:");
     });
 
     it("still validates the remaining java hook groups after one group contained an unnormalizable hook", () => {

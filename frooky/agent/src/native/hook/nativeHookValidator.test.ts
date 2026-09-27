@@ -2,7 +2,7 @@ import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/de
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
 import { InputJavaHookCollection } from "../../shared/inputParsing/inputJavaHookCollection";
-import { InputNativeHookCollection } from "../../shared/inputParsing/inputNativeHookCollection";
+import { InputNativeHookCollection, InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { NativeHookValidator } from "./nativeHookValidator";
 
@@ -121,8 +121,8 @@ describe("NativeHookValidator", () => {
 
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [messageLines] = warnSpy.mock.calls[0] as [string[]];
-      expect(messageLines[0]).toContain("Skipping hook for native function '123' from module 'libc.so' due to an invalid declaration.");
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("Skipping hook for native function '123' from module 'libc.so' due to an invalid declaration:");
     });
 
     it("skips a hook whose param declaration is in an unrecognized format, without aborting the rest of the group", () => {
@@ -140,8 +140,24 @@ describe("NativeHookValidator", () => {
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free", "malloc"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [messageLines] = warnSpy.mock.calls[0] as [string[]];
-      expect(messageLines[0]).toContain("Skipping hook for native function 'bad' from module 'libc.so' due to an invalid declaration.");
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("Skipping hook for native function 'bad' from module 'libc.so' due to an invalid declaration:");
+    });
+
+    it("skips a hook whose decoderArg does not name another param", () => {
+      const writeHook: InputNativeHookNormalized = {
+        symbol: "write",
+        module: "libc.so",
+        params: ["int", ["const void *", { decoderArg: "count", decoder: "string" }], "size_t"],
+      };
+      const nativeGroup: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", writeHook] };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeGroup] }, defaultSettings);
+
+      expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("Skipping hook for native function 'write'");
+      expect(message).toContain("decoderArg: no parameter named 'count' found.");
     });
 
     it("skips a hook whose retType declaration is in an unrecognized format, without aborting the rest of the group", () => {

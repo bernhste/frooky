@@ -40,7 +40,7 @@ hookCollection:
 
 # Unlike hook-level settings (see 04_single_hook_settings.yaml, which is silently dropped),
 # param-level decoder settings (inline on a param declaration) are the closest level that
-# ACTUALLY works: `normalizeInputParam()` merges these on top of the hook group's merged
+# ACTUALLY works: `normalizeInputParams()` merges these on top of the hook group's merged
 # `decoderSettings`.
 #
 # expected applied decoder settings for the `arg` parameter of `receiveIntArray`:

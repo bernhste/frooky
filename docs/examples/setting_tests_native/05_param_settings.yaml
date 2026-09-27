@@ -41,7 +41,7 @@ hookCollection:
       - [mode_t, mode]
 
 # Unlike hook-level settings (see 04_single_hook_settings.yaml), param-level decoder settings
-# (inline on a param declaration) are also a level closer than the hook group: `normalizeInputParam()`
+# (inline on a param declaration) are also a level closer than the hook group: `normalizeInputParams()`
 # merges these on top of the hook group's merged `decoderSettings`.
 #
 # expected applied decoder settings for the `path` parameter of `open`:

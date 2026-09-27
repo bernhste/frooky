@@ -100,9 +100,9 @@ describe("configValidator", () => {
       });
 
       expect(warnSpy).toHaveBeenCalled();
-      const [lines] = warnSpy.mock.calls[0] as [string[]];
-      expect(lines).toContain(`Hook setting "'stackTraceLimit'" contains invalid data:`);
-      expect(lines).toContain(`The value for 'stackTraceLimit' was reset to the default: ${DEFAULT_HOOK_SETTINGS.stackTraceLimit}`);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain(`Hook setting "'stackTraceLimit'" contains invalid data:`);
+      expect(message).toContain(`The value for 'stackTraceLimit' was reset to the default: ${DEFAULT_HOOK_SETTINGS.stackTraceLimit}`);
     });
 
     it("warns when the settings contain unknown properties", () => {
@@ -136,9 +136,9 @@ describe("configValidator", () => {
       expect(validateAndRepairDecoderSettings(incorrectInputDecoderSettings)).toEqual(DEFAULT_DECODER_SETTINGS);
 
       expect(warnSpy).toHaveBeenCalled();
-      const [lines] = warnSpy.mock.calls[0] as [string[]];
-      expect(lines).toContain(`Decoder setting "'maxItems'" contains invalid data:`);
-      expect(lines).toContain(`The value for 'maxItems' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS.maxItems)}`);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain(`Decoder setting "'maxItems'" contains invalid data:`);
+      expect(message).toContain(`The value for 'maxItems' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS.maxItems)}`);
     });
 
     for (const key of ["maxItems", "maxDepth"] as const) {
@@ -147,8 +147,8 @@ describe("configValidator", () => {
           expect(validateAndRepairDecoderSettings({ [key]: value })).toEqual(DEFAULT_DECODER_SETTINGS);
 
           expect(warnSpy).toHaveBeenCalled();
-          const [lines] = warnSpy.mock.calls[0] as [string[]];
-          expect(lines).toContain(`Decoder setting "'${key}'" contains invalid data:`);
+          const [message] = warnSpy.mock.calls[0] as [string];
+          expect(message).toContain(`Decoder setting "'${key}'" contains invalid data:`);
         });
       }
     }

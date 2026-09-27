@@ -78,15 +78,6 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
       argDecoderSpecs.push(paramDecoder);
     });
 
-    for (const paramDecoder of argDecoderSpecs) {
-      if (paramDecoder.decoderArg && paramDecoder.decoderArgIndex !== undefined && paramDecoder.decoderArgDecoder) {
-        const matchingByName = argDecoderSpecs.filter((argDecoder) => argDecoder.name === paramDecoder.name);
-        if (matchingByName.length != 1) {
-          throw Error(`It was not possible fetching the decoder for decoderArg '${paramDecoder.decoderArg}'`);
-        }
-      }
-    }
-
     return argDecoderSpecs;
   }
 

@@ -226,17 +226,22 @@ describe("HookManager", () => {
       expect(manager.exposedResolveParamDecoders([])).toEqual([]);
     });
 
-    it("throws when a param using decoderArg shares its name with another param", () => {
+    it("resolves decoderArg when the param using it and other params are unnamed", () => {
       const manager = createManager();
-      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "length" };
-      // two params are both named "buffer", so the decoderArg-using one's self-lookup by name resolves to 2 matches instead of 1
+      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "count" };
+      // e.g. write(int, const void *, size_t count): only the referenced param needs a name
       const params: Param[] = [
-        makeParam({ name: "length", type: "int" }),
-        makeParam({ name: "buffer", type: "pointer", settings: bufferSettings }),
-        makeParam({ name: "buffer", type: "pointer" }),
+        makeParam({ name: undefined, type: "int" }),
+        makeParam({ name: undefined, type: "const void *", settings: bufferSettings }),
+        makeParam({ name: "count", type: "size_t" }),
       ];
 
-      expect(() => manager.exposedResolveParamDecoders(params)).toThrow("It was not possible fetching the decoder for decoderArg 'length'");
+      const result = manager.exposedResolveParamDecoders(params);
+
+      expect(result.length).toBe(3);
+      expect(result[1].decoderArgIndex).toBe(2);
+      expect(result[1].decoderArgDecoder).toBeDefined();
+      expect(warnSpy).not.toHaveBeenCalled();
     });
   });
 

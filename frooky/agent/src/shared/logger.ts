@@ -21,31 +21,25 @@ function shouldLog(level: LogLevel): boolean {
 }
 
 /** Plain text only: the level is conveyed by the console method, and the host does the coloring. */
-function format(msg: string | string[]): string {
-  return Array.isArray(msg) ? msg.join("\n") : msg;
-}
-
-function emit(level: LogLevel, msg: string | string[]): void {
+function emit(level: LogLevel, msg: string): void {
   if (!shouldLog(level)) return;
-
-  const out = format(msg);
 
   if (logTo === "console") {
     switch (level) {
       case "info":
-        console.log(out);
+        console.log(msg);
         break;
       case "warn":
-        console.warn(out);
+        console.warn(msg);
         break;
       case "error":
-        console.error(out);
+        console.error(msg);
         break;
       case "debug":
-        console.debug(out);
+        console.debug(msg);
         break;
       default:
-        console.log(out);
+        console.log(msg);
         break;
     }
   } else if (logTo === "eventlog") {
@@ -53,7 +47,7 @@ function emit(level: LogLevel, msg: string | string[]): void {
       console.error("Cannot log to eventLog, since no frooky agent is set. Make sure to set the agent using setAgent(frookyAgent) first.");
       return;
     }
-    frooky.addEventToLog(new LogEvent(level, out));
+    frooky.addEventToLog(new LogEvent(level, msg));
   }
 }
 
@@ -78,10 +72,10 @@ export const logger = {
   setLogTo: (target: LogTo) => {
     logTo = target;
   },
-  debug: (msg: string | string[]) => emit("debug", msg),
-  info: (msg: string | string[]) => emit("info", msg),
-  warn: (msg: string | string[]) => emit("warn", msg),
-  error: (msg: string | string[]) => emit("error", msg),
+  debug: (msg: string) => emit("debug", msg),
+  info: (msg: string) => emit("info", msg),
+  warn: (msg: string) => emit("warn", msg),
+  error: (msg: string) => emit("error", msg),
 };
 
 export type Logger = typeof logger;

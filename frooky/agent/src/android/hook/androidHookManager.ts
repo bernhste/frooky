@@ -6,7 +6,7 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS, HOOK_LOOKUP_INTERVAL_MS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
-import { InputParam, normalizeInputParam } from "../../shared/inputParsing/inputDecodableTypes";
+import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
@@ -309,9 +309,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     if (inputHook.overloads?.length) {
       // Only get declared overloaded methods
       for (const overload of inputHook.overloads) {
-        const normalizedParams: Param[] = overload.params.map(
-          (inputParam: InputParam) => ({ ...(normalizeInputParam(inputParam) as Param), declaringClass }) as Param,
-        );
+        const normalizedParams: Param[] = normalizeInputParams(overload.params).map((param: Param) => ({ ...param, declaringClass }));
         // extract a list of java parameter types e.g. ["int", "java.lang.String", "double"] to be used to look up the overload
         const paramTypes: string[] = normalizedParams.map((param: Param) => param.type);
         try {

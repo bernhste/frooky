@@ -7,116 +7,128 @@ metadata:
   version: 1
 
 hookCollection:
-  # Hook multiple functions by name (all symbols in a module).
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
-  # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
-  - module: libc.so
-    hooks:
-    - open
-    - close
+#   # Hook multiple functions by name (all symbols in a module).
+#   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+#   # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
+#   - module: libc.so
+#     hooks:
+#     - open
+#     - close
 
-  # Hook functions using explicit object syntax.
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
-  # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
-  - module: libc.so
-    hooks:
-    - symbol: open
-    - symbol: close
+#   # Hook functions using explicit object syntax.
+#   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+#   # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
+#   - module: libc.so
+#     hooks:
+#     - symbol: open
+#     - symbol: close
 
-  # Hook with unnamed parameter types and return type (type information required for decoding).
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
-  - module: libc.so
-    hooks:
-    - symbol: open
-      retType: int
-      params:
-      - "const char *"
-      - int
-      - mode_t
+#   # Hook with unnamed parameter types and return type (type information required for decoding).
+#   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+#   - module: libc.so
+#     hooks:
+#     - symbol: open
+#       retType: int
+#       params:
+#       - "const char *"
+#       - int
+#       - mode_t
 
-  # Hook with named parameters (names provide context in output).
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
-  - module: libc.so
-    hooks:
-    - symbol: open
-      retType: int
-      params:
-      - [const char *, path]
-      - [int, flags]
-      - [mode_t, mode]
+#   # Hook with named parameters (names provide context in output).
+#   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+#   - module: libc.so
+#     hooks:
+#     - symbol: open
+#       retType: int
+#       params:
+#       - [const char *, path]
+#       - [int, flags]
+#       - [mode_t, mode]
 
-  # Hook multiple functions from the same module with various parameter counts.
-  # The EVP_* functions live in libcrypto.so, not libssl.so (Android ships BoringSSL).
-  # `out` and `outl` are filled by the call, so they are decoded on exit (`direction: out`).
-  # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
-  - module: libcrypto.so
-    hooks:
-    - symbol: EVP_CIPHER_CTX_new
-      retType: "EVP_CIPHER_CTX *"
-    - symbol: EVP_CIPHER_CTX_free
-      params:
-      - ["EVP_CIPHER_CTX *", ctx]
-    - symbol: EVP_EncryptUpdate
-      retType: int
-      params:
-      - ["EVP_CIPHER_CTX *", ctx]
-      - ["unsigned char *", out, { direction: out, decoderArg: outl }]
-      - ["int *", outl, { direction: out }]
-      - ["const unsigned char *", in, { decoderArg: inl }]
-      - [int, inl]
+#   # Hook multiple functions from the same module with various parameter counts.
+#   # The EVP_* functions live in libcrypto.so, not libssl.so (Android ships BoringSSL).
+#   # `out` and `outl` are filled by the call, so they are decoded on exit (`direction: out`).
+#   # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
+#   - module: libcrypto.so
+#     hooks:
+#     - symbol: EVP_CIPHER_CTX_new
+#       retType: "EVP_CIPHER_CTX *"
+#     - symbol: EVP_CIPHER_CTX_free
+#       params:
+#       - ["EVP_CIPHER_CTX *", ctx]
+#     - symbol: EVP_EncryptUpdate
+#       retType: int
+#       params:
+#       - ["EVP_CIPHER_CTX *", ctx]
+#       - ["unsigned char *", out, { direction: out, decoderArg: outl }]
+#       - ["int *", outl, { direction: out }]
+#       - ["const unsigned char *", in, { decoderArg: inl }]
+#       - [int, inl]
 
-  # Use `decoderArg` to pass a related parameter for decoding context.
-  # Here, `ctx` contains cipher algorithm info needed to decode `key` and `iv` correctly.
-  # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
-  - module: libcrypto.so
-    hookSettings:
-      stackTraceLimit: 10
-    hooks:
-    - symbol: EVP_EncryptInit_ex
-      retType: int
-      params:
-      - ["EVP_CIPHER_CTX *", ctx]
-      - ["const EVP_CIPHER *", type]
-      - ["ENGINE *", impl]
-      - ["const unsigned char *", key, { decoderArg: ctx }]
-      - ["const unsigned char *", iv, { decoderArg: ctx }]
+#   # Use `decoderArg` to pass a related parameter for decoding context.
+#   # Here, `ctx` contains cipher algorithm info needed to decode `key` and `iv` correctly.
+#   # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
+#   - module: libcrypto.so
+#     hookSettings:
+#       stackTraceLimit: 10
+#     hooks:
+#     - symbol: EVP_EncryptInit_ex
+#       retType: int
+#       params:
+#       - ["EVP_CIPHER_CTX *", ctx]
+#       - ["const EVP_CIPHER *", type]
+#       - ["ENGINE *", impl]
+#       - ["const unsigned char *", key, { decoderArg: ctx }]
+#       - ["const unsigned char *", iv, { decoderArg: ctx }]
 
-  # Pass decoder parameters to decode buffer contents based on related parameters.
-  # Docs: https://docs.openssl.org/master/man3/SSL_write/
-  - module: libssl.so
-    hooks:
-    - symbol: SSL_write
-      retType: int
-      params:
-      - ["SSL *", ssl]
-      - ["const void *", buf, { decoderArg: num }]
-      - [int, num]
+#   # Pass decoder parameters to decode buffer contents based on related parameters.
+#   # Docs: https://docs.openssl.org/master/man3/SSL_write/
+#   - module: libssl.so
+#     hooks:
+#     - symbol: SSL_write
+#       retType: int
+#       params:
+#       - ["SSL *", ssl]
+#       - ["const void *", buf, { decoderArg: num }]
+#       - [int, num]
 
 
-# decode argument: null terminated string 
-  - module: libreceiveString.so
-    hookSettings:
-      stackTraceLimit: 0
-    hooks:
-    - symbol: receive_cstring
-      params: 
-      - [char *, string]
-    - symbol: receive_utf8
-      params: 
-      - [char *, string]
+# # decode argument: null terminated string 
+#   - module: libreceiveString.so
+#     hookSettings:
+#       stackTraceLimit: 0
+#     hooks:
+#     - symbol: receive_cstring
+#       params: 
+#       - [char *, string]
+#     - symbol: receive_utf8
+#       params: 
+#       - [char *, string]
 
-  # Use `direction: out` to decode buffer contents after function execution.
-  # Since `buf` is a pointer, we need to decode it at exit using the `count` parameter for the length.
-  # Pass `decoderArg` with the length parameter name/index.
-  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
-  - module: libc.so
-    hooks:
-    - symbol: read
-      retType: ssize_t
-      params:
-      - [int, fd]
-      - [void *, buf, { direction: inout, decoderArg: count, decoder: string, maxItems: 100 }]
-      - [size_t, count]
+#   # Use `direction: out` to decode buffer contents after function execution.
+#   # Since `buf` is a pointer, we need to decode it at exit using the `count` parameter for the length.
+#   # Pass `decoderArg` with the length parameter name/index.
+#   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
+#   - module: libc.so
+#     hooks:
+#     - symbol: read
+#       retType: ssize_t
+#       params:
+#       - [int, fd]
+#       - [void *, buf, { direction: inout, decoderArg: count, decoder: string, maxItems: 100 }]
+#       - [size_t, count]
+
+  # # Use `decoder: string` to decode a buffer as text instead of hex/ASCII.
+  # # `decoderArg` passes the buffer length, since `buf` is not NUL-terminated.
+  # # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
+  # - module: libc.so
+  #   hooks:
+  #   - symbol: write
+  #     retType: ssize_t
+  #     params:
+  #     - [int, fd]
+  #     - [const void *, buf, { decoderArg: count, decoder: string, maxItems: 200 }]
+  #     - [size_t, count]
 
   # Use `decoder: string` to decode a buffer as text instead of hex/ASCII.
   # `decoderArg` passes the buffer length, since `buf` is not NUL-terminated.
@@ -126,33 +138,32 @@ hookCollection:
     - symbol: write
       retType: ssize_t
       params:
-      - [int, fd]
-      - [const void *, buf, { decoderArg: count, decoder: string, maxItems: 200 }]
-      - [size_t, count]
+      - int
+      - ["const void *", { decoderArg: count, decoder: string, maxItems: 200 }]
+      - [size_t, count] 
 
+# # demos/ios/MASVS-AUTH/MASTG-DEMO-0043/hooks.js
+#   - module: Security
+#     hooks:
+#       - symbol: SecAccessControlCreateWithFlags
+#         retType: pointer
+#         params:
+#           - [pointer, allocator]
+#           - [pointer, protection]
+#           - [uint32, flags]
+#           - [pointer, error]
+#           - [pointer, accessControl, { direction: inout }]
 
-# demos/ios/MASVS-AUTH/MASTG-DEMO-0043/hooks.js
-  - module: Security
-    hooks:
-      - symbol: SecAccessControlCreateWithFlags
-        retType: pointer
-        params:
-          - [pointer, allocator]
-          - [pointer, protection]
-          - [uint32, flags]
-          - [pointer, error]
-          - [pointer, accessControl, { direction: inout }]
-
-  # Hook with named parameters (names provide context in output).
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
-  - module: libc.so
-    hookSettings:
-      stackTraceLimit: 10
-      stackTraceFilter: ['^org\.owasp\.mastestapp']
-    hooks:
-    - symbol: open
-      retType: int
-      params:
-      - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated']}]
-      - [int, flags]
-      - [mode_t, mode]
+#   # Hook with named parameters (names provide context in output).
+#   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+#   - module: libc.so
+#     hookSettings:
+#       stackTraceLimit: 10
+#       stackTraceFilter: ['^org\.owasp\.mastestapp']
+#     hooks:
+#     - symbol: open
+#       retType: int
+#       params:
+#       - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated']}]
+#       - [int, flags]
+#       - [mode_t, mode]

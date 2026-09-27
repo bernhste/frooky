@@ -1,6 +1,6 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings } from "../frookySettings";
-import { normalizeInputParam, normalizeInputRetType } from "./inputDecodableTypes";
+import { normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
 import {
   InputNativeHookCollection,
   InputNativeHookNormalized,
@@ -175,7 +175,7 @@ describe("inputNativeHookCollection", () => {
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
         const hook = result.hooks[0] as InputNativeHookNormalized;
 
-        expect(hook.params?.[0]).toEqual(normalizeInputParam("void *", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 }));
+        expect(hook.params?.[0]).toEqual(normalizeInputParams(["void *"], { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 })[0]);
         expect(hook.retType).toEqual(normalizeInputRetType("void *", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 }));
       });
     });
@@ -217,11 +217,7 @@ describe("inputNativeHookCollection", () => {
         expect(result.hooks[0]).toEqual({
           symbol: "memcpy",
           module: "libc.so",
-          params: [
-            normalizeInputParam("void *", DEFAULT_DECODER_SETTINGS),
-            normalizeInputParam("void *", DEFAULT_DECODER_SETTINGS),
-            normalizeInputParam("size_t", DEFAULT_DECODER_SETTINGS),
-          ],
+          params: normalizeInputParams(["void *", "void *", "size_t"], DEFAULT_DECODER_SETTINGS),
           hookSettings: DEFAULT_HOOK_SETTINGS,
           decoderSettings: DEFAULT_DECODER_SETTINGS,
         });

@@ -1,7 +1,7 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
-import { InputParam, InputRetTypeSettings, normalizeInputParam, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
+import { InputParam, InputRetTypeSettings, normalizeInputParams, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
@@ -82,7 +82,7 @@ export function isJavaHookScope(hookScopeInput: object): hookScopeInput is Input
 function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSettings): InputOverload {
   return {
     ...overload,
-    params: overload.params.map((param: InputParam) => normalizeInputParam(param, decoderSettings)),
+    params: normalizeInputParams(overload.params, decoderSettings),
     retType: overload.retType ? normalizeInputRetTypeSettings(overload.retType, decoderSettings) : undefined,
   };
 }

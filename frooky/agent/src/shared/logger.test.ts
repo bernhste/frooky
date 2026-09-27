@@ -93,22 +93,13 @@ describe("logger", () => {
   });
 
   describe("message formatting", () => {
-    it("passes a single string message through without a level prefix or colors", () => {
+    it("passes the message through without a level prefix or colors", () => {
       logger.setVerbosity("info");
 
       spy = spyOn(console, "log");
       logger.info("connected");
 
       expect(spy).toHaveBeenCalledWith("connected");
-    });
-
-    it("joins an array message into one multi-line message", () => {
-      logger.setVerbosity("debug");
-
-      spy = spyOn(console, "debug");
-      logger.debug(["line one", "line two"]);
-
-      expect(spy).toHaveBeenCalledWith("line one\nline two");
     });
   });
 

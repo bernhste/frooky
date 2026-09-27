@@ -21,7 +21,7 @@ import { InputParamSettings } from "./inputSettings";
  */
 export type InputParam = string | [string, string] | [string, InputParamSettings] | [string, string, InputParamSettings] | Param;
 
-export function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSettings): Param {
+function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSettings): Param {
   const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
 
   // Case 1: Type only - "java.lang.String"
@@ -50,6 +50,37 @@ export function normalizeInputParam(input: InputParam, decoderSettings?: Decoder
     return input;
   }
   throw new Error(`Unrecognized InputParam format: ${JSON.stringify(input)}`);
+}
+
+/**
+ * Normalizes a parameter list and checks that every `decoderArg` names another parameter of the same list.
+ *
+ * @throws If a `decoderArg` names no parameter, or the parameter that declares it.
+ */
+export function normalizeInputParams(inputs: InputParam[], decoderSettings?: DecoderSettings): Param[] {
+  const params = inputs.map((input) => normalizeInputParam(input, decoderSettings));
+  validateDecoderArgs(params);
+  return params;
+}
+
+function validateDecoderArgs(params: Param[]): void {
+  params.forEach((param, paramIndex) => {
+    const decoderArg = param.settings.decoderArg;
+    if (decoderArg === undefined) return;
+
+    const matches = params.map((p, i) => ({ p, i })).filter(({ p }) => p.name === decoderArg);
+    if (matches.length === 0) {
+      throw new Error(
+        `decoderArg: no parameter named '${decoderArg}' found. Name the parameter whose runtime value you want to pass to the decoder.`,
+      );
+    }
+    if (matches.length > 1) {
+      throw new Error(`decoderArg: more than one parameter is named '${decoderArg}'. Parameter names must be unique.`);
+    }
+    if (matches[0].i === paramIndex) {
+      throw new Error(`decoderArg: '${decoderArg}' refers to the parameter itself. Name a different parameter.`);
+    }
+  });
 }
 
 /**
