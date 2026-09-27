@@ -93,7 +93,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         // collect the stack trace and filter
         let stackTrace: string[];
         try {
-          stackTrace = hookManager.stackTrace.build(hook.hookSettings.stackTraceLimit, hook.hookSettings.stackTraceFilter);
+          stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter);
         } catch (e) {
           if (e instanceof FilterMismatchError) {
             // call the original implementation and return immediately

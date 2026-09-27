@@ -7,7 +7,7 @@ metadata:
 # default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings
 # settings:
 #   hookSettings:
-#     stackTraceLimit: 0
+#     maxStackFrames: 0
 #     stackTraceFilter: []
 #   decoderSettings:
 #     hashCode: false
@@ -19,7 +19,7 @@ metadata:
 
 settings:
   hookSettings:
-    stackTraceLimit: 5
+    maxStackFrames: 5
   decoderSettings:
     maxDepth: 1
     maxItems: 1
@@ -27,7 +27,7 @@ settings:
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      stackTraceLimit: 30
+      maxStackFrames: 30
       stackTraceFilter: ["^L3"]
     decoderSettings:
       maxDepth: 30
@@ -47,7 +47,7 @@ hookCollection:
 #   maxDepth: 50   (param; closest level, overrides group's 30, file's 1, default's 10)
 #   maxItems: 50   (param; closest level, overrides group's 30, file's 1, default's 100)
 #
-# `hookSettings` (stackTraceLimit/stackTraceFilter) have no per-param equivalent, so those stay at
+# `hookSettings` (maxStackFrames/stackTraceFilter) have no per-param equivalent, so those stay at
 # the hook group's values:
-#   stackTraceLimit:  30
+#   maxStackFrames:    30
 #   stackTraceFilter: ["^L3"]

@@ -12,7 +12,7 @@ metadata:
         ```
         settings:
           hookSettings:
-            stackTraceLimit: 10
+            maxStackFrames: 10
             stackTraceFilter: ['^(?!android).*']
           decoderSettings:
             maxDepth: 5
@@ -28,7 +28,7 @@ metadata:
         ```
         <specific-hook>
           hookSettings:
-            stackTraceLimit: 10
+            maxStackFrames: 10
             stackTraceFilter: ['^(?!android).*']
           decoderSettings:
             maxDepth: 5
@@ -64,7 +64,7 @@ metadata:
 # global settings for the hooks in this hook file.
 settings:
   hookSettings:
-    stackTraceLimit: 10               # Sets stackTraceLimit to 10 for all hooks
+    maxStackFrames: 10                 # Sets maxStackFrames to 10 for all hooks
     stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply.
   decoderSettings:
     maxDepth: 1                       # Sets the cutoff limit for the recursion depth when decoding nested data structures, such as nested arrays, lists, sets, maps, structs etc.
@@ -86,7 +86,7 @@ hookCollection:
   # function declaration
   - module: libreceiveFundamentalValue.so
     hookSettings:
-      stackTraceLimit: 0
+      maxStackFrames: 0
     decoderSettings:
       maxItems: 22
     hooks:
@@ -98,7 +98,7 @@ hookCollection:
   # decode argument: null terminated string 
   - module: libreceiveString.so
     hookSettings:
-      stackTraceLimit: 0
+      maxStackFrames: 0
     hooks:
     - symbol: receive_cstring
       params:

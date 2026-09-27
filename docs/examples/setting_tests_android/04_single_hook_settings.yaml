@@ -7,7 +7,7 @@ metadata:
 # default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings
 # settings:
 #   hookSettings:
-#     stackTraceLimit: 0
+#     maxStackFrames: 0
 #     stackTraceFilter: []
 #   decoderSettings:
 #     hashCode: false
@@ -19,7 +19,7 @@ metadata:
 
 settings:
   hookSettings:
-    stackTraceLimit: 5
+    maxStackFrames: 5
   decoderSettings:
     maxDepth: 1
     maxItems: 1
@@ -27,7 +27,7 @@ settings:
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      stackTraceLimit: 30
+      maxStackFrames: 30
       stackTraceFilter: ["^L3"]
     decoderSettings:
       maxDepth: 30
@@ -35,7 +35,7 @@ hookCollection:
     hooks:
     - method: receiveNestedObjectArray
       hookSettings:
-        stackTraceLimit: 40
+        maxStackFrames: 40
         stackTraceFilter: ["^L4"]
       decoderSettings:
         maxDepth: 40
@@ -46,7 +46,7 @@ hookCollection:
 # settings set on the `javaClass` block, so they take precedence.
 #
 # expected applied settings for `receiveNestedObjectArray`:
-#   stackTraceLimit:  40         (hook; overrides group's 30, file's 5, default's 0)
+#   maxStackFrames:    40         (hook; overrides group's 30, file's 5, default's 0)
 #   stackTraceFilter: ["^L4"]    (hook; overrides group's ["^L3"])
 #   maxDepth:         40         (hook; overrides group's 30, file's 1, default's 10)
 #   maxItems:         40         (hook; overrides group's 30, file's 1, default's 100)

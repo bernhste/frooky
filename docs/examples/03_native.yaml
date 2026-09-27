@@ -70,7 +70,7 @@ hookCollection:
   # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
   - module: libcrypto.so
     hookSettings:
-      stackTraceLimit: 10
+      maxStackFrames: 10
     hooks:
     - symbol: EVP_EncryptInit_ex
       retType: int
@@ -95,8 +95,6 @@ hookCollection:
 
 # decode argument: null terminated string 
   - module: libreceiveString.so
-    hookSettings:
-      stackTraceLimit: 0
     hooks:
     - symbol: receive_cstring
       params: 
@@ -147,7 +145,6 @@ hookCollection:
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   - module: libc.so
     hookSettings:
-      stackTraceLimit: 10
       stackTraceFilter: ['^org\.owasp\.mastestapp']
     hooks:
     - symbol: open

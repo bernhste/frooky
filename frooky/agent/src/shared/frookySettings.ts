@@ -9,7 +9,7 @@ export interface HookSettings {
    *
    * @minimum 0
    */
-  stackTraceLimit: number;
+  maxStackFrames: number;
 
   /**
    * Regular expressions matched against stack frames. The event is only captured if at least one frame matches. Default: `[]`.

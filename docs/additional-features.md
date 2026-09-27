@@ -14,10 +14,10 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 
 `hookSettings` controls how a hook itself behaves, independent of argument/return value decoding.
 
-| Setting            | Type       | Default | Description                                                                                                                                                                                                                                                                                  |
-| ------------------ | ---------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stackTraceLimit`  | `number`   | `0`     | Limits the number of stack frames captured per event. With a `stackTraceFilter`, it also limits how deep the filter searches.                                                                                                                                                                |
-| `stackTraceFilter` | `string[]` | `[]`    | Regular expressions; the event is only captured if at least one stack frame matches one of them. With a `stackTraceLimit`, only the captured frames are searched, otherwise the whole stack. Frames themselves are not filtered individually - a match keeps the whole captured stack trace. |
+| Setting            | Type       | Default | Description                                                                                                                                                                                                                                                                                 |
+| ------------------ | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxStackFrames`   | `number`   | `0`     | Limits the number of stack frames captured per event. With a `stackTraceFilter`, it also limits how deep the filter searches.                                                                                                                                                               |
+| `stackTraceFilter` | `string[]` | `[]`    | Regular expressions; the event is only captured if at least one stack frame matches one of them. With a `maxStackFrames`, only the captured frames are searched, otherwise the whole stack. Frames themselves are not filtered individually - a match keeps the whole captured stack trace. |
 
 ## Settings Precedence
 
@@ -36,20 +36,20 @@ Each level only needs to set the fields it wants to override; anything it leaves
 ```yaml
 settings:
   hookSettings:
-    stackTraceLimit: 5
+    maxStackFrames: 5
   decoderSettings:
     maxRecursion: 1
 
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      stackTraceLimit: 30
+      maxStackFrames: 30
     decoderSettings:
       maxRecursion: 30
     hooks:
       - method: receiveIntArray
         hookSettings:
-          stackTraceLimit: 40
+          maxStackFrames: 40
         decoderSettings:
           maxRecursion: 40
         overloads:
@@ -57,7 +57,7 @@ hookCollection:
               - ["[I", arg, { maxRecursion: 50 }]
 ```
 
-For the `arg` parameter, `maxRecursion` resolves to `50` (level 5 wins). `stackTraceLimit` for the `receiveIntArray` hook resolves to `40` (level 4 wins over the group's `30`), since `hookSettings` has no level closer than the hook itself.
+For the `arg` parameter, `maxRecursion` resolves to `50` (level 5 wins). `maxStackFrames` for the `receiveIntArray` hook resolves to `40` (level 4 wins over the group's `30`), since `hookSettings` has no level closer than the hook itself.
 
 See [`docs/examples/setting_tests_android/06_all_levels_combined.yaml`](./examples/setting_tests_android/06_all_levels_combined.yaml) and [`docs/examples/setting_tests_native/06_all_levels_combined.yaml`](./examples/setting_tests_native/06_all_levels_combined.yaml) for full worked examples.
 

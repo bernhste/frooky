@@ -26,7 +26,7 @@ metadata:                       # optional
   version: 1
 
 settings:                       # optional, applies to every group
-  hookSettings: { stackTraceLimit: 5 }
+  hookSettings: { maxStackFrames: 5 }
   decoderSettings: { maxItems: 50 }
 
 hookCollection:
@@ -48,6 +48,7 @@ hookCollection:
 ## Rules that are easy to get wrong
 
 **Java (`javaClass`)**
+
 - Use fully qualified names. Inner classes use `$`: `android.security.keystore.KeyGenParameterSpec$Builder`.
 - Constructors are `$init`.
 - Java hooks have **no `retType`**; the return type comes from reflection.
@@ -55,6 +56,7 @@ hookCollection:
 - Overloads: each entry under `overloads` is one `params:` list matching one exact signature.
 
 **Native (`module`)**
+
 - `module` is the library file name (`libc.so`, `libssl.so`, `libcrypto.so`, or the app's own `lib<name>.so`).
 - Declare `retType` and `params` with C types (`"const char *"`, `int`, `size_t`) if you want decoded values. Without them, only the call is recorded. Quote pointer types.
 - Non-terminated buffers need their length: `{ decoderArg: <name of the length param> }`.
@@ -62,11 +64,12 @@ hookCollection:
 **Parameter forms** (both platforms): `type` · `[type, name]` · `[type, name, {settings}]` · `{ type: ..., name: ..., <settings> }`. Hook forms: `- name` · `- [name, {decoderSettings}]` · the expanded object form.
 
 **Decoder settings** (at file, group, hook or param level; lower levels override higher ones):
+
 - `direction: in | out | inout`: use `out` or `inout` for buffers the callee fills (e.g. `Cipher.doFinal(byte[] output, ...)`, `RAND_bytes`).
 - `decoder: <name>` (Java only), which must be one of the registered names: `string`, `hashCode`, `intentFlag`, `intentUriFlag`, `constant`. The schema does **not** check these names. If in doubt, check `CUSTOM_DECODER_REGISTRY` in `frooky/agent/src/android/decoders/javaDecoderResolver.ts`. Use `string` to show `byte[]` as text.
 - `maxDepth` (default 10), `maxItems` (default 100), `hashCode` (instance correlation id), `argFilter` (a regex list; only capture calls whose decoded value matches).
 
-**Hook settings:** `stackTraceLimit` (default 0 = no stack trace) and `stackTraceFilter` (a regex list; an event is kept only if a frame matches). Without a limit the filter searches the whole stack; with a limit it only searches the captured frames, so a small limit (e.g. 5) also drops framework calls that merely run somewhere below app code, such as WebView initialization inside an app's `onCreate`. Filters on app package prefixes (e.g. `"^org\\.owasp\\."`) are the usual way to drop framework noise.
+**Hook settings:** `maxStackFrames` (default 0 = no stack trace) and `stackTraceFilter` (a regex list; an event is kept only if a frame matches). Without a limit the filter searches the whole stack; with a limit it only searches the captured frames, so a small limit (e.g. 5) also drops framework calls that merely run somewhere below app code, such as WebView initialization inside an app's `onCreate`. Filters on app package prefixes (e.g. `"^org\\.owasp\\."`) are the usual way to drop framework noise.
 
 ## Validate
 

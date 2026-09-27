@@ -7,7 +7,7 @@ metadata:
 # default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings
 # settings:
 #   hookSettings:
-#     stackTraceLimit: 0
+#     maxStackFrames: 0
 #     stackTraceFilter: []
 #   decoderSettings:
 #     hashCode: false
@@ -19,7 +19,7 @@ metadata:
 
 settings:
   hookSettings:
-    stackTraceLimit: 5
+    maxStackFrames: 5
   decoderSettings:
     maxDepth: 1
     maxItems: 1
@@ -27,7 +27,7 @@ settings:
 hookCollection:
   - module: libc.so
     hookSettings:
-      stackTraceLimit: 30
+      maxStackFrames: 30
       stackTraceFilter: ["^L3"]
     decoderSettings:
       maxDepth: 30
@@ -36,7 +36,7 @@ hookCollection:
     - symbol: open
       retType: int
       hookSettings:
-        stackTraceLimit: 40
+        maxStackFrames: 40
         stackTraceFilter: ["^L4"]
       decoderSettings:
         maxDepth: 40
@@ -47,17 +47,17 @@ hookCollection:
       - [mode_t, mode]
 
 # All levels set a value for this single hook/param, from farthest to closest:
-#   1. default (hard-coded)           -> stackTraceLimit=0,  maxDepth=10, maxItems=100
-#   2. file-level `settings:`         -> stackTraceLimit=5,  maxDepth=1,  maxItems=1
-#   3. hook group (`module` block)    -> stackTraceLimit=30, maxDepth=30, maxItems=30
-#   4. individual hook (`symbol:` block) -> stackTraceLimit=40, maxDepth=40, maxItems=40
+#   1. default (hard-coded)           -> maxStackFrames=0,  maxDepth=10, maxItems=100
+#   2. file-level `settings:`         -> maxStackFrames=5,  maxDepth=1,  maxItems=1
+#   3. hook group (`module` block)    -> maxStackFrames=30, maxDepth=30, maxItems=30
+#   4. individual hook (`symbol:` block) -> maxStackFrames=40, maxDepth=40, maxItems=40
 #   5. param (`path`, decoder settings only, closest level) -> maxDepth=50, maxItems=50
 #
 # Each level overrides everything farther away, and only the fields it actually sets - anything it
 # leaves out falls through to the next level out.
 #
 # expected applied settings:
-#   hook-level hookSettings (stackTraceLimit / stackTraceFilter): 40 / ["^L4"]
+#   hook-level hookSettings (maxStackFrames / stackTraceFilter): 40 / ["^L4"]
 #     -> level 4 wins over the group's 30 / ["^L3"]; hookSettings has no level closer than the hook
 #   hook-level decoderSettings (used e.g. for `retType`): 40 / 40
 #     -> level 4 wins over the group's 30 / 30

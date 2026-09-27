@@ -7,9 +7,9 @@ import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
+import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { NativeHook } from "./nativeHook";
 import { NativeHookEvent } from "./nativeHookEvent";
-import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 
 export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
@@ -89,7 +89,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           this.filtered = false;
 
           try {
-            stackTrace = hookManager.stackTrace.build(hook.hookSettings.stackTraceLimit, hook.hookSettings.stackTraceFilter, this.context);
+            stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter, this.context);
           } catch (e) {
             if (e instanceof FilterMismatchError) {
               this.filtered = true;

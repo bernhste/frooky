@@ -14,11 +14,11 @@ hookCollection:
     - $init
     - getKeyPair
 
-  # Hook hooks using explicit object syntax with optional `hookSettings.stackTraceLimit`.
+  # Hook hooks using explicit object syntax with optional `hookSettings.maxStackFrames`.
   # Docs: https://developer.android.com/reference/android/security/AttestedKeyPair
   - javaClass: android.security.AttestedKeyPair
     hookSettings:
-      stackTraceLimit: 10
+      maxStackFrames: 10
     hooks:
     - method: $init
     - method: getKeyPair
@@ -57,7 +57,7 @@ hookCollection:
         - ["java.lang.String", having]
         - ["java.lang.String", orderBy]
     hookSettings:
-      stackTraceLimit: 5
+      maxStackFrames: 5
       stackTraceFilter:
         - "^java\\."
         - "^android\\."
@@ -86,7 +86,7 @@ hookCollection:
   # Docs: https://developer.android.com/reference/javax/crypto/Cipher#doFinal(byte[],%20int)
   - javaClass: javax.crypto.Cipher
     hookSettings:
-      stackTraceLimit: 3
+      maxStackFrames: 3
     hooks:
     - method: doFinal
       overloads:
@@ -117,7 +117,7 @@ hookCollection:
 
   - javaClass: java.security.Signature
     hookSettings:
-      stackTraceLimit: 5
+      maxStackFrames: 5
     hooks:
     - method: initSign
       overloads:
@@ -127,7 +127,7 @@ hookCollection:
 
   - javaClass: javax.crypto.Cipher
     hookSettings:
-      stackTraceLimit: 5
+      maxStackFrames: 5
     hooks:
     - method: init
       overloads:
@@ -143,7 +143,7 @@ hookCollection:
 
   - javaClass: javax.crypto.Cipher
     hookSettings:
-      stackTraceLimit: 5
+      maxStackFrames: 5
     hooks: 
       - [ doFinal, {decoder: "string"} ] 
       

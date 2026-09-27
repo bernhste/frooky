@@ -84,25 +84,25 @@ describe("configValidator", () => {
         stackTraceFilter: ["a", "b"],
       };
       expect(validateAndRepairHookSettings(incompleteInputHookSettings)).toEqual({
-        stackTraceLimit: DEFAULT_HOOK_SETTINGS.stackTraceLimit,
+        maxStackFrames: DEFAULT_HOOK_SETTINGS.maxStackFrames,
         stackTraceFilter: ["a", "b"],
       });
     });
 
     it("resets a property to its default and warns when it does not match the schema", () => {
       const incorrectInputHookSettings: InputHookSettings = {
-        stackTraceLimit: "incorrect" as unknown as number,
+        maxStackFrames: "incorrect" as unknown as number,
         stackTraceFilter: ["a", "b"],
       };
       expect(validateAndRepairHookSettings(incorrectInputHookSettings)).toEqual({
-        stackTraceLimit: DEFAULT_HOOK_SETTINGS.stackTraceLimit,
+        maxStackFrames: DEFAULT_HOOK_SETTINGS.maxStackFrames,
         stackTraceFilter: ["a", "b"],
       });
 
       expect(warnSpy).toHaveBeenCalled();
       const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain(`Hook setting "'stackTraceLimit'" contains invalid data:`);
-      expect(message).toContain(`The value for 'stackTraceLimit' was reset to the default: ${DEFAULT_HOOK_SETTINGS.stackTraceLimit}`);
+      expect(message).toContain(`Hook setting "'maxStackFrames'" contains invalid data:`);
+      expect(message).toContain(`The value for 'maxStackFrames' was reset to the default: ${DEFAULT_HOOK_SETTINGS.maxStackFrames}`);
     });
 
     it("warns when the settings contain unknown properties", () => {
@@ -166,13 +166,13 @@ describe("configValidator", () => {
     });
 
     it("does not modify the default settings (they are shared by every config, also across reloads)", () => {
-      validateAndRepairFrookySettings({ hookSettings: { stackTraceLimit: 42 }, decoderSettings: { maxDepth: 42 } });
+      validateAndRepairFrookySettings({ hookSettings: { maxStackFrames: 42 }, decoderSettings: { maxDepth: 42 } });
       expect(DEFAULT_FROOKY_SETTINGS).toEqual(pristineFrookySettings);
     });
 
     it("repairs and merges hookSettings when provided, leaving decoderSettings at its default", () => {
-      const result = validateAndRepairFrookySettings({ hookSettings: { stackTraceLimit: 42 } });
-      expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, stackTraceLimit: 42 });
+      const result = validateAndRepairFrookySettings({ hookSettings: { maxStackFrames: 42 } });
+      expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, maxStackFrames: 42 });
       expect(result.decoderSettings).toEqual(pristineFrookySettings.decoderSettings);
     });
 
@@ -184,10 +184,10 @@ describe("configValidator", () => {
 
     it("repairs both hookSettings and decoderSettings when both are provided", () => {
       const result = validateAndRepairFrookySettings({
-        hookSettings: { stackTraceLimit: 7 },
+        hookSettings: { maxStackFrames: 7 },
         decoderSettings: { hashCode: true },
       });
-      expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, stackTraceLimit: 7 });
+      expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, maxStackFrames: 7 });
       expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, hashCode: true });
     });
   });
@@ -220,7 +220,7 @@ describe("configValidator", () => {
       const partialSettingsFrookyConfig: InputFrookyConfig = {
         metadata: { name: "Test Config", platform: "Android" },
         settings: {
-          hookSettings: { stackTraceLimit: 55 },
+          hookSettings: { maxStackFrames: 55 },
           decoderSettings: { maxDepth: 20 },
         },
         hookCollection: [],
@@ -228,7 +228,7 @@ describe("configValidator", () => {
       const expected: InputFrookyConfig = {
         metadata: { name: "Test Config", platform: "Android" },
         settings: {
-          hookSettings: { ...pristineFrookySettings.hookSettings, stackTraceLimit: 55 },
+          hookSettings: { ...pristineFrookySettings.hookSettings, maxStackFrames: 55 },
           decoderSettings: { ...pristineFrookySettings.decoderSettings, maxDepth: 20 },
         },
         hookCollection: [],
@@ -240,7 +240,7 @@ describe("configValidator", () => {
       const invalidSettingsFrookyConfig: InputFrookyConfig = {
         metadata: { name: "Test Config", platform: "Android" },
         settings: {
-          hookSettings: { stackTraceLimit: "10" as unknown as number },
+          hookSettings: { maxStackFrames: "10" as unknown as number },
           decoderSettings: { hashCode: 10 as unknown as boolean },
         },
         hookCollection: [],

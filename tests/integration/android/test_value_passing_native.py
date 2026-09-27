@@ -492,8 +492,8 @@ class TestValuePassingNative:
         assert len(events) == 1
         assert events[0].get("hashCode")
 
-    def test_stack_trace_limit(self, run_frooky, find_matched_events):
-        """`stackTraceLimit` (see native-hook-declaration.md) caps how many stack frames are captured.
+    def test_max_stack_trace(self, run_frooky, find_matched_events):
+        """`maxStackFrames` (see native-hook-declaration.md) caps how many stack frames are captured.
 
         For a native hook without a filter, the limit is applied separately to the native and Java
         halves of the trace before they're concatenated (see androidStackTrace.ts), so the combined
@@ -504,7 +504,7 @@ class TestValuePassingNative:
             hookCollection:
               - module: {MODULE_VALUE}
                 hookSettings:
-                  stackTraceLimit: {limit}
+                  maxStackFrames: {limit}
                 hooks:
                   - receive_int
             """)
@@ -525,7 +525,7 @@ class TestValuePassingNative:
             hookCollection:
               - module: {MODULE_VALUE}
                 hookSettings:
-                  stackTraceLimit: 10
+                  maxStackFrames: 10
                   stackTraceFilter: ['^org\\.owasp\\.mastestapp']
                 hooks:
                   - receive_int
@@ -541,7 +541,7 @@ class TestValuePassingNative:
             hookCollection:
               - module: {MODULE_VALUE}
                 hookSettings:
-                  stackTraceLimit: 10
+                  maxStackFrames: 10
                   stackTraceFilter: ['^this\\.matches\\.nothing']
                 hooks:
                   - receive_int

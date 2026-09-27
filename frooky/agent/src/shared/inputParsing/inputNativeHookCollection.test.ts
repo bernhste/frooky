@@ -59,13 +59,13 @@ describe("inputNativeHookCollection", () => {
       it("lets the frookySettings passed in override the hard-coded defaults", () => {
         const hookCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
         const settings: FrookySettings = {
-          hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
+          hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 },
           decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeNativeHookCollection(hookCollection, settings);
 
-        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 });
+        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 });
         expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 });
       });
 
@@ -74,17 +74,17 @@ describe("inputNativeHookCollection", () => {
           type: "native",
           module: "libc.so",
           hooks: [],
-          hookSettings: { stackTraceLimit: 99 },
+          hookSettings: { maxStackFrames: 99 },
           decoderSettings: { maxDepth: 7 },
         };
         const settings: FrookySettings = {
-          hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
+          hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 },
           decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeNativeHookCollection(hookCollection, settings);
 
-        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 99 });
+        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 99 });
         expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 7 });
       });
     });
@@ -94,13 +94,13 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hookSettings: { stackTraceLimit: 30 },
+          hookSettings: { maxStackFrames: 30 },
           decoderSettings: { maxDepth: 30 },
           hooks: [
             {
               symbol: "malloc",
               module: "libc.so",
-              hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 },
+              hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 },
               decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
             },
           ],
@@ -108,26 +108,26 @@ describe("inputNativeHookCollection", () => {
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 });
+        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 });
         expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
       });
 
       it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
         // A YAML author only ever writes a *partial* hookSettings/decoderSettings on a hook (e.g.
-        // `hookSettings: { stackTraceLimit: 40 }`); the raw config is cast to the input types at
+        // `hookSettings: { maxStackFrames: 40 }`); the raw config is cast to the input types at
         // the YAML boundary (see index.frida.ts) without being structurally checked against them,
         // so this models that real shape rather than the always-complete post-normalize shape.
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hookSettings: { stackTraceLimit: 30, stackTraceFilter: ["^group"] },
+          hookSettings: { maxStackFrames: 30, stackTraceFilter: ["^group"] },
           decoderSettings: { maxDepth: 30, maxItems: 30 },
           hooks: [
             {
               symbol: "malloc",
               module: "libc.so",
               // intentionally only overrides one field of each settings object
-              hookSettings: { stackTraceLimit: 40 },
+              hookSettings: { maxStackFrames: 40 },
               decoderSettings: { maxDepth: 40 },
             } as InputNativeHookNormalized,
           ],
@@ -135,7 +135,7 @@ describe("inputNativeHookCollection", () => {
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ stackTraceLimit: 40, stackTraceFilter: ["^group"] });
+        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ maxStackFrames: 40, stackTraceFilter: ["^group"] });
         expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
           maxDepth: 40,
@@ -147,13 +147,13 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hookSettings: { stackTraceLimit: 30 },
+          hookSettings: { maxStackFrames: 30 },
           hooks: [{ symbol: "malloc", module: "libc.so" }],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 30 });
+        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 30 });
       });
 
       it("uses the hook's own (merged) decoderSettings, not just the group's, to normalize that hook's params and retType", () => {

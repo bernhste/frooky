@@ -145,10 +145,10 @@ describe("AndroidHookManager", () => {
       };
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
       const manager = new AndroidHookManager(recordingStackTrace, agent);
-      const resolve = async (stackTraceLimit: number) => {
+      const resolve = async (maxStackFrames: number) => {
         const hook: InputJavaHookNormalized = {
           ...javaHook("java.lang.Integer", "reverse"),
-          hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit },
+          hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames },
         };
         const [hooks] = await Promise.all(await manager.resolveHooks([hook], 5));
         return hooks as JavaHook[];

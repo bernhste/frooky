@@ -280,13 +280,13 @@ class TestValuePassingJava:
         assert len(events) >= 1
         assert all(isinstance(e["returnValue"]["value"], str) for e in events)
 
-    def test_stack_trace_limit(self, run_frooky, find_matched_events):
-        """`stackTraceLimit` (see additional-features.md) caps how many stack frames are captured."""
+    def test_max_stack_trace(self, run_frooky, find_matched_events):
+        """`maxStackFrames` (see additional-features.md) caps how many stack frames are captured."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - javaClass: {MASTG_CLASS}
                 hookSettings:
-                  stackTraceLimit: 3
+                  maxStackFrames: 3
                 hooks:
                   - receiveString
             """)
@@ -304,7 +304,7 @@ class TestValuePassingJava:
             hookCollection:
               - javaClass: {MASTG_CLASS}
                 hookSettings:
-                  stackTraceLimit: 5
+                  maxStackFrames: 5
                   stackTraceFilter: ['^org\\.owasp\\.mastestapp']
                 hooks:
                   - receiveString
@@ -320,7 +320,7 @@ class TestValuePassingJava:
             hookCollection:
               - javaClass: {MASTG_CLASS}
                 hookSettings:
-                  stackTraceLimit: 5
+                  maxStackFrames: 5
                   stackTraceFilter: ['^this\\.matches\\.nothing']
                 hooks:
                   - receiveString

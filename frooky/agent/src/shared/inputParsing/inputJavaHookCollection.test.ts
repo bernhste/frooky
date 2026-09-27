@@ -50,13 +50,13 @@ describe("inputJavaHookCollection", () => {
       it("lets the frookySettings passed in override the hard-coded defaults", () => {
         const hookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: [] };
         const settings: FrookySettings = {
-          hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
+          hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 },
           decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeJavaHookCollection(hookCollection, settings);
 
-        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 });
+        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 });
         expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 });
       });
 
@@ -65,17 +65,17 @@ describe("inputJavaHookCollection", () => {
           type: "java",
           javaClass: "com.example.Foo",
           hooks: [],
-          hookSettings: { stackTraceLimit: 99 },
+          hookSettings: { maxStackFrames: 99 },
           decoderSettings: { maxDepth: 7 },
         };
         const settings: FrookySettings = {
-          hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 5 },
+          hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 },
           decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeJavaHookCollection(hookCollection, settings);
 
-        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 99 });
+        expect(result.hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 99 });
         expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 7 });
       });
     });
@@ -85,13 +85,13 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          hookSettings: { stackTraceLimit: 30 },
+          hookSettings: { maxStackFrames: 30 },
           decoderSettings: { maxDepth: 30 },
           hooks: [
             {
               javaClass: "com.example.Foo",
               method: "bar",
-              hookSettings: { ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 },
+              hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 },
               decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
             },
           ],
@@ -99,26 +99,26 @@ describe("inputJavaHookCollection", () => {
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 40 });
+        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 });
         expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
       });
 
       it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
         // A YAML author only ever writes a *partial* hookSettings/decoderSettings on a hook (e.g.
-        // `hookSettings: { stackTraceLimit: 40 }`); the raw config is cast to the input types at
+        // `hookSettings: { maxStackFrames: 40 }`); the raw config is cast to the input types at
         // the YAML boundary (see index.frida.ts) without being structurally checked against them,
         // so this models that real shape rather than the always-complete post-normalize shape.
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          hookSettings: { stackTraceLimit: 30, stackTraceFilter: ["^group"] },
+          hookSettings: { maxStackFrames: 30, stackTraceFilter: ["^group"] },
           decoderSettings: { maxDepth: 30, maxItems: 30 },
           hooks: [
             {
               javaClass: "com.example.Foo",
               method: "bar",
               // intentionally only overrides one field of each settings object
-              hookSettings: { stackTraceLimit: 40 },
+              hookSettings: { maxStackFrames: 40 },
               decoderSettings: { maxDepth: 40 },
             } as InputJavaHookNormalized,
           ],
@@ -126,7 +126,7 @@ describe("inputJavaHookCollection", () => {
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ stackTraceLimit: 40, stackTraceFilter: ["^group"] });
+        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ maxStackFrames: 40, stackTraceFilter: ["^group"] });
         expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
           maxDepth: 40,
@@ -138,13 +138,13 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          hookSettings: { stackTraceLimit: 30 },
+          hookSettings: { maxStackFrames: 30 },
           hooks: [{ javaClass: "com.example.Foo", method: "bar" }],
         };
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, stackTraceLimit: 30 });
+        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 30 });
       });
 
       it("uses the hook's own (merged) decoderSettings, not just the group's, to normalize that hook's overloads", () => {

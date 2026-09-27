@@ -12,7 +12,7 @@ metadata:
         ```
         settings:
           hookSettings:
-            stackTraceLimit: 10
+            maxStackFrames: 10
             stackTraceFilter: ['^(?!android).*']
           decoderSettings:
             maxDepth: 5
@@ -28,7 +28,7 @@ metadata:
         ```
         <specific-hook>
           hookSettings:
-            stackTraceLimit: 10
+            maxStackFrames: 10
             stackTraceFilter: ['^(?!android).*']
           decoderSettings:
             maxDepth: 5
@@ -64,7 +64,7 @@ metadata:
 # global settings for the hooks in this hook file.
 settings:
   hookSettings:
-    stackTraceLimit: 10
+    maxStackFrames: 10
     stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply.
   decoderSettings:
     maxDepth: 1                       # Sets the cutoff limit for the recursion depth when decoding nested data structures, such as nested arrays, lists, sets, maps, structs etc.
@@ -85,7 +85,7 @@ hookCollection:
   # PARTIAL local hook settings take priority over global setting, simple function declaration
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      stackTraceLimit: 2
+      maxStackFrames: 2
     decoderSettings:
       maxItems: 22
     hooks:
@@ -95,7 +95,7 @@ hookCollection:
   # PARTIAL local hook settings take priority over global setting, simple function declaration
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      stackTraceLimit: 3
+      maxStackFrames: 3
     decoderSettings:
       maxItems: 33
     hooks:
@@ -104,7 +104,7 @@ hookCollection:
   # PARTIAL local hook settings take priority over global setting, object with ONLY symbol provided
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      stackTraceLimit: 4
+      maxStackFrames: 4
     decoderSettings:
       maxItems: 44
     hooks:
@@ -115,7 +115,7 @@ hookCollection:
   # PARTIAL local parameter settings take priority over global setting, form [type, settings]
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      stackTraceLimit: 0
+      maxStackFrames: 0
     hooks:
     - method: receiveIntArray
       overloads:

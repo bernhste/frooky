@@ -7,7 +7,7 @@ metadata:
 # global settings for the hooks in this hook file.
 settings:
   hookSettings:
-    stackTraceLimit: 5               # Sets stackTraceLimit to 5 for all hooks
+    maxStackFrames: 5                 # Sets maxStackFrames to 5 for all hooks
     # stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply.
   decoderSettings:
     # Sets the cutoff limit for the recursion depth when decoding nested data
@@ -45,7 +45,7 @@ hookCollection:
   # primitive java arrays
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      stackTraceLimit: 5
+      maxStackFrames: 5
     decoderSettings:
       maxDepth: 5
       maxItems: 5
@@ -298,7 +298,7 @@ hookCollection:
 # decode argument: null terminated string 
   - module: libreceiveString.so
     hookSettings:
-      stackTraceLimit: 10
+      maxStackFrames: 10
     hooks:
     - symbol: receive_cstring
       params: 
@@ -311,7 +311,7 @@ hookCollection:
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   - module: libc.so
     hookSettings:
-      stackTraceLimit: 10
+      maxStackFrames: 10
       stackTraceFilter: ['^org\.owasp\.mastestapp']
     hooks:
     - symbol: open

@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 export const hookSettingsSchema = z.object({
-  stackTraceLimit: z.number(),
+  maxStackFrames: z.number().min(0),
   stackTraceFilter: z.array(z.string()),
 });
 

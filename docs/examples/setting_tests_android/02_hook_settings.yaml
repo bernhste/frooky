@@ -7,7 +7,7 @@ metadata:
 # default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings 
 # settings:
 #   hookSettings:
-#     stackTraceLimit: 0
+#     maxStackFrames: 0
 #     stackTraceFilter: []
 #   decoderSettings:
 #     hashCode: false
@@ -19,7 +19,7 @@ metadata:
 
 settings:
   hookSettings:
-    stackTraceLimit: 5
+    maxStackFrames: 5
   decoderSettings:
     maxDepth: 1
     maxItems: 1

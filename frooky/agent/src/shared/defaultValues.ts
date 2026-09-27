@@ -13,7 +13,7 @@ export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
 };
 
 export const DEFAULT_HOOK_SETTINGS: HookSettings = {
-  stackTraceLimit: 0,
+  maxStackFrames: 0,
   stackTraceFilter: [],
 };
 
