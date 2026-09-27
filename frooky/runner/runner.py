@@ -132,11 +132,10 @@ class FrookyRunner:
             "Target": describe_target(self.device, self.options),
         }
         output_info = {
-            "Hook files": str(len(self.options.hook_paths)) + (" (watching for changes)" if self.options.watch else ""),
             "Output": str(self.options.output_path),
+            # no runtime means Frida's default, QuickJS
+            "Runtime": {"qjs": "QuickJS", "v8": "V8"}[self.options.runtime or "qjs"],
         }
-        if self.options.runtime:
-            output_info["Runtime"] = {"qjs": "QuickJS", "v8": "V8"}[self.options.runtime]
         if self.options.enable_debugger:
             output_info["Debugger"] = f"port {DEBUGGER_PORT} (open chrome://inspect)"
 

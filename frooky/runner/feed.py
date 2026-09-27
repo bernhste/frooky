@@ -33,7 +33,7 @@ def normalize_level(level: str) -> str:
 
 
 class HookStatus:
-    """The hooks segment at the start of the status bar, e.g.
+    """The hooks segment of the status bar, e.g.
     `Resolving hooks: 38 hooked, 4 modules pending (gives up in 3s)`, then `# Hooks 38 (2 not resolved)`.
 
     It is busy (the bar shows a spinner) until the agent's first progress report and while anything
@@ -85,8 +85,8 @@ def _format_rate(rate: float) -> str:
 
 class _StatusBar:
     """Renders the feed's status bar on every redraw of the live area, so the spinner, countdown, rate and
-    elapsed time move. It spans the whole terminal width: the hook and event segments on the left, cropped
-    with an ellipsis when they don't fit, and the event rate and elapsed time on the right.
+    elapsed time move. It spans the whole terminal width: the hook segment and the last event on the left,
+    cropped with an ellipsis when they don't fit, and the event count, event rate and elapsed time on the right.
     """
 
     # colors from the fixed 256-color palette, not the 16 ANSI colors that light terminal themes redefine
@@ -96,6 +96,11 @@ class _StatusBar:
     SEPARATOR = "  │  "
     # the event rate is averaged over this many seconds
     RATE_WINDOW_SECONDS = 5.0
+    # values are right-aligned in fixed widths so the bar doesn't jump as they grow,
+    # up to 999 hooks, 999,999 events and 1,000/s
+    HOOKS_WIDTH = len("999")
+    EVENTS_WIDTH = len("999,999")
+    RATE_WIDTH = len("1,000/s")
 
     def __init__(self, feed: Feed):
         self._feed = feed
@@ -131,15 +136,15 @@ class _StatusBar:
             if hook_status.busy:
                 left.append(Text.assemble(self._spinner.render(now), " ", (hook_status.describe(), "bold gold1 on grey23")))
             else:
-                hooks = self._field("# Hooks", f"{hook_status.hooked:,}")
+                hooks = self._field("# Hooks", f"{hook_status.hooked:,}".rjust(self.HOOKS_WIDTH))
                 if hook_status.failed:
                     hooks.append(f" ({hook_status.failed:,} not resolved)", style="bold gold1 on grey23")
                 left.append(hooks)
         right: list[Text] = []
         if feed._event_count is not None:
-            left.append(self._field("# Events", f"{feed._event_count:,}"))
             left.append(self._field("Last Event", feed._last_event))
-            right.append(self._field("Event Rate", _format_rate(self._rate(now, feed._event_count))))
+            right.append(self._field("# Events", f"{feed._event_count:,}".rjust(self.EVENTS_WIDTH)))
+            right.append(self._field("Event Rate", _format_rate(self._rate(now, feed._event_count)).rjust(self.RATE_WIDTH)))
         if feed._started_at is not None:
             right.append(self._field("Running", _format_duration(now - feed._started_at)))
 
@@ -165,7 +170,7 @@ class Feed:
     """The terminal output of a run: a scrolling feed of log lines and events above a status bar.
 
     The status bar at the bottom is redrawn in place: an optional HookStatus segment, with a spinner
-    while hooks resolve, the event count and last event, and the event rate and elapsed time. Every other output of a run goes through here,
+    while hooks resolve, the last event, the event count, the event rate and the elapsed time. Every other output of a run goes through here,
     so log lines from the agent, the host and user scripts share one format. The methods are safe to
     call from Frida's callback threads.
     """
@@ -219,7 +224,7 @@ class Feed:
         self._last_event = last_event
 
     def hook_status(self, hook_status: Optional[HookStatus]) -> None:
-        """Show a HookStatus at the start of the status bar; the bar reads it on every redraw."""
+        """Show a HookStatus in the status bar; the bar reads it on every redraw."""
         self._hook_status = hook_status
 
     def render_status_bar(self) -> Text:

@@ -46,6 +46,7 @@ class TestOnProgress:
     def test_updates_the_hook_status_in_the_status_bar(self, tmp_path):
         runner = make_runner(tmp_path, agent_option_resolver_timeout=5)
         try:
+            runner.feed.console.width = 140
             runner.feed.hook_status(runner._hook_status)
             runner.feed.status(0, "Waiting for events...")
 
@@ -53,7 +54,7 @@ class TestOnProgress:
             assert "Resolving hooks: 30 hooked" in runner.feed.render_status_bar().plain
 
             runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0})
-            assert runner.feed.render_status_bar().plain.startswith(" # Hooks 38  │  # Events 0  │  Last Event ")
+            assert runner.feed.render_status_bar().plain.startswith(" # Hooks  38  │  Last Event ")
         finally:
             runner._stop_live_terminal()
 
@@ -238,11 +239,14 @@ class TestRunRuntime:
         runner.run()
         return session
 
-    def test_uses_fridas_default_runtime_without_debugger(self, monkeypatch, tmp_path):
+    def test_uses_fridas_default_runtime_without_debugger(self, monkeypatch, tmp_path, capsys):
         session = self._run(monkeypatch, tmp_path)
 
         assert session.create_script.call_args.kwargs == {"runtime": None}
         session.create_script.return_value.enable_debugger.assert_not_called()
+        out = capsys.readouterr().out
+        assert "Runtime:" in out and "QuickJS" in out
+        assert "Hook files" not in out
 
     def test_enables_debugger_with_v8(self, monkeypatch, tmp_path, capsys):
         session = self._run(monkeypatch, tmp_path, runtime="v8", enable_debugger=True)

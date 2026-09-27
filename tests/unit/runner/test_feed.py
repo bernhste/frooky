@@ -164,26 +164,45 @@ class TestStatusBar:
 
         bar = feed.render_status_bar().plain
 
-        assert re.match(r"^ \S Resolving hooks: 38 hooked, 4 modules pending .*  │  # Events 2,264  │  Last Event libc\.so: read ", bar)
+        assert re.match(r"^ \S Resolving hooks: 38 hooked, 4 modules pending .*  │  Last Event libc\.so: read ", bar)
+        assert bar.endswith("  # Events   2,264  │  Event Rate     0/s ")
 
     def test_shows_the_hook_count_without_a_spinner_when_done(self):
         feed = self.make()
 
-        assert feed.render_status_bar().plain.startswith(" # Hooks 38  │  # Events 2,264  │  Last Event libc.so: read ")
+        bar = feed.render_status_bar().plain
+
+        assert bar.startswith(" # Hooks  38  │  Last Event libc.so: read ")
+        assert bar.endswith("  # Events   2,264  │  Event Rate     0/s ")
 
     def test_shows_hooks_that_failed_to_resolve(self):
         feed = self.make(failed=2)
 
-        assert feed.render_status_bar().plain.startswith(" # Hooks 38 (2 not resolved)  │  # Events 2,264 ")
+        assert feed.render_status_bar().plain.startswith(" # Hooks  38 (2 not resolved)  │  Last Event libc.so: read ")
 
-    def test_spans_the_console_width_with_rate_and_elapsed_time_on_the_right(self):
+    def test_spans_the_console_width_with_events_rate_and_elapsed_time_on_the_right(self):
         feed = self.make(width=120)
         feed._started_at = feed.console.get_time() - 75
 
         bar = feed.render_status_bar().plain
 
         assert len(bar) == 120
-        assert bar.endswith("Event Rate 0/s  │  Running 01:15 ")
+        assert bar.endswith("Event Rate     0/s  │  Running 01:15 ")
+
+    def test_keeps_its_width_as_the_numbers_grow(self):
+        small = self.make(hooked=1)
+        small.status(1, "libc.so: read")
+        large = self.make(hooked=999)
+        large.status(999_999, "libc.so: read")
+        large._status_bar._rate = lambda now, count: 1000.0
+
+        small_bar = small.render_status_bar().plain
+        large_bar = large.render_status_bar().plain
+
+        assert large_bar.startswith(" # Hooks 999  │  Last Event ")
+        assert large_bar.endswith("  # Events 999,999  │  Event Rate 1,000/s ")
+        assert small_bar.index("Last Event") == large_bar.index("Last Event")
+        assert small_bar.index("# Events") == large_bar.index("# Events")
 
     def test_computes_the_event_rate_over_the_last_seconds(self):
         feed = self.make()
@@ -191,7 +210,7 @@ class TestStatusBar:
         bar.build(100.0, 100)
         feed.status(2264 + 15, "libc.so: read")
 
-        assert "Event Rate 7.5/s" in bar.build(102.0, 100).plain
+        assert "Event Rate   7.5/s" in bar.build(102.0, 100).plain
 
     def test_does_not_wrap(self):
         feed, _buffer = make_feed()
@@ -210,4 +229,4 @@ class TestStatusBar:
             text = "".join(segment.text for segment in lines[0])
             assert len(text) == width
             assert "…" in text
-            assert text.endswith("Event Rate 0/s ")
+            assert text.endswith("Event Rate     0/s ")

@@ -141,14 +141,17 @@ Pass `-e`/`--print-events` to `frooky` to also pretty-print each `hook-java`/`ho
 
 ```sh
 $ frooky -U -f org.owasp.mastestapp  docs/examples/01_android.yaml -e
-   ___    ____                                v0.1.dev174+gc704d263c.d20260914 - Powered by Frida 17.17.0
-  / __\  / _  |    _     _    _  _   _   _    Agent compiled with Frida 17.18.0
- / _\   | (_) |  / _ \ / _ \ | / /  | | | |   Target: org.owasp.mastestapp (spawned)
-/ /     / / | | | (_) | (_) ||  <   | |_| |
-\/     /_/  |_|  \___/ \___/ |_|\_\  \__, |   Device: Android Emulator 5554 (emulator-5554)
-                                     |___/    Platform: android
-                                              Hook files: 1
-                                              Output: output.json
+   ___    ____                                Frooky v0.1.dev174+gc704d263c.d20260914
+  / __\  / _  |    _     _    _  _   _   _
+ / _\   | (_) |  / _ \ / _ \ | / /  | | | |   Frida host:   v17.18.0
+/ /     / / | | | (_) | (_) ||  <   | |_| |   Frida device: v17.17.0
+\/     /_/  |_|  \___/ \___/ |_|\_\  \__, |   Frida agent:  v17.18.0
+                                     |___/
+                                              Device: Android Emulator 5554 (emulator-5554)
+                                              Target: org.owasp.mastestapp (spawned)
+
+                                              Output:  output.json
+                                              Runtime: QuickJS
 
   Press R to reload the hook files and retry failed hooks, Ctrl+C to stop...
 

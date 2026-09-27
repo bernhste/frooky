@@ -91,7 +91,7 @@ hookCollection:
     - method: doFinal
       overloads:
       - params:
-        - ["[B", output, { direction: inout, decoder: toStringDecoder }]
+        - ["[B", output, { direction: inout, decoder: string }]
         - [int, outputOffset]
 
   - javaClass: javax.crypto.Cipher
@@ -99,10 +99,10 @@ hookCollection:
     - method: update
       overloads:
       - params:
-        - ["[B", input, { decoder: toStringDecoder }]
+        - ["[B", input, { decoder: string }]
         - [int, inputOffset]
         - [int, inputLen]
-        - ["[B", output, { direction: inout, decoder: toString }]
+        - ["[B", output, { direction: inout, decoder: string }]
         - [int, outputOffset]
 
 
