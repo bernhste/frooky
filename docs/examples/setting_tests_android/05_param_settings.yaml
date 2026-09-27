@@ -49,5 +49,5 @@ hookCollection:
 #
 # `hookSettings` (maxStackFrames/stackTraceFilter) have no per-param equivalent, so those stay at
 # the hook group's values:
-#   maxStackFrames:    30
+#   maxStackFrames:   30
 #   stackTraceFilter: ["^L3"]
