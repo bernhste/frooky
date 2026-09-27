@@ -89,13 +89,8 @@ class FrookyRunner:
         self.feed.print()
 
     def _update_status_line(self) -> None:
-        max_event_len = 60
-        event_display = self.output.last_event[:max_event_len]
-        if len(self.output.last_event) > max_event_len:
-            event_display += "..."
-
-        status = f"Events: {self.output.event_count:,}  |  Last: {event_display}"
-        self.feed.status(status)
+        # not truncated here: the status bar crops itself to the terminal width on every redraw
+        self.feed.status(f"Events: {self.output.event_count:,}  |  Last: {self.output.last_event}")
 
     def _print_header(self) -> None:
         """Print the Frooky header with session information."""

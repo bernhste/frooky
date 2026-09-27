@@ -27,7 +27,7 @@ class TestFrookyRunnerInit:
 
 
 class TestUpdateStatusLine:
-    def test_truncates_long_last_event(self, tmp_path):
+    def test_keeps_long_last_event_for_the_status_bar_to_crop(self, tmp_path):
         runner = make_runner(tmp_path)
         try:
             runner.output.last_event = "x" * 100
@@ -37,8 +37,7 @@ class TestUpdateStatusLine:
             runner._update_status_line()
 
             status = runner.feed.status.call_args.args[0]
-            assert "Events: 3" in status
-            assert "..." in status
+            assert status == f"Events: 3  |  Last: {'x' * 100}"
         finally:
             runner._stop_live_terminal()
 

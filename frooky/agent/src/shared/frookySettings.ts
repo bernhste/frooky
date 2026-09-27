@@ -1,74 +1,61 @@
 /**
- * Metadata that describes a hook collection.
+ * Settings that control how a hook captures events.
  *
  * @public
  */
 export interface HookSettings {
   /**
-   * Sets stackTraceLimit to the given value for all hooks.
+   * Maximum number of stack frames captured per event. `0` captures none. Default: `0`.
+   *
+   * @minimum 0
    */
   stackTraceLimit: number;
 
   /**
-   * Stack trace filters to apply.
+   * Regular expressions matched against stack frames. The event is only captured if at least one frame matches. Default: `[]`.
    */
   stackTraceFilter: string[];
 }
 
 /**
- * Decoder settings any kind of parameter or return type decoder
+ * Settings that control how parameter and return values are decoded.
  *
  * @public
  */
 export interface DecoderSettings {
   /**
-   * Maximum recursion depth for nested structure decoding.
-   * Must be at least 1.
+   * Maximum number of nested levels decoded. Default: `10`.
    *
-   * @example 10
    * @minimum 1
    */
   maxDepth: number;
 
   /**
-   * Maximum number of elements to decode in lists, arrays, collections, maps etc.. May be increased when decoding 'char *' or 'void *' data types in native code.
-   * Must be at least 1.
+   * Maximum number of elements decoded per array, list or map, or bytes per native buffer. Default: `100`.
    *
-   * @example 1000
    * @minimum 1
    */
   maxItems: number;
 
   /**
-   * When enabled, hooks compute and report an identifier for "which instance/target this call belongs
-   * to", to let callers correlate events. For java hooks this is `Object.hashCode()` of the instance
-   * (a Frida <-> Java bridge round-trip on every call); for native hooks this is the hooked function's
-   * address, which is already available at no extra cost. Off by default for parity with the java cost.
-   *
-   * @defaultValue false
+   * Adds an identifier to each event: `Object.hashCode()` of the instance for Java hooks, the function's
+   * address for native hooks. Default: `false`.
    */
   hashCode: boolean;
 
   /**
-   * Overrides the type decoder.
-   *
-   * @defaultValue undefined
+   * Name of the decoder to use instead of the one chosen from the declared type.
    */
   decoder?: string;
 
   /**
-   * Arguments form the arguments list passed to the decoder.
-   *
-   * @defaultValue undefined
+   * Name of function/method parameter whose value is passed to this decoder, e.g. a buffer length.
    */
   decoderArg?: string;
 
   /**
-   * Regular expressions matched against the decoded argument value (the value passed at runtime, not the
-   * parameter's type or name). The event is only captured if the value matches at least one of them.
-   * Only string and number values are filtered; other values always pass.
-   *
-   * @defaultValue undefined
+   * Regular expressions matched against the decoded value. The event is only captured if at least one
+   * matches. Only string and number values are filtered; other values always pass.
    */
   argFilter?: string[];
 }

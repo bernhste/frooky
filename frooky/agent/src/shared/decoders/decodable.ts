@@ -1,55 +1,46 @@
 import { DecoderSettings } from "../frookySettings";
 
 /**
- * Base structure for a type that can be decoded.
+ * A typed value that can be decoded.
+ *
+ * @public
  */
 export interface Decodable {
-  /** Declared parameter type such as primitive type, array, class, interface, or native structs. */
+  /** Declared type, e.g. `int`, `java.lang.String`, `[B` or `char *`. */
   type: string;
 
-  /** Optional name for the value. */
+  /** Name shown for the value in events. */
   name?: string;
 
-  /**
-   * The fully qualified name of the Java class the hooked method or field belongs to, when known.
-   * Lets a decoder look up members (e.g. declared constants) on that same class without the class
-   * being specified separately in the hook file.
-   */
+  /** Java class that declares the hooked method. Set by frooky; not needed in hook files. */
   declaringClass?: string;
 
-  /** Settings applied when running the decoder. */
+  /** Decoder settings for this value. */
   settings: DecoderSettings;
 }
 
 /**
- * Specifies when a decoder should be applied during function execution.
- *
- * @example "in" - Decode when the function/method is entered (before execution)
- * @example "out" - Decode when the function/method returns (after execution)
- * @example "inout" - Decode at both times
+ * When a parameter is decoded: on entry (`"in"`), on return (`"out"`), or both (`"inout"`).
  *
  * @public
  */
 export type Direction = "in" | "out" | "inout";
 
 /**
- * Describes a parameter of a function or method signature.
+ * A parameter of a function or method.
  *
- * Extends {@link Decodable} with an optional name and controls when decoding is applied (on function entry, exit, or both).
+ * @public
  */
 export interface Param extends Decodable {
   /**
-   * When the decoder should be applied.
-   *
-   * @defaultValue "in"
-   * @example "out"
-   * @example "inout"
+   * When the parameter is decoded. Default: `"in"`.
    */
   direction: Direction;
 }
 
 /**
- * Is used for for return types. Not technically necessary, but make code more readable.
+ * The return value of a function or method.
  *
+ * @public
  */
 export interface RetType extends Decodable {}

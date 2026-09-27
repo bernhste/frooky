@@ -4,39 +4,58 @@ import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings
 import { InputParam, InputRetType, normalizeInputParam, normalizeInputRetType } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
+/**
+ * Detailed declaration of a native function hook.
+ *
+ * @public
+ */
 export type InputNativeHookNormalized = {
+  /** Exported symbol name of the function. */
   symbol: string;
+
+  /** Module that exports the symbol. Inherited from the hook collection. */
   module: string;
+
+  /** Parameters of the function, in order. */
   params?: InputParam[];
+
+  /** Return type of the function. */
   retType?: InputRetType;
+
+  /** Hook settings for this function. Override the collection's settings. */
   hookSettings?: HookSettings;
+
+  /** Decoder settings for this function. Override the collection's settings. */
   decoderSettings?: DecoderSettings;
 };
 
 /**
- * Type describing a native function in an YAML input file.
- *
- * Can be a plain symbol string, a `[symbol, decoderSettings]` tuple shorthand, or a NativeFrookyFunction with optional properties.
+ * A native function hook: a symbol name, a `[symbol, decoderSettings]` tuple, or a detailed declaration.
  *
  * @public
  */
 export type InputNativeHook = string | [string, DecoderSettings] | InputNativeHookNormalized;
 
 /**
- * Native hook configuration for YAML parsing.
- * Extends {@link InputNativeHookCollection} with a looser `functions` type that accepts
- * both plain symbol names and detailed definitions.
- * *
- * The settings are optional here.
+ * Collection of hooks on functions exported by one native module.
  *
  * @public
  * @discriminator {type}
  */
 export interface InputNativeHookCollection {
+  /** Collection kind. Optional in hook files; inferred from `module`. */
   type: "native";
+
+  /** Name of the module that exports the functions, e.g. `libssl.so`. */
   module: string;
+
+  /** Functions to hook. */
   hooks: InputNativeHook[];
+
+  /** Hook settings for all hooks in this collection. */
   hookSettings?: InputHookSettings;
+
+  /** Decoder settings for all hooks in this collection. */
   decoderSettings?: InputDecoderSettings;
 }
 

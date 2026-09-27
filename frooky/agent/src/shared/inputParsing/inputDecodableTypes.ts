@@ -11,8 +11,8 @@ import { InputParamSettings } from "./inputSettings";
  * |------|------------------------|----------------------------------------|-----------------------------------------------------------------------|
  * | 1    | Type only              | `string`                               | `"java.lang.String"`                                                  |
  * | 2    | Type + name            | `[string, string]`                     | `["java.lang.String", "value"]`                                       |
- * | 3    | Type + settings        | `[string, InputParamSettings]`         | `["[I", "vector" { direction: "in", maxDepth: 5 }]`               |
- * | 4    | Type + name + settings | `[string, string, InputParamSettings]` | `["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]`    |
+ * | 3    | Type + settings        | `[string, InputParamSettings]`         | `["[I", { direction: "in", maxDepth: 5 }]`                            |
+ * | 4    | Type + name + settings | `[string, string, InputParamSettings]` | `["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]`        |
  * | 5    | Normalized object      | `Param`                                | `{ type: int, name: age, direction: "in", settings: { ... }}`         |
  *
  * Note: Internally we only use the normalized version. The other forms are used to add flexibility for the frooky input file.
@@ -58,8 +58,8 @@ export function normalizeInputParam(input: InputParam, decoderSettings?: Decoder
  * | Case | Form                    | Type                        | Example                                                          |
  * |------|-------------------------|-----------------------------|------------------------------------------------------------------|
  * | 1    | Type only               | `string`                    | `"int"`                                                          |
- * | 2    | Type + decoder settings | `[string, DecoderSettings]` | `["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]`  |
- * | 3    | Normalized object       | `DecodableType`             | `{ type: int, decoderSettings: { maxDepth: 5 }}`               |
+ * | 2    | Type + decoder settings | `[string, DecoderSettings]` | `["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]`     |
+ * | 3    | Normalized object       | `RetType`                   | `{ type: int, settings: { maxDepth: 5 }}`                        |
  *
  *  Note: Internally we only use the normalized version. The other forms are used to add flexibility for the frooky input file.
  *
@@ -97,12 +97,12 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings?: Dec
  * invalid hook file by reusing that habit here. Any type given this way is simply ignored, since
  * Java hooks have no use for it.
  *
- * | Case | Form                    | Example                                                          |
+ * | Case | Form                    | Example                                                           |
  * |------|-------------------------|-------------------------------------------------------------------|
- * | 1    | Type only (ignored)     | `"int"`                                                            |
- * | 2    | Type (ignored) + settings | `["int", { maxItems: 10 }]`                                   |
- * | 3    | Normalized `RetType` (type ignored) | `{ type: "int", settings: { maxDepth: 5 } }`        |
- * | 4    | Decoder settings only (documented Java form) | `{ maxDepth: 5 }`                         |
+ * | 1    | Type only (ignored)     | `"int"`                                                           |
+ * | 2    | Type (ignored) + settings | `["int", { maxItems: 10 }]`                                     |
+ * | 3    | Normalized `RetType` (type ignored) | `{ type: "int", settings: { maxDepth: 5 } }`          |
+ * | 4    | Decoder settings only (documented Java form) | `{ maxDepth: 5 }`                            |
  *
  * @public
  */

@@ -4,21 +4,23 @@ import { InputNativeHookCollection } from "./inputParsing/inputNativeHookCollect
 import { InputFrookySettings } from "./inputParsing/inputSettings";
 
 /**
- * frooky configuration.
+ * Root of a frooky hook file.
+ *
+ * @public
  */
 export interface InputFrookyConfig {
   /**
-   * Metadata about the hook collection
+   * Descriptive information about the hook file.
    */
   metadata?: InputFrookyMetadata;
 
   /**
-   * Settings applied to all hooks in this frooky config
+   * Default settings for all hooks in this file. Can be overridden per hook collection, hook or parameter.
    */
   settings?: InputFrookySettings;
 
   /**
-   * Collection of hooks.
+   * Java and native hook collections to install.
    */
   hookCollection: (InputJavaHookCollection | InputNativeHookCollection)[];
 }

@@ -165,3 +165,15 @@ class TestStatusBar:
         feed.status("x" * 500)
 
         assert feed.render_status_bar().no_wrap
+
+    def test_crops_to_the_console_width_with_an_ellipsis(self):
+        for width in (40, 120):
+            feed, _buffer = make_feed(width=width)
+            feed.status("x" * 500)
+
+            lines = feed.console.render_lines(feed._status_bar, pad=False)
+
+            assert len(lines) == 1
+            text = "".join(segment.text for segment in lines[0])
+            assert len(text) == width
+            assert text.endswith("…")

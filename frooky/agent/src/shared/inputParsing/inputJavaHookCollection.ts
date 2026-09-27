@@ -5,64 +5,71 @@ import { InputParam, InputRetTypeSettings, normalizeInputParam, normalizeInputRe
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
- * Describes a specific Java method overload.
- * Extended type for YAML input parsing.
+ * A specific overload of a Java method.
+ *
  * @public
  */
 export interface InputOverload {
   /**
-   * Parameter type for this overload.
+   * Parameters of the overload, in order. Their types select the overload.
    */
   params: InputParam[];
 
   /**
-   * Decoder settings applied to this overload's return value.
-   *
-   * The return type itself is never used - it is always resolved from Frida's own Java reflection
-   * at hook-registration time. The documented form is a bare decoder settings object (e.g.
-   * `{ decoder: "..." }`), but every form {@link InputRetTypeSettings} accepts is allowed, so
-   * declaring it the way native hooks do (`retType: type` or `retType: [type, decoderSettings]`)
-   * doesn't produce an invalid hook file - the type portion is simply ignored.
+   * Decoder settings for the return value. The return type is resolved via reflection; a declared type is ignored.
    */
   retType?: InputRetTypeSettings;
 }
 
 /**
- * Java method selector - either a simple method name or a detailed definition.
+ * Detailed declaration of a Java method hook.
  *
  * @public
  */
 export type InputJavaHookNormalized = {
+  /** Fully qualified class name. Inherited from the hook collection. */
   javaClass: string;
+
+  /** Method name. Use `$init` for constructors. */
   method: string;
+
+  /** Overloads to hook. If omitted, all overloads are hooked. */
   overloads?: InputOverload[];
+
+  /** Hook settings for this method. Override the collection's settings. */
   hookSettings?: HookSettings;
+
+  /** Decoder settings for this method. Override the collection's settings. */
   decoderSettings?: DecoderSettings;
 };
 
 /**
- * Java method selector - either a simple method name, a `[method, decoderSettings]` tuple shorthand,
- * or a detailed definition.
+ * A Java method hook: a method name, a `[method, decoderSettings]` tuple, or a detailed declaration.
  *
  * @public
  */
 export type InputJavaHook = string | [string, DecoderSettings] | InputJavaHookNormalized;
 
 /**
- * Native hook configuration.
- *
- * Extended type for YAML input parsing.
- *
- * The settings are optional here.
+ * Collection of hooks on methods of one Java class.
  *
  * @public
  * @discriminator {type}
  */
 export interface InputJavaHookCollection {
+  /** Collection kind. Optional in hook files; inferred from `javaClass`. */
   type: "java";
+
+  /** Fully qualified name of the class to hook, e.g. `android.content.Intent`. */
   javaClass: string;
+
+  /** Methods to hook. */
   hooks: InputJavaHook[];
+
+  /** Hook settings for all hooks in this collection. */
   hookSettings?: InputHookSettings;
+
+  /** Decoder settings for all hooks in this collection. */
   decoderSettings?: InputDecoderSettings;
 }
 
