@@ -1,0 +1,110 @@
+metadata:
+  name: Android Java Target App Testing (value-passing-java)
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Global settings for the hooks in this hook file.
+settings:
+  hookSettings:
+    maxStackFrames: 5                # Sets maxStackFrames to 5 for all hooks
+  decoderSettings:
+    # Cutoff limit for recursion depth when decoding nested data structures
+    maxDepth: 1
+    # Limit of how many elements of enumerable data structures are decoded
+    maxItems: 11
+
+hookCollection:
+  # Java primitive types
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - receiveBoolean
+      - receiveByte
+      - receiveShort
+      - method: receiveInt
+        overloads:
+          - params:
+              - [int, integer, { maxItems: 10, argFilter: ["^2147483647$", "^23$"] }]
+      - receiveLong
+      - receiveFloat
+      - receiveDouble
+      - receiveChar
+
+  # Java types which are converted to "string" type in javascript
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - method: receiveString
+        overloads:
+          - params:
+              - [java.lang.String, receivedString, { maxItems: 10 }]
+
+  # Primitive Java arrays
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      maxStackFrames: 5
+    decoderSettings:
+      maxDepth: 5
+      maxItems: 5
+    hooks:
+      - receiveStringArray
+      - receiveBooleanArray
+      - receiveByteArray
+      - receiveShortArray
+      - method: receiveIntArray
+        overloads:
+          - params:
+              - ["[I", receivedInteger, { maxItems: 50 }]
+      - receiveIntArray
+      - receiveLongArray
+      - receiveFloatArray
+      - receiveDoubleArray
+      - receiveCharArray
+      - receiveNestedPrimitivesArray
+      - receiveNestedObjectArray
+
+  # Complex common Java types
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - receiveBigInteger
+      - receiveBigDecimal
+      - receiveList
+      - receiveMap
+      - receiveSet
+      - receiveEnum
+
+  - javaClass: androidx.security.crypto.EncryptedSharedPreferences$Editor
+    hooks:
+      - putString
+      - putStringSet
+
+  # 3 different overloads with different ways of param declaration
+  - javaClass: android.content.Intent
+    hooks:
+      - method: $init
+        overloads:
+          - params:
+              - android.content.Intent
+          - params:
+              - [android.content.Context, packageContext]
+              - [java.lang.Class, cls]
+          - params:
+              - { type: java.lang.String, name: action }
+              - android.net.Uri
+
+  - javaClass: android.content.Intent
+    hooks:
+      - method: setFlags
+        overloads:
+          - params:
+              - [int, flags, { decoder: intentFlag }]
+
+  - javaClass: java.security.KeyPairGenerator
+    hooks:
+      - method: initialize
+        overloads:
+          - params:
+              - [java.security.spec.AlgorithmParameterSpec, params]
+
+  - javaClass: android.app.Activity
+    hooks:
+      - startActivity

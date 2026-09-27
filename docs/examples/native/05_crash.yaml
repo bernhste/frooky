@@ -1,0 +1,42 @@
+metadata:
+  name: Test Android Native Crash (x86_64)
+  description: |
+    Crashes tests/target-apps/android/value-passing-native intentionally to test
+    frooky's native crash reporting and backtrace summarization.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Crashes tests/target-apps/android/value-passing-native on purpose, to test
+# the crash report in frooky's summary. The companion script corrupts a string
+# the app passes to JNI, so ART aborts the app when you tap "Start":
+#
+#   frooky -U -f value_passing_native.frooky.target.app \
+#     -l docs/examples/native/05_crash.js \
+#     docs/examples/native/05_crash.yaml
+#
+# The summary then shows "Stopped: process crashed (abort at ...)", the
+# backtrace of the crashing thread, and the hooks below as the native hooks in
+# the crashing code.
+#
+# The offsets are only valid for the x86_64 build of the app
+# (nm -D --defined-only libreceiveString.so).
+
+hookCollection:
+  - module: libreceiveString.so
+    hookSettings:
+      maxStackFrames: 0
+    hooks:
+      - offset: 0x7a0             # receive_cstring
+        params:
+          - [char *, string]
+      - offset: 0x7b0             # receive_utf8
+        params:
+          - [char *, string]
+
+      # Rejected, not hooked: 0x5b0 lies in .rodata, which this small library
+      # maps into its executable segment. Hooking it would overwrite a string
+      # literal, which causes the same crash as the script.
+      - offset: 0x5b0
+        params:
+          - [char *, string]

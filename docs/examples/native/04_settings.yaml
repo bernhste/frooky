@@ -1,0 +1,101 @@
+metadata:
+  name: Native Settings Hierarchy Testing
+  description: |
+    Demonstrates setting inheritance in frooky across global, hook group,
+    hook, and parameter levels for native C/C++ hooks:
+
+    1. Global Settings (`settings:`):
+       Apply to all hooks and decoders across the file unless overridden.
+
+    2. Hook Group Settings (`hookSettings` / `decoderSettings` under `module`):
+       Override global settings for all hooks within that library.
+
+    3. Hook-Level Settings:
+       Override group and global settings for a specific symbol/offset hook.
+
+    4. Parameter Settings:
+       Override decoder settings for individual parameters.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Global settings for all hooks in this file.
+settings:
+  hookSettings:
+    maxStackFrames: 10                # Sets maxStackFrames to 10 for all hooks
+    stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply
+  decoderSettings:
+    maxDepth: 1                       # Recursion depth limit for nested data structures
+    maxItems: 11                      # Limit of decoded enumerable elements
+
+hookCollection:
+  # Simple function declaration (inherits global settings)
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - receive_bool
+
+  # Object with only symbol provided (inherits global settings)
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - symbol: receive_short
+
+  # Partial local hook settings take priority over global settings
+  - module: libreceiveFundamentalValue.so
+    hookSettings:
+      maxStackFrames: 0
+    decoderSettings:
+      maxItems: 22
+    hooks:
+      - symbol: receive_int
+        params: [int]
+      - symbol: receive_char
+        params: [char]
+
+  # Decode argument: null-terminated string
+  - module: libreceiveString.so
+    hookSettings:
+      maxStackFrames: 0
+    hooks:
+      - symbol: receive_cstring
+        params:
+          - [char *, string]
+      - symbol: receive_utf8
+        params:
+          - [char *, string]
+
+  # Partial local decoder settings take priority over global settings
+  - module: libreceiveFundamentalValue.so
+    decoderSettings:
+      maxItems: 33
+    hooks:
+      - symbol: receive_long
+
+  # Object with only symbol provided under group decoderSettings
+  - module: libreceiveFundamentalValue.so
+    decoderSettings:
+      maxItems: 44
+    hooks:
+      - receive_schar
+      - receive_ullong
+
+  # Partial local parameter settings: form [type, settings]
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - symbol: receive_llong
+        params: [llong, llong]
+
+  # Partial local parameter settings: form [type, name, settings]
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - symbol: receive_ullong
+        params:
+          - [ullong, minValue]
+          - [ullong, maxValue]
+
+  # Use parameter to decode a native buffer (uchar *) with length and direction
+  - module: libreceiveFundamentalReference.so
+    hooks:
+      - symbol: receive_byte_array
+        params:
+          - [unsigned char *, data, { decoderArg: length, direction: inout }]
+          - [int, length]

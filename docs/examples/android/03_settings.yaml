@@ -1,0 +1,97 @@
+metadata:
+  name: Android Settings Hierarchy Testing
+  description: |
+    Demonstrates setting inheritance in frooky across global, hook group,
+    hook, and parameter levels for Android Java hooks:
+
+    1. Global Settings (`settings:`):
+       Apply to all hooks and decoders across the file unless overridden.
+
+    2. Hook Group Settings (`hookSettings` / `decoderSettings` under `javaClass`):
+       Override global settings for all hooks within that class.
+
+    3. Hook-Level Settings:
+       Override group and global settings for a specific method hook.
+
+    4. Parameter Settings:
+       Override decoder settings for individual parameters.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Global settings for all hooks in this file.
+settings:
+  hookSettings:
+    maxStackFrames: 10
+    stackTraceFilter: ['^(?!android).*']
+  decoderSettings:
+    maxDepth: 1
+    maxItems: 11
+
+hookCollection:
+  # Simple method declaration (inherits global settings)
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - receiveBoolean
+
+  # Object with only method name provided (inherits global settings)
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - method: receiveByte
+
+  # Partial local hook settings take priority over global settings
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      maxStackFrames: 2
+    decoderSettings:
+      maxItems: 22
+    hooks:
+      - receiveShort
+      - receiveInt
+
+  # Partial local hook settings take priority over global settings (method object form)
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      maxStackFrames: 3
+    decoderSettings:
+      maxItems: 33
+    hooks:
+      - method: receiveLong
+
+  # Partial local hook settings with multiple methods
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      maxStackFrames: 4
+    decoderSettings:
+      maxItems: 44
+    hooks:
+      - receiveFloat
+      - receiveDouble
+
+  # Partial local parameter settings take priority over global settings: [type, settings]
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      maxStackFrames: 0
+    hooks:
+      - method: receiveIntArray
+        overloads:
+          - params:
+              - ["[I", { maxItems: 55 }]
+
+  # Parameter settings with name: [type, name]
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - method: receiveNestedPrimitivesArray
+        overloads:
+          - params:
+              - ["[[[I", nestedIntegerInput]
+
+  # Complex common Java types
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - receiveBigInteger
+      - receiveBigDecimal
+      - receiveList
+      - receiveMap
+      - receiveSet
+      - receiveEnum
