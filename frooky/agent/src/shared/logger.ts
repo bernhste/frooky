@@ -16,14 +16,37 @@ let frooky: FrookyAgent;
 let verbosity: LogLevel = "error";
 let logTo: LogTo = "console";
 
+// the thread that loads the script: Frida's JS thread, which also runs RPC calls and timers
+const jsThreadId = Process.getCurrentThreadId();
+// messages logged on app threads (hook callbacks, or hook lookups finishing on the app's main thread in spawn mode)
+const pendingLogs: { level: LogLevel; msg: string }[] = [];
+
 function shouldLog(level: LogLevel): boolean {
   return levelOrder[verbosity] >= levelOrder[level];
 }
 
-/** Plain text only: the level is conveyed by the console method, and the host does the coloring. */
+/**
+ * Logging on an app thread only queues the message, and a timer writes it from the JS thread, like
+ * events are sent: writing log output on the app's main thread while libc read/write were hooked
+ * deadlocked the app (seen with -vv in spawn mode). While messages are queued, messages logged on
+ * the JS thread queue behind them, to keep the order.
+ */
 function emit(level: LogLevel, msg: string): void {
   if (!shouldLog(level)) return;
 
+  if (pendingLogs.length > 0 || Process.getCurrentThreadId() !== jsThreadId) {
+    if (pendingLogs.push({ level, msg }) === 1) setTimeout(writePendingLogs, 0);
+    return;
+  }
+  write(level, msg);
+}
+
+function writePendingLogs(): void {
+  for (const { level, msg } of pendingLogs.splice(0)) write(level, msg);
+}
+
+/** Plain text only: the level is conveyed by the console method, and the host does the coloring. */
+function write(level: LogLevel, msg: string): void {
   if (logTo === "console") {
     switch (level) {
       case "info":

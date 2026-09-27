@@ -142,6 +142,7 @@ export class FrookyAgent {
   private loadedConfigs = new Map<string, Map<string, LoadedHookEntry>>();
   private anonymousConfigCount = 0;
   private reportProgress?: (progress: HookProgress) => void;
+  public readonly targetReady: Promise<void>; // Resolves once the target's own code can be looked up (e.g. Java.perform())
   private progressTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -153,6 +154,7 @@ export class FrookyAgent {
     logTo: LogTo = DEFAULT_SETTING_LOG_TO,
     resolverTimeoutSeconds: number = DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
     reportProgress?: (progress: HookProgress) => void,
+    targetReady: Promise<void> = Promise.resolve(),
   ) {
     //initialize asynchronous sender
     startEventSender(this.eventCache);
@@ -161,6 +163,7 @@ export class FrookyAgent {
     this.platformHookValidator = platformInputHookValidator;
     this.resolverTimeoutSeconds = resolverTimeoutSeconds;
     this.reportProgress = reportProgress;
+    this.targetReady = targetReady;
     this.nativeHookManager = new NativeHookManager(platformStackTrace, this);
     this.platformHookManger = createPlatformHookManager(this);
 

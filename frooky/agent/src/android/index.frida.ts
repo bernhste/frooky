@@ -14,15 +14,16 @@ if (!Java.available) {
 const frookyConfigs: InputFrookyConfig[] = [{}] as InputFrookyConfig[];
 //%%% REPLACE STOP
 
-Java.perform(() => {
-  const frookyAgent = new FrookyAgent(
-    "Android",
-    new AndroidHookValidator(),
-    (frookyAgent) => new AndroidHookManager(AndroidStackTrace, frookyAgent),
-    AndroidStackTrace,
-    "debug",
-    DEFAULT_SETTING_LOG_TO,
-    DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
-  );
-  frookyAgent.loadFrookyConfigs(frookyConfigs);
-});
+// runs on Frida's JS thread; lookups of app classes wait for the app's class loader (Java.perform())
+const frookyAgent = new FrookyAgent(
+  "Android",
+  new AndroidHookValidator(),
+  (frookyAgent) => new AndroidHookManager(AndroidStackTrace, frookyAgent),
+  AndroidStackTrace,
+  "debug",
+  DEFAULT_SETTING_LOG_TO,
+  DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
+  undefined,
+  new Promise((resolve) => Java.perform(() => resolve())),
+);
+frookyAgent.loadFrookyConfigs(frookyConfigs);

@@ -4,7 +4,7 @@ import { FilterMismatchError } from "../shared/utils";
 
 export const AndroidStackTrace: PlatformStackTrace = {
   build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): string[] {
-    // avoid the (unfiltered) native backtrace and the full Java.perform()/Java.backtrace() round-trip
+    // avoid the (unfiltered) native backtrace and the full Java.vm.perform()/Java.backtrace() round-trip
     // below when no frames were asked for - both are expensive and this runs on every intercepted call
     if (limit <= 0 && !stackTraceFilter?.length) return [];
 
@@ -34,7 +34,9 @@ export const AndroidStackTrace: PlatformStackTrace = {
 
     let javaFrames: string[] = [];
 
-    Java.perform(() => {
+    // not Java.perform(): before the app's class loader is set (a hook firing early in spawn mode) it
+    // would queue the callback instead of running it. The thread is already attached (env above).
+    Java.vm.perform(() => {
       try {
         const javaStackTrace = Java.backtrace();
         javaFrames = javaStackTrace.frames.map((frame) => `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`);

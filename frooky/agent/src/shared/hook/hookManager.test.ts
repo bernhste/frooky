@@ -11,8 +11,8 @@ import { FilterMismatchError } from "../utils";
 import { Hook } from "./hook";
 import { HookManager, ParamDecoder } from "./hookManager";
 
-function createFakeFrookyAgent(): FrookyAgent {
-  return { addEventToLog: (_event: LogEvent) => {} } as unknown as FrookyAgent;
+function createFakeFrookyAgent(targetReady: Promise<void> = Promise.resolve()): FrookyAgent {
+  return { addEventToLog: (_event: LogEvent) => {}, targetReady } as unknown as FrookyAgent;
 }
 
 type TestValue = string;
@@ -139,6 +139,31 @@ describe("HookManager", () => {
       );
 
       expect(result).toBe("resolved-on-retry");
+      expect(callCount).toBe(2);
+    });
+
+    it("retries once the target is ready and only then starts the timeout", async () => {
+      let markTargetReady!: () => void;
+      const manager = createManager(undefined, undefined, createFakeFrookyAgent(new Promise<void>((resolve) => (markTargetReady = resolve))));
+      let targetReady = false;
+      let callCount = 0;
+
+      // a timeout of 0 would fail right away if it started before the target was ready
+      const resultPromise = manager.exposedPollUntilResolved(
+        () => {
+          callCount++;
+          return targetReady ? "resolved-when-ready" : null;
+        },
+        "thing",
+        0,
+      );
+      await new Promise((r) => setTimeout(r, 50));
+      expect(callCount).toBe(1);
+
+      targetReady = true;
+      markTargetReady();
+
+      expect(await resultPromise).toBe("resolved-when-ready");
       expect(callCount).toBe(2);
     });
   });

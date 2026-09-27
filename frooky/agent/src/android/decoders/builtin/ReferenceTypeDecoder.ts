@@ -99,7 +99,7 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       };
     }
 
-    logger.debug(`Resolving decoder for declared type: ${this.type}`);
+    logger.debug(`Resolving decoder for type: ${this.type}`);
 
     const decoderConstructor: DecoderConstructor =
       // 1. class decoder for the runtime class exists

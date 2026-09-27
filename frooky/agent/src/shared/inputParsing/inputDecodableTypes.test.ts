@@ -38,9 +38,41 @@ describe("inputDecodableTypes", () => {
       });
     });
 
-    it("should return Param unchanged", () => {
+    it("should keep a complete Param as it is", () => {
       const param: Param = { type: "testParam", name: "paramName", direction: "out", settings: expectedSettings };
       expect(normalizeInputParams([param])[0]).toEqual(param);
+    });
+
+    it("should complete an object with only type and name", () => {
+      const input = { type: "java.lang.String", name: "action" } as Param;
+      expect(normalizeInputParams([input])[0]).toEqual({
+        type: "java.lang.String",
+        name: "action",
+        direction: "in",
+        settings: DEFAULT_DECODER_SETTINGS,
+      });
+    });
+
+    it("should throw for an object without a type", () => {
+      expect(() => normalizeInputParams([{ name: "action" } as unknown as Param])).toThrow("Unrecognized InputParam format");
+    });
+  });
+
+  describe("normalizeInputParams(), settings precedence", () => {
+    // the merged file, group and hook level settings
+    const outerSettings = { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, hashCode: true };
+
+    it("uses the outer settings for the forms without own settings", () => {
+      const params = normalizeInputParams(["int", ["int", "n"]], outerSettings);
+      for (const param of params) expect(param.settings).toEqual(outerSettings);
+    });
+
+    it("lets the param's own settings override the outer ones field by field, in every form", () => {
+      const params = normalizeInputParams(
+        [["int", { maxItems: 5 }], ["int", "n", { maxItems: 5 }], { type: "int", settings: { maxItems: 5 } } as Param],
+        outerSettings,
+      );
+      for (const param of params) expect(param.settings).toEqual({ ...outerSettings, maxItems: 5 });
     });
   });
 

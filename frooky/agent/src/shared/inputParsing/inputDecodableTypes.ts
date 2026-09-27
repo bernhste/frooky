@@ -1,5 +1,5 @@
 import { validateAndRepairDecoderSettings } from "../configValidator";
-import { Param, Decodable as RetType } from "../decoders/decodable";
+import { Direction, Param, Decodable as RetType } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_DECODE_AT } from "../defaultValues";
 import { DecoderSettings } from "../frookySettings";
 import { InputParamSettings } from "./inputSettings";
@@ -13,9 +13,10 @@ import { InputParamSettings } from "./inputSettings";
  * | 2    | Type + name            | `[string, string]`                     | `["java.lang.String", "value"]`                                       |
  * | 3    | Type + settings        | `[string, InputParamSettings]`         | `["[I", { direction: "in", maxDepth: 5 }]`                            |
  * | 4    | Type + name + settings | `[string, string, InputParamSettings]` | `["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]`        |
- * | 5    | Normalized object      | `Param`                                | `{ type: int, name: age, direction: "in", settings: { ... }}`         |
+ * | 5    | Object                 | `Param`, all but `type` optional       | `{ type: int, name: age, direction: "in", settings: { ... }}`         |
  *
  * Note: Internally we only use the normalized version. The other forms are used to add flexibility for the frooky input file.
+ * Every form is normalized into a complete {@link Param}.
  *
  * @public
  */
@@ -24,30 +25,38 @@ export type InputParam = string | [string, string] | [string, InputParamSettings
 function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSettings): Param {
   const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
 
+  // every form ends up here, so each one gets the same defaults: the param's own settings override the
+  // merged ones (file, group and hook level) field by field, and are validated
+  const toParam = (type: string, name?: string, direction?: Direction, paramSettings?: Partial<DecoderSettings>): Param => ({
+    type,
+    ...(name !== undefined && { name }),
+    direction: direction ?? DEFAULT_DECODE_AT,
+    settings: paramSettings ? validateAndRepairDecoderSettings({ ...mergedSettings, ...paramSettings }) : mergedSettings,
+  });
+
   // Case 1: Type only - "java.lang.String"
   if (typeof input === "string") {
-    return { type: input, direction: DEFAULT_DECODE_AT, settings: mergedSettings };
+    return toParam(input);
   } else if (Array.isArray(input)) {
     // Case 2: Type + name - ["java.lang.String", "value"]
     if (input.length === 2 && typeof input[1] === "string") {
       const [type, name] = input;
-      return { type, direction: DEFAULT_DECODE_AT, settings: mergedSettings, name };
+      return toParam(type, name);
     }
     // Case 3: Type + options - ["[I", { direction: "in", maxDepth: 5 }]
     if (input.length === 2 && typeof input[1] === "object") {
-      const [type, { direction, ...inlineDecoderSettings }] = input as [string, InputParamSettings];
-      const validatedDecoderSettings = validateAndRepairDecoderSettings({ ...DEFAULT_DECODER_SETTINGS, ...inlineDecoderSettings });
-      return { type, direction: direction ?? DEFAULT_DECODE_AT, settings: validatedDecoderSettings };
+      const [type, { direction, ...paramSettings }] = input as [string, InputParamSettings];
+      return toParam(type, undefined, direction, paramSettings);
     }
     // Case 4: Type + name + options - ["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]
     if (input.length === 3) {
-      const [type, name, { direction, ...inlineDecoderSettings }] = input as [string, string, InputParamSettings];
-      const validatedDecoderSettings = validateAndRepairDecoderSettings({ ...DEFAULT_DECODER_SETTINGS, ...inlineDecoderSettings });
-      return { type, direction: direction ?? DEFAULT_DECODE_AT, settings: validatedDecoderSettings, name };
+      const [type, name, { direction, ...paramSettings }] = input as [string, string, InputParamSettings];
+      return toParam(type, name, direction, paramSettings);
     }
-  } else if (typeof input === "object") {
-    // Case 5: Normalized object
-    return input;
+  } else if (typeof input === "object" && input !== null && typeof input.type === "string") {
+    // Case 5: Object - { type: "java.lang.String", name: "action" }, direction and settings are optional
+    const { type, name, direction, settings } = input as Partial<Param> & { type: string };
+    return toParam(type, name, direction, settings);
   }
   throw new Error(`Unrecognized InputParam format: ${JSON.stringify(input)}`);
 }

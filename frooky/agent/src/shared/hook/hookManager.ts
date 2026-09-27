@@ -42,13 +42,25 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   /** Removes hooks previously installed by {@link registerHooks}. Hooks that were never installed are ignored. */
   public abstract unregisterHooks(hooks: THooks[]): void;
 
-  /** Polls `fn` until it returns a value. `label` names what is looked up in the timeout error, e.g. `Module 'libfoo.so'`. */
+  /**
+   * Polls `fn` until it returns a value. `label` names what is looked up in the timeout error, e.g. `Module 'libfoo.so'`.
+   *
+   * If the first call finds nothing, the target's own code may not be loaded yet (in spawn mode the app is still
+   * paused), so it retries once {@link FrookyAgent.targetReady} resolves and only then starts the timeout. In spawn
+   * mode that retry runs on the app's main thread before the app's code runs, so what it finds is hooked in time.
+   */
   protected async pollUntilResolved<T>(fn: () => T | null, label: string, timeoutSeconds: number): Promise<T> {
     if (timeoutSeconds < 0) throw Error(`Timeout must not be less than 0.`);
-    const deadline = Date.now() + timeoutSeconds * 1000;
-    while (Date.now() < deadline) {
+    let deadline: number | undefined;
+    for (;;) {
       const result = fn();
       if (result !== null) return result;
+      if (deadline === undefined) {
+        await this.frookyAgent.targetReady;
+        deadline = Date.now() + timeoutSeconds * 1000;
+        continue;
+      }
+      if (Date.now() >= deadline) break;
       await new Promise((r) => setTimeout(r, HOOK_LOOKUP_INTERVAL_MS));
     }
     throw Error(`${label} not found within ${timeoutSeconds} seconds. Skipping the hooks declared for it.`);

@@ -7,56 +7,49 @@ import { AndroidStackTrace } from "./androidStackTrace";
 import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
 
-let frookyAgent: FrookyAgent;
-let frookyAgentReady: Promise<void> | undefined;
+let frookyAgent: FrookyAgent | undefined;
 
+function initializedFrookyAgent(): FrookyAgent {
+  if (!frookyAgent) {
+    throw new Error("[!] frookyAgent is not initialized. Call initFrookyAgent() first.");
+  }
+  return frookyAgent;
+}
+
+// RPC calls run on Frida's JS thread. In spawn mode the host resumes the app only after loadFrookyConfigs(),
+// so native hooks and hooks on framework classes are installed before any app code runs. Lookups of app
+// classes wait for Java.perform(), i.e. the app's class loader, see FrookyAgent.targetReady.
 rpc.exports = {
   initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
     if (!Java.available) {
       throw new Error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
     }
-    frookyAgentReady = new Promise<void>((resolve, reject) => {
-      Java.perform(() => {
-        try {
-          frookyAgent = new FrookyAgent(
-            "Android",
-            new AndroidHookValidator(),
-            (frookyAgent) => new AndroidHookManager(AndroidStackTrace, frookyAgent),
-            AndroidStackTrace,
-            logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
-            logTo ?? DEFAULT_SETTING_LOG_TO,
-            resolverTimeoutSeconds ?? DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
-            // an object payload, which the host tells apart from the event batches (arrays)
-            (progress) => send({ frooky: "progress", ...progress }),
-          );
-          // Java.perform() runs this callback on an app thread (in spawn mode the main thread). Resolve
-          // from a timer, so everything chained on frookyAgentReady (loading configs, installing hooks,
-          // logging) runs on Frida's JS thread instead: running it on the main thread while hooking
-          // e.g. libc read/write deadlocks the app once enough log output is pending (seen with -vv).
-          setTimeout(resolve, 0);
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-    frookyAgentReady.catch((e) => console.error(`Error initializing frookyAgent: ${String(e)}`));
+    if (frookyAgent) {
+      throw new Error("[!] frookyAgent is already initialized.");
+    }
+    frookyAgent = new FrookyAgent(
+      "Android",
+      new AndroidHookValidator(),
+      (frookyAgent) => new AndroidHookManager(AndroidStackTrace, frookyAgent),
+      AndroidStackTrace,
+      logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
+      logTo ?? DEFAULT_SETTING_LOG_TO,
+      resolverTimeoutSeconds ?? DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
+      // an object payload, which the host tells apart from the event batches (arrays)
+      (progress) => send({ frooky: "progress", ...progress }),
+      new Promise((resolve) => Java.perform(() => resolve())),
+    );
   },
   // configIds (index-aligned, e.g. the hook file paths) let later updateFrookyConfig() calls replace a config
   loadFrookyConfigs(frookyConfigs: InputFrookyConfig[], configIds?: string[]) {
-    if (!frookyAgentReady) {
-      throw new Error("[!] frookyAgent is not initialized. Call initFrookyAgent() first.");
-    }
-    frookyAgentReady
-      .then(() => frookyAgent.loadFrookyConfigs(frookyConfigs, configIds))
+    initializedFrookyAgent()
+      .loadFrookyConfigs(frookyConfigs, configIds)
       .catch((e) => console.error(`Error loading frooky configs: ${String(e)}`));
   },
   // replaces the config loaded under configId, re-hooking only what changed; retryFailed also retries hooks that failed to resolve
   updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig, retryFailed?: boolean) {
-    if (!frookyAgentReady) {
-      throw new Error("[!] frookyAgent is not initialized. Call initFrookyAgent() first.");
-    }
-    frookyAgentReady
-      .then(() => frookyAgent.loadFrookyConfig(frookyConfig, configId, retryFailed ?? false))
+    initializedFrookyAgent()
+      .loadFrookyConfig(frookyConfig, configId, retryFailed ?? false)
       .catch((e) => console.error(`Error updating frooky config: ${String(e)}`));
   },
 };
