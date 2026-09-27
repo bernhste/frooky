@@ -153,34 +153,37 @@ $ frooky -U -f org.owasp.mastestapp  docs/examples/01_android.yaml -e
   Press R to reload the hook files and retry failed hooks, Ctrl+C to stop...
 
 ┌─ java (static) ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
-  time      :  2026-09-16T20:24:24.094Z
-  class     :  javax.crypto.Cipher
-  method    :  init(int opmode, java.security.Key key, java.security.SecureRandom random)
-  args in   :  int opmode
-                 ENCRYPT_MODE
-               java.security.Key key
-                 'android.security.keystore2.AndroidKeyStoreSecretKey@fe4744ec'
-               java.security.SecureRandom random
-                 'OpenSSLRandom'
-  returns   :  void
-  stack     :  javax.crypto.Cipher.init (Cipher.java:1158)
-               javax.crypto.Cipher.init (Cipher.java:1103)
-               org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:46)
-               org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)
-               org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)
+│ time      :  2026-09-16T20:24:24.094Z
+│ class     :  javax.crypto.Cipher
+│ method    :  init(int opmode, java.security.Key key, java.security.SecureRandom random)
+│
+│ arguments in
+│   opmode  int                         'ENCRYPT_MODE'
+│   key     java.security.Key           'android.security.keystore2.AndroidKeyStoreSecretKey@fe4744ec'
+│   random  java.security.SecureRandom  'OpenSSLRandom'
+│
+│ returns   void
+│
+│ stack     :  javax.crypto.Cipher.init (Cipher.java:1158)
+│              javax.crypto.Cipher.init (Cipher.java:1103)
+│              org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:46)
+│              org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)
+│              org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ┌─ java (static) ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
-  time      :  2026-09-16T20:24:24.095Z
-  class     :  javax.crypto.Cipher
-  method    :  doFinal([B)
-  args in   :  [B
-                 'We ❤️ OWASP MAS 📱'
-  returns   :  [B
-                 ';.\tX..V\\F..=.RT+-nwEob_.2..=.."J........'
-  stack     :  javax.crypto.Cipher.doFinal (Cipher.java:2066)
-               org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:48)
-               org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)
-               org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)
-               org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)
+│ time      :  2026-09-16T20:24:24.095Z
+│ class     :  javax.crypto.Cipher
+│ method    :  doFinal([B)
+│
+│ arguments in
+│          [B  'We ❤️ OWASP MAS 📱'
+│
+│ returns  [B  ';.\tX..V\\F..=.RT+-nwEob_.2..=.."J........'
+│
+│ stack     :  javax.crypto.Cipher.doFinal (Cipher.java:2066)
+│              org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:48)
+│              org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)
+│              org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)
+│              org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```

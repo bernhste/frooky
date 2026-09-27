@@ -1,5 +1,7 @@
 """Unit tests for the pure formatting/decoding logic in pp_hook_event."""
 
+import re
+
 from frooky.pp_hook_event import _format_signature, _is_decoded_value, _unwrap, format_hook_event, pp_hook_event
 
 
@@ -167,9 +169,84 @@ class TestPpHookEvent:
             "argsIn": [{"type": "void *", "name": "buf", "value": value}],
         }
 
-        lines = format_hook_event(hook, width=80)
+        lines = _plain(format_hook_event(hook, width=80))
 
-        value_lines = lines[lines.index("  args in   :  void * buf") + 1 : -1]
+        value_lines = lines[lines.index("│ arguments in") + 1 : -1]
         assert all(len(line) <= 79 for line in value_lines)
-        assert not value_lines[0].lstrip().startswith("(")
-        assert "".join(line.strip() for line in value_lines) == repr(value)
+        assert value_lines[0].startswith("│   buf    void *  'a b")
+        assert "".join(line[2:].strip() for line in value_lines) == "buf    void *  " + repr(value)
+
+    def test_arguments_are_a_table_of_name_type_and_value(self):
+        hook = {
+            "type": "native-hook",
+            "module": "libc.so",
+            "symbol": "write",
+            "argsIn": [
+                {"type": "int", "name": "fd", "value": "74"},
+                {"type": "const void *", "name": "buf", "value": "...."},
+            ],
+            "argsOut": [{"type": "const void *", "name": "buf", "value": "done"}],
+            "returnValue": {"type": "ssize_t", "value": "4"},
+        }
+
+        lines = _plain(format_hook_event(hook))
+
+        start = lines.index("│ arguments in")
+        assert lines[start : start + 3] == [
+            "│ arguments in",
+            "│   fd     int           '74'",
+            "│   buf    const void *  '....'",
+        ]
+        assert "│   buf    const void *  'done'" == lines[lines.index("│ arguments out") + 1]
+        assert "│ returns  ssize_t       4" in lines
+
+    def test_keeps_the_labelled_fields(self):
+        hook = {"type": "native-hook", "timestamp": "t", "module": "libc.so", "symbol": "close", "argsIn": [{"type": "int", "name": "fd"}]}
+
+        lines = _plain(format_hook_event(hook))
+
+        assert lines[1:4] == ["│ time      :  t", "│ module    :  libc.so", "│ function  :  close(int fd)"]
+
+    def test_values_move_below_a_row_whose_columns_are_too_wide(self):
+        long_type = "java.security.spec.AlgorithmParameterSpec"
+        hook = {"type": "java-hook", "javaClassName": "C", "method": "m", "argsIn": [{"type": long_type, "name": "p", "value": "v"}]}
+
+        lines = _plain(format_hook_event(hook, width=60))
+
+        row = lines.index(f"│   p      {long_type}")
+        assert lines[row + 1] == "│     'v'"
+
+    def test_no_line_is_wider_than_the_box(self):
+        hook = {
+            "type": "java-hook",
+            "javaClassName": "c" * 200,
+            "method": "m",
+            "argsIn": [{"type": "t" * 100, "name": "n" * 100, "value": {"k": "v" * 300}}],
+            "stackTrace": ["f" * 300],
+        }
+
+        for line in _plain(format_hook_event(hook, width=60)):
+            assert len(line) <= 60
+
+
+class TestIntegerStrings:
+    def _row(self, t, v):
+        hook = {"type": "native-hook", "module": "m", "symbol": "f", "argsIn": [{"type": t, "name": "x", "value": v}]}
+        return next(line for line in _plain(format_hook_event(hook)) if line.startswith("│   x"))
+
+    def test_64_bit_integer_types_are_printed_without_quotes(self):
+        for t in ("size_t", "ssize_t", "const size_t", "unsigned long", "off_t", "uint64_t", "long"):
+            assert self._row(t, "524288").endswith(f"{t}  524288"), t
+
+    def test_negative_values_are_printed_without_quotes(self):
+        assert self._row("ssize_t", "-1").endswith("ssize_t  -1")
+
+    def test_strings_of_other_types_keep_their_quotes(self):
+        assert self._row("const char *", "524288").endswith("'524288'")
+
+    def test_non_numeric_values_keep_their_quotes(self):
+        assert self._row("size_t", "0x10").endswith("'0x10'")
+
+
+def _plain(lines: list[str]) -> list[str]:
+    return [re.sub(r"\033\[[0-9;]*m", "", line) for line in lines]
