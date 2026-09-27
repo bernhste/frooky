@@ -265,3 +265,27 @@ export function sleepMilliseconds(milliSeconds: number): Promise<void> {
 export function sleepSeconds(seconds: number): Promise<void> {
   return sleepMilliseconds(seconds * 1000);
 }
+
+/**
+ * A short JSON preview of a value for log messages, cut at `maxLength` characters.
+ * Never throws: values JSON can't represent (cycles, BigInt) fall back to `String(value)`.
+ */
+export function previewValue(value: unknown, maxLength: number = 200): string {
+  let text: string;
+  try {
+    text = JSON.stringify(value) ?? String(value);
+  } catch {
+    text = String(value);
+  }
+  return text.length > maxLength ? `${text.slice(0, maxLength)}... (${text.length} chars)` : text;
+}
+
+/** `1 hook`, `2 hooks`; `plural` is used for counts other than 1 (default: `noun` + "s"). */
+export function plural(count: number, noun: string, pluralNoun: string = `${noun}s`): string {
+  return `${count} ${count === 1 ? noun : pluralNoun}`;
+}
+
+/** The ` (hooks.yaml)` suffix naming where hooks are declared in log messages, or "" if unknown. */
+export function fromSource(source?: string): string {
+  return source ? ` (${source})` : "";
+}

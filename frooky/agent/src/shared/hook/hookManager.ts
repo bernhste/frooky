@@ -6,7 +6,7 @@ import { DecoderResolver } from "../decoders/decoderResolver";
 import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
-import { FilterMismatchError } from "../utils";
+import { FilterMismatchError, previewValue } from "../utils";
 import { Hook } from "./hook";
 
 export type ParamDecoder<TValue> = {
@@ -35,10 +35,14 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   /**
    * Resolves the given input hooks. The returned promises are index-aligned with `inputHooks`:
    * the n-th promise yields the resolved hooks of the n-th input hook, or `null` if it failed.
+   * `source` names where the hooks are declared (the hook file) in log messages.
    */
-  public abstract resolveHooks(inputHooks: TInputHook[], timeout: number): Promise<Promise<THooks[] | null>[]>;
-  /** Installs the hooks. Returns how many were installed; failures are logged and skipped. */
-  public abstract registerHooks(hooks: THooks[]): number;
+  public abstract resolveHooks(inputHooks: TInputHook[], timeout: number, source?: string): Promise<Promise<THooks[] | null>[]>;
+  /**
+   * Installs the hooks and logs each installed one. Returns how many were installed; failures are logged and skipped.
+   * `source` names where the hooks are declared (the hook file) in log messages.
+   */
+  public abstract registerHooks(hooks: THooks[], source?: string): number;
   /** Removes hooks previously installed by {@link registerHooks}. Hooks that were never installed are ignored. */
   public abstract unregisterHooks(hooks: THooks[]): void;
 
@@ -86,7 +90,9 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decoderArgDecoder: decoderArgResolution?.decoder,
         argFilter: param.settings.argFilter?.map((pattern) => new RegExp(pattern)),
       };
-      logger.debug(`Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify(paramDecoder, null, 2)}`);
+      logger.debug(
+        `Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify({ ...paramDecoder, decoder: paramDecoder.decoder.decoderName, settings: param.settings }, null, 2)}`,
+      );
       argDecoderSpecs.push(paramDecoder);
     });
 
@@ -136,14 +142,39 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return argFilter.some((pattern) => pattern.test(stringValue));
   }
 
-  protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[]): DecodedValue[] {
+  /**
+   * Decodes one value. At debug level, logs what went in (the declared type), the decoder and what came
+   * out, e.g. `Decoded com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"`.
+   *
+   * @param what - Names the value in the log message, e.g. `com.example.Foo.bar return value`.
+   */
+  protected decodeValue(decoder: Decoder<TValue>, value: TValue, what: string, arg?: any): DecodedValue {
+    const decodedValue = decoder.decode(value, arg);
+    // checked first, since previewValue() serializes the whole (possibly large) decoded value
+    if (logger.isEnabled("debug")) {
+      logger.debug(`Decoded ${what} (${decoder.declaredType}, ${decoder.decoderName}): ${previewValue(decodedValue.value)}`);
+    }
+    return decodedValue;
+  }
+
+  /**
+   * Decodes the arguments of one call.
+   *
+   * @param target - The hooked method or function, only used in debug log messages.
+   */
+  protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[], target: string = "hook"): DecodedValue[] {
     const decodedArgs: DecodedValue[] = [];
     for (const paramDecoder of paramDecoders) {
+      const param = `${target} param #${paramDecoder.argIndex}${paramDecoder.name ? ` '${paramDecoder.name}'` : ""}`;
       let decodedDecoderArg: any;
       if (paramDecoder.decoderArg && paramDecoder.decoderArgIndex !== undefined && paramDecoder.decoderArgDecoder) {
-        decodedDecoderArg = paramDecoder.decoderArgDecoder.decode(args[paramDecoder.decoderArgIndex]);
+        decodedDecoderArg = this.decodeValue(
+          paramDecoder.decoderArgDecoder,
+          args[paramDecoder.decoderArgIndex],
+          `decoderArg '${paramDecoder.decoderArg}' of ${param}`,
+        );
       }
-      var decodedValue = paramDecoder.decoder.decode(args[paramDecoder.argIndex], decodedDecoderArg);
+      const decodedValue = this.decodeValue(paramDecoder.decoder, args[paramDecoder.argIndex], param, decodedDecoderArg);
       if (this.matchesFilter(decodedValue, paramDecoder.argFilter)) {
         decodedArgs.push(decodedValue);
       } else {

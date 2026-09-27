@@ -4,6 +4,10 @@ import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { decodeConstantValues } from "../../utils/decodeConstants";
 
 export class IntentFlagDecoder extends Decoder<Java.Wrapper> {
+  readonly decoderName = "IntentFlagDecoder";
+  readonly description =
+    "Decodes an `int` bitmask of Intent flags to the names of the `Intent.FLAG_*` constants that are set, e.g. `FLAG_ACTIVITY_NEW_TASK`.";
+
   flags = decodeConstantValues("android.content.Intent", "FLAG_");
 
   decode(value: Java.Wrapper): DecodedValue {

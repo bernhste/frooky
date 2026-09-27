@@ -7,6 +7,8 @@ description: Use when adding or changing a frooky value decoder, meaning how a J
 
 All decoders extend `Decoder<T>` from `frooky/agent/src/shared/decoders/baseDecoder.ts`. They get a `Decodable` (`type`, `name`, `settings`, optional `declaringClass`) and implement `decode(value): DecodedValue`.
 
+Every decoder sets `readonly decoderName = "<ClassName>"` (required; log messages use it because release builds minify class names) and, if the name alone doesn't say what it does, a one-sentence `readonly description`.
+
 First decide which kind you need:
 
 | Kind | Chosen when | Register in |

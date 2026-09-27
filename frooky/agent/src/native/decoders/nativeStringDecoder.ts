@@ -75,6 +75,9 @@ export function decodeNativeString(input: NativePointer, settings: DecoderSettin
  * string by default (e.g. `void *`). See {@link decodeNativeString}.
  */
 export class NativeStringDecoder extends Decoder<NativePointer> {
+  readonly decoderName = "NativeStringDecoder";
+  readonly description = "Reads the memory a pointer points to as a string, for pointer types not decoded as strings by default (e.g. `void *`).";
+
   public decode(value: NativePointer, arg?: DecodedValue): DecodedValue {
     return {
       type: this.type,

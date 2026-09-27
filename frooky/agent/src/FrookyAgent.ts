@@ -19,7 +19,7 @@ import { HookManager } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { logger, LogLevel, LogTo } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
-import { stableStringify } from "./shared/utils";
+import { plural, stableStringify } from "./shared/utils";
 
 /**
  * State of one normalized hook declaration of a loaded config.
@@ -45,10 +45,6 @@ function configLabel(configId: string): string {
 /** Names a config in log messages: the hook file name, else the metadata name. */
 function describeConfig(inputFrookyConfig: InputFrookyConfig, configId?: string): string {
   return configId !== undefined ? configLabel(configId) : (inputFrookyConfig.metadata?.name ?? "frooky config");
-}
-
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /** The class or module a normalized hook declaration waits for until it can be resolved. */
@@ -328,8 +324,8 @@ export class FrookyAgent {
 
     // async resolve the new hooks and register them; the summary is logged by loadFrookyConfig()
     const [countSuccessfulPlatformHooks, countSuccessfulNativeHooks] = await Promise.all([
-      this.resolveAndRegisterHooks(this.platformHookManger, platformToResolve, "platform"),
-      this.resolveAndRegisterHooks(this.nativeHookManager, nativeToResolve, "native"),
+      this.resolveAndRegisterHooks(this.platformHookManger, platformToResolve, "platform", label),
+      this.resolveAndRegisterHooks(this.nativeHookManager, nativeToResolve, "native", label),
     ]);
 
     const toResolve = [...platformToResolve, ...nativeToResolve];
@@ -349,9 +345,16 @@ export class FrookyAgent {
    * Resolves and installs the given hooks, and records the result on each hook's entry.
    * A hook whose entry was removed while it was resolving (the config was reloaded meanwhile) is not installed.
    *
+   * @param kind - `platform` or `native`, for error messages.
+   * @param source - Names the config the hooks come from (the hook file name) in log messages.
    * @returns The number of installed hooks.
    */
-  private async resolveAndRegisterHooks(manager: HookManager<any, any, any>, pendingHooks: PendingHook[], label: string): Promise<number> {
+  private async resolveAndRegisterHooks(
+    manager: HookManager<any, any, any>,
+    pendingHooks: PendingHook[],
+    kind: string,
+    source: string,
+  ): Promise<number> {
     if (pendingHooks.length === 0) return 0;
 
     let countSuccessfulHooks = 0;
@@ -359,6 +362,7 @@ export class FrookyAgent {
       const hookPromises = await manager.resolveHooks(
         pendingHooks.map((pendingHook) => pendingHook.inputHook),
         this.resolverTimeoutSeconds,
+        source,
       );
       const settled = await Promise.allSettled(
         hookPromises.map((hookPromise, i) =>
@@ -370,7 +374,7 @@ export class FrookyAgent {
               entry.state = "failed";
               return;
             }
-            const hookedCount = manager.registerHooks(hooks);
+            const hookedCount = manager.registerHooks(hooks, source);
             countSuccessfulHooks += hookedCount;
             entry.hooks = hooks;
             entry.hookedCount = hookedCount;
@@ -384,7 +388,7 @@ export class FrookyAgent {
         if (result.status !== "rejected" || !entry || entry.state !== "pending") return;
         entry.state = "failed";
         logger.warn(
-          `Failed to hook ${describeInputHook(pendingHooks[i]?.inputHook)}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+          `Failed to hook ${describeInputHook(pendingHooks[i]?.inputHook)} (${source}): ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
         );
         this.scheduleProgressReport();
       });
@@ -393,7 +397,7 @@ export class FrookyAgent {
         if (entry.state === "pending") entry.state = "failed";
       }
       this.scheduleProgressReport();
-      logger.error(`Error while resolving ${label} hooks: ${String(e)}`);
+      logger.error(`Error while resolving ${kind} hooks of ${source}: ${String(e)}`);
     }
     return countSuccessfulHooks;
   }

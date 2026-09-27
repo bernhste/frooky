@@ -44,6 +44,9 @@ function elementTypeFromSignature(element: string): string {
 }
 
 export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
+  readonly decoderName = "ArrayDecoder";
+  readonly description = "Decodes a Java array element by element, up to `maxItems` elements.";
+
   public decode(value: Java.Wrapper, arg?: any): DecodedValue {
     // a null array argument or return value (e.g. `selectionArgs` in ContentProvider#query) arrives as
     // a plain JS null - checked before the depth limit so null is never reported as truncated

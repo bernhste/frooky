@@ -3,6 +3,9 @@ import { RecursiveDecoder } from "../../../../shared/decoders/recursiveDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 
 export class ContentValuesDecoder extends RecursiveDecoder<Java.Wrapper> {
+  readonly decoderName = "ContentValuesDecoder";
+  readonly description = "Decodes `android.content.ContentValues` into its column/value pairs, up to `maxItems` columns.";
+
   protected decodeRecursive(value: Java.Wrapper): DecodedValue {
     const result: Record<string, unknown> = {};
 

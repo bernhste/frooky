@@ -5,7 +5,7 @@ import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookMa
 import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
-import { FilterMismatchError } from "../../shared/utils";
+import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { NativeHook } from "./nativeHook";
@@ -15,14 +15,19 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
   }
-  public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number): Promise<Promise<NativeHook[] | null>[]> {
-    logger.info(`Resolving ${inputHooks.length} native hook(s) in ${new Set(inputHooks.map((h) => h.module)).size} module(s)`);
+  public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number, source?: string): Promise<Promise<NativeHook[] | null>[]> {
+    logger.info(
+      `Resolving ${plural(inputHooks.length, "native hook")} in ${plural(new Set(inputHooks.map((h) => h.module)).size, "module")}${fromSource(source)}`,
+    );
 
     // each module is resolved once, no matter how many hooks target it
     const modulePromises = new Map<string, Promise<Module | null>>();
     return inputHooks.map(async (inputHook): Promise<NativeHook[] | null> => {
       let modulePromise = modulePromises.get(inputHook.module);
-      if (!modulePromise) {
+      if (modulePromise) {
+        logger.debug(`Module lookup cache hit: ${inputHook.module} (for ${inputHook.module}!${inputHook.symbol})`);
+      } else {
+        logger.debug(`Module lookup cache miss: ${inputHook.module} (for ${inputHook.module}!${inputHook.symbol})`);
         modulePromise = this.resolveModule(inputHook.module, timeout).catch((e) => {
           logger.warn(e instanceof Error ? e.message : String(e));
           return null;
@@ -53,11 +58,12 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     });
   }
 
-  public registerHooks(hooks: NativeHook[]): number {
+  public registerHooks(hooks: NativeHook[], source?: string): number {
     const hookManager = this;
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
+      const target = `${hook.moduleName}!${hook.symbolName}`;
       let stackTrace: string[];
 
       // resolve the decoders used for this hook and cache it locally
@@ -118,7 +124,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
             // decode arguments onEnter
             try {
-              decodedArgs.in = hookManager.decodeArgs(effectiveArgs, inArgDecoders);
+              decodedArgs.in = hookManager.decodeArgs(effectiveArgs, inArgDecoders, target);
             } catch (e) {
               if (e instanceof FilterMismatchError) {
                 this.filtered = true;
@@ -136,7 +142,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           if (hook.params) {
             try {
               // decode arguments onLeave
-              decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders);
+              decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders, target);
             } catch (e) {
               if (e instanceof FilterMismatchError) return;
               throw e;
@@ -150,7 +156,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             // architectures with a separate FP register file, a float/double return comes back in
             // its own dedicated register instead.
             const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile(this.context) ? readFloatArgBits(this.context, floatRetSlot) : null;
-            decodedRetValue = retTypeDecoder.decode(floatRetBits ?? returnValue);
+            decodedRetValue = hookManager.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
           }
 
           // send add to event log
@@ -161,9 +167,10 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       try {
         hook.listener = Interceptor.attach(hook.symbolAddress, callbacks);
       } catch (e) {
-        logger.warn(`Failed to hook ${hook.moduleName}!${hook.symbolName}: ${e}`);
+        logger.warn(`Failed to hook ${target}: ${e}`);
         continue;
       }
+      logger.info(`Hooked ${target} at ${hook.symbolAddress}${fromSource(source)}`);
       countSuccessfulHooks++;
     }
     return countSuccessfulHooks;

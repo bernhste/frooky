@@ -18,6 +18,8 @@ function createFakeFrookyAgent(targetReady: Promise<void> = Promise.resolve()): 
 type TestValue = string;
 
 class FakeDecoder extends Decoder<TestValue> {
+  readonly decoderName = "FakeDecoder";
+
   constructor(
     decodable: Decodable,
     private readonly decodeFn: (value: TestValue, arg?: any) => DecodedValue = (value) => ({

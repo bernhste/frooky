@@ -3,6 +3,9 @@ import { Decoder } from "../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 
 export class PrimitiveDecoder extends Decoder<Java.Wrapper> {
+  readonly decoderName = "PrimitiveDecoder";
+  readonly description = "Passes Java primitives and strings through as JSON values; `long` becomes a decimal string to keep its 64-bit precision.";
+
   decode(value: Java.Wrapper): DecodedValue {
     return {
       type: this.type,

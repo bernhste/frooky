@@ -84,6 +84,10 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
 };
 
 export class NativeReferenceDecoder extends Decoder<NativePointer> {
+  readonly decoderName = "NativeReferenceDecoder";
+  readonly description =
+    "Decodes a native pointer by reading what it points to as its declared type, e.g. `char *` as a string or `int *` as an int.";
+
   protected fridaReference: FridaReferenceType;
   protected cachedDecoder: ReferenceDecoder | null = null;
 

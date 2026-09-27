@@ -95,6 +95,8 @@ export const logger = {
   setLogTo: (target: LogTo) => {
     logTo = target;
   },
+  /** Whether messages of `level` are logged; guards building expensive messages on hot paths. */
+  isEnabled: (level: LogLevel) => shouldLog(level),
   debug: (msg: string) => emit("debug", msg),
   info: (msg: string) => emit("info", msg),
   warn: (msg: string) => emit("warn", msg),

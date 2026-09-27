@@ -17,6 +17,9 @@ import { DecodedValue } from "../../../shared/decoders/decodedValue";
  * runtime class actually returns.
  */
 export class HashCodeDecoder extends Decoder<Java.Wrapper> {
+  readonly decoderName = "HashCodeDecoder";
+  readonly description = "Decodes an object as `<class>@<hashCode in hex>` without calling its `toString()`, to tell instances apart.";
+
   decode(value: Java.Wrapper): DecodedValue {
     let decodedValue: string | null = null;
     if (value != null) {

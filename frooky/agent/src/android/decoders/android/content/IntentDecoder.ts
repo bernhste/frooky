@@ -11,6 +11,10 @@ import { IntentFlagDecoder } from "./IntentFlagDecoder";
  * attaches to identify who launched it.
  */
 export class IntentDecoder extends RecursiveDecoder<Java.Wrapper> {
+  readonly decoderName = "IntentDecoder";
+  readonly description =
+    "Decodes an `android.content.Intent`: its getters (action, data, component, extras, ...), its flags as `FLAG_*` names and the caller info.";
+
   protected decodeRecursive(value: Java.Wrapper): DecodedValue {
     // value.get(key)-style callers that only know the declared type (Object, Parcelable, ...) hand
     // us a wrapper bound to that narrower type - re-cast to Intent itself so its own getters resolve

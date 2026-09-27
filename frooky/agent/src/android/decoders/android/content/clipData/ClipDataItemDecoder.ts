@@ -5,6 +5,9 @@ import { DecodedValue } from "../../../../../shared/decoders/decodedValue";
 import { IntentDecoder } from "../IntentDecoder";
 
 export class ClipDataItemDecoder extends RecursiveDecoder<Java.Wrapper> {
+  readonly decoderName = "ClipDataItemDecoder";
+  readonly description = "Decodes a `ClipData.Item`: its text, HTML text, URI and Intent.";
+
   protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     const htmlText = value.getHtmlText();
     const text = value.getText();

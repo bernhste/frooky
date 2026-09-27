@@ -9,6 +9,9 @@ function getJavaMap(): Java.Wrapper {
 }
 
 export class MapDecoder extends RecursiveDecoder<Java.Wrapper> {
+  readonly decoderName = "MapDecoder";
+  readonly description = "Decodes any `java.util.Map` into its keys and values, up to `maxItems` entries.";
+
   protected decodeRecursive(value: Java.Wrapper): DecodedValue {
     // the wrapper can be typed as a supertype without keySet()/values() (e.g. java.lang.Object for an
     // element of a collection), so cast it to Map first

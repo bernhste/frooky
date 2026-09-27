@@ -128,7 +128,7 @@ describe("FrookyAgent", () => {
       await agent.loadFrookyConfig(makeConfig());
 
       expect(rawManager.registerHooks).toHaveBeenCalledTimes(1);
-      expect(rawManager.registerHooks).toHaveBeenCalledWith([hookA]);
+      expect(rawManager.registerHooks).toHaveBeenCalledWith([hookA], "Test Config");
       expect(infoSpy).toHaveBeenCalledWith("Loaded Test Config: 2 new; hooked 1 method, 1 not resolved");
     });
 
@@ -139,7 +139,7 @@ describe("FrookyAgent", () => {
 
       await expect(agent.loadFrookyConfig(makeConfig())).resolves.toBeUndefined();
 
-      expect(errorSpy).toHaveBeenCalledWith("Error while resolving platform hooks: Error: boom");
+      expect(errorSpy).toHaveBeenCalledWith("Error while resolving platform hooks of Test Config: Error: boom");
       expect(rawManager.registerHooks).not.toHaveBeenCalled();
     });
 
@@ -169,7 +169,7 @@ describe("FrookyAgent", () => {
       await agent.loadFrookyConfigs([makeConfig({ metadata: { name: "Broken" } }), makeConfig({ metadata: { name: "Healthy" } })]);
 
       expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
-      expect(errorSpy).toHaveBeenCalledWith("Error while resolving platform hooks: Error: synchronous boom");
+      expect(errorSpy).toHaveBeenCalledWith("Error while resolving platform hooks of Broken: Error: synchronous boom");
     });
   });
 
@@ -335,7 +335,7 @@ describe("FrookyAgent", () => {
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
 
       expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 0, failed: 1 });
-      expect(warnSpy).toHaveBeenCalledWith("Failed to hook com.example.A.one: no such overload");
+      expect(warnSpy).toHaveBeenCalledWith("Failed to hook com.example.A.one (hooks.yaml): no such overload");
       expect(infoSpy).toHaveBeenCalledWith("Loaded hooks.yaml: 2 new; hooked 1 method, 1 not resolved");
     });
 

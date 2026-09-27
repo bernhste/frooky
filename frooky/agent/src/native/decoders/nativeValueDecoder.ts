@@ -78,6 +78,9 @@ const valueDecoders: Record<FridaFundamentalType, FundamentalValueDecoder> = {
 };
 
 export class NativeValueDecoder extends Decoder<NativePointer> {
+  readonly decoderName = "NativeValueDecoder";
+  readonly description = "Decodes a native value passed by value (`int`, `long`, `float`, ...) as its declared type.";
+
   protected fridaType: FridaFundamentalType;
   cachedValueDecoder: FundamentalValueDecoder | null = null;
 

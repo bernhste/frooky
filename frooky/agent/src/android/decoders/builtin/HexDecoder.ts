@@ -4,6 +4,9 @@ import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { readBytesLimited, toHex } from "../../../shared/utils";
 
 export class HexDecoder extends Decoder<Java.Wrapper> {
+  readonly decoderName = "HexDecoder";
+  readonly description = "Decodes a `byte[]` as a hex string, up to `maxItems` bytes.";
+
   decode(value: Java.Wrapper): DecodedValue {
     var decodedValue: any;
     if (value == null) {

@@ -19,6 +19,9 @@ function decodeDescription(description: Java.Wrapper): { label: string | null; m
 }
 
 export class ClipDataDecoder extends RecursiveDecoder<Java.Wrapper> {
+  readonly decoderName = "ClipDataDecoder";
+  readonly description = "Decodes `android.content.ClipData`: its label, MIME types and items, up to `maxItems` items.";
+
   protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     const items: DecodedValue[] = [];
 

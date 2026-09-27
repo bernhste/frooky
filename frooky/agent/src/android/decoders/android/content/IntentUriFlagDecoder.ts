@@ -4,6 +4,10 @@ import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { decodeConstantValues } from "../../utils/decodeConstants";
 
 export class IntentUriFlagDecoder extends Decoder<Java.Wrapper> {
+  readonly decoderName = "IntentUriFlagDecoder";
+  readonly description =
+    "Decodes an `int` bitmask of Intent URI flags (`Intent.toUri()`, `Intent.parseUri()`) to the names of the `Intent.URI_*` constants that are set.";
+
   flags = decodeConstantValues("android.content.Intent", "URI_");
 
   decode(value: Java.Wrapper): DecodedValue {

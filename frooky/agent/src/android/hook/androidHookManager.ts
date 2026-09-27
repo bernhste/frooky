@@ -10,7 +10,7 @@ import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTy
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
-import { FilterMismatchError, wildcardPatternToRegExp } from "../../shared/utils";
+import { FilterMismatchError, fromSource, plural, wildcardPatternToRegExp } from "../../shared/utils";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
 import { JavaHookEvent } from "./javaHookEvent";
@@ -35,14 +35,19 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     { method: Java.Method; claims: { hook: JavaHook; implementation: Java.MethodImplementation }[] }
   >();
 
-  async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number): Promise<Promise<JavaHook[] | null>[]> {
-    logger.info(`Resolving ${inputHooks.length} Java hook(s) in ${new Set(inputHooks.map((h) => h.javaClass)).size} class(es)`);
+  async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number, source?: string): Promise<Promise<JavaHook[] | null>[]> {
+    logger.info(
+      `Resolving ${plural(inputHooks.length, "Java hook")} in ${plural(new Set(inputHooks.map((h) => h.javaClass)).size, "class", "classes")}${fromSource(source)}`,
+    );
 
     // each class is resolved once, no matter how many hooks target it
     const javaClassPromises = new Map<string, Promise<Java.Wrapper[]>>();
     return inputHooks.map(async (inputHook): Promise<JavaHook[] | null> => {
       let javaClassesPromise = javaClassPromises.get(inputHook.javaClass);
-      if (!javaClassesPromise) {
+      if (javaClassesPromise) {
+        logger.debug(`Class lookup cache hit: ${inputHook.javaClass} (for ${inputHook.javaClass}.${inputHook.method})`);
+      } else {
+        logger.debug(`Class lookup cache miss: ${inputHook.javaClass} (for ${inputHook.javaClass}.${inputHook.method})`);
         javaClassesPromise = this.resolveJavaClass(inputHook.javaClass, timeout).catch((e) => {
           logger.warn(e instanceof Error ? e.message : String(e));
           return [] as Java.Wrapper[];
@@ -65,11 +70,12 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     });
   }
 
-  registerHooks(hooks: JavaHook[]): number {
+  registerHooks(hooks: JavaHook[], source?: string): number {
     const hookManager = this;
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
+      const target = `${hook.method.holder.$className}.${hook.methodName}`;
       // resolve the decoders used for this hook and cache it locally
       let inArgDecoders: ParamDecoder<Java.Wrapper>[];
       let outArgDecoders: ParamDecoder<Java.Wrapper>[];
@@ -106,7 +112,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         const decodedArgs: DecodedArgs = { in: [], out: [] };
         if (hook.params) {
           try {
-            decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders);
+            decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders, target);
           } catch (e) {
             if (!(e instanceof FilterMismatchError)) {
               logger.error(`Decoder error during 'onEnter' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
@@ -128,7 +134,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         // decode arguments onLeave
         if (hook.params) {
           try {
-            decodedArgs.out = hookManager.decodeArgs(args, outArgDecoders);
+            decodedArgs.out = hookManager.decodeArgs(args, outArgDecoders, target);
           } catch (e) {
             if (!(e instanceof FilterMismatchError)) {
               logger.error(`Decoder error during 'onLeave' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
@@ -141,7 +147,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         let decodedRetValue: DecodedValue | undefined;
         try {
           if (retTypeDecoder) {
-            decodedRetValue = retTypeDecoder.decode(returnValue);
+            decodedRetValue = hookManager.decodeValue(retTypeDecoder, returnValue, `${target} return value`);
           }
         } catch (e) {
           logger.error(`Decoder error during return value decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
@@ -162,11 +168,12 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       try {
         overload.method.implementation = implementation;
       } catch (e) {
-        logger.warn(`Failed to hook ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+        logger.warn(`Failed to hook ${target}: ${e}`);
         continue;
       }
       overload.claims.push({ hook, implementation });
       this.overloadClaims.set(key, overload);
+      logger.info(`Hooked ${target}(${hook.method.argumentTypes.map((t) => t.className ?? t.name).join(", ")})${fromSource(source)}`);
 
       countSuccessfulHooks++;
     }
@@ -281,6 +288,9 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     const now = Date.now();
     if (!this.loadedClassNamesCache || now >= this.loadedClassNamesCache.expiresAt) {
       this.loadedClassNamesCache = { names: Java.enumerateLoadedClassesSync(), expiresAt: now + HOOK_LOOKUP_INTERVAL_MS };
+      logger.debug(`Loaded class list cache miss: enumerated ${this.loadedClassNamesCache.names.length} loaded classes`);
+    } else {
+      logger.debug(`Loaded class list cache hit: ${this.loadedClassNamesCache.names.length} loaded classes`);
     }
     return this.loadedClassNamesCache.names;
   }

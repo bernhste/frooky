@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
+import { logger } from "../../../shared/logger";
 
 // Keyed by `${className}#${prefix}` since declared constants never change at runtime, so results
 // are reflected once and shared across every decoder instance that requests the same class/prefix
@@ -48,7 +49,10 @@ const STATIC_MODIFIER = 0x0008;
 export function decodeConstantValues(className: string, prefix: string): DecodedValue[] {
   const cacheKey = `${className}#${prefix}`;
   const cached = constantCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    logger.debug(`Constant cache hit: ${cacheKey}, ${cached.length} constant(s)`);
+    return cached;
+  }
 
   const JavaClass = Java.use(className);
   const fields = JavaClass.class.getDeclaredFields();
@@ -64,5 +68,6 @@ export function decodeConstantValues(className: string, prefix: string): Decoded
   }
 
   constantCache.set(cacheKey, constants);
+  logger.debug(`Constant cache miss: ${cacheKey}, reflected ${constants.length} constant(s)`);
   return constants;
 }

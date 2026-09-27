@@ -4,11 +4,15 @@ import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../../../shared/frookySettings";
 import { ReferenceTypeDecoder } from "../../builtin/ReferenceTypeDecoder";
 import { JavaDecoderResolver } from "../../javaDecoderResolver";
+import { logger } from "../../../../shared/logger";
 
 const classCache = new Map<string, Java.Wrapper>();
 function useCached(className: string): Java.Wrapper {
   let javaClass = classCache.get(className);
-  if (!javaClass) {
+  if (javaClass) {
+    logger.debug(`Bundle class cache hit: ${className}`);
+  } else {
+    logger.debug(`Bundle class cache miss: ${className}`);
     javaClass = Java.use(className);
     classCache.set(className, javaClass);
   }
@@ -35,7 +39,10 @@ const boxedPrimitiveTypeCache = new Map<string, string | null>();
  */
 function getBoxedPrimitiveType(entry: Java.Wrapper, className: string): string | null {
   const cached = boxedPrimitiveTypeCache.get(className);
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    logger.debug(`Boxed primitive cache hit: ${className} -> ${cached ?? "not boxed"}`);
+    return cached;
+  }
 
   let primitiveType: string | null = null;
   try {
@@ -49,6 +56,7 @@ function getBoxedPrimitiveType(entry: Java.Wrapper, className: string): string |
   }
 
   boxedPrimitiveTypeCache.set(className, primitiveType);
+  logger.debug(`Boxed primitive cache miss: ${className} -> ${primitiveType ?? "not boxed"}`);
   return primitiveType;
 }
 
@@ -68,6 +76,9 @@ const TYPED_ARRAY_GETTERS: Record<string, string> = {
  * Decode all key/value pairs from a Bundle.
  */
 export class BundleDecoder extends RecursiveDecoder<Java.Wrapper> {
+  readonly decoderName = "BundleDecoder";
+  readonly description = "Decodes an `android.os.Bundle` into its key/value pairs, including typed arrays and nested Bundles.";
+
   protected decodeRecursive(value: Java.Wrapper, entrySettings: DecoderSettings): DecodedValue {
     const values: DecodedValue[] = [];
     const keys = value.keySet().toArray();

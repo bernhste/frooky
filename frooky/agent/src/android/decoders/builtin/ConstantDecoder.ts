@@ -13,6 +13,10 @@ import { decodeConstantValues } from "../utils/decodeConstants";
  * {@link decodeConstantValues}'s own cache and is shared across every decoder instance.
  */
 export class ConstantDecoder extends Decoder<Java.Wrapper> {
+  readonly decoderName = "ConstantDecoder";
+  readonly description =
+    "Decodes a value to the name of the matching `static final` constant of the hooked class, e.g. `1` to `ENCRYPT_MODE` for `Cipher.init()`.";
+
   private readonly constants = this.decodable.declaringClass ? decodeConstantValues(this.decodable.declaringClass, "") : [];
 
   decode(value: Java.Wrapper): DecodedValue {

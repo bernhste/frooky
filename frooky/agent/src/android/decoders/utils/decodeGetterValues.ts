@@ -3,6 +3,7 @@ import { Decodable } from "../../../shared/decoders/decodable";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../../shared/frookySettings";
 import { JavaDecoderResolver } from "../javaDecoderResolver";
+import { logger } from "../../../shared/logger";
 
 // java.lang.reflect.Modifier bit values (stable since Java 1.1), avoids a Java.use() just for these
 const MODIFIER_PUBLIC = 0x1;
@@ -24,7 +25,10 @@ const methodDescriptorCache = new Map<string, JavaMethodDescriptor[]>();
 function getPublicNonArgumentMethodNames(className: string, prefixes: string[]): JavaMethodDescriptor[] {
   const cacheKey = `${className}#${prefixes.join(",")}`;
   const cached = methodDescriptorCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    logger.debug(`Getter cache hit: ${cacheKey}, ${cached.length} getter(s)`);
+    return cached;
+  }
 
   const JavaClass = Java.use(className);
   const methods = JavaClass.class.getDeclaredMethods();
@@ -45,6 +49,7 @@ function getPublicNonArgumentMethodNames(className: string, prefixes: string[]):
   }
 
   methodDescriptorCache.set(cacheKey, descriptors);
+  logger.debug(`Getter cache miss: ${cacheKey}, reflected ${descriptors.length} getter(s)`);
   return descriptors;
 }
 
