@@ -125,6 +125,31 @@ describe("NativeHookValidator", () => {
       expect(message).toContain("Skipping hook for native function '123' from module 'libc.so' due to an invalid declaration:");
     });
 
+    it("normalizes a offset hook written as an unquoted YAML hex number", () => {
+      const nativeGroup: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: [{ offset: 0x1a2b4, module: "libfoo.so" }] };
+      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+
+      const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+
+      expect(result.map((hook) => hook.offset)).toEqual(["0x1a2b4"]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("skips a hook with an invalid offset and names the offset in the warning", () => {
+      const nativeGroup: InputNativeHookCollection = {
+        type: "native",
+        module: "libfoo.so",
+        hooks: ["validSymbol", { offset: "1a2b4", module: "libfoo.so" }],
+      };
+      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+
+      const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+
+      expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("Skipping hook for native function at offset '1a2b4' from module 'libfoo.so'");
+    });
+
     it("skips a hook whose param declaration is in an unrecognized format, without aborting the rest of the group", () => {
       // A bare number is not a valid InputParam shape (not a string, tuple, or Param object) and
       // makes normalization throw a plain Error rather than a ZodError - this must still be caught per-hook.

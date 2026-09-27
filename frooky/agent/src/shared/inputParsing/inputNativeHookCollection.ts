@@ -5,15 +5,12 @@ import { InputParam, InputRetType, normalizeInputParams, normalizeInputRetType }
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
- * Detailed declaration of a native function hook.
+ * Fields shared by every detailed native hook declaration.
  *
  * @public
  */
-export type InputNativeHookNormalized = {
-  /** Exported symbol name of the function. */
-  symbol: string;
-
-  /** Module that exports the symbol. Inherited from the hook collection. */
+export interface InputNativeHookBase {
+  /** Module that contains the function. Inherited from the hook collection. */
   module: string;
 
   /** Parameters of the function, in order. */
@@ -27,7 +24,43 @@ export type InputNativeHookNormalized = {
 
   /** Decoder settings for this function. Override the collection's settings. */
   decoderSettings?: DecoderSettings;
-};
+}
+
+/**
+ * A native function hook located by its exported symbol name.
+ *
+ * @public
+ */
+export interface InputNativeSymbolHook extends InputNativeHookBase {
+  /** Exported symbol name of the function. */
+  symbol: string;
+
+  /** Not allowed together with `symbol`. */
+  offset?: never;
+}
+
+/**
+ * A native function hook located by its offset from the module's base address, for functions without an exported symbol.
+ *
+ * @public
+ */
+export interface InputNativeOffsetHook extends InputNativeHookBase {
+  /**
+   * Offset of the function from the module's base address, e.g. `0x1a2b4`: the address shown by a disassembler
+   * minus the image base it loaded the module at. A YAML number, or a string starting with `0x`.
+   */
+  offset: string | number;
+
+  /** Not allowed together with `offset`. */
+  symbol?: never;
+}
+
+/**
+ * Detailed declaration of a native function hook, located either by `symbol` or by `offset`.
+ *
+ * @public
+ */
+export type InputNativeHookNormalized = InputNativeSymbolHook | InputNativeOffsetHook;
 
 /**
  * A native function hook: a symbol name, a `[symbol, decoderSettings]` tuple, or a detailed declaration.
@@ -75,7 +108,8 @@ export function isNativeHookCollection(inputHookScope: object): inputHookScope i
  * @param hookSettings - The merged hook settings to apply to this hook.
  * @param decoderSettings - The merged decoder settings to apply to this hook's params/retType.
  * @returns The normalized hook.
- * @throws If a param or retType declaration is in an unrecognized format.
+ * @throws If a param or retType declaration is in an unrecognized format, the hook doesn't have exactly one of
+ *   `symbol` or `offset`, or the `offset` is invalid.
  */
 export function normalizeNativeHook(
   inputHook: InputNativeHook,
@@ -107,14 +141,55 @@ export function normalizeNativeHook(
     ? validateAndRepairDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
     : decoderSettings;
 
+  const hasSymbol = inputHook.symbol !== undefined;
+  const hasModuleOffset = inputHook.offset !== undefined;
+  if (hasSymbol === hasModuleOffset) {
+    throw new Error("A native hook needs exactly one of `symbol` or `offset`.");
+  }
+  const target = hasSymbol ? { symbol: inputHook.symbol! } : { offset: normalizeModuleOffset(inputHook.offset!) };
+
   return {
-    symbol: inputHook.symbol,
+    ...target,
     module: moduleName,
     params: inputHook.params ? normalizeInputParams(inputHook.params, mergedDecoderSettings) : undefined,
     retType: inputHook.retType ? normalizeInputRetType(inputHook.retType, mergedDecoderSettings) : undefined,
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
   };
+}
+
+/**
+ * Normalizes a `offset` to a lowercase hex string such as `"0x1a2b4"`.
+ *
+ * YAML parses an unquoted `0x1a2b4` into a number, so numbers are accepted as they are. Strings must start
+ * with `0x`: without it, `"1234"` could be meant as hex (as disassemblers show addresses) or as decimal.
+ *
+ * @param offset - The offset as declared in the hook file.
+ * @returns The offset as a lowercase `0x`-prefixed hex string.
+ * @throws If the offset is negative, not an integer, or a string that is not `0x`-prefixed hex.
+ */
+export function normalizeModuleOffset(offset: string | number): string {
+  if (typeof offset === "number") {
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new Error(`Invalid offset ${offset}: must be a non-negative integer.`);
+    }
+    return `0x${offset.toString(16)}`;
+  }
+  const match = /^0x([0-9a-f]+)$/i.exec(offset.trim());
+  if (!match) {
+    throw new Error(`Invalid offset "${offset}": must be a hex number starting with 0x, e.g. 0x1a2b4.`);
+  }
+  // drop leading zeros, which disassemblers often print (e.g. IDA's 000000000001A2B4)
+  return `0x${match[1].replace(/^0+(?=.)/, "").toLowerCase()}`;
+}
+
+/**
+ * Names a native hook target for log messages: `libfoo.so!open` for a symbol, `libfoo.so+0x1a2b4` for a module offset.
+ */
+export function describeNativeTarget(module: string, target: { symbol?: string; offset?: string | number }): string {
+  if (target.symbol !== undefined) return `${module}!${target.symbol}`;
+  const offset = typeof target.offset === "number" ? `0x${target.offset.toString(16)}` : target.offset;
+  return `${module}+${offset}`;
 }
 
 /**

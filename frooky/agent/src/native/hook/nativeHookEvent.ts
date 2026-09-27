@@ -13,8 +13,11 @@ export class NativeHookEvent extends HookEvent {
   /** Module the hooked function is located in. */
   module: string;
 
-  /** Symbol of the hooked function. */
-  symbol: string;
+  /** Symbol of the hooked function, for hooks declared with `symbol`. */
+  symbol?: string;
+
+  /** Offset of the hooked function from the module's base address, for hooks declared with `offset`. */
+  offset?: string;
 
   /** Address of the hooked function. */
   address?: NativePointer;
@@ -31,6 +34,7 @@ export class NativeHookEvent extends HookEvent {
     this.type += "-native";
     this.module = hook.module.name;
     this.symbol = hook.symbolName;
+    this.offset = hook.offset;
     this.hashCode = hook.decoderSettings.hashCode ? hook.symbolAddress.toString() : undefined;
   }
 }

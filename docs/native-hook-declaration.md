@@ -6,6 +6,7 @@ This documentation explains how to write native hook declarations.
 
 - [Structure](#structure)
 - [Basic Usage](#basic-usage)
+- [Hooking Functions Without a Symbol](#hooking-functions-without-a-symbol)
 - [Decoding Arguments and Return Values](#decoding-arguments-and-return-values)
 - [Hook and Decoder Settings](#hook-and-decoder-settings)
 
@@ -23,7 +24,7 @@ decoderSettings:                    # Optional. Overrides the file-level `settin
   <decoder settings>
 hooks:
   - <symbol name>
-  - symbol: <symbol name>
+  - symbol: <symbol name>             # Or `offset: <offset>`, see below
     retType: <type>                   # Optional
     params:                           # Optional
       - <parameter declaration>
@@ -67,6 +68,7 @@ hooks:
 In the expanded form:
 
 - `symbol`: Native symbol name.
+- `offset`: Instead of `symbol`, the function's offset from the module's base address, for functions without an exported symbol. See [Hooking Functions Without a Symbol](#hooking-functions-without-a-symbol).
 - `retType`: Optional return type of the function.
 - `params`: Optional list of parameter declarations.
 
@@ -114,6 +116,45 @@ hooks:
 ```
 
 This hooks `malloc` from `libc.so`, with `hashCode` enabled for that hook only, so its events carry the function's address.
+
+## Hooking Functions Without a Symbol
+
+Functions that a module does not export, for example ones you found by reverse engineering a stripped library, can't be hooked by `symbol`. Use `offset` instead: the function's offset from the base address the module is loaded at. Every hook needs exactly one of `symbol` or `offset`.
+
+```yaml
+module: libfoo.so
+hooks:
+  - offset: 0x1a2b4
+    retType: int
+    params:
+      - [const char *, input]
+      - [size_t, length]
+```
+
+frooky hooks the function at `<base address of libfoo.so> + 0x1a2b4`. Write the offset as a YAML number (`0x1a2b4`) or as a string starting with `0x` (`"0x1a2b4"`). A string without `0x` is rejected, because `"1234"` could be meant as hex or decimal. Leading zeros are allowed in a string, such as `"0x000000000001A2B4"`. Don't write them in an unquoted number: YAML reads `0001234` as an octal or decimal number, depending on the parser.
+
+### Finding the Offset
+
+Take the function's address from your disassembler and subtract the image base the disassembler loaded the module at:
+
+```text
+offset = address shown in the disassembler - image base
+```
+
+| Disassembler | Default image base for a `.so` | Function shown at | `offset`  |
+| ------------ | ------------------------------ | ----------------- | --------- |
+| IDA          | `0x0`                          | `0x1a2b4`         | `0x1a2b4` |
+| Ghidra       | `0x100000`                     | `0x11a2b4`        | `0x1a2b4` |
+
+Ghidra shows the image base in _Window → Memory Map_, where you can also set it to `0`, so that addresses can be copied unchanged. Other tools may use other defaults, so check the image base before copying addresses.
+
+Keep in mind:
+
+- **Use the virtual address, not the file offset.** A hex editor or a raw file view shows positions in the file, which are often different from the virtual address of code.
+- **Thumb functions on 32-bit ARM (`armeabi-v7a`) need `+1`.** Most 32-bit ARM code on Android is Thumb code. Disassemblers show the function's even address, but it has to be hooked at the odd address, for example `0x1a2b5` for a Thumb function shown at `0x1a2b4`. Without it, the hook is installed as ARM code and the app crashes. 64-bit ARM (`arm64-v8a`) and x86 don't need this.
+- **An offset only fits one build of the module and one ABI.** After an app update, or for the 32-bit and 64-bit copies of the same library, the offsets are different. frooky skips a hook whose offset is outside the module or doesn't point to executable memory, but an offset that points to the wrong code in the same module can't be detected.
+
+Events of these hooks contain `offset` instead of `symbol`, see [Output](./output.md#hook-native-events).
 
 ## Decoding Arguments and Return Values
 

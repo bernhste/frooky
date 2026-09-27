@@ -153,3 +153,15 @@ hookCollection:
       - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated']}]
       - [int, flags]
       - [mode_t, mode]
+  # Hook functions without an exported symbol by their offset from the module's base address,
+  # e.g. found by reverse engineering a stripped library. Offsets fit only one build and ABI of the
+  # module; replace libfoo.so and the offsets with your own. See docs/native-hook-declaration.md.
+  # Docs: https://frida.re/docs/javascript-api/#module
+  - module: libfoo.so
+    hooks:
+    - offset: 0x1a2b4
+      retType: int
+      params:
+      - [const char *, input]
+      - [size_t, length]
+    - offset: "0x000000000001C3D0"

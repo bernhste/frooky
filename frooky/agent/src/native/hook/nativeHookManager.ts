@@ -2,7 +2,7 @@ import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
-import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
+import { describeNativeTarget, InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
@@ -23,11 +23,12 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     // each module is resolved once, no matter how many hooks target it
     const modulePromises = new Map<string, Promise<Module | null>>();
     return inputHooks.map(async (inputHook): Promise<NativeHook[] | null> => {
+      const target = describeNativeTarget(inputHook.module, inputHook);
       let modulePromise = modulePromises.get(inputHook.module);
       if (modulePromise) {
-        logger.debug(`Module lookup cache hit: ${inputHook.module} (for ${inputHook.module}!${inputHook.symbol})`);
+        logger.debug(`Module lookup cache hit: ${inputHook.module} (for ${target})`);
       } else {
-        logger.debug(`Module lookup cache miss: ${inputHook.module} (for ${inputHook.module}!${inputHook.symbol})`);
+        logger.debug(`Module lookup cache miss: ${inputHook.module} (for ${target})`);
         modulePromise = this.resolveModule(inputHook.module, timeout).catch((e) => {
           logger.warn(e instanceof Error ? e.message : String(e));
           return null;
@@ -37,13 +38,17 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       const resolvedModule = await modulePromise;
       if (!resolvedModule) return null;
       try {
-        const symbolAddress = this.resolveSymbol(inputHook.symbol, resolvedModule);
-        logger.debug(`Address of function symbol '${inputHook.symbol}' found: ${symbolAddress}.`);
+        const symbolAddress =
+          inputHook.symbol !== undefined
+            ? this.resolveSymbol(inputHook.symbol, resolvedModule)
+            : this.resolveModuleOffset(String(inputHook.offset), resolvedModule);
+        logger.debug(`Address of function ${target} found: ${symbolAddress}.`);
         return [
           {
             module: resolvedModule,
             moduleName: resolvedModule.name,
             symbolName: inputHook.symbol,
+            offset: inputHook.offset === undefined ? undefined : String(inputHook.offset),
             symbolAddress,
             params: inputHook.params,
             retType: inputHook.retType,
@@ -63,7 +68,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
-      const target = `${hook.moduleName}!${hook.symbolName}`;
+      const target = describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset });
 
       // resolve the decoders used for this hook and cache it locally
       let inArgDecoders: ParamDecoder<NativePointer>[];
@@ -187,6 +192,28 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     } catch (e) {
       throw Error(`Skipping hook for '${symbol}'. This symbol does not exist in module '${module.name}'.`);
     }
+  }
+
+  /**
+   * Resolves a `offset` (normalized to `0x…`) to its runtime address, `module.base + offset`. The
+   * offset must lie inside the module and point to executable memory: a wrong offset, e.g. one from another
+   * build of the library, would otherwise patch data or the middle of an instruction and crash the app.
+   */
+  private resolveModuleOffset(offset: string, module: Module): NativePointer {
+    const moduleOffset = ptr(offset);
+    if (moduleOffset.compare(ptr(module.size)) >= 0) {
+      throw Error(
+        `Skipping hook for '${module.name}+${offset}'. The offset is outside the module, which is only 0x${module.size.toString(16)} bytes large.`,
+      );
+    }
+    const address = module.base.add(offset);
+    const range = Process.findRangeByAddress(address);
+    if (!range || !range.protection.includes("x")) {
+      throw Error(
+        `Skipping hook for '${module.name}+${offset}'. The address ${address} is not executable (${range ? range.protection : "unmapped"}); check that the offset is a function's virtual address minus the image base, not a file offset.`,
+      );
+    }
+    return address;
   }
 
   private async resolveModule(moduleName: string, timeoutSeconds: number): Promise<Module> {

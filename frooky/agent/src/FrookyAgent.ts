@@ -17,6 +17,7 @@ import { FrookySettings } from "./shared/frookySettings";
 import { Hook } from "./shared/hook/hook";
 import { HookManager } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
+import { describeNativeTarget } from "./shared/inputParsing/inputNativeHookCollection";
 import { logger, LogLevel, LogTo } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
 import { plural, stableStringify } from "./shared/utils";
@@ -67,9 +68,9 @@ function describeInputHook(inputHook: unknown): string {
  */
 function targetOf(kind: string, inputHook: unknown): string | undefined {
   if (typeof inputHook !== "object" || inputHook === null) return undefined;
-  const hook = inputHook as { javaClass?: string; method?: string; module?: string; symbol?: string };
+  const hook = inputHook as { javaClass?: string; method?: string; module?: string; symbol?: string; offset?: string };
   if (hook.javaClass && hook.method) return `${kind}:${hook.javaClass}.${hook.method}`;
-  if (hook.module && hook.symbol) return `${kind}:${hook.module}!${hook.symbol}`;
+  if (hook.module && (hook.symbol || hook.offset)) return `${kind}:${describeNativeTarget(hook.module, hook)}`;
   return undefined;
 }
 

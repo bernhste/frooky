@@ -138,6 +138,15 @@ class TestPpHookEvent:
         assert "libc.so" in out
         assert "strcpy()" in out
 
+    def test_native_hook_by_module_offset_prints_the_offset(self, capsys):
+        hook = {"type": "native-hook", "timestamp": "t", "module": "libfoo.so", "offset": "0x1a2b4", "argsIn": []}
+
+        pp_hook_event(hook)
+
+        out = "\n".join(_plain(capsys.readouterr().out.splitlines()))
+        assert "libfoo.so" in out
+        assert "0x1a2b4()" in out
+
     def test_return_value_with_data_is_printed(self, capsys):
         hook = {
             "type": "native-hook",

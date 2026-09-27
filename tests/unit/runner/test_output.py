@@ -9,6 +9,9 @@ class TestDescribeEvent:
     def test_native_symbol(self):
         assert describe_event({"module": "libc.so", "symbol": "strcpy"}) == "libc.so: strcpy"
 
+    def test_native_module_offset(self):
+        assert describe_event({"module": "libfoo.so", "offset": "0x1a2b4"}) == "libfoo.so+0x1a2b4"
+
     def test_java_method(self):
         assert describe_event({"javaClassName": "com.example.Foo", "method": "bar"}) == "com.example.Foo.bar"
 

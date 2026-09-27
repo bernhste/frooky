@@ -86,10 +86,11 @@ In addition to the [common fields](#common-event-fields), `hook-java` events car
 
 In addition to the [common fields](#common-event-fields), `hook-native` events carry:
 
-| Field    | Type     | Description                      |
-| -------- | -------- | -------------------------------- |
-| `module` | `string` | The hooked native module's name. |
-| `symbol` | `string` | The hooked native symbol's name. |
+| Field    | Type     | Description                                                                                                                                                                            |
+| -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `module` | `string` | The hooked native module's name.                                                                                                                                                       |
+| `symbol` | `string` | The hooked native symbol's name. Only for hooks declared with `symbol`.                                                                                                                |
+| `offset` | `string` | The hooked function's offset from the module's base address, e.g. `0x1a2b4`. Only for hooks declared with [`offset`](./native-hook-declaration.md#hooking-functions-without-a-symbol). |
 
 **Example:**
 

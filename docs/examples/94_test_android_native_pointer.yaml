@@ -1,0 +1,93 @@
+metadata:
+  name: Test android native pointer
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# The offsets below are only valid for the x86_64 build of
+# tests/target-apps/android/value-passing-native. Other ABIs or rebuilds with a
+# different toolchain need new offsets (nm -D --defined-only <lib>.so).
+
+# global settings for the hooks in this hook file.
+settings:
+  hookSettings:
+    maxStackFrames: 10                # Sets maxStackFrames to 10 for all hooks
+    stackTraceFilter: ['^(?!android).*']   # Stack trace filters to apply.
+  decoderSettings:
+    maxDepth: 1                       # Sets the cutoff limit for the recursion depth when decoding nested data structures, such as nested arrays, lists, sets, maps, structs etc.
+    maxItems: 11                      # Sets the limit of how many elements of a enumerable data structures, such as arrays, lists, dictionaries etc. are decoded
+
+hookCollection:
+  # object with ONLY offset provided, as YAML number
+  - module: libreceiveFundamentalValue.so
+    hooks:
+    - offset: 0xe60             # receive_bool
+
+  # object with ONLY offset provided, as string with leading zeros
+  - module: libreceiveFundamentalValue.so
+    hooks:
+    - offset: "0x0000000000000EE0"  # receive_short
+
+  # PARTIAL local hook settings take priority over global setting
+  - module: libreceiveFundamentalValue.so
+    hookSettings:
+      maxStackFrames: 0
+    decoderSettings:
+      maxItems: 22
+    hooks:
+    - offset: 0xf20             # receive_int
+      params: [int]
+    - offset: 0xe80             # receive_char
+      params: [char]
+
+  # decode argument: null terminated string
+  - module: libreceiveString.so
+    hookSettings:
+      maxStackFrames: 0
+    hooks:
+    - offset: 0x7a0             # receive_cstring
+      params:
+      - [char *, string]
+    - offset: 0x7b0             # receive_utf8
+      params:
+      - [char *, string]
+
+  # PARTIAL local hook settings take priority over global setting
+  - module: libreceiveFundamentalValue.so
+    decoderSettings:
+      maxItems: 33
+    hooks:
+    - offset: 0xf40             # receive_long
+
+  # PARTIAL local hook settings take priority over global setting, object with
+  # ONLY offset provided
+  - module: libreceiveFundamentalValue.so
+    decoderSettings:
+      maxItems: 44
+    hooks:
+    - offset: 0xea0             # receive_schar
+    - offset: 0xfa0             # receive_ullong
+
+  # PARTIAL local parameter settings take priority over global setting, form
+  # [type, settings]
+  - module: libreceiveFundamentalValue.so
+    hooks:
+    - offset: 0xf80             # receive_llong
+      params: [ llong, llong ]
+
+  # PARTIAL local parameter settings take priority over global setting, form
+  # [type, name, settings]
+  - module: libreceiveFundamentalValue.so
+    hooks:
+    - offset: 0xfa0             # receive_ullong
+      params:
+      - [ullong, minValue]
+      - [ullong, maxValue]
+
+  # use parameter to decode a native uchar *
+  - module: libreceiveFundamentalReference.so
+    hooks:
+    - offset: 0x10b0            # receive_byte_array
+      params:
+      - [unsigned char *, data, { decoderArg: length , decoder: string} ]
+      - [int, length]

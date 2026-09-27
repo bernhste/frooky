@@ -1,12 +1,12 @@
 import { FrookyAgent } from "../../FrookyAgent";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { normalizeInputParams, normalizeInputRetType } from "../../shared/inputParsing/inputDecodableTypes";
-import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
+import { InputNativeOffsetHook, InputNativeSymbolHook } from "../../shared/inputParsing/inputNativeHookCollection";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { sleepMilliseconds } from "../../shared/utils";
-import { NativeHookManager } from "./nativeHookManager";
 import { NativeHook } from "./nativeHook";
 import { NativeHookEvent } from "./nativeHookEvent";
+import { NativeHookManager } from "./nativeHookManager";
 
 // resolveHooks() only resolves module/symbol addresses, it never installs an implementation
 // (that's registerHooks()'s job), so it's safe to run against real, always-loaded libc.so exports
@@ -25,8 +25,12 @@ async function untilHooked(call: () => void, fired: () => boolean): Promise<void
   }
 }
 
-function nativeHook(module: string, symbol: string, overrides: Partial<InputNativeHookNormalized> = {}): InputNativeHookNormalized {
+function nativeHook(module: string, symbol: string, overrides: Partial<InputNativeSymbolHook> = {}): InputNativeSymbolHook {
   return { module, symbol, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };
+}
+
+function nativeOffsetHook(module: string, offset: string): InputNativeOffsetHook {
+  return { module, offset, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
 }
 
 describe("NativeHookManager", () => {
@@ -43,6 +47,38 @@ describe("NativeHookManager", () => {
       expect(hooks[0].symbolName).toBe("malloc");
       expect(hooks[0].moduleName).toBe("libc.so");
       expect(hooks[0].symbolAddress.toString()).toBe(Process.getModuleByName("libc.so").getExportByName("malloc").toString());
+    });
+
+    it("resolves a offset to the module's base address plus the offset", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const libc = Process.getModuleByName("libc.so");
+      const mallocOffset = "0x" + libc.getExportByName("malloc").sub(libc.base).toString(16);
+
+      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", mallocOffset)], 5));
+
+      const hooks = results[0] as NativeHook[];
+      expect(hooks).not.toBeNull();
+      expect(hooks[0].symbolName).toBeUndefined();
+      expect(hooks[0].offset).toBe(mallocOffset);
+      expect(hooks[0].symbolAddress.toString()).toBe(libc.getExportByName("malloc").toString());
+    });
+
+    it("returns null when the offset is outside the module", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const libc = Process.getModuleByName("libc.so");
+
+      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", "0x" + libc.size.toString(16))], 5));
+
+      expect(results).toEqual([null]);
+    });
+
+    it("returns null when the offset points to non-executable memory", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+
+      // offset 0 is the ELF header, mapped read-only in libraries linked with separate code segments (lld, Android 10+)
+      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", "0x0")], 5));
+
+      expect(results).toEqual([null]);
     });
 
     it("returns null when the module does not exist", async () => {

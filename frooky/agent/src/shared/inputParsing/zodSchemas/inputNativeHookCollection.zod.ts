@@ -5,14 +5,25 @@ import { decoderSettingsSchema, hookSettingsSchema } from "./frookySettings.zod"
 import { inputParamSchema, inputRetTypeSchema } from "./inputDecodableTypes.zod";
 import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputSettings.zod";
 
-export const inputNativeHookNormalizedSchema = z.object({
-  symbol: z.string(),
+export const inputNativeHookBaseSchema = z.object({
   module: z.string(),
   params: z.array(inputParamSchema).optional(),
   retType: inputRetTypeSchema.optional(),
   hookSettings: hookSettingsSchema.optional(),
   decoderSettings: decoderSettingsSchema.optional(),
 });
+
+export const inputNativeSymbolHookSchema = inputNativeHookBaseSchema.extend({
+  symbol: z.string(),
+  offset: z.never().optional(),
+});
+
+export const inputNativeOffsetHookSchema = inputNativeHookBaseSchema.extend({
+  offset: z.union([z.string(), z.number()]),
+  symbol: z.never().optional(),
+});
+
+export const inputNativeHookNormalizedSchema = z.union([inputNativeSymbolHookSchema, inputNativeOffsetHookSchema]);
 
 export const inputNativeHookSchema = z.union([z.string(), z.tuple([z.string(), decoderSettingsSchema]), inputNativeHookNormalizedSchema]);
 

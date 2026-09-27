@@ -5,6 +5,7 @@ import {
   InputNativeHookCollection,
   InputNativeHookNormalized,
   isNativeHookCollection,
+  normalizeModuleOffset,
   normalizeNativeHookCollection,
 } from "./inputNativeHookCollection";
 
@@ -292,6 +293,67 @@ describe("inputNativeHookCollection", () => {
             decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "string" },
           },
         ]);
+      });
+
+      it("normalizes a offset hook, keeping offset instead of symbol", () => {
+        const hookCollection: InputNativeHookCollection = {
+          type: "native",
+          module: "libfoo.so",
+          hooks: [{ offset: "0x1a2b4", module: "libfoo.so" }],
+        };
+
+        const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
+
+        expect(result.hooks).toEqual([
+          {
+            offset: "0x1a2b4",
+            module: "libfoo.so",
+            params: undefined,
+            retType: undefined,
+            hookSettings: DEFAULT_HOOK_SETTINGS,
+            decoderSettings: DEFAULT_DECODER_SETTINGS,
+          },
+        ]);
+      });
+
+      it("throws for a hook with both symbol and offset", () => {
+        const hookCollection = {
+          type: "native",
+          module: "libfoo.so",
+          hooks: [{ symbol: "foo", offset: "0x1a2b4", module: "libfoo.so" }],
+        } as unknown as InputNativeHookCollection;
+
+        expect(() => normalizeNativeHookCollection(hookCollection, defaultSettings)).toThrow("exactly one of `symbol` or `offset`");
+      });
+
+      it("throws for a hook with neither symbol nor offset", () => {
+        const hookCollection = { type: "native", module: "libfoo.so", hooks: [{ module: "libfoo.so" }] } as unknown as InputNativeHookCollection;
+
+        expect(() => normalizeNativeHookCollection(hookCollection, defaultSettings)).toThrow("exactly one of `symbol` or `offset`");
+      });
+    });
+
+    describe("normalizeModuleOffset()", () => {
+      it("turns a YAML number (an unquoted 0x1a2b4) into a hex string", () => {
+        expect(normalizeModuleOffset(0x1a2b4)).toBe("0x1a2b4");
+      });
+
+      it("lowercases a hex string and drops leading zeros", () => {
+        expect(normalizeModuleOffset("0x000000000001A2B4")).toBe("0x1a2b4");
+        expect(normalizeModuleOffset("0x0")).toBe("0x0");
+      });
+
+      it("keeps an odd offset, which marks a Thumb function on 32-bit ARM", () => {
+        expect(normalizeModuleOffset("0x1a2b5")).toBe("0x1a2b5");
+      });
+
+      it("rejects a string without the 0x prefix, which could be hex or decimal", () => {
+        expect(() => normalizeModuleOffset("1234")).toThrow("starting with 0x");
+      });
+
+      it("rejects negative and non-integer numbers", () => {
+        expect(() => normalizeModuleOffset(-1)).toThrow("non-negative integer");
+        expect(() => normalizeModuleOffset(1.5)).toThrow("non-negative integer");
       });
     });
 

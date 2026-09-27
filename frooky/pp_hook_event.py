@@ -266,7 +266,9 @@ def format_hook_event(hook: dict, width: int = _DEFAULT_WIDTH) -> list[str]:
         _format_hook(out, hook, "javaClassName", "class", "method", "method")
     else:
         label, color = "native", _C_TYPE_N
-        _format_hook(out, hook, "module", "module", "symbol", "function")
+        # hooks declared by `offset` instead of `symbol` carry the offset in its place
+        fn_key = "symbol" if "symbol" in hook else "offset"
+        _format_hook(out, hook, "module", "module", fn_key, "function")
     return [_top_border(label, color, out.width), *out.lines, _bot_border(out.width)]
 
 

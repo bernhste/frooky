@@ -29,13 +29,18 @@ const jsonSchema = z.toJSONSchema(inputFrookyConfigSchema, {
 //   isNativeHookCollection), and no docs/examples/*.yaml file ever sets it.
 // - a per-hook object entry's `javaClass`/`module` is always inherited from its parent
 //   collection (see normalizeJavaHook/normalizeNativeHook, which overwrite it unconditionally),
-//   so individual hooks only ever specify their own `method`/`symbol`.
+//   so individual hooks only ever specify their own `method`/`symbol`/`offset`.
 // Leaving these required would make the schema flag every real hook file as invalid.
 for (const hookCollectionVariant of jsonSchema.properties.hookCollection.items.anyOf) {
   const inheritedKey = hookCollectionVariant.required?.find((key) => key === "javaClass" || key === "module");
   hookCollectionVariant.required = hookCollectionVariant.required?.filter((key) => key !== "type");
 
   const hooksItems = hookCollectionVariant.properties?.hooks?.items;
+  if (hooksItems && !Array.isArray(hooksItems) && hooksItems.anyOf) {
+    // A detailed hook that is itself a union (native: `symbol` or `offset`) nests an anyOf
+    // inside the hook's anyOf. Flatten it so each object variant is reached below.
+    hooksItems.anyOf = hooksItems.anyOf.flatMap((variant) => (variant.anyOf && !variant.type ? variant.anyOf : [variant]));
+  }
   const hookVariants = (!Array.isArray(hooksItems) && hooksItems?.anyOf) || [];
   for (const hookVariant of hookVariants) {
     if (hookVariant.type === "object" && inheritedKey) {

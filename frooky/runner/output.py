@@ -9,6 +9,8 @@ def describe_event(event: dict) -> Optional[str]:
     """Build a short human-readable label for a hook event, for the live status line."""
     if event.get("symbol"):
         return f"{event.get('module')}: {event.get('symbol')}"
+    if event.get("offset"):
+        return f"{event.get('module')}+{event.get('offset')}"
     if event.get("method"):
         return f"{event.get('javaClassName')}.{event.get('method')}"
     return None
