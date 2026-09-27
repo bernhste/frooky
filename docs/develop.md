@@ -38,6 +38,43 @@ This document describes how to set up a local development environment for the re
 
    The output must be a path within the VENV directory, typically ending with `venv/bin/frooky`. If not, a different version might be used instead, such as a global installation.
 
+## Debugging and Profiling the Agent
+
+By default, Frida runs the frooky agent in the QuickJS runtime. `--runtime v8` runs it in V8 instead, which also applies to scripts loaded with `-l`.
+
+`--debug` switches to V8 and opens a Chrome Inspector server for the frooky agent on port 9229. The server runs on the machine running `frooky`, not on the device, so no port forwarding is needed:
+
+```bash
+frooky -U -f org.owasp.mastestapp --debug hooks.yaml
+```
+
+Open `chrome://inspect` in Chrome. The agent is listed under **Remote Target** as `localhost:9229`, with an entry named after the frooky process, e.g. `python3.13[12345]`. If it isn't listed, add `localhost:9229` under **Configure...**. When frooky runs in the devcontainer, VS Code forwards the port to your machine; check its **Ports** view if the target doesn't show up.
+
+Click **inspect** on the entry. If the DevTools window stays blank, use **inspect fallback**. Alternatively, **Open dedicated DevTools for Node** connects to `localhost:9229` on its own and reconnects after you restart frooky. The DevTools window lets you:
+
+- record CPU profiles in the **Performance** tab and view them as a flame chart,
+- take heap snapshots in the **Memory** tab,
+- evaluate expressions in the **Console** tab.
+
+Reading and stepping through the agent code in the **Sources** tab doesn't work yet, see [Current Limitations](#current-limitations).
+
+Keep in mind:
+
+- The agent is loaded and resolves the hook files before you can connect, so startup is not in a profile. To profile hook resolving, run with `-w`, start recording, and save a changed hook file.
+- A paused breakpoint blocks every app thread that calls a hooked method, which can make the app stop responding.
+- V8 compiles hot code to machine code and QuickJS doesn't, so V8 profiles show where the time goes, not how long it takes in the default runtime.
+- Only one debugger can listen on port 9229. Stop other `frooky --debug` or Node.js debugging sessions first.
+
+### Current Limitations
+
+These come from Frida (as of Frida 17.18 and frida-compile 19.0.5), not from frooky:
+
+- **Messages larger than 512 KiB are cut off.** Frida's inspector server truncates every DevTools message at 524,287 bytes, and DevTools then waits forever for the rest. The agent bundle is about 1.3 MB (704 KiB of it is zod, 376 KiB frida-java-bridge), so the **Sources** tab lists `/src/build/index.frooky.js` but never finishes loading it. You can't read the code or set breakpoints there. The flame chart still shows the function names; search for them in `frooky/agent/src/`.
+- **Long CPU recordings break the same way.** A profile of a busy agent grows by roughly 8 KiB per second, so keep recordings under about 30 seconds. Idle time adds almost nothing.
+- **No source maps.** frida-compile declares `-S, --no-source-maps` with a default of `false`, so it never includes source maps, with or without `-S`. Even with a source map in the bundle, Frida doesn't pass it on to DevTools, so the TypeScript files wouldn't show up anyway.
+
+A possible workaround on frooky's side is to write frooky's own code (about 115 KiB) and the libraries as separate modules into the one bundle file. Frida's bundle format supports that, and each module then shows up as its own script in DevTools, but frida-compile can't produce it, so `build.js` would need its own bundling step.
+
 ## Testing
 
 The project consists of two testable components: a Frida agent written in TypeScript and a Python host.

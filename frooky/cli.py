@@ -7,6 +7,7 @@ from pathlib import Path
 
 from . import __version__
 from .runner import FrookyRunner, RunnerOptions
+from .runner.runner import DEBUGGER_PORT
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -23,6 +24,16 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     agent_options.add_argument("-v", action="store_true", help="also show info logs from the frooky agent: target, hook file parsing and hook resolving (warnings and errors are always shown).")
     agent_options.add_argument("-vv", action="store_true", help="also show info and debug logs from the frooky agent, e.g. hook file contents and resolved decoders.")
     agent_options.add_argument("-t", "--resolver-timeout", metavar="SECONDS", type=int, default=5, help="Timeout in seconds for module/class lookup (default: 5)")
+    agent_options.add_argument(
+        "--runtime",
+        choices=["qjs", "v8"],
+        help="JavaScript runtime for the frooky agent and the -l scripts (default: qjs, or v8 with --debug)",
+    )
+    agent_options.add_argument(
+        "--debug",
+        action="store_true",
+        help=f"Enable the Chrome Inspector debugger for the frooky agent on port {DEBUGGER_PORT} (open chrome://inspect) to set breakpoints and record CPU and memory profiles. Needs the v8 runtime.",
+    )
 
     # Script loading options
     script_options = parser.add_argument_group("script options")
@@ -91,6 +102,12 @@ def _validate_device_selection(parser: argparse.ArgumentParser, args: argparse.N
         parser.error("Use only one of -D/--device, -U/--usb, -R/--remote, or -H/--host.")
 
 
+def _validate_runtime(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    # only V8 implements the inspector protocol; QuickJS accepts the debugger but never answers it
+    if args.debug and args.runtime == "qjs":
+        parser.error("--debug needs the v8 runtime, use --runtime v8 or leave --runtime out.")
+
+
 def _resolve_paths(parser: argparse.ArgumentParser, paths: list[str], not_found_label: str) -> list[Path]:
     resolved = []
     for raw_path in paths:
@@ -121,6 +138,8 @@ def _build_runner_options(args: argparse.Namespace, hook_paths: list[Path], scri
         agent_option_resolver_timeout=args.resolver_timeout,
         print_events=args.print_events,
         watch=args.watch,
+        runtime="v8" if args.debug else args.runtime,
+        enable_debugger=args.debug,
     )
 
 
@@ -137,6 +156,7 @@ def main() -> int:
 
     _validate_agent_dist()
     _validate_device_selection(parser, args)
+    _validate_runtime(parser, args)
 
     hook_paths = _resolve_paths(parser, args.hooks, "Hooks file")
     script_paths = _resolve_paths(parser, args.user_scripts, "Script file")

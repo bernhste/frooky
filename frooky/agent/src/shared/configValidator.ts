@@ -81,8 +81,26 @@ export function validateAndRepairHookSettings(settings: InputHookSettings): Hook
     logger.warn(`Hook settings contain unknown properties: ${extraKeys.join(", ")}`);
   }
 
+  const validHookSettings: HookSettings = { ...DEFAULT_HOOK_SETTINGS, ...settings };
+
+  // an invalid pattern would throw on every intercepted call (and a java hook passes that on to the app)
+  const invalidPatterns = validHookSettings.stackTraceFilter.filter((pattern) => !isValidRegExp(pattern));
+  if (invalidPatterns.length > 0) {
+    validHookSettings.stackTraceFilter = validHookSettings.stackTraceFilter.filter((pattern) => !invalidPatterns.includes(pattern));
+    logger.warn(`Hook setting 'stackTraceFilter' contains invalid regular expressions, which are ignored: ${invalidPatterns.join(", ")}`);
+  }
+
   logger.debug(`frooky hook settings are valid`);
-  return { ...DEFAULT_HOOK_SETTINGS, ...settings };
+  return validHookSettings;
+}
+
+function isValidRegExp(pattern: string): boolean {
+  try {
+    new RegExp(pattern);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 // validates decoder settings and replaces invalid settings with valid default values

@@ -105,6 +105,17 @@ describe("configValidator", () => {
       expect(message).toContain(`The value for 'maxStackFrames' was reset to the default: ${DEFAULT_HOOK_SETTINGS.maxStackFrames}`);
     });
 
+    it("drops invalid stackTraceFilter patterns and warns", () => {
+      const inputHookSettings: InputHookSettings = {
+        stackTraceFilter: ["^org\\.owasp\\.", "(unclosed", "[a-"],
+      };
+      expect(validateAndRepairHookSettings(inputHookSettings)).toEqual({
+        maxStackFrames: DEFAULT_HOOK_SETTINGS.maxStackFrames,
+        stackTraceFilter: ["^org\\.owasp\\."],
+      });
+      expect(warnSpy).toHaveBeenCalledWith("Hook setting 'stackTraceFilter' contains invalid regular expressions, which are ignored: (unclosed, [a-");
+    });
+
     it("warns when the settings contain unknown properties", () => {
       const invalidInputHookSettings = { stackTraceLumit: 10 };
       validateAndRepairHookSettings(invalidInputHookSettings as InputHookSettings);

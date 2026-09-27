@@ -1,6 +1,11 @@
 import Java from "frida-java-bridge";
-import { PlatformStackTrace } from "../shared/platformStackTrace";
+import { nativeStackFrames } from "../native/nativeStackTrace";
+import { compileStackTraceFilter, PlatformStackTrace } from "../shared/platformStackTrace";
 import { FilterMismatchError } from "../shared/utils";
+
+function formatJavaFrame(frame: Java.Frame): string {
+  return `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`;
+}
 
 export const AndroidStackTrace: PlatformStackTrace = {
   build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): string[] {
@@ -9,17 +14,7 @@ export const AndroidStackTrace: PlatformStackTrace = {
     if (limit <= 0 && !stackTraceFilter?.length) return [];
 
     // get native frames
-    let nativeFrames: string[] = [];
-    if (ctx && !stackTraceFilter?.length) {
-      try {
-        nativeFrames = Thread.backtrace(ctx, Backtracer.FUZZY)
-          .slice(0, limit)
-          .map((addr) => {
-            const sym = DebugSymbol.fromAddress(addr);
-            return `${sym.name ?? addr} (${sym.moduleName}:${sym.address})`;
-          });
-      } catch (_) {}
-    }
+    const nativeFrames = ctx && !stackTraceFilter?.length ? nativeStackFrames(ctx, limit) : [];
 
     if (!Java.available) {
       if (stackTraceFilter?.length) throw new FilterMismatchError();
@@ -32,29 +27,33 @@ export const AndroidStackTrace: PlatformStackTrace = {
       return nativeFrames;
     }
 
-    let javaFrames: string[] = [];
+    // Java.backtrace() always walks the whole stack (its limit option is ignored), so only the frames
+    // that are used get formatted
+    let javaStack: Java.Frame[] = [];
 
     // not Java.perform(): before the app's class loader is set (a hook firing early in spawn mode) it
     // would queue the callback instead of running it. The thread is already attached (env above).
     Java.vm.perform(() => {
       try {
-        const javaStackTrace = Java.backtrace();
-        javaFrames = javaStackTrace.frames.map((frame) => `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`);
+        javaStack = Java.backtrace().frames;
       } catch (_) {}
     });
+
+    const javaFrames = limit > 0 ? javaStack.slice(0, limit).map(formatJavaFrame) : [];
 
     // with a limit, the filter only searches the captured frames, which lets it ignore app frames deep
     // down the stack (e.g. framework code running inside an app's onCreate). Without a limit (default
     // 0) it searches the whole stack - searching zero frames would drop every event
     if (stackTraceFilter && stackTraceFilter.length > 0) {
-      const searchedFrames = limit > 0 ? javaFrames.slice(0, limit) : javaFrames;
-      const matches = searchedFrames.some((line) => stackTraceFilter.some((pattern) => new RegExp(pattern).test(line)));
+      const regExps = compileStackTraceFilter(stackTraceFilter);
+      const matchesFilter = (line: string) => regExps.some((regExp) => regExp.test(line));
+      const matches = limit > 0 ? javaFrames.some(matchesFilter) : javaStack.some((frame) => matchesFilter(formatJavaFrame(frame)));
       if (!matches) {
         throw new FilterMismatchError();
       }
-      return javaFrames.slice(0, limit);
+      return javaFrames;
     }
 
-    return [...nativeFrames, ...javaFrames.slice(0, limit)];
+    return [...nativeFrames, ...javaFrames];
   },
 };

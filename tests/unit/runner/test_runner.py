@@ -4,6 +4,7 @@ import os
 from unittest.mock import MagicMock
 
 from frooky.runner import FrookyRunner, RunnerOptions
+from frooky.runner.runner import DEBUGGER_PORT
 
 
 def make_runner(tmp_path, **overrides) -> FrookyRunner:
@@ -188,7 +189,7 @@ class TestRunSessionLoss:
         monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
         monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
         monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")
-        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed: [])
+        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed, runtime: [])
         monkeypatch.setattr("frooky.runner.runner.load_hook_configs", lambda paths: [])
 
         defaults = {"hook_paths": [hook_file], "output_path": tmp_path / "out.json", "attach_pid": 1234}
@@ -224,6 +225,35 @@ class TestRunSessionLoss:
         assert "Stopped: stopped by user (Ctrl+C)" in capsys.readouterr().out
 
 
+class TestRunRuntime:
+    """run() creates the agent script with the chosen runtime and opens the debugger for --debug."""
+
+    def _run(self, monkeypatch, tmp_path, **option_overrides):
+        runner, session = TestRunSessionLoss()._make_wired_runner(monkeypatch, tmp_path, **option_overrides)
+
+        def fake_sleep(seconds):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr("frooky.runner.runner.time.sleep", fake_sleep)
+        runner.run()
+        return session
+
+    def test_uses_fridas_default_runtime_without_debugger(self, monkeypatch, tmp_path):
+        session = self._run(monkeypatch, tmp_path)
+
+        assert session.create_script.call_args.kwargs == {"runtime": None}
+        session.create_script.return_value.enable_debugger.assert_not_called()
+
+    def test_enables_debugger_with_v8(self, monkeypatch, tmp_path, capsys):
+        session = self._run(monkeypatch, tmp_path, runtime="v8", enable_debugger=True)
+
+        assert session.create_script.call_args.kwargs == {"runtime": "v8"}
+        session.create_script.return_value.enable_debugger.assert_called_once_with(DEBUGGER_PORT)
+        out = capsys.readouterr().out
+        assert "Runtime:" in out and "V8" in out
+        assert f"port {DEBUGGER_PORT}" in out
+
+
 class TestRunWatch:
     """run() with --watch: changed hook files are sent to the agent while running."""
 
@@ -242,7 +272,7 @@ class TestRunWatch:
         monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
         monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
         monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")
-        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed: [])
+        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed, runtime: [])
 
         runner = FrookyRunner(RunnerOptions(hook_paths=[hook_file], output_path=tmp_path / "out.json", attach_pid=1234, watch=watch))
         return runner, script, hook_file

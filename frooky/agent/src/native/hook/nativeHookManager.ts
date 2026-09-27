@@ -64,7 +64,6 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
     for (const hook of hooks) {
       const target = `${hook.moduleName}!${hook.symbolName}`;
-      let stackTrace: string[];
 
       // resolve the decoders used for this hook and cache it locally
       let inArgDecoders: ParamDecoder<NativePointer>[];
@@ -79,23 +78,21 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       if (hook.retType) {
         retTypeDecoder = this.resolveRetTypeDecoder(hook.retType);
       }
-      let decodedArgs: DecodedArgs = {
-        in: [],
-        out: [],
-      };
-
       // by-value float/double params/return values aren't in args[]/returnValue at all (see
       // nativeFloatArgs.ts) - computed once per hook since it only depends on the declared
       // params/retType, not on any one invocation.
       const argSlots = planArgSlots(hook.params);
       const floatRetSlot = planFloatRetTypeSlot(hook.retType);
 
+      // per-call state lives on `this` (Frida's per-invocation context), not in this closure: another
+      // thread or a recursive call can enter the hook between this call's onEnter and onLeave
       const callbacks: InvocationListenerCallbacks = {
         onEnter: function (args: NativePointer[]) {
           this.filtered = false;
+          this.argsIn = [];
 
           try {
-            stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter, this.context);
+            this.stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter, this.context);
           } catch (e) {
             if (e instanceof FilterMismatchError) {
               this.filtered = true;
@@ -124,7 +121,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
             // decode arguments onEnter
             try {
-              decodedArgs.in = hookManager.decodeArgs(effectiveArgs, inArgDecoders, target);
+              this.argsIn = hookManager.decodeArgs(effectiveArgs, inArgDecoders, target);
             } catch (e) {
               if (e instanceof FilterMismatchError) {
                 this.filtered = true;
@@ -139,6 +136,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         },
         onLeave: function (returnValue: InvocationReturnValue) {
           if (this.filtered) return;
+          const decodedArgs: DecodedArgs = { in: this.argsIn, out: [] };
           if (hook.params) {
             try {
               // decode arguments onLeave
@@ -160,7 +158,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           }
 
           // send add to event log
-          hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, stackTrace));
+          hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, this.stackTrace));
         },
       };
 

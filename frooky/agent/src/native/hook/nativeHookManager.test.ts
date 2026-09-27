@@ -1,15 +1,29 @@
 import { FrookyAgent } from "../../FrookyAgent";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
+import { normalizeInputParams, normalizeInputRetType } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
+import { sleepMilliseconds } from "../../shared/utils";
 import { NativeHookManager } from "./nativeHookManager";
 import { NativeHook } from "./nativeHook";
+import { NativeHookEvent } from "./nativeHookEvent";
 
 // resolveHooks() only resolves module/symbol addresses, it never installs an implementation
 // (that's registerHooks()'s job), so it's safe to run against real, always-loaded libc.so exports
 // (malloc/free/atoi) without risking side effects on the host process - mirrors androidHookManager.test.ts.
 const stackTrace: PlatformStackTrace = { build: () => [] };
 const frookyAgent = {} as FrookyAgent;
+// kept alive for the whole file: the Interceptor may still touch a function after detach()
+const cm = new CModule("int countdown (int n) { return (n == 0) ? 0 : countdown (n - 1) + 1; }");
+
+// Interceptor changes are only committed once no thread runs a JS callback, which can take a moment
+// while the app keeps hitting other hooks (e.g. frida-java-bridge's), so call until the hook fires
+async function untilHooked(call: () => void, fired: () => boolean): Promise<void> {
+  for (let i = 0; i < 100 && !fired(); i++) {
+    call();
+    if (!fired()) await sleepMilliseconds(10);
+  }
+}
 
 function nativeHook(module: string, symbol: string, overrides: Partial<InputNativeHookNormalized> = {}): InputNativeHookNormalized {
   return { module, symbol, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };
@@ -101,6 +115,10 @@ describe("NativeHookManager", () => {
 
       expect(manager.registerHooks(hooks!)).toBe(1);
       expect(hooks![0].listener).toBeDefined();
+      await untilHooked(
+        () => atoi(input),
+        () => (agent.addEventToLog as unknown as Mock).mock.calls.length > 0,
+      );
       expect(atoi(input)).toBe(42);
       expect((agent.addEventToLog as unknown as Mock).mock.calls.length).toBeGreaterThan(0);
 
@@ -109,6 +127,40 @@ describe("NativeHookManager", () => {
       (agent.addEventToLog as unknown as Mock).mockClear();
       expect(atoi(input)).toBe(42);
       expect((agent.addEventToLog as unknown as Mock).mock.calls.length).toBe(0);
+    });
+
+    it("keeps the arguments and stack trace of each call apart when calls overlap", async () => {
+      // countdown(3) recurses down to countdown(0), so every onEnter runs before the first onLeave
+      const events: NativeHookEvent[] = [];
+      const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+      let enterCount = 0;
+      const countingStackTrace: PlatformStackTrace = { build: () => [`enter ${enterCount++}`] };
+      const manager = new NativeHookManager(countingStackTrace, agent);
+      const params = normalizeInputParams([["int", "n"]], DEFAULT_DECODER_SETTINGS);
+      const retType = normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS);
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })], 5));
+      const hook: NativeHook = { ...hooks![0], symbolName: "countdown", symbolAddress: cm.countdown };
+
+      manager.registerHooks([hook]);
+      await untilHooked(
+        () => new NativeFunction(cm.countdown, "int", ["int"])(0),
+        () => events.length > 0,
+      );
+      events.length = 0;
+      enterCount = 0;
+      try {
+        expect(new NativeFunction(cm.countdown, "int", ["int"])(3)).toBe(3);
+      } finally {
+        manager.unregisterHooks([hook]);
+      }
+
+      // events are added on leave, innermost call first; countdown(n) was entered as call number 3 - n
+      expect(events.map((event) => [event.argsIn![0].value, event.returnValue!.value, event.stackTrace![0]])).toEqual([
+        [0, 0, "enter 3"],
+        [1, 1, "enter 2"],
+        [2, 2, "enter 1"],
+        [3, 3, "enter 0"],
+      ]);
     });
   });
 });

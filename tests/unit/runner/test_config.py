@@ -45,7 +45,16 @@ class TestLoadUserScripts:
 
         scripts = load_user_scripts(session, [script_path], MagicMock())
 
-        session.create_script.assert_called_once_with("console.log('hi')")
+        session.create_script.assert_called_once_with("console.log('hi')", runtime=None)
         script_mock.set_log_handler.assert_called_once()
         script_mock.load.assert_called_once()
         assert scripts == [script_mock]
+
+    def test_creates_scripts_with_the_given_runtime(self, tmp_path):
+        script_path = tmp_path / "script.js"
+        script_path.write_text("console.log('hi')")
+        session = MagicMock()
+
+        load_user_scripts(session, [script_path], MagicMock(), "v8")
+
+        session.create_script.assert_called_once_with("console.log('hi')", runtime="v8")

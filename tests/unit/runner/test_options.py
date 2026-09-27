@@ -24,6 +24,8 @@ class TestRunnerOptions:
         assert options.agent_option_very_verbose is False
         assert options.agent_option_resolver_timeout is None
         assert options.print_events is False
+        assert options.runtime is None
+        assert options.enable_debugger is False
 
     def test_agent_log_level(self, tmp_path):
         def level(**kwargs):

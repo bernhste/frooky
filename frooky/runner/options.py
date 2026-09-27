@@ -27,6 +27,9 @@ class RunnerOptions:
     agent_option_resolver_timeout: Optional[int] = None
     print_events: bool = False
     watch: bool = False
+    # Frida script runtime ("qjs" or "v8") for the frooky agent and user scripts, None uses Frida's default (QuickJS)
+    runtime: Optional[str] = None
+    enable_debugger: bool = False
 
     @property
     def agent_log_level(self) -> str:
