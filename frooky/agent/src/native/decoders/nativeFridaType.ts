@@ -1,4 +1,4 @@
-export const FRIDA_FUNDAMENTAL_TYPES = [
+const FRIDA_FUNDAMENTAL_TYPES = [
   "void",
   "bool",
   "char",

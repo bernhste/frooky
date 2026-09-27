@@ -150,7 +150,7 @@ export function toAscii(bytes: Uint8Array, length: number = Infinity, placeholde
  * @param bytes - Bytes to validate.
  * @returns True if every byte participates in a well-formed UTF-8 sequence.
  */
-export function isValidUtf8(bytes: Uint8Array): boolean {
+function isValidUtf8(bytes: Uint8Array): boolean {
   let i = 0;
   while (i < bytes.length) {
     const byte1 = bytes[i];

@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import Optional
 
 import frida
+from rich.text import Text
 
 from .._version import __version__ as frooky_version
 from .config import load_hook_config, load_hook_configs, load_user_scripts
 from .device import attach_or_spawn, describe_target, detect_platform, get_device, get_device_frida_version
-from .feed import Feed, HookStatus
+from .feed import LEVEL_STYLES, Feed, HookStatus
 from .keys import KeyListener
 from .messages import create_log_handler, create_message_handler
 from .options import RunnerOptions
@@ -46,6 +47,8 @@ class FrookyRunner:
         self._stop_event = threading.Event()
         self._stop_reason: Optional[str] = None
         self._crash = None
+        # the agent's report of a native exception that likely killed the process; Frida's crash is empty on Android
+        self._agent_crash: Optional[dict] = None
         self._reload_requested = threading.Event()
         self._key_listener = KeyListener(self._on_key)
 
@@ -73,12 +76,19 @@ class FrookyRunner:
         if was_busy and not self._hook_status.busy and not self.feed.console.is_terminal:
             self.feed.log("info", self._hook_status.describe())
 
+    def _on_agent_crash(self, crash: dict) -> None:
+        """Called on Frida's thread when the agent reports a native exception it expects to be fatal."""
+        self._agent_crash = crash
+
     def _on_reload_error(self, path: Path, error: Exception) -> None:
         self.feed.log("warn", describe_reload_error(path, error))
 
     def _describe_stop_reason(self) -> str:
         if self._crash is not None:
             return f"process crashed ({self._crash.summary})"
+        # only trusted once the process is gone: the agent cannot know whether the app survives the exception
+        if self._agent_crash is not None and self._stop_reason == "process-terminated":
+            return f"process crashed ({self._agent_crash.get('type')} at {self._agent_crash.get('address')})"
         if self._stop_reason == "user interrupt":
             return "stopped by user (Ctrl+C)"
         if self._stop_reason:
@@ -88,9 +98,44 @@ class FrookyRunner:
     def _exit_code_for_stop_reason(self) -> int:
         return 0 if self._stop_reason in (None, "user interrupt") else 1
 
+    def _crash_details(self) -> list[Text]:
+        """Lines explaining a crash of the target, for the summary: first the hook it crashed in, then the backtrace."""
+        if self._stop_reason != "process-terminated":
+            return []
+        lines = []
+        crash = self._agent_crash
+        if crash:
+            backtrace = crash.get("backtrace") or []
+            crashed_in = list(dict.fromkeys(frame["hook"] for frame in backtrace if frame.get("hook")))
+            native_hooks = crash.get("nativeHooks") or []
+            if crashed_in:
+                lines.append(Text.assemble("  Crashed in hooked function: ", (", ".join(crashed_in), f"bold {LEVEL_STYLES['error']}")))
+            elif native_hooks:
+                lines.append(
+                    Text.assemble(
+                        "  No hooked function on the crashing stack, but hooks in its modules: ",
+                        (", ".join(native_hooks), f"bold {LEVEL_STYLES['warn']}"),
+                    )
+                )
+            if crashed_in or native_hooks:
+                lines.append(Text("    A hook at a wrong offset or with wrong params can corrupt the app's code or data.", style="dim"))
+            if backtrace:
+                lines.append(Text("  Backtrace:"))
+                lines.extend(_format_crash_frame(frame) for frame in backtrace)
+        if self.platform == "android":
+            # also after a Java crash, which the agent does not see as a native exception
+            crashed = self._crash is not None or self._agent_crash is not None
+            hint = "For the full crash report" if crashed else "If the app crashed, for the crash report"
+            lines.append(Text(f"  {hint} run: adb logcat -d -b crash", style="dim"))
+        return lines
+
     def _print_summary(self) -> None:
         self.feed.print()
-        self.feed.print(f"  Stopped: {self._describe_stop_reason()}")
+        reason = self._describe_stop_reason()
+        crashed = reason.startswith("process crashed")
+        self.feed.print(Text.assemble("  Stopped: ", (reason, f"bold {LEVEL_STYLES['error']}" if crashed else "")))
+        for line in self._crash_details():
+            self.feed.print(line)
         self.feed.print(f"  Events captured: {self.output.event_count:,}")
         self.feed.print(f"  Output written to: {self.options.output_path}")
         self.feed.print()
@@ -214,7 +259,7 @@ class FrookyRunner:
             self.script = self.session.create_script(script_source, runtime=self.options.runtime)
             if self.options.enable_debugger:
                 self.script.enable_debugger(DEBUGGER_PORT)
-            self.script.on("message", create_message_handler(self.output, self.feed, self.options.print_events, self._update_status_line, self._on_progress))
+            self.script.on("message", create_message_handler(self.output, self.feed, self.options.print_events, self._update_status_line, self._on_progress, self._on_agent_crash))
             self.script.set_log_handler(create_log_handler(self.feed))
             self.script.load()
 
@@ -268,3 +313,14 @@ class FrookyRunner:
             self._print_summary()
 
         return self._exit_code_for_stop_reason()
+
+
+def _format_crash_frame(frame: dict) -> Text:
+    """A backtrace frame such as `0x7ea6c5247803 libfoo.so!Java_Foo_bar+0x43`, highlighted if it lies in a hooked function."""
+    address, _, location = str(frame.get("frame", "")).partition(" ")
+    module, _, symbol = location.partition("!")
+    hook = frame.get("hook")
+    if hook:
+        style = f"bold {LEVEL_STYLES['error']}"
+        return Text.assemble("  → ", (f"{address} {location}", style), (f"  ← hook {hook}", style))
+    return Text.assemble("    ", (address, "dim"), " ", (module, LEVEL_STYLES["info"]), ("!", "dim"), symbol)

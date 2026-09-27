@@ -39,6 +39,8 @@ rpc.exports = {
       (progress) => send({ frooky: "progress", ...progress }),
       new Promise((resolve) => Java.perform(() => resolve())),
     );
+    // an object payload like the progress report; the host shows it when the process terminates
+    frookyAgent.reportCrashes((crash) => send({ frooky: "crash", ...crash }));
   },
   // configIds (index-aligned, e.g. the hook file paths) let later updateFrookyConfig() calls replace a config
   loadFrookyConfigs(frookyConfigs: InputFrookyConfig[], configIds?: string[]) {

@@ -105,6 +105,19 @@ class TestCreateMessageHandler:
         feed.log.assert_not_called()
         assert not output.output_path.exists()
 
+    def test_crash_report_goes_to_on_crash_and_not_to_the_output(self, tmp_path):
+        output = OutputWriter(tmp_path / "out.json")
+        feed = MagicMock()
+        on_crash = MagicMock()
+        on_message = create_message_handler(output, feed, print_events=True, on_crash=on_crash)
+        crash = {"frooky": "crash", "type": "abort", "address": "libc.so!abort+0xc0", "backtrace": [], "nativeHooks": []}
+
+        on_message({"type": "send", "payload": crash}, None)
+
+        on_crash.assert_called_once_with(crash)
+        feed.log.assert_not_called()
+        assert not output.output_path.exists()
+
 
 class TestCreateLogHandler:
     def test_forwards_level_text_and_source(self):

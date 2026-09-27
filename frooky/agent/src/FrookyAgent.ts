@@ -1,6 +1,7 @@
 import { NativeHookManager } from "./native/hook/nativeHookManager";
 import { NativeHookValidator } from "./native/hook/nativeHookValidator";
 import { validateAndRepairFrookyConfig } from "./shared/configValidator";
+import { CrashReport, installCrashReporter } from "./shared/crashReporter";
 import {
   DEFAULT_SETTING_LOG_LEVEL,
   DEFAULT_SETTING_LOG_TO,
@@ -82,14 +83,14 @@ function targetOf(kind: string, inputHook: unknown): string | undefined {
 export type HookProgress = { hooked: number; pending: number; failed: number };
 
 /** What resolving hooks did: installed hooks (one per overload or function) and the declarations that failed to resolve. */
-export type HookedSummary = {
+type HookedSummary = {
   hookedMethods: number;
   hookedFunctions: number;
   failed: number;
 };
 
 /** What loading a config did, counted in hook declarations except for the {@link HookedSummary} counts. */
-export type LoadSummary = HookedSummary & {
+type LoadSummary = HookedSummary & {
   added: number;
   updated: number;
   removed: number;
@@ -172,6 +173,14 @@ export class FrookyAgent {
     // printing some context infos
     logger.info(`Target: ${this.platform} (${Process.platform}/${Process.arch}), pid ${Process.id}, Frida ${Frida.version}`);
     logger.debug(`Target process:\n${JSON.stringify(Process, null, 2)}`);
+  }
+
+  /**
+   * Sends a {@link CrashReport} when the process is about to die from a native exception, naming the native hooks
+   * in the modules involved, see {@link installCrashReporter}.
+   */
+  public reportCrashes(report: (crash: CrashReport) => void): void {
+    installCrashReporter(this.nativeHookManager, report);
   }
 
   /**

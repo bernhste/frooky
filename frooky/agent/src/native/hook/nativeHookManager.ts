@@ -11,7 +11,12 @@ import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloat
 import { NativeHook } from "./nativeHook";
 import { NativeHookEvent } from "./nativeHookEvent";
 
+// the most bytes the Interceptor overwrites at a hooked address (an absolute jump on x86_64 or arm64)
+const INTERCEPTOR_PATCH_BYTES = 16;
+
 export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
+  private installedHooks = new Set<NativeHook>();
+
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
   }
@@ -169,6 +174,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
       try {
         hook.listener = Interceptor.attach(hook.symbolAddress, callbacks);
+        this.installedHooks.add(hook);
       } catch (e) {
         logger.warn(`Failed to hook ${target}: ${e}`);
         continue;
@@ -183,7 +189,34 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     for (const hook of hooks) {
       hook.listener?.detach();
       hook.listener = undefined;
+      this.installedHooks.delete(hook);
     }
+  }
+
+  /** Names the installed hooks (e.g. `libfoo.so+0x1a2b4`) in the modules that contain any of `addresses`. */
+  public describeHooksInModulesOf(addresses: NativePointer[]): string[] {
+    const hooks = [...this.installedHooks].filter((hook) =>
+      addresses.some((address) => address.compare(hook.module.base) >= 0 && address.compare(hook.module.base.add(hook.module.size)) < 0),
+    );
+    return hooks.map((hook) => describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset }));
+  }
+
+  /**
+   * Names the installed hook whose function `address` lies in: `address` is in the bytes the Interceptor patched
+   * at the hook, or it has the same symbol as the hook's address (e.g. `receive_utf8+0x3` and `receive_utf8`).
+   * Addresses without a symbol only match the patched bytes.
+   */
+  public describeHookedFunctionAt(address: NativePointer): string | undefined {
+    const functionName = (symbol: DebugSymbol) =>
+      symbol.name === null || symbol.name.startsWith("0x") ? null : symbol.name.replace(/\+0x[0-9a-f]+$/, "");
+    const symbol = DebugSymbol.fromAddress(address);
+    const name = functionName(symbol);
+    const hook = [...this.installedHooks].find(
+      (hook) =>
+        (address.compare(hook.symbolAddress) >= 0 && address.compare(hook.symbolAddress.add(INTERCEPTOR_PATCH_BYTES)) < 0) ||
+        (name !== null && symbol.moduleName === hook.moduleName && functionName(DebugSymbol.fromAddress(hook.symbolAddress)) === name),
+    );
+    return hook ? describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset }) : undefined;
   }
 
   private resolveSymbol(symbol: string, module: Module): NativePointer {
@@ -196,21 +229,28 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
   /**
    * Resolves a `offset` (normalized to `0x…`) to its runtime address, `module.base + offset`. The
-   * offset must lie inside the module and point to executable memory: a wrong offset, e.g. one from another
+   * offset must lie inside the module, point to executable memory and to code: a wrong offset, e.g. one from another
    * build of the library, would otherwise patch data or the middle of an instruction and crash the app.
    */
   private resolveModuleOffset(offset: string, module: Module): NativePointer {
+    const target = `${module.name}+${offset}`;
     const moduleOffset = ptr(offset);
     if (moduleOffset.compare(ptr(module.size)) >= 0) {
-      throw Error(
-        `Skipping hook for '${module.name}+${offset}'. The offset is outside the module, which is only 0x${module.size.toString(16)} bytes large.`,
-      );
+      throw Error(`Skipping hook for '${target}'. The offset is outside the module, which is only 0x${module.size.toString(16)} bytes large.`);
     }
     const address = module.base.add(offset);
     const range = Process.findRangeByAddress(address);
     if (!range || !range.protection.includes("x")) {
       throw Error(
-        `Skipping hook for '${module.name}+${offset}'. The address ${address} is not executable (${range ? range.protection : "unmapped"}); check that the offset is a function's virtual address minus the image base, not a file offset.`,
+        `Skipping hook for '${target}'. The address ${address} is not executable (${range ? range.protection : "unmapped"}); check that the offset is a function's virtual address minus the image base, not a file offset.`,
+      );
+    }
+    // small libraries often map .rodata, .dynsym etc. into the same executable segment as .text, so the
+    // memory protection alone does not tell code from data
+    const section = module.enumerateSections().find((s) => address.compare(s.address) >= 0 && address.compare(s.address.add(s.size)) < 0);
+    if (section && !/^\.(text|plt|init|fini)/.test(section.name)) {
+      throw Error(
+        `Skipping hook for '${target}'. The offset points into the section '${section.name}', which holds data, not code; check that the offset is the function's address in this exact build and ABI of the library (e.g. from 'nm -D --defined-only ${module.name}').`,
       );
     }
     return address;

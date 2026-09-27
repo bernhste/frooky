@@ -7,7 +7,7 @@ import { parseNativeFridaType } from "../decoders/nativeFridaType";
  * values in their own sequence - see {@link usesSeparateFloatRegisterFile} for which
  * architectures actually have such a sequence.
  */
-export interface FloatArgSlot {
+interface FloatArgSlot {
   fpIndex: number;
   byteLength: 4 | 8;
 }
@@ -23,7 +23,7 @@ export interface FloatArgSlot {
  * `f(int a, double b, int c)`: `a` is int-lane index 0, `c` is int-lane index 1 (not 2), and `b`
  * is float-lane index 0.
  */
-export type NativeArgSlot = { kind: "float"; fpIndex: number; byteLength: 4 | 8 } | { kind: "int"; argIndex: number };
+type NativeArgSlot = { kind: "float"; fpIndex: number; byteLength: 4 | 8 } | { kind: "int"; argIndex: number };
 
 // Number of registers used for float/double argument passing on the calling conventions handled
 // below (SysV x86-64, Windows x64, AAPCS64); a param beyond this is stack-spilled, which isn't

@@ -130,6 +130,26 @@ class TestDescribeStopReason:
         finally:
             runner._stop_live_terminal()
 
+    def test_agent_crash_report_explains_process_termination(self, tmp_path):
+        runner = make_runner(tmp_path)
+        try:
+            runner._on_agent_crash({"type": "abort", "address": "libc.so!abort+0xc0"})
+            runner._stop_reason = "process-terminated"
+
+            assert runner._describe_stop_reason() == "process crashed (abort at libc.so!abort+0xc0)"
+        finally:
+            runner._stop_live_terminal()
+
+    def test_agent_crash_report_is_ignored_when_the_process_survived(self, tmp_path):
+        runner = make_runner(tmp_path)
+        try:
+            runner._on_agent_crash({"type": "abort", "address": "libc.so!abort+0xc0"})
+            runner._stop_reason = "user interrupt"
+
+            assert runner._describe_stop_reason() == "stopped by user (Ctrl+C)"
+        finally:
+            runner._stop_live_terminal()
+
 
 class TestExitCodeForStopReason:
     def test_none_is_success(self, tmp_path):
@@ -169,6 +189,69 @@ class TestPrintSummary:
             assert "Stopped: Process terminated" in out
             assert "Events captured: 5" in out
             assert str(runner.options.output_path) in out
+        finally:
+            runner._stop_live_terminal()
+
+    def test_reports_hooks_in_the_crashing_modules_when_no_hooked_function_crashed(self, tmp_path, capsys):
+        runner = make_runner(tmp_path)
+        try:
+            runner.platform = "android"
+            runner._on_agent_crash(
+                {
+                    "frooky": "crash",
+                    "type": "abort",
+                    "address": "0x7ea98d302b90 libc.so!abort+0xc0",
+                    "backtrace": [{"frame": "0x7ea6c9c7cae5 libart.so!JniAbort+0xa55"}, {"frame": "0x7ea6c527c803 libfoo.so!Java_Foo_bar+0x42"}],
+                    "nativeHooks": ["libfoo.so+0x7a0"],
+                }
+            )
+            runner._stop_reason = "process-terminated"
+
+            runner._print_summary()
+
+            out = capsys.readouterr().out
+            assert "Stopped: process crashed (abort at 0x7ea98d302b90 libc.so!abort+0xc0)" in out
+            assert "No hooked function on the crashing stack, but hooks in its modules: libfoo.so+0x7a0" in out
+            assert "    0x7ea6c527c803 libfoo.so!Java_Foo_bar+0x42" in out
+            assert "For the full crash report run: adb logcat -d -b crash" in out
+        finally:
+            runner._stop_live_terminal()
+
+    def test_reports_the_hooked_function_the_app_crashed_in(self, tmp_path, capsys):
+        runner = make_runner(tmp_path)
+        try:
+            runner._on_agent_crash(
+                {
+                    "frooky": "crash",
+                    "type": "access-violation",
+                    "address": "0x7ea6c52477b4 libfoo.so!receive_utf8+0x4",
+                    "backtrace": [{"frame": "0x7ea6c52477b4 libfoo.so!receive_utf8+0x4", "hook": "libfoo.so+0x7b3"}],
+                    "nativeHooks": ["libfoo.so+0x7a0", "libfoo.so+0x7b3"],
+                }
+            )
+            runner._stop_reason = "process-terminated"
+
+            runner._print_summary()
+
+            out = capsys.readouterr().out
+            assert "Crashed in hooked function: libfoo.so+0x7b3" in out
+            assert "→ 0x7ea6c52477b4 libfoo.so!receive_utf8+0x4  ← hook libfoo.so+0x7b3" in out
+            assert "No hooked function" not in out
+        finally:
+            runner._stop_live_terminal()
+
+    def test_hints_at_logcat_when_an_android_app_terminated_without_crash_report(self, tmp_path, capsys):
+        runner = make_runner(tmp_path)
+        try:
+            runner.platform = "android"
+            runner._stop_reason = "process-terminated"
+
+            runner._print_summary()
+
+            out = capsys.readouterr().out
+            assert "Stopped: Process terminated" in out
+            assert "If the app crashed, for the crash report run: adb logcat -d -b crash" in out
+            assert "Backtrace" not in out
         finally:
             runner._stop_live_terminal()
 

@@ -12,10 +12,12 @@ def create_message_handler(
     print_events: bool,
     on_event: Optional[Callable[[], None]] = None,
     on_progress: Optional[Callable[[dict], None]] = None,
+    on_crash: Optional[Callable[[dict], None]] = None,
 ):
     """Build the frooky agent's message callback: writes hook/log events to the output file
     and optionally prints them to the feed, calling on_event after each event in a batch.
-    Hook resolving progress reports ({"frooky": "progress", "hooked": n, "pending": n}) go to on_progress."""
+    Hook resolving progress reports ({"frooky": "progress", "hooked": n, "pending": n}) go to on_progress,
+    crash reports ({"frooky": "crash", "type": ..., "address": ..., "backtrace": [...], "nativeHooks": [...]}) to on_crash."""
 
     def on_message(message, data):
         msg_type = message.get("type")
@@ -33,6 +35,11 @@ def create_message_handler(
         if isinstance(payload, dict) and payload.get("frooky") == "progress":
             if on_progress:
                 on_progress(payload)
+            return
+
+        if isinstance(payload, dict) and payload.get("frooky") == "crash":
+            if on_crash:
+                on_crash(payload)
             return
 
         # The agent always batches hook/log events as a JSON array (see eventSender.ts).

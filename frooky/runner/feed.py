@@ -191,9 +191,9 @@ class Feed:
     def stop(self) -> None:
         self._live.stop()
 
-    def print(self, text: str = "") -> None:
-        """Print plain text, e.g. the header, without a timestamp or level. Long lines are left to the terminal to wrap."""
-        self.console.print(Text(text), soft_wrap=True)
+    def print(self, text: str | Text = "") -> None:
+        """Print text, e.g. the header, without a timestamp or level. Long lines are left to the terminal to wrap."""
+        self.console.print(Text(text) if isinstance(text, str) else text, soft_wrap=True)
 
     def log(self, level: str, message: str, source: Optional[str] = None) -> None:
         """Print a log line: `HH:MM:SS  LEVEL  [source] message`, colored by level."""
