@@ -36,8 +36,7 @@ class TestUpdateStatusLine:
 
             runner._update_status_line()
 
-            status = runner.feed.status.call_args.args[0]
-            assert status == f"Events: 3  |  Last: {'x' * 100}"
+            assert runner.feed.status.call_args.args == (3, "x" * 100)
         finally:
             runner._stop_live_terminal()
 
@@ -47,13 +46,28 @@ class TestOnProgress:
         runner = make_runner(tmp_path, agent_option_resolver_timeout=5)
         try:
             runner.feed.hook_status(runner._hook_status)
-            runner.feed.status("Events: 0")
+            runner.feed.status(0, "Waiting for events...")
 
             runner._on_progress({"frooky": "progress", "hooked": 30, "pending": 4})
-            assert "Resolving hooks: 30 hooked, 4 modules pending" in runner.feed.render_status_bar().plain
+            assert "Resolving hooks: 30 hooked" in runner.feed.render_status_bar().plain
 
             runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0})
-            assert runner.feed.render_status_bar().plain == " ✓ Hooks: 38  |  Events: 0 "
+            assert runner.feed.render_status_bar().plain.startswith(" # Hooks 38  │  # Events 0  │  Last Event ")
+        finally:
+            runner._stop_live_terminal()
+
+
+class TestOnProgressWithoutTerminal:
+    def test_logs_hooks_ready_once_resolving_is_done(self, tmp_path):
+        runner = make_runner(tmp_path, agent_option_resolver_timeout=5)
+        try:
+            runner.feed.log = MagicMock()
+
+            runner._on_progress({"frooky": "progress", "hooked": 30, "pending": 4, "failed": 0})
+            runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0, "failed": 1})
+            runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0, "failed": 1})
+
+            runner.feed.log.assert_called_once_with("info", "Hooks ready: 38 hooked, 1 not resolved")
         finally:
             runner._stop_live_terminal()
 

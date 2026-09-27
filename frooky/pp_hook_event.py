@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pprint as _pprint
 import re as _re
+from datetime import datetime as _datetime
 
 _DEFAULT_WIDTH = 120
 _MIN_WIDTH = 60
@@ -16,17 +17,19 @@ _LABEL_STACK = "stack trace"
 # Where the values of the one-line fields start: the longest key, "stack trace:", plus two spaces.
 _KEY_WIDTH = 14
 
+# Values use the terminal's default foreground; every other color is a mid-tone from the fixed
+# 256-color palette with a contrast of at least 3:1 on both dark and light terminal backgrounds.
 _C_RESET = "\033[0m"
-_C_BORDER = "\033[36m"
-_C_KEY = "\033[37m"
-_C_VAL = "\033[97m"
-_C_TYPE_J = "\033[35m"
-_C_TYPE_N = "\033[32m"
-_C_RET_TYPE = "\033[38;5;245m"
+_C_BORDER = "\033[38;5;31m"
+_C_KEY = "\033[38;5;244m"
+_C_VAL = "\033[39m"
+_C_TYPE_J = "\033[38;5;133m"
+_C_TYPE_N = "\033[38;5;64m"
+_C_RET_TYPE = "\033[38;5;244m"
 
-# Muted 256-color foregrounds, one per parameter in signature order, so each argument row can be
-# matched to its parameter in the `function:` line at a glance. Cycles for long parameter lists.
-_PARAM_COLORS = [f"\033[38;5;{n}m" for n in (110, 180, 139, 108, 174, 109, 144, 146)]
+# Muted foregrounds, one per parameter in signature order, so each argument row can be matched to
+# its parameter in the `function:` line at a glance. Cycles for long parameter lists.
+_PARAM_COLORS = [f"\033[38;5;{n}m" for n in (67, 137, 97, 65, 131, 66, 101, 103)]
 
 # A run of text and the color it is printed in.
 _Span = tuple[str, str]
@@ -217,6 +220,20 @@ def _add_stack(out: _Lines, stack_trace: list) -> None:
         out.add_wrapped(frame, " " * len(head) + _WRAP_INDENT, prefix, f"{_C_KEY}{prefix}")
 
 
+def _local_time(timestamp: object) -> object:
+    """The agent's UTC ISO timestamp in the host's local time, e.g. `2026-09-27 09:49:16.405`; anything else as is."""
+    if not isinstance(timestamp, str):
+        return timestamp
+    try:
+        # fromisoformat only accepts a trailing "Z" from Python 3.11 on
+        parsed = _datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return timestamp
+    if parsed.tzinfo is None:
+        return timestamp
+    return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+
 def _format_hook(out: _Lines, hook: dict, id_key: str, id_label: str, fn_key: str, fn_label: str) -> None:
     """Shared formatter for Java and native hook events."""
     args_in = hook.get("argsIn") or []
@@ -224,7 +241,7 @@ def _format_hook(out: _Lines, hook: dict, id_key: str, id_label: str, fn_key: st
     return_val = hook.get("returnValue")
     stack = hook.get("stackTrace") or []
 
-    _add_field(out, "time", hook.get("timestamp", "?"))
+    _add_field(out, "time", _local_time(hook.get("timestamp", "?")))
     _add_field(out, id_label, hook.get(id_key, "?"))
     colors_in, colors_out = _param_colors(args_in, args_out)
     _add_field(out, fn_label, _signature_spans(hook.get(fn_key, "?"), args_in, colors_in))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import time
+from collections import deque
 from datetime import datetime
 from typing import Callable, Optional
 
@@ -13,12 +14,13 @@ from rich.text import Text
 
 from ..pp_hook_event import format_hook_event
 
-# the colors the agent's logger used before it left the rendering to the host
+# Mid-tone colors from the fixed 256-color palette that stay readable on dark and light terminal
+# backgrounds; the 16 ANSI colors (e.g. "yellow") are redefined by every theme and often aren't.
 LEVEL_STYLES = {
-    "debug": "green",
-    "info": "blue",
-    "warn": "yellow",
-    "error": "red",
+    "debug": "color(64)",
+    "info": "color(32)",
+    "warn": "color(136)",
+    "error": "color(167)",
 }
 
 # Frida reports console.warn() as "warning"
@@ -32,7 +34,7 @@ def normalize_level(level: str) -> str:
 
 class HookStatus:
     """The hooks segment at the start of the status bar, e.g.
-    `Resolving hooks: 38 hooked, 4 modules pending (gives up in 3s)`, then `Hooks: 38`.
+    `Resolving hooks: 38 hooked, 4 modules pending (gives up in 3s)`, then `# Hooks 38 (2 not resolved)`.
 
     It is busy (the bar shows a spinner) until the agent's first progress report and while anything
     is pending. The countdown restarts whenever resolving starts again, e.g. on a reload, and is
@@ -42,16 +44,18 @@ class HookStatus:
     def __init__(self, timeout_seconds: float, clock: Callable[[], float] = time.monotonic):
         self.hooked = 0
         self.pending = 0
+        self.failed = 0
         self._reported = False
         self._timeout_seconds = timeout_seconds
         self._clock = clock
         self._deadline = clock() + timeout_seconds
 
-    def update(self, hooked: int, pending: int) -> None:
+    def update(self, hooked: int, pending: int, failed: int = 0) -> None:
         if pending > 0 and self._reported and self.pending == 0:
             self._deadline = self._clock() + self._timeout_seconds
         self.hooked = hooked
         self.pending = pending
+        self.failed = failed
         self._reported = True
 
     @property
@@ -62,39 +66,106 @@ class HookStatus:
         if not self._reported:
             return "Loading hooks..."
         if self.pending == 0:
-            return f"Hooks: {self.hooked:,}"
-        text = f"Resolving hooks: {self.hooked:,} hooked, {self.pending} modules pending"
+            text = f"Hooks ready: {self.hooked:,} hooked"
+            return f"{text}, {self.failed:,} not resolved" if self.failed else text
+        text = f"Resolving hooks: {self.hooked:,} hooked, {self.pending} {'module' if self.pending == 1 else 'modules'} pending"
         seconds_left = math.ceil(self._deadline - self._clock())
         return f"{text} (gives up in {seconds_left}s)" if seconds_left > 0 else text
 
 
+def _format_duration(seconds: float) -> str:
+    minutes, seconds = divmod(int(seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}:{minutes:02}:{seconds:02}" if hours else f"{minutes:02}:{seconds:02}"
+
+
+def _format_rate(rate: float) -> str:
+    return f"{rate:,.0f}/s" if rate >= 10 or rate == 0 else f"{rate:.1f}/s"
+
+
 class _StatusBar:
-    """Renders the feed's status bar on every redraw of the live area, so the spinner and countdown move."""
+    """Renders the feed's status bar on every redraw of the live area, so the spinner, countdown, rate and
+    elapsed time move. It spans the whole terminal width: the hook and event segments on the left, cropped
+    with an ellipsis when they don't fit, and the event rate and elapsed time on the right.
+    """
+
+    # colors from the fixed 256-color palette, not the 16 ANSI colors that light terminal themes redefine
+    STYLE = "grey93 on grey23"
+    LABEL_STYLE = "grey66 on grey23"
+    VALUE_STYLE = "bold grey93 on grey23"
+    SEPARATOR = "  │  "
+    # the event rate is averaged over this many seconds
+    RATE_WINDOW_SECONDS = 5.0
 
     def __init__(self, feed: Feed):
         self._feed = feed
-        self._spinner = Spinner("dots")
+        self._spinner = Spinner("dots", style="turquoise2")
+        self._samples: deque[tuple[float, int]] = deque()
 
-    def build(self, now: float) -> Text:
-        hook_status = self._feed._hook_status
-        if hook_status is None and not self._feed._status:
+    def _rate(self, now: float, count: int) -> float:
+        self._samples.append((now, count))
+        while len(self._samples) > 1 and now - self._samples[0][0] > self.RATE_WINDOW_SECONDS:
+            self._samples.popleft()
+        since, count_then = self._samples[0]
+        return (count - count_then) / (now - since) if now - since >= 1 else 0.0
+
+    def _segments(self, segments: list[Text]) -> Text:
+        text = Text(style=self.STYLE)
+        for i, segment in enumerate(segments):
+            if i:
+                text.append(self.SEPARATOR, style="grey42 on grey23")
+            text.append_text(segment)
+        return text
+
+    def _field(self, label: str, value: str) -> Text:
+        return Text.assemble((f"{label} ", self.LABEL_STYLE), (value, self.VALUE_STYLE))
+
+    def build(self, now: float, width: int) -> Text:
+        feed = self._feed
+        hook_status = feed._hook_status
+        if hook_status is None and feed._event_count is None:
             return Text("", end="")
-        bar = Text(" ", style="reverse", no_wrap=True, overflow="ellipsis", end="")
+
+        left: list[Text] = []
         if hook_status is not None:
-            bar.append_text(self._spinner.render(now) if hook_status.busy else Text("✓"))
-            bar.append(f" {hook_status.describe()}  |  ")
-        bar.append(f"{self._feed._status} ")
+            if hook_status.busy:
+                left.append(Text.assemble(self._spinner.render(now), " ", (hook_status.describe(), "bold gold1 on grey23")))
+            else:
+                hooks = self._field("# Hooks", f"{hook_status.hooked:,}")
+                if hook_status.failed:
+                    hooks.append(f" ({hook_status.failed:,} not resolved)", style="bold gold1 on grey23")
+                left.append(hooks)
+        right: list[Text] = []
+        if feed._event_count is not None:
+            left.append(self._field("# Events", f"{feed._event_count:,}"))
+            left.append(self._field("Last Event", feed._last_event))
+            right.append(self._field("Event Rate", _format_rate(self._rate(now, feed._event_count))))
+        if feed._started_at is not None:
+            right.append(self._field("Running", _format_duration(now - feed._started_at)))
+
+        left_text = self._segments(left)
+        right_text = self._segments(right)
+        room = width - 2 - right_text.cell_len - (2 if right else 0)
+        if left_text.cell_len > room:
+            left_text.truncate(max(room, 0), overflow="ellipsis")
+
+        bar = Text(" ", style=self.STYLE, no_wrap=True, overflow="ellipsis", end="")
+        bar.append_text(left_text)
+        bar.append(" " * max(width - 2 - left_text.cell_len - right_text.cell_len, 0))
+        bar.append_text(right_text)
+        bar.append(" ")
+        bar.truncate(width, overflow="ellipsis")
         return bar
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        yield self.build(console.get_time())
+        yield self.build(console.get_time(), options.max_width)
 
 
 class Feed:
     """The terminal output of a run: a scrolling feed of log lines and events above a status bar.
 
     The status bar at the bottom is redrawn in place: an optional HookStatus segment, with a spinner
-    while hooks resolve, followed by the status text. Every other output of a run goes through here,
+    while hooks resolve, the event count and last event, and the event rate and elapsed time. Every other output of a run goes through here,
     so log lines from the agent, the host and user scripts share one format. The methods are safe to
     call from Frida's callback threads.
     """
@@ -102,11 +173,14 @@ class Feed:
     def __init__(self, console: Optional[Console] = None):
         self.console = console or Console(highlight=False)
         self._hook_status: Optional[HookStatus] = None
-        self._status = ""
+        self._event_count: Optional[int] = None
+        self._last_event = ""
+        self._started_at: Optional[float] = None
         self._status_bar = _StatusBar(self)
         self._live = Live(self._status_bar, console=self.console, refresh_per_second=8, transient=False)
 
     def start(self) -> None:
+        self._started_at = self.console.get_time()
         self._live.start()
 
     def stop(self) -> None:
@@ -139,9 +213,10 @@ class Feed:
         for line in format_hook_event(event, self.console.width):
             self.console.print(Text.from_ansi(line), no_wrap=True, crop=True)
 
-    def status(self, text: str) -> None:
-        """Replace the status text in the status bar; it shows on the next redraw."""
-        self._status = text
+    def status(self, event_count: int, last_event: str) -> None:
+        """Update the event count and the last event in the status bar; they show on the next redraw."""
+        self._event_count = event_count
+        self._last_event = last_event
 
     def hook_status(self, hook_status: Optional[HookStatus]) -> None:
         """Show a HookStatus at the start of the status bar; the bar reads it on every redraw."""
@@ -149,4 +224,4 @@ class Feed:
 
     def render_status_bar(self) -> Text:
         """The status bar as it is drawn right now."""
-        return self._status_bar.build(self.console.get_time())
+        return self._status_bar.build(self.console.get_time(), self.console.width)

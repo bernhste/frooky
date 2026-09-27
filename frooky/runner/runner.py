@@ -64,7 +64,11 @@ class FrookyRunner:
 
     def _on_progress(self, progress: dict) -> None:
         """Called on Frida's thread with the agent's hook resolving progress, shown in the status bar."""
-        self._hook_status.update(int(progress.get("hooked", 0)), int(progress.get("pending", 0)))
+        was_busy = self._hook_status.busy
+        self._hook_status.update(int(progress.get("hooked", 0)), int(progress.get("pending", 0)), int(progress.get("failed", 0)))
+        # without a terminal there is no status bar, so say it once in the feed; the integration tests wait for it
+        if was_busy and not self._hook_status.busy and not self.feed.console.is_terminal:
+            self.feed.log("info", self._hook_status.describe())
 
     def _on_reload_error(self, path: Path, error: Exception) -> None:
         self.feed.log("warn", describe_reload_error(path, error))
@@ -90,7 +94,7 @@ class FrookyRunner:
 
     def _update_status_line(self) -> None:
         # not truncated here: the status bar crops itself to the terminal width on every redraw
-        self.feed.status(f"Events: {self.output.event_count:,}  |  Last: {self.output.last_event}")
+        self.feed.status(self.output.event_count, self.output.last_event)
 
     def _print_header(self) -> None:
         """Print the Frooky header with session information."""

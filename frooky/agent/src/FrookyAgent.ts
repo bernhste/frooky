@@ -75,9 +75,9 @@ function targetOf(kind: string, inputHook: unknown): string | undefined {
 /**
  * Live state of hook resolving across all loaded configs, reported to the host while hooks resolve:
  * `hooked` counts installed hooks (one per overload or function), `pending` the classes and modules
- * that are still being looked up.
+ * that are still being looked up, and `failed` the declarations that failed to resolve.
  */
-export type HookProgress = { hooked: number; pending: number };
+export type HookProgress = { hooked: number; pending: number; failed: number };
 
 /** What resolving hooks did: installed hooks (one per overload or function) and the declarations that failed to resolve. */
 export type HookedSummary = {
@@ -119,15 +119,6 @@ export function describeLoad(summary: LoadSummary): string {
   if (unchanged > 0) changes.push(`${unchanged} unchanged`);
   const text = changes.join(", ");
   return added + updated + retried > 0 ? `${text}; ${describeHooked(summary)}` : text;
-}
-
-/** The message logged once the hook files given at startup are resolved, e.g. `Hooks ready: 38 hooked (30 methods, 8 functions), 4 not resolved`. */
-export function describeReady({ hookedMethods, hookedFunctions, failed }: HookedSummary): string {
-  const kinds: string[] = [];
-  if (hookedMethods > 0) kinds.push(plural(hookedMethods, "method"));
-  if (hookedFunctions > 0) kinds.push(plural(hookedFunctions, "function"));
-  const text = `Hooks ready: ${hookedMethods + hookedFunctions} hooked${kinds.length > 0 ? ` (${kinds.join(", ")})` : ""}`;
-  return failed > 0 ? `${text}, ${failed} not resolved` : text;
 }
 
 /**
@@ -186,14 +177,13 @@ export class FrookyAgent {
   /**
    * Loads hook configs, resolves their hooks and runs them. All configs are applied immediately and
    * resolve concurrently, so a later {@link loadFrookyConfig} call for the same id always wins.
-   * Once all are resolved, logs one `Hooks ready: ...` summary for all configs; the host and its
-   * integration tests wait for it.
+   * Once all are resolved, the final {@link HookProgress} report tells the host.
    *
    * @param inputFrookyConfigs - The frooky configs to add.
    * @param configIds - Optional ids, index-aligned with `inputFrookyConfigs`, see {@link loadFrookyConfig}.
    */
   public async loadFrookyConfigs(inputFrookyConfigs: InputFrookyConfig[], configIds?: string[]) {
-    const summaries = await Promise.all(
+    await Promise.all(
       inputFrookyConfigs.map((inputFrookyConfig, i) =>
         this.applyFrookyConfig(inputFrookyConfig, configIds?.[i]).catch((e) => {
           logger.error(`Error during loading of the frooky config: ${String(e)}`);
@@ -201,14 +191,6 @@ export class FrookyAgent {
         }),
       ),
     );
-    const total: HookedSummary = { hookedMethods: 0, hookedFunctions: 0, failed: 0 };
-    for (const summary of summaries) {
-      if (!summary) continue;
-      total.hookedMethods += summary.hookedMethods;
-      total.hookedFunctions += summary.hookedFunctions;
-      total.failed += summary.failed;
-    }
-    logger.info(describeReady(total));
     // also when no config was valid, so the host stops waiting for a report
     this.scheduleProgressReport();
   }
@@ -422,15 +404,17 @@ export class FrookyAgent {
   /** The current {@link HookProgress} across all loaded configs. */
   public hookProgress(): HookProgress {
     let hooked = 0;
+    let failed = 0;
     const pendingLookups = new Set<unknown>();
     for (const entries of this.loadedConfigs.values()) {
       for (const entry of entries.values()) {
         if (entry.state === "installed") hooked += entry.hookedCount ?? 0;
         // a declaration without a known class or module counts on its own
         else if (entry.state === "pending") pendingLookups.add(entry.lookup ?? entry);
+        else if (entry.state === "failed") failed++;
       }
     }
-    return { hooked, pending: pendingLookups.size };
+    return { hooked, pending: pendingLookups.size, failed };
   }
 
   /**

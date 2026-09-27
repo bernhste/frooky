@@ -1,8 +1,9 @@
 """Unit tests for the pure formatting/decoding logic in pp_hook_event."""
 
 import re
+import time
 
-from frooky.pp_hook_event import _format_signature, _is_decoded_value, _unwrap, format_hook_event, pp_hook_event
+from frooky.pp_hook_event import _format_signature, _is_decoded_value, _local_time, _unwrap, format_hook_event, pp_hook_event
 
 
 class TestIsDecodedValue:
@@ -101,7 +102,7 @@ class TestPpHookEvent:
 
         out = "\n".join(_plain(capsys.readouterr().out.splitlines()))
         assert "java (method)" in out
-        assert "2026-01-01T00:00:00Z" in out
+        assert _local_time("2026-01-01T00:00:00Z") in out
         assert "com.example.Foo" in out
         assert "bar(String x)" in out
         assert "'hi'" in out
@@ -332,3 +333,18 @@ def _color_of(line: str, text: str) -> str | None:
 
 def _plain(lines: list[str]) -> list[str]:
     return [re.sub(r"\033\[[0-9;]*m", "", line) for line in lines]
+
+
+class TestLocalTime:
+    def test_converts_the_utc_timestamp_to_local_time(self, monkeypatch):
+        monkeypatch.setenv("TZ", "Europe/Zurich")
+        time.tzset()
+        try:
+            assert _local_time("2026-09-27T07:49:16.405Z") == "2026-09-27 09:49:16.405"
+        finally:
+            monkeypatch.delenv("TZ")
+            time.tzset()
+
+    def test_keeps_anything_it_cannot_parse(self):
+        assert _local_time("t") == "t"
+        assert _local_time("2026-09-27T07:49:16") == "2026-09-27T07:49:16"

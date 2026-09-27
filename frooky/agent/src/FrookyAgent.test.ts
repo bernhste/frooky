@@ -1,4 +1,4 @@
-import { describeHooked, describeLoad, describeReady, FrookyAgent, HookProgress } from "./FrookyAgent";
+import { describeHooked, describeLoad, FrookyAgent, HookProgress } from "./FrookyAgent";
 import {
   DEFAULT_DECODER_SETTINGS,
   DEFAULT_HOOK_SETTINGS,
@@ -168,18 +168,6 @@ describe("FrookyAgent", () => {
       expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
       expect(errorSpy).toHaveBeenCalledWith("Error while resolving platform hooks: Error: synchronous boom");
     });
-
-    it("logs one 'Hooks ready' line for all configs once they are resolved", async () => {
-      const rawManager = fakeResolvingHookManager();
-      const validator = fakePlatformHookValidator();
-      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce(["a", "b"]);
-      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce(["c"]);
-      const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>);
-
-      await agent.loadFrookyConfigs([makeConfig(), makeConfig()], ["first.yaml", "second.yaml"]);
-
-      expect(infoSpy.mock.calls.map((call) => call[0])).toEqual(["Hooks ready: 3 hooked (3 methods)"]);
-    });
   });
 
   describe("loadFrookyConfig() with a config id (reload)", () => {
@@ -328,12 +316,12 @@ describe("FrookyAgent", () => {
       const loading = agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 1 });
+      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 1, failed: 0 });
 
       resolveClassA(null);
       await loading;
 
-      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 0 });
+      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 0, failed: 2 });
     });
 
     it("marks a hook whose resolving rejected as failed instead of leaving it pending", async () => {
@@ -343,7 +331,7 @@ describe("FrookyAgent", () => {
 
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
 
-      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 0 });
+      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 0, failed: 1 });
       expect(warnSpy).toHaveBeenCalledWith("Failed to hook com.example.A.one: no such overload");
       expect(infoSpy).toHaveBeenCalledWith("Loaded hooks.yaml: 2 new; hooked 1 method, 1 not resolved");
     });
@@ -359,8 +347,8 @@ describe("FrookyAgent", () => {
       await new Promise((r) => setTimeout(r, PROGRESS_INTERVAL_MS + 50));
 
       expect(reports).toEqual([
-        { hooked: 1, pending: 1 },
-        { hooked: 3, pending: 0 },
+        { hooked: 1, pending: 1, failed: 0 },
+        { hooked: 3, pending: 0, failed: 0 },
       ]);
     });
   });
@@ -390,18 +378,6 @@ describe("FrookyAgent", () => {
   describe("describeHooked()", () => {
     it("uses singular and plural", () => {
       expect(describeHooked({ hookedMethods: 1, hookedFunctions: 2, failed: 0 })).toBe("hooked 1 method and 2 functions");
-    });
-  });
-
-  describe("describeReady()", () => {
-    it("reports the total and splits it by kind", () => {
-      expect(describeReady({ hookedMethods: 30, hookedFunctions: 8, failed: 4 })).toBe(
-        "Hooks ready: 38 hooked (30 methods, 8 functions), 4 not resolved",
-      );
-    });
-
-    it("reports when nothing was hooked", () => {
-      expect(describeReady({ hookedMethods: 0, hookedFunctions: 0, failed: 0 })).toBe("Hooks ready: 0 hooked");
     });
   });
 });

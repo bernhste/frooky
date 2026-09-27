@@ -15,7 +15,8 @@
     "source=${localWorkspaceFolderBasename}-bashhistory,target=/commandhistory,type=volume",
     "source=${localWorkspaceFolderBasename}-python-venv,target=/opt/venv,type=volume",
     "source=${localWorkspaceFolderBasename}-gradle-cache,target=/home/vscode/.gradle,type=volume",
-    "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/frooky/agent/node_modules,type=volume"
+    "source=${localWorkspaceFolderBasename}-node_modules,target=${containerWorkspaceFolder}/frooky/agent/node_modules,type=volume",
+    "source=/etc/localtime,target=/etc/localtime,type=bind,readonly"
   ],
   "postCreateCommand": "sudo chown -R vscode:vscode /commandhistory ${containerWorkspaceFolder}/frooky/agent/node_modules /home/vscode/.gradle /opt/venv && .devcontainer/setup-arm64-android-configure-gradle.sh && echo 'source /opt/venv/bin/activate' >> ~/.bashrc && echo 'source /opt/venv/bin/activate' >> ~/.zshrc && ./compileAgent.sh --dev && pip install -e \".[dev]\"",
   "features": {
