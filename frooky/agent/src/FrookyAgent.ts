@@ -42,6 +42,11 @@ function configLabel(configId: string): string {
   return configId.split(/[\\/]/).pop() || configId;
 }
 
+/** Names a config in log messages: the hook file name, else the metadata name. */
+function describeConfig(inputFrookyConfig: InputFrookyConfig, configId?: string): string {
+  return configId !== undefined ? configLabel(configId) : (inputFrookyConfig.metadata?.name ?? "frooky config");
+}
+
 function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
@@ -163,15 +168,10 @@ export class FrookyAgent {
     logger.setAgent(this);
     logger.setVerbosity(logLevel);
     logger.setLogTo(logTo);
-    logger.debug("Logger initialized");
 
     // printing some context infos
-    logger.debug("Initializing frooky");
-    logger.debug(`Declared target platform: ${this.platform}`);
-    logger.debug(`Target platform: ${Process.platform}`);
-    logger.debug(`Target frida version: ${Frida.version}`);
-    logger.debug(`Target arch: ${Process.arch}`);
-    logger.debug(`Target process:\n${JSON.stringify(Process, null, 2)}}`);
+    logger.info(`Target: ${this.platform} (${Process.platform}/${Process.arch}), pid ${Process.id}, Frida ${Frida.version}`);
+    logger.debug(`Target process:\n${JSON.stringify(Process, null, 2)}`);
   }
 
   /**
@@ -185,10 +185,13 @@ export class FrookyAgent {
   public async loadFrookyConfigs(inputFrookyConfigs: InputFrookyConfig[], configIds?: string[]) {
     await Promise.all(
       inputFrookyConfigs.map((inputFrookyConfig, i) =>
-        this.applyFrookyConfig(inputFrookyConfig, configIds?.[i]).catch((e) => {
-          logger.error(`Error during loading of the frooky config: ${String(e)}`);
-          return undefined;
-        }),
+        this.applyFrookyConfig(inputFrookyConfig, configIds?.[i])
+          .then((summary) => {
+            if (summary) logger.info(`Loaded ${describeConfig(inputFrookyConfig, configIds?.[i])}: ${describeLoad(summary)}`);
+          })
+          .catch((e) => {
+            logger.error(`Error during loading of the frooky config: ${String(e)}`);
+          }),
       ),
     );
     // also when no config was valid, so the host stops waiting for a report
@@ -219,8 +222,7 @@ export class FrookyAgent {
     this.scheduleProgressReport();
     if (!summary) return;
     const verb = !isReload ? "Loaded" : retryFailed ? "Reloaded" : "Updated";
-    const label = configId !== undefined ? configLabel(configId) : (inputFrookyConfig.metadata?.name ?? "frooky config");
-    logger.info(`${verb} ${label}: ${describeLoad(summary)}`);
+    logger.info(`${verb} ${describeConfig(inputFrookyConfig, configId)}: ${describeLoad(summary)}`);
   }
 
   /**
@@ -229,10 +231,10 @@ export class FrookyAgent {
    * @returns What changed, or `undefined` if the config was invalid.
    */
   private async applyFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string, retryFailed = false): Promise<LoadSummary | undefined> {
-    logger.debug("Loading frooky configuration.");
+    const label = describeConfig(inputFrookyConfig, configId);
+    logger.debug(`Parsing ${label}`);
 
     // validate frooky config
-    logger.debug("Validating frooky configuration");
     let validFrookyConfig: InputFrookyConfig;
     try {
       validFrookyConfig = validateAndRepairFrookyConfig(inputFrookyConfig, this.platform);
@@ -316,23 +318,15 @@ export class FrookyAgent {
       countUpdated++;
     }
 
-    const configName = inputFrookyConfig.metadata?.name;
-    const nameSuffix = configName ? ` '${configName}'` : "";
-    const hookSuffix = configName ? ` from frooky configuration '${configName}'` : "";
-
-    logger.debug(`Frooky configuration${nameSuffix} successfully parsed`);
+    logger.info(
+      `Parsed ${label}: ${plural(validPlatformHooks.length, `${this.platform} hook`)} and ${plural(validNativeHook.length, "native hook")}, ${platformToResolve.length + nativeToResolve.length} to resolve`,
+    );
     this.scheduleProgressReport();
 
-    // async resolve the new hooks and register them
+    // async resolve the new hooks and register them; the summary is logged by loadFrookyConfig()
     const [countSuccessfulPlatformHooks, countSuccessfulNativeHooks] = await Promise.all([
-      this.resolveAndRegisterHooks(this.platformHookManger, platformToResolve, "platform").then((count) => {
-        if (count > 0) logger.debug(`Successfully hooked ${count} ${this.platform} methods${hookSuffix}`);
-        return count;
-      }),
-      this.resolveAndRegisterHooks(this.nativeHookManager, nativeToResolve, "native").then((count) => {
-        if (count > 0) logger.debug(`Successfully hooked ${count} native functions${hookSuffix}`);
-        return count;
-      }),
+      this.resolveAndRegisterHooks(this.platformHookManger, platformToResolve, "platform"),
+      this.resolveAndRegisterHooks(this.nativeHookManager, nativeToResolve, "native"),
     ]);
 
     const toResolve = [...platformToResolve, ...nativeToResolve];

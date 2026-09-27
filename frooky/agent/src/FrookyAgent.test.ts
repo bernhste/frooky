@@ -86,6 +86,9 @@ describe("FrookyAgent", () => {
   let errorSpy: Mock;
   let infoSpy: Mock;
 
+  // the per-load summary lines, without the target and parsing info lines
+  const summaryLogs = () => infoSpy.mock.calls.map((call) => String(call[0])).filter((msg) => /^(Loaded|Updated|Reloaded) /.test(msg));
+
   beforeEach(() => {
     warnSpy = spyOn(logger, "warn");
     errorSpy = spyOn(logger, "error");
@@ -248,7 +251,7 @@ describe("FrookyAgent", () => {
       expect(rawManager.resolveHooks).toHaveBeenCalledTimes(2);
       expect(resolvedNames(rawManager.resolveHooks.mock.calls[1])).toEqual(["a"]);
       expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
-      expect(infoSpy.mock.calls[1]?.[0]).toBe("Reloaded hooks.yaml: 1 retried, 1 unchanged; hooked 1 method");
+      expect(summaryLogs()[1]).toBe("Reloaded hooks.yaml: 1 retried, 1 unchanged; hooked 1 method");
     });
 
     it("keeps the loaded hooks when the reloaded config is invalid", async () => {
@@ -268,7 +271,7 @@ describe("FrookyAgent", () => {
       await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
       await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
 
-      expect(infoSpy.mock.calls.map((call) => call[0])).toEqual([
+      expect(summaryLogs()).toEqual([
         "Loaded hooks.yaml: 2 new; hooked 2 methods",
         "Updated hooks.yaml: 1 new, 1 removed, 1 unchanged; hooked 1 method",
       ]);
@@ -287,7 +290,7 @@ describe("FrookyAgent", () => {
       await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
       await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
 
-      expect(infoSpy.mock.calls[1]?.[0]).toBe("Updated hooks.yaml: 1 updated, 1 removed; hooked 1 method");
+      expect(summaryLogs()[1]).toBe("Updated hooks.yaml: 1 updated, 1 removed; hooked 1 method");
     });
   });
 

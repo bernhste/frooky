@@ -27,3 +27,12 @@ class RunnerOptions:
     agent_option_resolver_timeout: Optional[int] = None
     print_events: bool = False
     watch: bool = False
+
+    @property
+    def agent_log_level(self) -> str:
+        """The frooky agent's log level: warnings and errors by default, -v adds info, -vv adds debug."""
+        if self.agent_option_very_verbose:
+            return "debug"
+        if self.agent_option_verbose:
+            return "info"
+        return "warn"

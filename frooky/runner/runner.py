@@ -210,9 +210,7 @@ class FrookyRunner:
             self.script.set_log_handler(create_log_handler(self.feed))
             self.script.load()
 
-            # info, warnings and errors are always shown; -v/-vv add the agent's debug logs
-            log_level = "debug" if self.options.agent_option_verbose or self.options.agent_option_very_verbose else "info"
-            self.script.exports_sync.init_frooky_agent(log_level, "console", self.options.agent_option_resolver_timeout)
+            self.script.exports_sync.init_frooky_agent(self.options.agent_log_level, "console", self.options.agent_option_resolver_timeout)
 
             watcher = HookFileWatcher(self.options.hook_paths, self._on_reload_error) if self.options.watch else None
             hook_configs = watcher.configs if watcher else load_hook_configs(self.options.hook_paths)

@@ -25,6 +25,15 @@ class TestRunnerOptions:
         assert options.agent_option_resolver_timeout is None
         assert options.print_events is False
 
+    def test_agent_log_level(self, tmp_path):
+        def level(**kwargs):
+            return RunnerOptions(hook_paths=[], output_path=tmp_path / "out.json", **kwargs).agent_log_level
+
+        assert level() == "warn"
+        assert level(agent_option_verbose=True) == "info"
+        assert level(agent_option_very_verbose=True) == "debug"
+        assert level(agent_option_verbose=True, agent_option_very_verbose=True) == "debug"
+
     def test_user_scripts_default_is_not_shared_between_instances(self, tmp_path):
         a = RunnerOptions(hook_paths=[], output_path=tmp_path / "out.json")
         b = RunnerOptions(hook_paths=[], output_path=tmp_path / "out.json")

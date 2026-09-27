@@ -29,7 +29,11 @@ rpc.exports = {
             // an object payload, which the host tells apart from the event batches (arrays)
             (progress) => send({ frooky: "progress", ...progress }),
           );
-          resolve();
+          // Java.perform() runs this callback on an app thread (in spawn mode the main thread). Resolve
+          // from a timer, so everything chained on frookyAgentReady (loading configs, installing hooks,
+          // logging) runs on Frida's JS thread instead: running it on the main thread while hooking
+          // e.g. libc read/write deadlocks the app once enough log output is pending (seen with -vv).
+          setTimeout(resolve, 0);
         } catch (e) {
           reject(e);
         }

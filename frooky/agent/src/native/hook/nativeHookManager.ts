@@ -16,7 +16,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
   }
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number): Promise<Promise<NativeHook[] | null>[]> {
-    logger.debug(`Resolving native hooks`);
+    logger.info(`Resolving ${inputHooks.length} native hook(s) in ${new Set(inputHooks.map((h) => h.module)).size} module(s)`);
 
     // each module is resolved once, no matter how many hooks target it
     const modulePromises = new Map<string, Promise<Module | null>>();
@@ -178,7 +178,6 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
   private resolveSymbol(symbol: string, module: Module): NativePointer {
     try {
-      logger.debug(`Resolving symbol '${symbol}' in module '${module.name}'.`);
       return module.getExportByName(symbol);
     } catch (e) {
       throw Error(`Skipping hook for '${symbol}'. This symbol does not exist in module '${module.name}'.`);
@@ -190,12 +189,10 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     return this.pollUntilResolved(
       () => {
         try {
-          logger.debug(`Trying to resolve module '${moduleName}'.`);
           const module = Process.getModuleByName(moduleName);
           logger.debug(`Module '${moduleName}' successfully loaded.`);
           return module;
         } catch (_) {
-          logger.debug(`Module '${moduleName}' not resolved yet.`);
           return null;
         }
       },

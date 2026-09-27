@@ -36,7 +36,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   >();
 
   async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number): Promise<Promise<JavaHook[] | null>[]> {
-    logger.debug(`Resolving Java hooks`);
+    logger.info(`Resolving ${inputHooks.length} Java hook(s) in ${new Set(inputHooks.map((h) => h.javaClass)).size} class(es)`);
 
     // each class is resolved once, no matter how many hooks target it
     const javaClassPromises = new Map<string, Promise<Java.Wrapper[]>>();
@@ -230,12 +230,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       const pattern = wildcardPatternToRegExp(javaClassName);
       return this.pollUntilResolved(
         () => {
-          logger.debug(`Trying to resolve Java classes matching wildcard pattern '${javaClassName}'.`);
           const resolvedClasses = this.resolveMatchingJavaClasses(pattern);
-          if (resolvedClasses.length === 0) {
-            logger.debug(`No Java classes matching wildcard pattern '${javaClassName}' resolved yet.`);
-            return null;
-          }
+          if (resolvedClasses.length === 0) return null;
           logger.debug(`${resolvedClasses.length} Java class(es) matching wildcard pattern '${javaClassName}' resolved.`);
           return resolvedClasses;
         },
@@ -247,13 +243,10 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     return this.pollUntilResolved(
       () => {
         try {
-          logger.debug(`Trying to resolve Java class '${javaClassName}'.`);
-
           const resolvedJavaClass = Java.use(javaClassName);
           logger.debug(`Java class '${javaClassName}' resolved.`);
           return [resolvedJavaClass];
         } catch (_) {
-          logger.debug(`Java class '${javaClassName}' not resolved yet.`);
           return null;
         }
       },
