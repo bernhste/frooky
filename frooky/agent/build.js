@@ -172,16 +172,26 @@ function generateHooksFile(config) {
   }
 }
 
+function copyDirSync(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirSync(srcPath, destPath);
+    } else if (entry.isSymbolicLink()) {
+      fs.symlinkSync(fs.readlinkSync(srcPath), destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
 function setupBuildDir(config) {
-  if (!fs.existsSync(config.distDir)) {
-    fs.mkdirSync(config.distDir);
-  }
+  fs.mkdirSync(config.distDir, { recursive: true });
+  fs.mkdirSync(config.buildDir, { recursive: true });
 
-  if (!fs.existsSync(config.buildDir)) {
-    fs.mkdirSync(config.buildDir);
-  }
-
-  fs.cpSync(config.sourceDir, config.buildDir, { recursive: true });
+  copyDirSync(config.sourceDir, config.buildDir);
 
   // Remove the index file we're NOT using
   const unusedTarget = config.target === "frida" ? "frooky" : "frida";
@@ -196,11 +206,18 @@ function setupBuildDir(config) {
 }
 
 function runCompileAgent(config) {
-  spawnSync(
+  const result = spawnSync(
     "frida-compile",
     [path.join(config.buildDir, `index.${config.target}.ts`), "-o", config.agentPath, "-T", config.typeCheck, ...(config.compress ? ["-c"] : [])],
     { stdio: "inherit" },
   );
+
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`frida-compile failed with exit code ${result.status}`);
+  }
 
   if (config.verbose) {
     console.log(`Agent compiling successful. Location: ${config.agentPath}`);
@@ -269,6 +286,7 @@ async function main() {
   }
   validateConfig(config);
 
+  let exitCode = 0;
   try {
     setupBuildDir(config);
     saveCompiledFridaVersion(config);
@@ -280,10 +298,15 @@ async function main() {
     }
   } catch (e) {
     console.error(`Error: ${e}`);
+    exitCode = 1;
   } finally {
     if (!config.keepBuildDir) {
       cleanupBuildDir(config);
     }
+  }
+
+  if (exitCode !== 0) {
+    process.exit(exitCode);
   }
 }
 
