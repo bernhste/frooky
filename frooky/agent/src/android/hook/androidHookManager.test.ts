@@ -143,7 +143,6 @@ describe("AndroidHookManager", () => {
           return { platformStackTrace: [], nativeStackTrace: [] };
         },
       };
-      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
       const manager = new AndroidHookManager(recordingStackTrace, agent);
       const resolve = async (maxStackFrames: number) => {
         const hook: InputJavaHookNormalized = {

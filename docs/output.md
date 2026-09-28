@@ -25,12 +25,12 @@ Every event carries these fields:
 
 Hook events additionally carry:
 
-| Field         | Type             | Description                                                                                                                                           |
-| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Field         | Type             | Description                                                                                                                                                                    |
+| ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `stackTrace`  | `object`         | Captured stack trace leading to the hooked call (`{ platformStackTrace: string[], nativeStackTrace: string[] }`), subject to `hookSettings.maxStackFrames`/`stackTraceFilter`. |
-| `argsIn`      | `DecodedValue[]` | Arguments decoded on entry (`direction: in`/`inout`).                                                                                                 |
-| `argsOut`     | `DecodedValue[]` | Arguments decoded on exit (`direction: out`/`inout`).                                                                                                 |
-| `returnValue` | `DecodedValue`   | The decoded return value.                                                                                                                             |
+| `argsIn`      | `DecodedValue[]` | Arguments decoded on entry (`direction: in`/`inout`).                                                                                                                          |
+| `argsOut`     | `DecodedValue[]` | Arguments decoded on exit (`direction: out`/`inout`).                                                                                                                          |
+| `returnValue` | `DecodedValue`   | The decoded return value.                                                                                                                                                      |
 
 A `DecodedValue` (used for each `argsIn`/`argsOut` entry and for `returnValue`) has the shape:
 
