@@ -9,7 +9,7 @@ import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookMa
 import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
-import { PlatformStackTrace } from "../../shared/platformStackTrace";
+import { HookStackTrace, PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError, fromSource, plural, wildcardPatternToRegExp } from "../../shared/utils";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
@@ -97,7 +97,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
       const implementation = function (this: Java.Wrapper, ...args: Java.Wrapper[]) {
         // collect the stack trace and filter
-        let stackTrace: string[];
+        let stackTrace: HookStackTrace;
         try {
           stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter);
         } catch (e) {

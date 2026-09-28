@@ -25,12 +25,12 @@ Every event carries these fields:
 
 Hook events additionally carry:
 
-| Field         | Type             | Description                                                                                                   |
-| ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------- |
-| `stackTrace`  | `string[]`       | Captured stack trace leading to the hooked call, subject to `hookSettings.maxStackFrames`/`stackTraceFilter`. |
-| `argsIn`      | `DecodedValue[]` | Arguments decoded on entry (`direction: in`/`inout`).                                                         |
-| `argsOut`     | `DecodedValue[]` | Arguments decoded on exit (`direction: out`/`inout`).                                                         |
-| `returnValue` | `DecodedValue`   | The decoded return value.                                                                                     |
+| Field         | Type             | Description                                                                                                                                           |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stackTrace`  | `object`         | Captured stack trace leading to the hooked call (`{ platformStackTrace: string[], nativeStackTrace: string[] }`), subject to `hookSettings.maxStackFrames`/`stackTraceFilter`. |
+| `argsIn`      | `DecodedValue[]` | Arguments decoded on entry (`direction: in`/`inout`).                                                                                                 |
+| `argsOut`     | `DecodedValue[]` | Arguments decoded on exit (`direction: out`/`inout`).                                                                                                 |
+| `returnValue` | `DecodedValue`   | The decoded return value.                                                                                                                             |
 
 A `DecodedValue` (used for each `argsIn`/`argsOut` entry and for `returnValue`) has the shape:
 
@@ -63,10 +63,13 @@ In addition to the [common fields](#common-event-fields), `hook-java` events car
   "javaClassName": "org.owasp.mastestapp.MastgTest",
   "method": "receiveString",
   "fieldType": { "fieldType": "static" },
-  "stackTrace": [
-    "org.owasp.mastestapp.MastgTest.receiveString (MastgTest.kt:-1)",
-    "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:98)"
-  ],
+  "stackTrace": {
+    "platformStackTrace": [
+      "org.owasp.mastestapp.MastgTest.receiveString (MastgTest.kt:-1)",
+      "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:98)"
+    ],
+    "nativeStackTrace": []
+  },
   "argsIn": [
     {
       "type": "java.lang.String",
@@ -101,13 +104,17 @@ In addition to the [common fields](#common-event-fields), `hook-native` events c
   "type": "hook-native",
   "module": "libreceiveFundamentalReference.so",
   "symbol": "reverse_byte_array",
-  "stackTrace": [
-    "Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI+0x234 (libreceiveFundamentalReference.so:0x763e4c3a33b4)",
-    "art_quick_generic_jni_trampoline+0xdc (libart.so:0x763e51a2b5ec)",
-    "art_quick_invoke_stub+0x2f5 (libart.so:0x763e51a12155)",
-    "org.owasp.mastestapp.MastgTest.receiveFundamentalReferenceJNI (MastgTest.kt:-2)",
-    "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:22)"
-  ],
+  "stackTrace": {
+    "platformStackTrace": [
+      "org.owasp.mastestapp.MastgTest.receiveFundamentalReferenceJNI (MastgTest.kt:-2)",
+      "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:22)"
+    ],
+    "nativeStackTrace": [
+      "Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI+0x234 (libreceiveFundamentalReference.so:0x763e4c3a33b4)",
+      "art_quick_generic_jni_trampoline+0xdc (libart.so:0x763e51a2b5ec)",
+      "art_quick_invoke_stub+0x2f5 (libart.so:0x763e51a12155)"
+    ]
+  },
   "argsIn": [
     {
       "type": "unsigned char *",

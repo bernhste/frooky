@@ -9,7 +9,7 @@ import { JavaHook } from "./javaHook";
 // resolveHooks() only resolves method/overload metadata, it never installs an implementation
 // (that's registerHooks()'s job), so it's safe to run against real, always-loaded JVM bootstrap
 // classes (java.lang.String, java.lang.Object) without risking side effects on the host process.
-const stackTrace: PlatformStackTrace = { build: () => [] };
+const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
 
 function javaHook(javaClass: string, method: string): InputJavaHookNormalized {
@@ -140,7 +140,7 @@ describe("AndroidHookManager", () => {
       const recordingStackTrace: PlatformStackTrace = {
         build: (limit: number) => {
           calledLimits.push(limit);
-          return [];
+          return { platformStackTrace: [], nativeStackTrace: [] };
         },
       };
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;

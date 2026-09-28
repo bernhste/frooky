@@ -16,6 +16,7 @@ const INTERCEPTOR_PATCH_BYTES = 16;
 
 export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
   private installedHooks = new Set<NativeHook>();
+  private activeThreads = new Set<number>();
 
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
@@ -98,77 +99,94 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       // thread or a recursive call can enter the hook between this call's onEnter and onLeave
       const callbacks: InvocationListenerCallbacks = {
         onEnter: function (args: NativePointer[]) {
-          this.filtered = false;
-          this.argsIn = [];
-
-          try {
-            this.stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter, this.context);
-          } catch (e) {
-            if (e instanceof FilterMismatchError) {
-              this.filtered = true;
-              return;
-            }
-            throw e; // re-throw stackTraceBuilder error
+          const tid = Process.getCurrentThreadId();
+          if (hookManager.activeThreads.has(tid)) {
+            this.filtered = true;
+            return;
           }
+          hookManager.activeThreads.add(tid);
+          try {
+            this.filtered = false;
+            this.argsIn = [];
 
-          if (hook.params) {
-            // args[] only reflects general-purpose registers; substitute the real bits for
-            // by-value float/double params, which live in dedicated FP registers instead - and,
-            // on architectures that actually have that separate register file, use each param's
-            // own lane-relative index rather than its raw position (see nativeFloatArgs.ts).
-            const separateLanes = usesSeparateFloatRegisterFile(this.context);
-            const effectiveArgs: NativePointer[] = [];
-            for (let i = 0; i < hook.params.length; i++) {
-              const slot = argSlots[i];
-              if (slot.kind === "float" && separateLanes) {
-                effectiveArgs[i] = readFloatArgBits(this.context, slot) ?? ptr(0);
-              } else if (slot.kind === "float") {
-                effectiveArgs[i] = args[i];
-              } else {
-                effectiveArgs[i] = separateLanes ? args[slot.argIndex] : args[i];
+            if (hook.params) {
+              // args[] only reflects general-purpose registers; substitute the real bits for
+              // by-value float/double params, which live in dedicated FP registers instead - and,
+              // on architectures that actually have that separate register file, use each param's
+              // own lane-relative index rather than its raw position (see nativeFloatArgs.ts).
+              const separateLanes = usesSeparateFloatRegisterFile(this.context);
+              const effectiveArgs: NativePointer[] = [];
+              for (let i = 0; i < hook.params.length; i++) {
+                const slot = argSlots[i];
+                if (slot.kind === "float" && separateLanes) {
+                  effectiveArgs[i] = readFloatArgBits(this.context, slot) ?? ptr(0);
+                } else if (slot.kind === "float") {
+                  effectiveArgs[i] = args[i];
+                } else {
+                  effectiveArgs[i] = separateLanes ? args[slot.argIndex] : args[i];
+                }
               }
+
+              // decode arguments onEnter
+              try {
+                this.argsIn = hookManager.decodeArgs(effectiveArgs, inArgDecoders, target);
+              } catch (e) {
+                if (e instanceof FilterMismatchError) {
+                  this.filtered = true;
+                  return;
+                }
+                throw e; // re-throw arg decoder error
+              }
+
+              // save arguments in case they need to be decoded onLeave
+              this.savedArgs = effectiveArgs;
             }
 
-            // decode arguments onEnter
             try {
-              this.argsIn = hookManager.decodeArgs(effectiveArgs, inArgDecoders, target);
+              this.stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter, this.context);
             } catch (e) {
               if (e instanceof FilterMismatchError) {
                 this.filtered = true;
                 return;
               }
-              throw e; // re-throw arg decoder error
+              throw e; // re-throw stackTraceBuilder error
             }
-
-            // save arguments in case they need to be decoded onLeave
-            this.savedArgs = effectiveArgs;
+          } finally {
+            hookManager.activeThreads.delete(tid);
           }
         },
         onLeave: function (returnValue: InvocationReturnValue) {
           if (this.filtered) return;
-          const decodedArgs: DecodedArgs = { in: this.argsIn, out: [] };
-          if (hook.params) {
-            try {
-              // decode arguments onLeave
-              decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders, target);
-            } catch (e) {
-              if (e instanceof FilterMismatchError) return;
-              throw e;
+          const tid = Process.getCurrentThreadId();
+          if (hookManager.activeThreads.has(tid)) return;
+          hookManager.activeThreads.add(tid);
+          try {
+            const decodedArgs: DecodedArgs = { in: this.argsIn, out: [] };
+            if (hook.params) {
+              try {
+                // decode arguments onLeave
+                decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders, target);
+              } catch (e) {
+                if (e instanceof FilterMismatchError) return;
+                throw e;
+              }
             }
-          }
 
-          // decode ret value
-          let decodedRetValue: DecodedValue | undefined;
-          if (hook.retType) {
-            // returnValue only reflects the general-purpose return register (e.g. RAX); on
-            // architectures with a separate FP register file, a float/double return comes back in
-            // its own dedicated register instead.
-            const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile(this.context) ? readFloatArgBits(this.context, floatRetSlot) : null;
-            decodedRetValue = hookManager.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
-          }
+            // decode ret value
+            let decodedRetValue: DecodedValue | undefined;
+            if (hook.retType) {
+              // returnValue only reflects the general-purpose return register (e.g. RAX); on
+              // architectures with a separate FP register file, a float/double return comes back in
+              // its own dedicated register instead.
+              const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile(this.context) ? readFloatArgBits(this.context, floatRetSlot) : null;
+              decodedRetValue = hookManager.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
+            }
 
-          // send add to event log
-          hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, this.stackTrace));
+            // send add to event log
+            hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, this.stackTrace));
+          } finally {
+            hookManager.activeThreads.delete(tid);
+          }
         },
       };
 

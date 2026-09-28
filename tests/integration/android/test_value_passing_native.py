@@ -495,9 +495,8 @@ class TestValuePassingNative:
     def test_max_stack_trace(self, run_frooky, find_matched_events):
         """`maxStackFrames` (see native-hook-declaration.md) caps how many stack frames are captured.
 
-        For a native hook without a filter, the limit is applied separately to the native and Java
-        halves of the trace before they're concatenated (see androidStackTrace.ts), so the combined
-        stack trace can hold up to 2x the limit rather than being capped at the limit itself.
+        For a native hook, the limit is applied separately to the native and platform (Java)
+        traces, captured in `nativeStackTrace` and `platformStackTrace`.
         """
         limit = 5
         hook_file = textwrap.dedent(f"""\
@@ -513,7 +512,8 @@ class TestValuePassingNative:
 
         events = find_matched_events({"module": MODULE_VALUE, "symbol": "receive_int"})
         assert len(events) == 1
-        assert 0 < len(events[0]["stackTrace"]) <= 2 * limit
+        assert 0 < len(events[0]["stackTrace"]["platformStackTrace"]) <= limit
+        assert 0 < len(events[0]["stackTrace"]["nativeStackTrace"]) <= limit
 
     def test_stack_trace_filter_keeps_event_when_a_frame_matches(self, run_frooky, count_matched_events):
         """`stackTraceFilter` is an event-level gate, same as for Java hooks: if any captured frame

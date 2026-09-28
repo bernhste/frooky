@@ -1,5 +1,10 @@
+export interface HookStackTrace {
+  platformStackTrace: string[];
+  nativeStackTrace: string[];
+}
+
 export interface PlatformStackTrace {
-  build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): string[];
+  build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): HookStackTrace;
 }
 
 // compiled once per stackTraceFilter array, which the hook settings keep for the lifetime of a hook

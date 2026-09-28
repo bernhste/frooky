@@ -295,7 +295,8 @@ class TestValuePassingJava:
 
         events = find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"})
         assert len(events) == 1
-        assert 0 < len(events[0]["stackTrace"]) <= 3
+        assert 0 < len(events[0]["stackTrace"]["platformStackTrace"]) <= 3
+        assert events[0]["stackTrace"]["nativeStackTrace"] == []
 
     def test_stack_trace_filter_keeps_event_when_a_frame_matches(self, run_frooky, count_matched_events):
         """`stackTraceFilter` is an event-level gate: if any captured frame matches, the whole

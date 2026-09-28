@@ -48,7 +48,7 @@ class FakeDecoderResolver implements DecoderResolver<TestValue> {
 }
 
 const fakeStackTrace: PlatformStackTrace = {
-  build: () => [],
+  build: () => ({ platformStackTrace: [], nativeStackTrace: [] }),
 };
 
 // Exposes HookManager's protected members so its own logic can be tested independently of any

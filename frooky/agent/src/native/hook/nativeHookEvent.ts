@@ -1,6 +1,7 @@
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { HookEvent } from "../../shared/event/hookEvent";
 import { DecodedArgs } from "../../shared/hook/hookManager";
+import { HookStackTrace } from "../../shared/platformStackTrace";
 import { NativeHook } from "./nativeHook";
 
 /**
@@ -29,7 +30,7 @@ export class NativeHookEvent extends HookEvent {
    */
   hashCode?: string;
 
-  constructor(hook: NativeHook, decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: string[]) {
+  constructor(hook: NativeHook, decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: HookStackTrace) {
     super(decodedArgs, returnValue, stackTrace);
     this.type += "-native";
     this.module = hook.module.name;

@@ -1,5 +1,6 @@
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecodedArgs } from "../hook/hookManager";
+import { HookStackTrace } from "../platformStackTrace";
 import { BaseEvent } from "./baseEvent";
 
 /**
@@ -15,7 +16,7 @@ export abstract class HookEvent extends BaseEvent {
   type = "hook";
 
   /** Stack trace captured at the point of interception. */
-  stackTrace?: string[];
+  stackTrace?: HookStackTrace;
 
   /**
    * Decoded input argument values passed to the hooked function / method.
@@ -32,7 +33,7 @@ export abstract class HookEvent extends BaseEvent {
    */
   returnValue?: DecodedValue;
 
-  constructor(decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: string[]) {
+  constructor(decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: HookStackTrace) {
     super();
     if (decodedArgs) {
       this.argsIn = decodedArgs.in;

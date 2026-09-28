@@ -11,7 +11,7 @@ import { NativeHookManager } from "./nativeHookManager";
 // resolveHooks() only resolves module/symbol addresses, it never installs an implementation
 // (that's registerHooks()'s job), so it's safe to run against real, always-loaded libc.so exports
 // (malloc/free/atoi) without risking side effects on the host process - mirrors androidHookManager.test.ts.
-const stackTrace: PlatformStackTrace = { build: () => [] };
+const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
 // kept alive for the whole file: the Interceptor may still touch a function after detach()
 const cm = new CModule("int countdown (int n) { return (n == 0) ? 0 : countdown (n - 1) + 1; }");
@@ -170,7 +170,7 @@ describe("NativeHookManager", () => {
       const events: NativeHookEvent[] = [];
       const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
       let enterCount = 0;
-      const countingStackTrace: PlatformStackTrace = { build: () => [`enter ${enterCount++}`] };
+      const countingStackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [`enter ${enterCount++}`], nativeStackTrace: [] }) };
       const manager = new NativeHookManager(countingStackTrace, agent);
       const params = normalizeInputParams([["int", "n"]], DEFAULT_DECODER_SETTINGS);
       const retType = normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS);
@@ -191,7 +191,7 @@ describe("NativeHookManager", () => {
       }
 
       // events are added on leave, innermost call first; countdown(n) was entered as call number 3 - n
-      expect(events.map((event) => [event.argsIn![0].value, event.returnValue!.value, event.stackTrace![0]])).toEqual([
+      expect(events.map((event) => [event.argsIn![0].value, event.returnValue!.value, event.stackTrace!.platformStackTrace[0]])).toEqual([
         [0, 0, "enter 3"],
         [1, 1, "enter 2"],
         [2, 2, "enter 1"],

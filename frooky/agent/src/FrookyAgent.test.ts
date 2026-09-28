@@ -13,7 +13,7 @@ import { HookValidator } from "./shared/hook/hookValidator";
 import { logger } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
 
-const fakeStackTrace: PlatformStackTrace = { build: () => [] };
+const fakeStackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 
 function fakeHook(overrides: Partial<Hook> = {}): Hook {
   return { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };

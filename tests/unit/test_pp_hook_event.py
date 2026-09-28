@@ -262,6 +262,54 @@ class TestPpHookEvent:
         for line in _plain(format_hook_event(hook, width=60)):
             assert len(line) <= 60
 
+    def test_dict_stack_trace_with_platform_and_native_prints_both_sections(self):
+        hook = {
+            "type": "native-hook",
+            "timestamp": "t",
+            "module": "libc.so",
+            "symbol": "open",
+            "stackTrace": {
+                "platformStackTrace": ["java_frame1", "java_frame2"],
+                "nativeStackTrace": ["native_frame1"],
+            },
+        }
+
+        lines = _plain(format_hook_event(hook))
+        assert "│ platform stack: java_frame1" in lines
+        assert "│                 java_frame2" in lines
+        assert "│ native stack: native_frame1" in lines
+
+    def test_dict_stack_trace_with_only_platform_prints_stack_trace(self):
+        hook = {
+            "type": "java-hook",
+            "timestamp": "t",
+            "javaClassName": "C",
+            "method": "m",
+            "stackTrace": {
+                "platformStackTrace": ["frame1"],
+                "nativeStackTrace": [],
+            },
+        }
+
+        lines = _plain(format_hook_event(hook))
+        assert "│ stack trace:  frame1" in lines
+        assert not any("native stack" in l for l in lines)
+
+    def test_dict_stack_trace_empty_does_not_print_stack(self):
+        hook = {
+            "type": "native-hook",
+            "timestamp": "t",
+            "module": "libc.so",
+            "symbol": "open",
+            "stackTrace": {
+                "platformStackTrace": [],
+                "nativeStackTrace": [],
+            },
+        }
+
+        lines = _plain(format_hook_event(hook))
+        assert not any("stack" in l for l in lines)
+
 
 class TestParamColors:
     _HOOK = {

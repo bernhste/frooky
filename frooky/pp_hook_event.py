@@ -212,12 +212,28 @@ def _add_field(out: _Lines, key: str, value: str | list[_Span]) -> None:
     out.add_wrapped(value, " " * len(head) + _WRAP_INDENT, head, f"{_C_KEY}{head}")
 
 
-def _add_stack(out: _Lines, stack_trace: list) -> None:
+def _add_stack_section(out: _Lines, label: str, frames: list) -> None:
     out.add()
-    head = f"{_LABEL_STACK + ':':<{_KEY_WIDTH}}"
-    for i, frame in enumerate(stack_trace):
+    key = label + ":"
+    head = f"{key:<{_KEY_WIDTH}}" if len(key) < _KEY_WIDTH else f"{key} "
+    for i, frame in enumerate(frames):
         prefix = head if i == 0 else " " * len(head)
         out.add_wrapped(frame, " " * len(head) + _WRAP_INDENT, prefix, f"{_C_KEY}{prefix}")
+
+
+def _add_stack(out: _Lines, stack_trace: list | dict) -> None:
+    if isinstance(stack_trace, dict):
+        platform_stack = stack_trace.get("platformStackTrace") or []
+        native_stack = stack_trace.get("nativeStackTrace") or []
+        if platform_stack and native_stack:
+            _add_stack_section(out, "platform stack", platform_stack)
+            _add_stack_section(out, "native stack", native_stack)
+        elif platform_stack:
+            _add_stack_section(out, _LABEL_STACK, platform_stack)
+        elif native_stack:
+            _add_stack_section(out, "native stack", native_stack)
+    elif isinstance(stack_trace, list) and stack_trace:
+        _add_stack_section(out, _LABEL_STACK, stack_trace)
 
 
 def _local_time(timestamp: object) -> object:
