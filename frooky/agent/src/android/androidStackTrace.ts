@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { nativeStackFrames } from "../native/nativeStackTrace";
 import { compileStackTraceFilter, HookStackTrace, PlatformStackTrace } from "../shared/platformStackTrace";
 import { FilterMismatchError } from "../shared/utils";
 
@@ -63,6 +64,8 @@ export const AndroidStackTrace: PlatformStackTrace = {
       if (stackTraceFilter?.length) throw new FilterMismatchError();
       return { platformStackTrace: [], nativeStackTrace: [] };
     }
+
+    const nativeFrames = ctx ? nativeStackFrames(ctx, limit) : [];
 
     if (!Java.available) {
       if (stackTraceFilter?.length) {
