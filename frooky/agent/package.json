@@ -32,6 +32,6 @@
     "zod": "^4.3.6"
   },
   "allowScripts": {
-    "frida@17.18.0": true
+    "frida@17.19.0": true
   }
 }

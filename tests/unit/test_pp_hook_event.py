@@ -293,7 +293,7 @@ class TestPpHookEvent:
 
         lines = _plain(format_hook_event(hook))
         assert "│ stack trace:  frame1" in lines
-        assert not any("native stack" in l for l in lines)
+        assert not any("native stack" in line for line in lines)
 
     def test_dict_stack_trace_empty_does_not_print_stack(self):
         hook = {
@@ -308,7 +308,7 @@ class TestPpHookEvent:
         }
 
         lines = _plain(format_hook_event(hook))
-        assert not any("stack" in l for l in lines)
+        assert not any("stack" in line for line in lines)
 
 
 class TestParamColors:
