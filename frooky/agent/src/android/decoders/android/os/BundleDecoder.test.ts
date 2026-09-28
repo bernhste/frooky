@@ -30,14 +30,14 @@ describe("BundleDecoder", () => {
     expect(decodeSingleEntry(bundle)).toEqual({ type: "int", name: "key", value: 42 });
   });
 
-  it("should decode a false boolean extra correctly (regression: falsy values used to be treated as absent)", () => {
+  it("should decode a false boolean extra", () => {
     const bundle = Bundle.$new();
     bundle.putBoolean("key", false);
 
     expect(decodeSingleEntry(bundle)).toEqual({ type: "boolean", name: "key", value: false });
   });
 
-  it("should decode a zero int extra correctly (regression: falsy values used to be treated as absent)", () => {
+  it("should decode a zero int extra", () => {
     const bundle = Bundle.$new();
     bundle.putInt("key", 0);
 
@@ -52,7 +52,7 @@ describe("BundleDecoder", () => {
     expect(decodeSingleEntry(bundle)).toEqual({ type: "long", name: "key", value: "9223372036854775807" });
   });
 
-  it("should decode an int array extra (regression: arrays used to decode to a useless Object.toString())", () => {
+  it("should decode an int array extra element by element", () => {
     const bundle = Bundle.$new();
     bundle.putIntArray("key", Java.array("int", [1, 2, 3]));
 
@@ -119,7 +119,7 @@ describe("BundleDecoder", () => {
     });
   });
 
-  it("should decode a null-valued extra without throwing (regression: used to crash reading '.value' of null)", () => {
+  it("should decode a null-valued extra without throwing", () => {
     const bundle = Bundle.$new();
     bundle.putString("key", null);
 

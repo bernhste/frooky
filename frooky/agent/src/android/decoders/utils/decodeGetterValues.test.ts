@@ -41,8 +41,7 @@ describe("javaMethods", () => {
       const KeyProperties = Java.use("android.security.keystore.KeyProperties");
       const Builder = Java.use("android.security.keystore.KeyGenParameterSpec$Builder");
       const purposes = KeyProperties.PURPOSE_ENCRYPT.value | KeyProperties.PURPOSE_DECRYPT.value;
-      // digests is left unset - getDigests() throws IllegalStateException, while
-      // isDigestsSpecified() safely reports false, exercising the per-getter catch branch
+      // getDigests() throws IllegalStateException when no digests are set
       const spec = Builder.$new("test-alias", purposes).build();
 
       const values = decodeGetterValues(spec, ["get", "is"], DEFAULT_DECODER_SETTINGS);
@@ -52,11 +51,7 @@ describe("javaMethods", () => {
     });
 
     it("should invoke getters when instance is wrapped as a narrower declared type than its runtime class", () => {
-      // Regression test: instance.$className correctly reports the runtime class even when the
-      // wrapper's own JS dispatcher table was built against a narrower type (here, the zero-method
-      // marker interface KeyGenParameterSpec implements). Without decodePublicMethodValues casting
-      // instance back to its own $className before invoking, every lookup below would silently
-      // resolve to undefined and no properties would be decoded.
+      // wrapped as the marker interface KeyGenParameterSpec implements, which has no methods
       const KeyProperties = Java.use("android.security.keystore.KeyProperties");
       const Builder = Java.use("android.security.keystore.KeyGenParameterSpec$Builder");
       const purposes = KeyProperties.PURPOSE_ENCRYPT.value | KeyProperties.PURPOSE_DECRYPT.value;

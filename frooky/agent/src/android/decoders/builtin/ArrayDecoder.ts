@@ -5,14 +5,8 @@ import { DecoderSettings } from "../../../shared/frookySettings";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "../javaDecoderResolver";
 
-/**
- * Convert a JNI array element signature into a JavaParam-compatible `type` string.
- *   "I"                  -> "int"
- *   "J"                  -> "long"
- *   "Ljava/lang/String;" -> "java.lang.String"
- *   "Ljava.lang.String;" -> "java.lang.String"
- *   "[I"                 -> "[I"   (nested array, kept as-is)
- */
+// JNI array element signature to a declared type:
+// "I" -> "int", "Ljava/lang/String;" or "Ljava.lang.String;" -> "java.lang.String", "[I" -> "[I" (nested array)
 function elementTypeFromSignature(element: string): string {
   if (element.length === 1) {
     switch (element) {
@@ -48,8 +42,7 @@ export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
   readonly description = "Decodes a Java array element by element, up to `maxItems` elements.";
 
   public decode(value: Java.Wrapper, arg?: any): DecodedValue {
-    // a null array argument or return value (e.g. `selectionArgs` in ContentProvider#query) arrives as
-    // a plain JS null - checked before the depth limit so null is never reported as truncated
+    // checked before the depth limit, so null is never reported as truncated
     if (value == null) {
       return { type: this.type, name: this.name, value: null };
     }
@@ -67,15 +60,12 @@ export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
     let arrayValue: unknown[];
 
     if (JAVA_PRIMITIVE_TYPES.has(elementType)) {
-      // Frida unwraps primitive arrays to a native-memory-backed proxy - index reads are direct
-      // memory reads, not bridge calls, so capping at maxItems here is about bounding the
-      // resulting JS array/payload size rather than avoiding bridge crossings
       arrayValue = new Array(decodeLen);
       for (let i = 0; i < decodeLen; i++) {
         arrayValue[i] = arrayLike[i];
       }
     } else {
-      // complex java types or nested array
+      // reference types and nested arrays
       const elementDecodable: Decodable = {
         type: elementType,
         name: this.name,

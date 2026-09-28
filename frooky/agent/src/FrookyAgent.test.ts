@@ -19,8 +19,7 @@ function fakeHook(overrides: Partial<Hook> = {}): Hook {
   return { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };
 }
 
-// FrookyAgent only ever calls resolveHooks()/registerHooks()/unregisterHooks() on the platform hook manager
-// it is handed, so a plain fake covering those methods stands in for the real (Android/iOS) one.
+// FrookyAgent only calls resolveHooks()/registerHooks()/unregisterHooks() on the platform hook manager
 function fakePlatformHookManager(): { resolveHooks: Mock; registerHooks: Mock; unregisterHooks: Mock } {
   return {
     resolveHooks: fn(async (): Promise<Promise<Hook[] | null>[]> => []),
@@ -158,8 +157,7 @@ describe("FrookyAgent", () => {
   describe("loadFrookyConfigs()", () => {
     it("logs an error for a config whose hook manager throws synchronously, and still loads the remaining configs", async () => {
       const rawManager = fakePlatformHookManager();
-      // A resolveHooks() implementation that throws outright (rather than returning a rejected
-      // promise) must only fail its own config, not the whole batch.
+      // a resolveHooks() that throws (instead of rejecting) only fails its own config
       rawManager.resolveHooks.mockImplementationOnce(() => {
         throw new Error("synchronous boom");
       });

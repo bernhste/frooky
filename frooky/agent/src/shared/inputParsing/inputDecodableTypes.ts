@@ -5,18 +5,15 @@ import { DecoderSettings } from "../frookySettings";
 import { InputParamSettings } from "./inputSettings";
 
 /**
- * Flexible input format for defining a parameter in YAML configuration.
+ * A parameter in a hook file, normalized to a {@link Param}.
  *
- * | Case | Form                   | Type                                    | Example                                                              |
- * |------|------------------------|----------------------------------------|-----------------------------------------------------------------------|
- * | 1    | Type only              | `string`                               | `"java.lang.String"`                                                  |
- * | 2    | Type + name            | `[string, string]`                     | `["java.lang.String", "value"]`                                       |
- * | 3    | Type + settings        | `[string, InputParamSettings]`         | `["[I", { direction: "in", maxDepth: 5 }]`                            |
- * | 4    | Type + name + settings | `[string, string, InputParamSettings]` | `["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]`        |
- * | 5    | Object                 | `Param`, all but `type` optional       | `{ type: int, name: age, direction: "in", settings: { ... }}`         |
- *
- * Note: Internally we only use the normalized version. The other forms are used to add flexibility for the frooky input file.
- * Every form is normalized into a complete {@link Param}.
+ * | Case | Form                   | Example                                                        |
+ * |------|------------------------|----------------------------------------------------------------|
+ * | 1    | Type only              | `"java.lang.String"`                                           |
+ * | 2    | Type + name            | `["java.lang.String", "value"]`                                |
+ * | 3    | Type + settings        | `["[I", { direction: "in", maxDepth: 5 }]`                     |
+ * | 4    | Type + name + settings | `["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]` |
+ * | 5    | Object                 | `{ type: int, name: age, direction: "in", settings: { ... }}`  |
  *
  * @public
  */
@@ -25,8 +22,7 @@ export type InputParam = string | [string, string] | [string, InputParamSettings
 function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSettings): Param {
   const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
 
-  // every form ends up here, so each one gets the same defaults: the param's own settings override the
-  // merged ones (file, group and hook level) field by field, and are validated
+  // the param's own settings override the merged file, group and hook settings field by field
   const toParam = (type: string, name?: string, direction?: Direction, paramSettings?: Partial<DecoderSettings>): Param => ({
     type,
     ...(name !== undefined && { name }),
@@ -43,29 +39,25 @@ function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSetting
       const [type, name] = input;
       return toParam(type, name);
     }
-    // Case 3: Type + options - ["[I", { direction: "in", maxDepth: 5 }]
+    // Case 3: Type + settings - ["[I", { direction: "in", maxDepth: 5 }]
     if (input.length === 2 && typeof input[1] === "object") {
       const [type, { direction, ...paramSettings }] = input as [string, InputParamSettings];
       return toParam(type, undefined, direction, paramSettings);
     }
-    // Case 4: Type + name + options - ["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]
+    // Case 4: Type + name + settings - ["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]
     if (input.length === 3) {
       const [type, name, { direction, ...paramSettings }] = input as [string, string, InputParamSettings];
       return toParam(type, name, direction, paramSettings);
     }
   } else if (typeof input === "object" && input !== null && typeof input.type === "string") {
-    // Case 5: Object - { type: "java.lang.String", name: "action" }, direction and settings are optional
+    // Case 5: Object - { type: "java.lang.String", name: "action" }
     const { type, name, direction, settings } = input as Partial<Param> & { type: string };
     return toParam(type, name, direction, settings);
   }
   throw new Error(`Unrecognized InputParam format: ${JSON.stringify(input)}`);
 }
 
-/**
- * Normalizes a parameter list and checks that every `decoderArg` names another parameter of the same list.
- *
- * @throws If a `decoderArg` names no parameter, or the parameter that declares it.
- */
+// Throws unless every `decoderArg` names exactly one other parameter of the list.
 export function normalizeInputParams(inputs: InputParam[], decoderSettings?: DecoderSettings): Param[] {
   const params = inputs.map((input) => normalizeInputParam(input, decoderSettings));
   validateDecoderArgs(params);
@@ -93,15 +85,13 @@ function validateDecoderArgs(params: Param[]): void {
 }
 
 /**
- * Flexible input format for defining a return type in YAML configuration.
+ * A return type in a hook file, normalized to a {@link RetType}.
  *
- * | Case | Form                    | Type                        | Example                                                          |
- * |------|-------------------------|-----------------------------|------------------------------------------------------------------|
- * | 1    | Type only               | `string`                    | `"int"`                                                          |
- * | 2    | Type + decoder settings | `[string, DecoderSettings]` | `["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]`     |
- * | 3    | Normalized object       | `RetType`                   | `{ type: int, settings: { maxDepth: 5 }}`                        |
- *
- *  Note: Internally we only use the normalized version. The other forms are used to add flexibility for the frooky input file.
+ * | Case | Form                    | Example                                                      |
+ * |------|-------------------------|--------------------------------------------------------------|
+ * | 1    | Type only               | `"int"`                                                      |
+ * | 2    | Type + decoder settings | `["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]` |
+ * | 3    | Object                  | `{ type: int, settings: { maxDepth: 5 }}`                    |
  *
  * @public
  */
@@ -110,7 +100,6 @@ export type InputRetType = string | [string, Partial<DecoderSettings>] | RetType
 export function normalizeInputRetType(input: InputRetType, decoderSettings?: DecoderSettings): RetType {
   const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
 
-  // validate and repair merged settings
   const validatedMergedSettings = validateAndRepairDecoderSettings(mergedSettings);
 
   // Case 1: Type only - "int"
@@ -121,28 +110,22 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings?: Dec
     const [type, inlineSettings] = input as [string, Partial<DecoderSettings>];
     return { type, settings: { ...validatedMergedSettings, ...inlineSettings } };
   } else if (typeof input === "object") {
-    // Case 3: Normalized object
+    // Case 3: Object
     return input;
   }
   throw new Error(`Unrecognized InputRetType format: ${JSON.stringify(input)}`);
 }
 
 /**
- * Flexible input format for declaring only the decoder settings of a return value, without a type.
+ * The return value's decoder settings of a Java overload. The return type comes from reflection, so a type
+ * given in the {@link InputRetType} forms is ignored.
  *
- * Used for Java overloads, where the return type is always resolved via Frida's own reflection and
- * can never be declared - only how the returned value is decoded can be customized. Accepts every
- * shape {@link InputRetType} does (as native hooks use), so that a user who is used to writing
- * `retType: [type, decoderSettings]` or `retType: type` for native hooks doesn't end up with an
- * invalid hook file by reusing that habit here. Any type given this way is simply ignored, since
- * Java hooks have no use for it.
- *
- * | Case | Form                    | Example                                                           |
- * |------|-------------------------|-------------------------------------------------------------------|
- * | 1    | Type only (ignored)     | `"int"`                                                           |
- * | 2    | Type (ignored) + settings | `["int", { maxItems: 10 }]`                                     |
- * | 3    | Normalized `RetType` (type ignored) | `{ type: "int", settings: { maxDepth: 5 } }`          |
- * | 4    | Decoder settings only (documented Java form) | `{ maxDepth: 5 }`                            |
+ * | Case | Form                      | Example                                      |
+ * |------|---------------------------|----------------------------------------------|
+ * | 1    | Type only                 | `"int"`                                      |
+ * | 2    | Type + settings           | `["int", { maxItems: 10 }]`                  |
+ * | 3    | Object                    | `{ type: "int", settings: { maxDepth: 5 } }` |
+ * | 4    | Decoder settings only     | `{ maxDepth: 5 }`                            |
  *
  * @public
  */
@@ -151,15 +134,15 @@ export type InputRetTypeSettings = InputRetType | Partial<DecoderSettings>;
 export function normalizeInputRetTypeSettings(input: InputRetTypeSettings, decoderSettings?: DecoderSettings): DecoderSettings {
   const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
 
-  // Case 1: Type only (ignored) - "int"
+  // Case 1: Type only - "int"
   if (typeof input === "string") {
     return validateAndRepairDecoderSettings(mergedSettings);
   } else if (Array.isArray(input)) {
-    // Case 2: Type (ignored) + decoder settings - ["int", { maxItems: 10 }]
+    // Case 2: Type + settings - ["int", { maxItems: 10 }]
     const [, inlineSettings] = input as [string, Partial<DecoderSettings>];
     return validateAndRepairDecoderSettings({ ...mergedSettings, ...inlineSettings });
   } else if (typeof input === "object" && "type" in input) {
-    // Case 3: Normalized RetType object (type ignored) - { type: "int", settings: {...} }
+    // Case 3: Object - { type: "int", settings: {...} }
     return validateAndRepairDecoderSettings({ ...mergedSettings, ...(input as RetType).settings });
   } else if (typeof input === "object") {
     // Case 4: Decoder settings only - { maxItems: 10 }

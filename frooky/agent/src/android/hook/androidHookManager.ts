@@ -20,16 +20,14 @@ export type FieldType = {
   hashCode?: string;
 };
 
-// resolve java classes, the method and their overloads
+// Resolves and installs hooks on Java methods.
 export class AndroidHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(JavaDecoderResolver, platformStackTrace, frookyAgent);
   }
-  // every hook currently claiming an overload, keyed by its ArtMethod handle. Several configs may declare
-  // the same overload: the most recently registered claim is active, and removing it falls back to the
-  // previous claim instead of unhooking a method another config still wants.
-  // frida-java-bridge keeps the installed replacement on the Method wrapper object (and snapshots the
-  // ArtMethod on every install), so all installs and reverts of one overload go through the same wrapper.
+  // hooks claiming an overload, keyed by its ArtMethod handle. Several configs can hook the same overload: the
+  // last claim is active, removing it restores the previous one. frida-java-bridge keeps the replacement on the
+  // Method wrapper, so all installs and reverts of an overload go through the same wrapper.
   private readonly overloadClaims = new Map<
     string,
     { method: Java.Method; claims: { hook: JavaHook; implementation: Java.MethodImplementation }[] }
@@ -76,7 +74,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
     for (const hook of hooks) {
       const target = `${hook.method.holder.$className}.${hook.methodName}`;
-      // resolve the decoders used for this hook and cache it locally
+      // resolved once per hook, not per call
       let inArgDecoders: ParamDecoder<Java.Wrapper>[];
       let outArgDecoders: ParamDecoder<Java.Wrapper>[];
       if (hook.params) {
@@ -84,7 +82,6 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
         outArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout");
       }
-      // resolve the return type
       let retTypeDecoder: Decoder<Java.Wrapper>;
       if (hook.method.returnType.className) {
         const retType = {
@@ -96,19 +93,17 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       }
 
       const implementation = function (this: Java.Wrapper, ...args: Java.Wrapper[]) {
-        // collect the stack trace and filter
+        // throws FilterMismatchError if the stackTraceFilter matches no frame
         let stackTrace: HookStackTrace;
         try {
           stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter);
         } catch (e) {
           if (e instanceof FilterMismatchError) {
-            // call the original implementation and return immediately
             return hook.method.apply(this, args);
           }
-          throw e; // // re-throw stack trace build error
+          throw e;
         }
 
-        // decode arguments onEnter
         const decodedArgs: DecodedArgs = { in: [], out: [] };
         if (hook.params) {
           try {
@@ -117,21 +112,18 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
             if (!(e instanceof FilterMismatchError)) {
               logger.error(`Decoder error during 'onEnter' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
             }
-            // call the original implementation and return immediately
             return hook.method.apply(this, args);
           }
         }
 
-        // call the original implementation
         let returnValue;
         try {
           returnValue = hook.method.apply(this, args);
         } catch (e) {
           logger.error(`Error during execution of hooked method: ${e}`);
-          throw e; // re-throw so the app behaves normally
+          throw e; // the app handles its own exception
         }
 
-        // decode arguments onLeave
         if (hook.params) {
           try {
             decodedArgs.out = hookManager.decodeArgs(args, outArgDecoders, target);
@@ -143,7 +135,6 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
           }
         }
 
-        // decode the return value
         let decodedRetValue: DecodedValue | undefined;
         try {
           if (retTypeDecoder) {
@@ -154,10 +145,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
           return returnValue;
         }
 
-        // collect the field type
         const fieldType = hookManager.buildFieldType(this as Java.Wrapper, hook.decoderSettings.hashCode);
 
-        // add the event to the event log
         hookManager.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, stackTrace));
 
         return returnValue;
@@ -219,17 +208,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     }, []);
   }
 
-  /**
-   * Resolves a `javaClass` declaration to one or more loaded Java classes.
-   *
-   * A plain class name (e.g. `org.owasp.mastestapp.MainActivity`) resolves to exactly one class.
-   * A wildcard pattern (e.g. `org.owasp.*.HttpClient`, `*` matching a single package/class segment)
-   * resolves to every currently loaded class matching it, since the pattern may match more than one.
-   *
-   * @param javaClassName - The `javaClass` declaration, plain or wildcarded.
-   * @param timeoutSeconds - How long to keep polling for a match before giving up.
-   * @returns The resolved classes. Never empty; the poll keeps retrying until at least one match or the timeout elapses.
-   */
+  // Polls until the class is loaded, or for a wildcard pattern (e.g. `org.owasp.*.HttpClient`, `*` matching
+  // one package or class segment) until at least one loaded class matches. Throws on timeout.
   private async resolveJavaClass(javaClassName: string, timeoutSeconds: number): Promise<Java.Wrapper[]> {
     logger.debug(`Resolving java class ${javaClassName} with a timeout of ${timeoutSeconds} seconds.`);
 
@@ -262,7 +242,6 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     );
   }
 
-  // resolves every currently loaded class whose name matches the given wildcard pattern
   private resolveMatchingJavaClasses(pattern: RegExp): Java.Wrapper[] {
     const resolvedClasses: Java.Wrapper[] = [];
     for (const className of AndroidHookManager.getLoadedClassNames()) {
@@ -276,14 +255,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     return resolvedClasses;
   }
 
-  /**
-   * `Java.enumerateLoadedClassesSync()` is an expensive native/JNI call - it can take hundreds of
-   * milliseconds on an app with many loaded classes. Every wildcard `javaClass` pattern being
-   * resolved would otherwise re-run it on every poll tick, even though they'd all see the exact
-   * same class list at that instant. This caches the result across all patterns/instances for the
-   * duration of one poll tick, so it's shared within a tick but still refreshes every tick to pick
-   * up classes that load later (which is the entire point of polling for a wildcard match).
-   */
+  // Java.enumerateLoadedClassesSync() can take hundreds of ms, so all wildcard lookups of one poll interval
+  // share its result.
   private static getLoadedClassNames(): string[] {
     const now = Date.now();
     if (!this.loadedClassNamesCache || now >= this.loadedClassNamesCache.expiresAt) {
@@ -310,10 +283,9 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     const result: JavaHook[] = [];
     const declaringClass = method.holder.$className;
     if (inputHook.overloads?.length) {
-      // Only get declared overloaded methods
+      // only the declared overloads
       for (const overload of inputHook.overloads) {
         const normalizedParams: Param[] = normalizeInputParams(overload.params).map((param: Param) => ({ ...param, declaringClass }));
-        // extract a list of java parameter types e.g. ["int", "java.lang.String", "double"] to be used to look up the overload
         const paramTypes: string[] = normalizedParams.map((param: Param) => param.type);
         try {
           result.push({
@@ -329,7 +301,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         }
       }
     } else {
-      // Get all overloaded methods
+      // all overloads
       for (const javaMethod of method.overloads) {
         const params: Param[] = this.buildParamsFromArgumentTypes(javaMethod.argumentTypes, inputHook.decoderSettings!, declaringClass);
         result.push({
@@ -349,7 +321,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       method === null || method === undefined || method.$handle === null || method.$handle === undefined || method.$className === undefined;
 
     const fieldType = isStatic ? "static" : "instance";
-    // hashCode() is a Frida <-> Java bridge round-trip, so it's only computed when explicitly requested
+    // only on request, hashCode() calls into Java
     const hashCode = !isStatic && computeHashCode ? (method.hashCode() >>> 0).toString(16) : undefined;
     return { fieldType, hashCode };
   }

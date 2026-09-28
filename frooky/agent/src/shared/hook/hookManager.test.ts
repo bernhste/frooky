@@ -51,8 +51,7 @@ const fakeStackTrace: PlatformStackTrace = {
   build: () => ({ platformStackTrace: [], nativeStackTrace: [] }),
 };
 
-// Exposes HookManager's protected members so its own logic can be tested independently of any
-// platform-specific subclass (native/android/ios all extend this with their own resolveHooks/registerHooks).
+// exposes HookManager's protected members
 class TestHookManager extends HookManager<unknown, Hook, TestValue> {
   public async resolveHooks(): Promise<Promise<Hook[] | null>[]> {
     return [];

@@ -23,27 +23,22 @@ const CUSTOM_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
 
 export const JAVA_PRIMITIVE_TYPES = new Set(["int", "long", "short", "byte", "char", "boolean", "float", "double"]);
 
-/**
- * resolves the decode based on a decodable type
- */
+// Picks the decoder of a value: the custom decoder from its settings, else by its declared type.
 export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
   resolveDecoder(decodable: Decodable): Decoder<Java.Wrapper> {
     if (decodable.settings.decoder) {
-      // return the custom decoder (if implemented)
       const CustomDecoderClass = CUSTOM_DECODER_REGISTRY[decodable.settings.decoder];
       if (!CustomDecoderClass) {
         throw new Error(`Unknown custom decoder: "${decodable.settings.decoder}"`);
       }
       return new CustomDecoderClass(decodable);
     } else if (decodable.type.startsWith("[")) {
-      // java array decoder
       return new ArrayDecoder(decodable);
     } else if (JAVA_PRIMITIVE_TYPES.has(decodable.type) || decodable.type === "void" || decodable.type === "java.lang.String") {
-      // other Java primitive types, void and strings (Frida unwraps java.lang.String automatically to JavaScript strings)
+      // Frida unwraps java.lang.String to a JS string
       return new PrimitiveDecoder(decodable);
     } else {
-      // at this time we don't know the implementation class
-      // this decoders resolves the implementation type at first time decode() is called
+      // resolves the decoder by the runtime class when decode() is called
       return new ReferenceTypeDecoder(decodable);
     }
   },

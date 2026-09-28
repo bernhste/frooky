@@ -16,6 +16,7 @@ const INTERCEPTOR_PATCH_BYTES = 16;
 
 export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
   private installedHooks = new Set<NativeHook>();
+  // threads inside a hook callback, so calls made while decoding aren't captured
   private activeThreads = new Set<number>();
 
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
@@ -76,7 +77,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     for (const hook of hooks) {
       const target = describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset });
 
-      // resolve the decoders used for this hook and cache it locally
+      // resolved once per hook, not per call
       let inArgDecoders: ParamDecoder<NativePointer>[];
       let outArgDecoders: ParamDecoder<NativePointer>[];
       if (hook.params) {
@@ -89,14 +90,12 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       if (hook.retType) {
         retTypeDecoder = this.resolveRetTypeDecoder(hook.retType);
       }
-      // by-value float/double params/return values aren't in args[]/returnValue at all (see
-      // nativeFloatArgs.ts) - computed once per hook since it only depends on the declared
-      // params/retType, not on any one invocation.
+      // float/double params and return values are in FP registers, not in args[]/returnValue
       const argSlots = planArgSlots(hook.params);
       const floatRetSlot = planFloatRetTypeSlot(hook.retType);
 
-      // per-call state lives on `this` (Frida's per-invocation context), not in this closure: another
-      // thread or a recursive call can enter the hook between this call's onEnter and onLeave
+      // per-call state lives on `this` (Frida's invocation context): another thread or a recursive call can
+      // enter the hook between onEnter and onLeave
       const callbacks: InvocationListenerCallbacks = {
         onEnter: function (args: NativePointer[]) {
           const tid = Process.getCurrentThreadId();
@@ -110,10 +109,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             this.argsIn = [];
 
             if (hook.params) {
-              // args[] only reflects general-purpose registers; substitute the real bits for
-              // by-value float/double params, which live in dedicated FP registers instead - and,
-              // on architectures that actually have that separate register file, use each param's
-              // own lane-relative index rather than its raw position (see nativeFloatArgs.ts).
+              // args[] only holds general-purpose registers, float/double params are read from FP registers
               const separateLanes = usesSeparateFloatRegisterFile(this.context);
               const effectiveArgs: NativePointer[] = [];
               for (let i = 0; i < hook.params.length; i++) {
@@ -127,7 +123,6 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
                 }
               }
 
-              // decode arguments onEnter
               try {
                 this.argsIn = hookManager.decodeArgs(effectiveArgs, inArgDecoders, target);
               } catch (e) {
@@ -135,10 +130,10 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
                   this.filtered = true;
                   return;
                 }
-                throw e; // re-throw arg decoder error
+                throw e;
               }
 
-              // save arguments in case they need to be decoded onLeave
+              // for `out` params decoded onLeave
               this.savedArgs = effectiveArgs;
             }
 
@@ -149,7 +144,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
                 this.filtered = true;
                 return;
               }
-              throw e; // re-throw stackTraceBuilder error
+              throw e;
             }
           } finally {
             hookManager.activeThreads.delete(tid);
@@ -164,7 +159,6 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             const decodedArgs: DecodedArgs = { in: this.argsIn, out: [] };
             if (hook.params) {
               try {
-                // decode arguments onLeave
                 decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders, target);
               } catch (e) {
                 if (e instanceof FilterMismatchError) return;
@@ -172,17 +166,13 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
               }
             }
 
-            // decode ret value
             let decodedRetValue: DecodedValue | undefined;
             if (hook.retType) {
-              // returnValue only reflects the general-purpose return register (e.g. RAX); on
-              // architectures with a separate FP register file, a float/double return comes back in
-              // its own dedicated register instead.
+              // returnValue is the general-purpose return register, a float/double is returned in an FP register
               const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile(this.context) ? readFloatArgBits(this.context, floatRetSlot) : null;
               decodedRetValue = hookManager.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
             }
 
-            // send add to event log
             hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, this.stackTrace));
           } finally {
             hookManager.activeThreads.delete(tid);
@@ -211,7 +201,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     }
   }
 
-  /** Names the installed hooks (e.g. `libfoo.so+0x1a2b4`) in the modules that contain any of `addresses`. */
+  // The installed hooks (e.g. `libfoo.so+0x1a2b4`) in the modules that contain any of `addresses`.
   public describeHooksInModulesOf(addresses: NativePointer[]): string[] {
     const hooks = [...this.installedHooks].filter((hook) =>
       addresses.some((address) => address.compare(hook.module.base) >= 0 && address.compare(hook.module.base.add(hook.module.size)) < 0),
@@ -219,11 +209,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     return hooks.map((hook) => describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset }));
   }
 
-  /**
-   * Names the installed hook whose function `address` lies in: `address` is in the bytes the Interceptor patched
-   * at the hook, or it has the same symbol as the hook's address (e.g. `receive_utf8+0x3` and `receive_utf8`).
-   * Addresses without a symbol only match the patched bytes.
-   */
+  // The installed hook whose function contains `address`: `address` is in the bytes the Interceptor patched, or
+  // has the same symbol as the hook (e.g. `receive_utf8+0x3` and `receive_utf8`).
   public describeHookedFunctionAt(address: NativePointer): string | undefined {
     const functionName = (symbol: DebugSymbol) =>
       symbol.name === null || symbol.name.startsWith("0x") ? null : symbol.name.replace(/\+0x[0-9a-f]+$/, "");
@@ -245,11 +232,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     }
   }
 
-  /**
-   * Resolves a `offset` (normalized to `0x…`) to its runtime address, `module.base + offset`. The
-   * offset must lie inside the module, point to executable memory and to code: a wrong offset, e.g. one from another
-   * build of the library, would otherwise patch data or the middle of an instruction and crash the app.
-   */
+  // `module.base + offset`. Throws unless the address is inside the module and in a code section: patching
+  // data, e.g. with an offset from another build of the library, crashes the app.
   private resolveModuleOffset(offset: string, module: Module): NativePointer {
     const target = `${module.name}+${offset}`;
     const moduleOffset = ptr(offset);
@@ -263,8 +247,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         `Skipping hook for '${target}'. The address ${address} is not executable (${range ? range.protection : "unmapped"}); check that the offset is a function's virtual address minus the image base, not a file offset.`,
       );
     }
-    // small libraries often map .rodata, .dynsym etc. into the same executable segment as .text, so the
-    // memory protection alone does not tell code from data
+    // small libraries often map .rodata, .dynsym etc. into the executable segment of .text
     const section = module.enumerateSections().find((s) => address.compare(s.address) >= 0 && address.compare(s.address.add(s.size)) < 0);
     if (section && !/^\.(text|plt|init|fini)/.test(section.name)) {
       throw Error(
@@ -290,22 +273,4 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       timeoutSeconds,
     );
   }
-
-  // private buildNativeStackTrace(ctx: CpuContext, limit: number): string[] {
-  //   const stackTrace: string[] = [];
-  //   try {
-  //     const btFull = Thread.backtrace(ctx, Backtracer.FUZZY);
-  //     const count = Math.min(limit, btFull.length);
-  //     for (let i = 0; i < count; i++) {
-  //       try {
-  //         stackTrace.push(DebugSymbol.fromAddress(btFull[i]).toString());
-  //       } catch (e) {
-  //         logger.error(`Error during stack trace capture: ${e}`);
-  //       }
-  //     }
-  //   } catch (e) {
-  //     logger.warn(`Native backtrace unavailable: ${e}`);
-  //   }
-  //   return stackTrace;
-  // }
 }

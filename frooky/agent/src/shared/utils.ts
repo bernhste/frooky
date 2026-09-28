@@ -1,23 +1,13 @@
 export class FilterMismatchError extends Error {}
 
-/**
- * Converts a wildcard pattern (e.g. `org.owasp.*.HttpClient`) into a `RegExp` that fully matches
- * (`^...$`) strings satisfying it. `*` matches exactly one dot-separated segment (i.e. it never
- * matches a literal `.`), so wildcards apply at the package/class level rather than spanning packages.
- * @param pattern - The wildcard pattern.
- * @returns A `RegExp` matching strings that satisfy `pattern`.
- */
+// `*` matches exactly one dot-separated segment, e.g. `org.owasp.*.HttpClient` matches
+// `org.owasp.net.HttpClient` but not `org.owasp.net.http.HttpClient`.
 export function wildcardPatternToRegExp(pattern: string): RegExp {
   const segments = pattern.split("*").map((segment) => segment.replace(/[.+?^${}()|[\]\\]/g, "\\$&"));
   return new RegExp(`^${segments.join("[^.]+")}$`);
 }
 
-/**
- * `JSON.stringify` with object keys sorted, so two structurally equal values always produce the same
- * string regardless of key order. Used to fingerprint normalized hooks when a config is reloaded.
- * @param value - A JSON-compatible value.
- * @returns The canonical JSON string.
- */
+// JSON.stringify() with sorted object keys, so equal values give the same string
 export function stableStringify(value: unknown): string {
   return JSON.stringify(value, (_key, val) =>
     val && typeof val === "object" && !Array.isArray(val)
@@ -32,10 +22,6 @@ export function stableStringify(value: unknown): string {
 
 const UUID_HEX_CHARS = "0123456789abcdef";
 
-/**
- * Generates a v4 UUID
- * @returns {string} v4 UUID (e.g. "6b5354ed-8c3e-476d-8999-96b2251d8a3c")
- */
 export function uuidv4(): string {
   const chars = new Array<string>(36);
   for (let i = 0; i < 36; i++) {
@@ -61,13 +47,7 @@ export function uuidv4(): string {
 
 const HEX_TABLE: readonly string[] = Object.freeze(Array.from({ length: 256 }, (_, i) => (i < 16 ? "0" : "") + i.toString(16)));
 
-/**
- * Determines the actual length to decode and whether ellipsis is needed.
- * @param availableLength - Number of decodable items (bytes or characters) available.
- * @param length - Maximum number of items to decode.
- * @returns A tuple [lengthToDecode, ellipsis] where lengthToDecode is the actual length and ellipsis is "..." or "".
- * @throws {RangeError} If length is negative.
- */
+// [lengthToDecode, "..." if truncated else ""]
 function getDecodeBounds(availableLength: number, length: number): [number, string] {
   if (length < 0) {
     throw new RangeError("Length cannot be negative");
@@ -79,13 +59,7 @@ function getDecodeBounds(availableLength: number, length: number): [number, stri
   return [availableLength, ""];
 }
 
-/**
- * Reads at most `limit` elements from an array-like value, without reading elements beyond that -
- * important when `array` is a Java array proxy, where every element access crosses the JS/Java bridge.
- * @param array - Array-like value to read from (e.g. a Java byte[] proxy).
- * @param limit - Maximum number of elements to read.
- * @returns A tuple [bytes, truncated] where truncated is true if `array` had more elements than `limit`.
- */
+// Reads only up to `limit` elements, e.g. of a Java array proxy where every access calls into Java.
 export function readBytesLimited(array: ArrayLike<number>, limit: number): [bytes: Uint8Array, truncated: boolean] {
   const readLength = Math.min(array.length, limit);
   const bytes = new Uint8Array(readLength);
@@ -97,22 +71,12 @@ export function readBytesLimited(array: ArrayLike<number>, limit: number): [byte
   return [bytes, array.length > limit];
 }
 
-/**
- * Checks if a byte is printable ASCII.
- * @param byte - Byte value to check.
- * @returns True if the byte represents a printable character (32-126) or tab/newline/carriage return.
- */
+// printable ASCII, tab, newline or carriage return
 function isPrintable(byte: number): boolean {
   return (byte >= 32 && byte <= 126) || byte === 9 || byte === 10 || byte === 13;
 }
 
-/**
- * Fast bytes to hexadecimal conversion.
- * @param bytes - Bytes to be decoded as hexadecimal.
- * @param length - Number of bytes which will be decoded. Defaults to Infinity.
- * @returns The hexadecimal decoded bytes (e.g., "0x22aa3482ef...")
- * @throws {RangeError} If length is negative.
- */
+// e.g. "0x22aa3482ef..." when truncated to `length` bytes
 export function toHex(bytes: Uint8Array, length: number = Infinity): string {
   const [lengthToDecode, ellipsis] = getDecodeBounds(bytes.length, length);
   const hexArray = new Array(lengthToDecode);
@@ -125,14 +89,7 @@ export function toHex(bytes: Uint8Array, length: number = Infinity): string {
   return "0x" + hexArray.join("") + ellipsis;
 }
 
-/**
- * Fast bytes to ascii conversion.
- * @param bytes - Bytes to be decoded as ascii.
- * @param length - Number of bytes which will be decoded. Defaults to Infinity.
- * @param placeholder - Placeholder for ascii representation of not-printable bytes. Defaults to "."
- * @returns The decoded bytes (e.g., "...qsf._fHello.!.a....")
- * @throws {RangeError} If length is negative.
- */
+// Non-printable bytes become `placeholder`, e.g. ".qsf._fHello.!.a..." (ending with "..." when truncated).
 export function toAscii(bytes: Uint8Array, length: number = Infinity, placeholder: string = "."): string {
   const [lengthToDecode, ellipsis] = getDecodeBounds(bytes.length, length);
   const asciiArray = new Array(lengthToDecode);
@@ -145,11 +102,6 @@ export function toAscii(bytes: Uint8Array, length: number = Infinity, placeholde
   return asciiArray.join("") + ellipsis;
 }
 
-/**
- * Checks whether a byte sequence is well-formed UTF-8.
- * @param bytes - Bytes to validate.
- * @returns True if every byte participates in a well-formed UTF-8 sequence.
- */
 function isValidUtf8(bytes: Uint8Array): boolean {
   let i = 0;
   while (i < bytes.length) {
@@ -189,7 +141,7 @@ function isValidUtf8(bytes: Uint8Array): boolean {
       codePoint = (codePoint << 6) | (continuationByte & 0x3f);
     }
 
-    // rejects overlong encodings and UTF-16 surrogate halves, which are not valid UTF-8 code points
+    // overlong encodings and UTF-16 surrogate halves are invalid
     if (codePoint < minCodePoint || (codePoint >= 0xd800 && codePoint <= 0xdfff) || codePoint > 0x10ffff) {
       return false;
     }
@@ -199,13 +151,7 @@ function isValidUtf8(bytes: Uint8Array): boolean {
   return true;
 }
 
-/**
- * Decodes a well-formed UTF-8 byte sequence into a string.
- * @param bytes - Bytes to decode. Must already be validated with {@link isValidUtf8}.
- * @param length - Maximum number of decoded characters to return. Defaults to Infinity.
- * @returns The decoded string, truncated to `length` characters with an ellipsis if needed.
- * @throws {RangeError} If length is negative.
- */
+// `bytes` must be valid UTF-8 (isValidUtf8()). `length` counts characters.
 export function toUtf8(bytes: Uint8Array, length: number = Infinity): string {
   const codePoints: number[] = [];
   let i = 0;
@@ -230,12 +176,7 @@ export function toUtf8(bytes: Uint8Array, length: number = Infinity): string {
   return String.fromCodePoint(...codePoints.slice(0, lengthToDecode)) + ellipsis;
 }
 
-/**
- * Removes a multi-byte UTF-8 character cut off at the end of `bytes`, e.g. by a read limit, so the
- * remaining bytes can still be decoded as UTF-8. Returns `bytes` unchanged if its last character is complete.
- * @param bytes - Bytes to trim.
- * @returns `bytes` without an incomplete trailing character.
- */
+// Removes a multi-byte character cut off at the end, e.g. by a read limit.
 export function trimIncompleteUtf8Tail(bytes: Uint8Array): Uint8Array {
   // walk back over at most 3 continuation bytes (10xxxxxx) to the lead byte of the last character
   for (let i = bytes.length - 1; i >= Math.max(0, bytes.length - 4); i--) {
@@ -247,12 +188,7 @@ export function trimIncompleteUtf8Tail(bytes: Uint8Array): Uint8Array {
   return bytes;
 }
 
-/**
- * Decodes bytes as text: as UTF-8 if they contain multi-byte characters and are valid UTF-8,
- * otherwise as ASCII with a placeholder for non-printable bytes.
- * @param bytes - Bytes to decode.
- * @returns The decoded string.
- */
+// UTF-8 if valid, else ASCII with "." for non-printable bytes
 export function bytesToString(bytes: Uint8Array): string {
   const hasMultiByteChars = bytes.some((byte) => byte >= 0x80);
   return hasMultiByteChars && isValidUtf8(bytes) ? toUtf8(bytes) : toAscii(bytes);
@@ -266,10 +202,7 @@ export function sleepSeconds(seconds: number): Promise<void> {
   return sleepMilliseconds(seconds * 1000);
 }
 
-/**
- * A short JSON preview of a value for log messages, cut at `maxLength` characters.
- * Never throws: values JSON can't represent (cycles, BigInt) fall back to `String(value)`.
- */
+// JSON preview for log messages, cut at `maxLength` characters. Falls back to String() for cycles or BigInt.
 export function previewValue(value: unknown, maxLength: number = 200): string {
   let text: string;
   try {
@@ -280,12 +213,12 @@ export function previewValue(value: unknown, maxLength: number = 200): string {
   return text.length > maxLength ? `${text.slice(0, maxLength)}... (${text.length} chars)` : text;
 }
 
-/** `1 hook`, `2 hooks`; `plural` is used for counts other than 1 (default: `noun` + "s"). */
+// e.g. `1 hook`, `2 hooks`
 export function plural(count: number, noun: string, pluralNoun: string = `${noun}s`): string {
   return `${count} ${count === 1 ? noun : pluralNoun}`;
 }
 
-/** The ` (hooks.yaml)` suffix naming where hooks are declared in log messages, or "" if unknown. */
+// e.g. ` (hooks.yaml)` for log messages, "" if unknown
 export function fromSource(source?: string): string {
   return source ? ` (${source})` : "";
 }

@@ -1,10 +1,6 @@
 import { LogLevel } from "../logger";
 import { BaseEvent } from "./baseEvent";
 
-/**
- * Class representing a log event created by frooky.
- *
- */
 export class LogEvent extends BaseEvent {
   readonly type = "log" as const;
 

@@ -89,11 +89,9 @@ describe("NativeValueDecoder", () => {
       expect(decoder.decode(ptr(100))).toEqual({ type: "long", value: expected });
     });
 
-    it("should decode a negative long correctly on LP64 targets (regression test: this used to saturate to Int64.MAX instead of wrapping around)", () => {
+    it("should decode a negative long as two's complement", () => {
       const decoder = makeDecoder("long");
       if (Process.pointerSize < 8) {
-        // toInt32() already interprets the bit pattern as signed correctly; only the LP64
-        // (string round-trip through int64()) path was affected by this bug.
         expect(decoder.decode(ptr(0x80000000))).toEqual({ type: "long", value: -2147483648 });
         return;
       }
@@ -130,7 +128,7 @@ describe("NativeValueDecoder", () => {
       expect(result.value).toBe("12345");
     });
 
-    it("should decode a negative int64 correctly (regression test: this used to saturate to Int64.MAX instead of wrapping around)", () => {
+    it("should decode a negative int64 as two's complement", () => {
       const decoder = makeDecoder("int64");
       // 0x8000000000000001 is -9223372036854775807 in two's complement.
       const result = decoder.decode(ptr("0x8000000000000001"));
@@ -165,9 +163,7 @@ describe("NativeValueDecoder", () => {
     });
 
     it("should keep the declared type label distinct from the type used to select the decoder", () => {
-      // Mirrors what NativeDecoderResolver does for an alias like "unsigned int": the
-      // canonical FridaFundamentalType ("uint") drives decoding, but the decodable's own
-      // `type` (as originally declared) is what's echoed back in the decoded value.
+      // like NativeDecoderResolver for "unsigned int": "uint" selects the decoder, the declared type is returned
       const decoder = new NativeValueDecoder({ type: "unsigned int", settings: DEFAULT_DECODER_SETTINGS }, "uint");
       expect(decoder.decode(ptr(0xffff))).toEqual({ type: "unsigned int", value: 65535 });
     });

@@ -14,7 +14,6 @@ if (!Java.available) {
 const frookyConfigs: InputFrookyConfig[] = [{}] as InputFrookyConfig[];
 //%%% REPLACE STOP
 
-// runs on Frida's JS thread; lookups of app classes wait for the app's class loader (Java.perform())
 const frookyAgent = new FrookyAgent(
   "Android",
   new AndroidHookValidator(),

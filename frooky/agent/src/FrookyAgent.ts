@@ -23,12 +23,8 @@ import { logger, LogLevel, LogTo } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
 import { plural, stableStringify } from "./shared/utils";
 
-/**
- * State of one normalized hook declaration of a loaded config.
- * `target` is the hooked class method or module symbol and `lookup` the class or module it waits
- * for, if known; `hooks` are the resolved hooks (one per overload or function) and `hookedCount`
- * how many of them were installed, set once installed.
- */
+// State of one normalized hook declaration. `target` is the hooked method or symbol, `lookup` the class
+// or module it waits for, `hooks` the resolved hooks (one per overload or function).
 type LoadedHookEntry = {
   state: "pending" | "installed" | "failed" | "removed";
   target?: string;
@@ -39,17 +35,17 @@ type LoadedHookEntry = {
 
 type PendingHook = { inputHook: unknown; entry: LoadedHookEntry };
 
-/** The file name of a config id, which the host sets to the hook file path. */
+// The host uses the hook file path as config id, e.g. `/tmp/hooks.yaml` -> `hooks.yaml`.
 function configLabel(configId: string): string {
   return configId.split(/[\\/]/).pop() || configId;
 }
 
-/** Names a config in log messages: the hook file name, else the metadata name. */
+// Names a config in log messages: the hook file name, else the metadata name.
 function describeConfig(inputFrookyConfig: InputFrookyConfig, configId?: string): string {
   return configId !== undefined ? configLabel(configId) : (inputFrookyConfig.metadata?.name ?? "frooky config");
 }
 
-/** The class or module a normalized hook declaration waits for until it can be resolved. */
+// The class or module a hook declaration waits for, e.g. `platform:com.example.Foo`.
 function lookupOf(kind: string, inputHook: unknown): string | undefined {
   if (typeof inputHook !== "object" || inputHook === null) return undefined;
   const hook = inputHook as { javaClass?: string; module?: string };
@@ -57,16 +53,14 @@ function lookupOf(kind: string, inputHook: unknown): string | undefined {
   return lookup ? `${kind}:${lookup}` : undefined;
 }
 
-/** A normalized hook declaration for log messages, e.g. `com.example.Foo.bar` or `libfoo.so!open`. */
+// e.g. `com.example.Foo.bar` or `libfoo.so!open`
 function describeInputHook(inputHook: unknown): string {
   const target = targetOf("", inputHook);
   return target ? target.slice(1) : JSON.stringify(inputHook);
 }
 
-/**
- * The class method or module symbol a normalized hook declaration targets. A declaration whose other
- * properties (overloads, settings, ...) changed keeps its target, so a reload reports it as updated.
- */
+// The method or symbol a hook declaration targets, e.g. `platform:com.example.Foo.bar`. Changing other
+// properties (overloads, settings, ...) keeps the target, so a reload reports the declaration as updated.
 function targetOf(kind: string, inputHook: unknown): string | undefined {
   if (typeof inputHook !== "object" || inputHook === null) return undefined;
   const hook = inputHook as { javaClass?: string; method?: string; module?: string; symbol?: string; offset?: string };
@@ -75,21 +69,18 @@ function targetOf(kind: string, inputHook: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * Live state of hook resolving across all loaded configs, reported to the host while hooks resolve:
- * `hooked` counts installed hooks (one per overload or function), `pending` the classes and modules
- * that are still being looked up, and `failed` the declarations that failed to resolve.
- */
+// Reported to the host while hooks resolve: installed hooks (one per overload or function), classes and
+// modules still being looked up, and declarations that failed to resolve.
 export type HookProgress = { hooked: number; pending: number; failed: number };
 
-/** What resolving hooks did: installed hooks (one per overload or function) and the declarations that failed to resolve. */
+// Installed hooks (one per overload or function) and declarations that failed to resolve.
 type HookedSummary = {
   hookedMethods: number;
   hookedFunctions: number;
   failed: number;
 };
 
-/** What loading a config did, counted in hook declarations except for the {@link HookedSummary} counts. */
+// Counted in hook declarations, except for the HookedSummary counts.
 type LoadSummary = HookedSummary & {
   added: number;
   updated: number;
@@ -98,7 +89,7 @@ type LoadSummary = HookedSummary & {
   unchanged: number;
 };
 
-/** Describes what resolving hooks did, e.g. `hooked 2 methods and 1 function, 3 not resolved`. */
+// e.g. `hooked 2 methods and 1 function, 3 not resolved`
 export function describeHooked({ hookedMethods, hookedFunctions, failed }: HookedSummary): string {
   const hooked: string[] = [];
   if (hookedMethods > 0) hooked.push(plural(hookedMethods, "method"));
@@ -107,10 +98,8 @@ export function describeHooked({ hookedMethods, hookedFunctions, failed }: Hooke
   return failed > 0 ? `${text}, ${failed} not resolved` : text;
 }
 
-/**
- * Summarizes a reload, e.g. `1 new, 1 updated, 1 removed, 3 unchanged; hooked 2 methods`.
- * The part after the semicolon lists what the new, updated and retried declarations resolved to.
- */
+// e.g. `1 new, 1 updated, 1 removed, 3 unchanged; hooked 2 methods`. The part after the semicolon
+// covers the new, updated and retried declarations.
 export function describeLoad(summary: LoadSummary): string {
   const { added, updated, removed, retried, unchanged } = summary;
   const changes: string[] = [];
@@ -124,10 +113,7 @@ export function describeLoad(summary: LoadSummary): string {
   return added + updated + retried > 0 ? `${text}; ${describeHooked(summary)}` : text;
 }
 
-/**
- * Main application class for Frooky.
- * Manages configuration, events, and lifecycle of a frooky session.
- */
+// Loads hook configs, installs their hooks and collects the events.
 export class FrookyAgent {
   private eventCache: BaseEvent[] = [];
   private platform: Platform;
@@ -140,7 +126,7 @@ export class FrookyAgent {
   private loadedConfigs = new Map<string, Map<string, LoadedHookEntry>>();
   private anonymousConfigCount = 0;
   private reportProgress?: (progress: HookProgress) => void;
-  public readonly targetReady: Promise<void>; // Resolves once the target's own code can be looked up (e.g. Java.perform())
+  public readonly targetReady: Promise<void>; // resolves once the target's own code can be looked up (e.g. Java.perform())
   private progressTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -154,7 +140,6 @@ export class FrookyAgent {
     reportProgress?: (progress: HookProgress) => void,
     targetReady: Promise<void> = Promise.resolve(),
   ) {
-    //initialize asynchronous sender
     startEventSender(this.eventCache);
 
     this.platform = platform;
@@ -165,32 +150,21 @@ export class FrookyAgent {
     this.nativeHookManager = new NativeHookManager(platformStackTrace, this);
     this.platformHookManger = createPlatformHookManager(this);
 
-    // setup logger
     logger.setAgent(this);
     logger.setVerbosity(logLevel);
     logger.setLogTo(logTo);
 
-    // printing some context infos
     logger.info(`Target: ${this.platform} (${Process.platform}/${Process.arch}), pid ${Process.id}, Frida ${Frida.version}`);
     logger.debug(`Target process:\n${JSON.stringify(Process, null, 2)}`);
   }
 
-  /**
-   * Sends a {@link CrashReport} when the process is about to die from a native exception, naming the native hooks
-   * in the modules involved, see {@link installCrashReporter}.
-   */
+  // Sends a CrashReport when the process is about to die from a native exception, see installCrashReporter().
   public reportCrashes(report: (crash: CrashReport) => void): void {
     installCrashReporter(this.nativeHookManager, report);
   }
 
-  /**
-   * Loads hook configs, resolves their hooks and runs them. All configs are applied immediately and
-   * resolve concurrently, so a later {@link loadFrookyConfig} call for the same id always wins.
-   * Once all are resolved, the final {@link HookProgress} report tells the host.
-   *
-   * @param inputFrookyConfigs - The frooky configs to add.
-   * @param configIds - Optional ids, index-aligned with `inputFrookyConfigs`, see {@link loadFrookyConfig}.
-   */
+  // Loads configs concurrently. `configIds` are index-aligned with `inputFrookyConfigs`, see loadFrookyConfig().
+  // The final HookProgress report tells the host that all hooks are resolved.
   public async loadFrookyConfigs(inputFrookyConfigs: InputFrookyConfig[], configIds?: string[]) {
     await Promise.all(
       inputFrookyConfigs.map((inputFrookyConfig, i) =>
@@ -207,24 +181,11 @@ export class FrookyAgent {
     this.scheduleProgressReport();
   }
 
-  /**
-   * Validates a {@link InputFrookyConfig}, installs its hooks and logs a summary of what changed,
-   * e.g. `Updated hooks.yaml: 1 new, 3 unchanged; hooked 2 methods`.
-   *
-   * If a config with the same `configId` was loaded before, the new config replaces it
-   * incrementally: hooks whose normalized declaration is unchanged are left untouched (no class,
-   * module or symbol lookup), hooks that are gone are removed, and only new or changed hooks are
-   * resolved and installed. Hooks that failed to resolve are only retried if `retryFailed` is set
-   * or their declaration changed.
-   * An invalid config is rejected and leaves the previously loaded version in place.
-   *
-   * The diff happens synchronously before the first `await`, so consecutive calls apply in order.
-   *
-   * @param inputFrookyConfig - The configuration to add.
-   * @param configId - Identifies the config across reloads (the host uses the hook file path).
-   *   Without an id, the config is always added as a new one.
-   * @param retryFailed - Also resolve unchanged hooks that failed to resolve in the previous version.
-   */
+  // Loads a config and logs what changed, e.g. `Updated hooks.yaml: 1 new, 3 unchanged; hooked 2 methods`.
+  // A config with a known `configId` (the host uses the hook file path) replaces the previous version
+  // incrementally: unchanged hooks stay installed, removed ones are unhooked, new and changed ones are resolved.
+  // Failed hooks are retried if `retryFailed` is set or their declaration changed. An invalid config keeps the
+  // previous version. The diff runs before the first `await`, so consecutive calls apply in order.
   public async loadFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string, retryFailed = false) {
     const isReload = configId !== undefined && this.loadedConfigs.has(configId);
     const summary = await this.applyFrookyConfig(inputFrookyConfig, configId, retryFailed);
@@ -234,16 +195,11 @@ export class FrookyAgent {
     logger.info(`${verb} ${describeConfig(inputFrookyConfig, configId)}: ${describeLoad(summary)}`);
   }
 
-  /**
-   * Applies a config as described in {@link loadFrookyConfig}, without logging a summary.
-   *
-   * @returns What changed, or `undefined` if the config was invalid.
-   */
+  // loadFrookyConfig() without the summary log. Returns `undefined` if the config is invalid.
   private async applyFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string, retryFailed = false): Promise<LoadSummary | undefined> {
     const label = describeConfig(inputFrookyConfig, configId);
     logger.debug(`Parsing ${label}`);
 
-    // validate frooky config
     let validFrookyConfig: InputFrookyConfig;
     try {
       validFrookyConfig = validateAndRepairFrookyConfig(inputFrookyConfig, this.platform);
@@ -258,7 +214,6 @@ export class FrookyAgent {
 
     const validatedFrookySettings = validFrookyConfig.settings as FrookySettings;
 
-    // validate the platform hooks
     logger.debug(`Validating '${this.platform}' hooks`);
     const validPlatformHooks = this.platformHookValidator.validateAndNormalizeHooks(inputFrookyConfig, validatedFrookySettings);
 
@@ -332,7 +287,7 @@ export class FrookyAgent {
     );
     this.scheduleProgressReport();
 
-    // async resolve the new hooks and register them; the summary is logged by loadFrookyConfig()
+    // resolve and install the new, changed and retried hooks
     const [countSuccessfulPlatformHooks, countSuccessfulNativeHooks] = await Promise.all([
       this.resolveAndRegisterHooks(this.platformHookManger, platformToResolve, "platform", label),
       this.resolveAndRegisterHooks(this.nativeHookManager, nativeToResolve, "native", label),
@@ -351,14 +306,8 @@ export class FrookyAgent {
     };
   }
 
-  /**
-   * Resolves and installs the given hooks, and records the result on each hook's entry.
-   * A hook whose entry was removed while it was resolving (the config was reloaded meanwhile) is not installed.
-   *
-   * @param kind - `platform` or `native`, for error messages.
-   * @param source - Names the config the hooks come from (the hook file name) in log messages.
-   * @returns The number of installed hooks.
-   */
+  // Resolves and installs hooks and returns how many were installed. A hook whose entry was removed while it
+  // resolved (the config was reloaded) is not installed. `source` names the hook file in log messages.
   private async resolveAndRegisterHooks(
     manager: HookManager<any, any, any>,
     pendingHooks: PendingHook[],
@@ -412,7 +361,7 @@ export class FrookyAgent {
     return countSuccessfulHooks;
   }
 
-  /** The current {@link HookProgress} across all loaded configs. */
+  // HookProgress across all loaded configs
   public hookProgress(): HookProgress {
     let hooked = 0;
     let failed = 0;
@@ -428,11 +377,8 @@ export class FrookyAgent {
     return { hooked, pending: pendingLookups.size, failed };
   }
 
-  /**
-   * Reports the {@link HookProgress} to the host shortly, at most once per {@link PROGRESS_INTERVAL_MS}.
-   * The report is taken when it is sent, so it always has the latest state, including the final one
-   * with nothing pending.
-   */
+  // Reports HookProgress to the host at most once per PROGRESS_INTERVAL_MS. The progress is read when the
+  // report is sent, so it is always current.
   private scheduleProgressReport(): void {
     const reportProgress = this.reportProgress;
     if (!reportProgress || this.progressTimer !== null) return;
@@ -442,11 +388,6 @@ export class FrookyAgent {
     }, PROGRESS_INTERVAL_MS);
   }
 
-  /**
-   * Adds an event to the internal event cache.
-   *
-   * @param event - The event to cache.
-   */
   public addEventToLog(event: LogEvent | HookEvent): void {
     this.eventCache.push(event);
   }

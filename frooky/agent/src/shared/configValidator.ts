@@ -8,7 +8,7 @@ import { frookyMetadataSchema } from "./inputParsing/zodSchemas/frookyMetadata.z
 import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputParsing/zodSchemas/inputSettings.zod";
 import { logger } from "./logger";
 
-// validates the settings of a frooky config
+// Validates the metadata and settings of a config and replaces invalid settings with defaults.
 export function validateAndRepairFrookyConfig(frookyConfig: InputFrookyConfig, platform: Platform): InputFrookyConfig {
   logger.debug(`Validating frooky config`);
 
@@ -20,7 +20,6 @@ export function validateAndRepairFrookyConfig(frookyConfig: InputFrookyConfig, p
     throw Error(`Frooky config ${frookyConfig.metadata?.name ? frookyConfig.metadata?.name : ""}, as it has no 'hookCollection'.`);
   }
 
-  // warn, if the hook config contains unknown entries
   const knownKeys: (keyof InputFrookyConfig)[] = ["metadata", "settings", "hookCollection"];
   const extraKeys = Object.keys(frookyConfig).filter((k) => !knownKeys.includes(k as keyof InputFrookyConfig));
   if (extraKeys.length > 0) {
@@ -31,7 +30,6 @@ export function validateAndRepairFrookyConfig(frookyConfig: InputFrookyConfig, p
     frookyConfig.settings = { ...DEFAULT_FROOKY_SETTINGS };
     return frookyConfig;
   } else {
-    // validate and repair settings
     if (frookyConfig.settings) {
       frookyConfig.settings = validateAndRepairFrookySettings(frookyConfig.settings);
     }
@@ -42,15 +40,13 @@ export function validateAndRepairFrookyConfig(frookyConfig: InputFrookyConfig, p
 
 export function validateAndRepairFrookySettings(inputSettings: InputFrookySettings): FrookySettings {
   logger.debug(`Validating frooky settings`);
-  // copy, so one config's settings never leak into the defaults of the next (or a reloaded) config
+  // a copy, the defaults are shared by all configs
   const validFrookySettings: FrookySettings = { ...DEFAULT_FROOKY_SETTINGS };
 
-  // validate and repair hook settings
   if (inputSettings.hookSettings) {
     validFrookySettings.hookSettings = validateAndRepairHookSettings(inputSettings.hookSettings);
   }
 
-  // validate and repair decoder settings
   if (inputSettings.decoderSettings) {
     validFrookySettings.decoderSettings = validateAndRepairDecoderSettings(inputSettings.decoderSettings);
   }
@@ -59,8 +55,7 @@ export function validateAndRepairFrookySettings(inputSettings: InputFrookySettin
   return validFrookySettings;
 }
 
-// validates hook settings and replaces invalid settings with valid default values
-// empty ones are set to the default
+// Replaces invalid and missing hook settings with defaults.
 export function validateAndRepairHookSettings(settings: InputHookSettings): HookSettings {
   logger.debug(`Validating frooky hook settings`);
   const result = inputHookSettingsSchema.safeParse(settings);
@@ -83,7 +78,7 @@ export function validateAndRepairHookSettings(settings: InputHookSettings): Hook
 
   const validHookSettings: HookSettings = { ...DEFAULT_HOOK_SETTINGS, ...settings };
 
-  // an invalid pattern would throw on every intercepted call (and a java hook passes that on to the app)
+  // an invalid pattern would throw on every intercepted call
   const invalidPatterns = validHookSettings.stackTraceFilter.filter((pattern) => !isValidRegExp(pattern));
   if (invalidPatterns.length > 0) {
     validHookSettings.stackTraceFilter = validHookSettings.stackTraceFilter.filter((pattern) => !invalidPatterns.includes(pattern));
@@ -103,8 +98,7 @@ function isValidRegExp(pattern: string): boolean {
   }
 }
 
-// validates decoder settings and replaces invalid settings with valid default values
-// empty ones are set to the default
+// Replaces invalid and missing decoder settings with defaults.
 export function validateAndRepairDecoderSettings(settings: InputDecoderSettings): DecoderSettings {
   logger.debug(`Validating frooky decoder settings`);
   const result = inputDecoderSettingsSchema.safeParse(settings);

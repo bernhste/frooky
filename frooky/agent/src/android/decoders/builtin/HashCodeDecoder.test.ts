@@ -16,8 +16,7 @@ describe("HashcodeDecoder", () => {
     });
 
     it("should use hashCode() instead of toString(), even when toString() is overridden", () => {
-      // java.math.BigInteger overrides toString() to print its decimal value, not the default
-      // "ClassName@hash" shape - this must not leak through here the way ToStringDecoder would
+      // BigInteger.toString() prints its decimal value
       const BigInteger = Java.use("java.math.BigInteger");
       const value = BigInteger.$new("123456789");
       const decoder = new HashCodeDecoder({ type: "java.math.BigInteger", settings: DEFAULT_DECODER_SETTINGS });
@@ -30,9 +29,7 @@ describe("HashcodeDecoder", () => {
     });
 
     it("should report the same hash for two distinct objects whose overridden hashCode() is content-based", () => {
-      // java.lang.Long hashCode() is value-based, and `new Long(String)` always allocates a fresh object (unlike
-      // Long.valueOf()/autoboxing, it never uses the boxed-value cache), so these are genuinely
-      // two distinct objects.
+      // Long.hashCode() is value-based, and `new Long(String)` always creates a new object
       const JavaLong = Java.use("java.lang.Long");
       const first = JavaLong.$new("123456789012345");
       const second = JavaLong.$new("123456789012345");

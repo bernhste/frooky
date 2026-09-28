@@ -1,4 +1,3 @@
-// iterableDecoder.ts
 import Java from "frida-java-bridge";
 import { Decoder } from "../../../../shared/decoders/baseDecoder";
 import { RecursiveDecoder } from "../../../../shared/decoders/recursiveDecoder";
@@ -12,17 +11,13 @@ function getJavaIterable(): Java.Wrapper {
   return (javaIterable ??= Java.use("java.lang.Iterable"));
 }
 
-/**
- * Decode any java.lang.Iterable by walking its iterator().
- */
 export class IterableDecoder extends RecursiveDecoder<Java.Wrapper> {
   readonly decoderName = "IterableDecoder";
   readonly description = "Decodes any `java.lang.Iterable` (List, Set, ...) by iterating its elements, up to `maxItems` elements.";
 
   protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     const values: DecodedValue[] = [];
-    // the wrapper can be typed as a supertype without iterator() (e.g. java.lang.Object for an element
-    // of another collection), so cast it to Iterable first
+    // the wrapper can be typed as a supertype without iterator() (e.g. java.lang.Object), so cast it first
     const iterator: Java.Wrapper = Java.cast(value, getJavaIterable()).iterator();
     const maxItems = this.settings.maxItems;
 
@@ -50,7 +45,6 @@ export class IterableDecoder extends RecursiveDecoder<Java.Wrapper> {
       count++;
     }
 
-    // one summary instead of a line per element, which would flood the log for large collections
     if (logger.isEnabled("debug")) {
       logger.debug(
         `Decoded ${count} element(s) of ${this.type}: element decoder cache ${decoderCache.size} miss(es) (${[...decoderCache.keys()].join(", ")}), ${cacheHits} hit(s)`,

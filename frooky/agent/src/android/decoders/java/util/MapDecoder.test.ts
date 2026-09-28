@@ -11,8 +11,7 @@ describe("MapDecoder", () => {
       const map = HashMap.$new();
       map.put("a", "1");
 
-      // keySet()/values() return their own runtime view classes (e.g. HashMap$KeySet), which
-      // is JVM/ART-implementation-specific - read it dynamically instead of hardcoding a guess
+      // the view classes of keySet()/values() (e.g. HashMap$KeySet) depend on the ART version
       const keySetClassName = map.keySet().$className;
       const valuesClassName = map.values().$className;
 

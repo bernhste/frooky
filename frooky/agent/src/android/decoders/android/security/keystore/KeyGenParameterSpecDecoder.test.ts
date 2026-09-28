@@ -47,9 +47,7 @@ describe("KeyGenParameterSpecDecoder", () => {
   });
 
   it("should decode a getter that throws when unset as null, without aborting the whole decode", () => {
-    // getDigests() throws IllegalStateException when digests haven't been configured on the
-    // builder, while isDigestsSpecified() safely reports false - this exercises the per-getter
-    // exception handling in decodePublicMethodValues rather than curating around it
+    // getDigests() throws IllegalStateException when no digests are set
     const purposes = KeyProperties.PURPOSE_ENCRYPT.value | KeyProperties.PURPOSE_DECRYPT.value;
     const spec = Builder.$new("test-alias", purposes).build();
 

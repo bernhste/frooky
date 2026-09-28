@@ -36,8 +36,7 @@ function getInterfaceDecoderRegistry(): Record<string, DecoderConstructor> {
 // the interface decoder of a runtime class, or null if none of its interfaces has one
 const decoderCache = new Map<string, DecoderConstructor | null>();
 
-// the decoder of a declared type holding a value of a runtime class, keyed by `${declaredType}|${runtimeClass}`:
-// both inputs of the resolution in ReferenceTypeDecoder.decode(), so its result never changes
+// the decoder per `${declaredType}|${runtimeClass}`
 const resolvedDecoderCache = new Map<string, DecoderConstructor>();
 
 let javaObject: Java.Wrapper | undefined;
@@ -76,10 +75,8 @@ function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor |
   }
   logger.debug(`Interface decoder cache miss: ${value.$className}, collecting its interfaces`);
 
-  // getClass(), not `.class`: `.class` is the class of the wrapper's static type (e.g. java.lang.Object
-  // for an element read from an Object[]), and caching its (empty) interface set under the runtime
-  // class name would disable the interface decoders for that class for every later value. The cast
-  // is needed because a wrapper typed as an interface (e.g. java.util.Set) has no getClass()
+  // getClass() is the runtime class, `.class` would be the wrapper's static type (e.g. java.lang.Object for
+  // an element of an Object[]). The cast is needed because a wrapper typed as an interface has no getClass().
   const interfaces = collectInterfaces(Java.cast(value, getJavaObject()).getClass());
   const registry = getInterfaceDecoderRegistry();
   for (const iface of interfaces) {
@@ -95,11 +92,7 @@ function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor |
   return null;
 }
 
-/**
- * Resolves the decoder of a value of a declared reference type.
- *
- * @returns The decoder class and why it was chosen, for the log message.
- */
+// Resolves the decoder of a value of a declared reference type, and why it was chosen (for the log).
 function resolveDecoderClass(declaredType: string, value: Java.Wrapper): { decoderClass: DecoderConstructor; reason: string } {
   const runtimeClass: string = value.$className;
 
@@ -107,11 +100,7 @@ function resolveDecoderClass(declaredType: string, value: Java.Wrapper): { decod
   const classDecoder = getClassDecoderRegistry()[runtimeClass];
   if (classDecoder) return { decoderClass: classDecoder, reason: `class decoder for ${runtimeClass}` };
 
-  // 2. interface decoder for declared interface type exists - a fast path that skips the
-  // reflective walk in step 3 when the declared type already names a registered interface
-  // directly; step 3 alone would resolve the same case (just slower), so if the interface
-  // registry ever grows to include two interfaces in a supertype/subtype relationship, make
-  // sure both steps still agree on which one wins
+  // 2. interface decoder for the declared type exists (skips the reflective walk of step 3)
   const declaredInterfaceDecoder = getInterfaceDecoderRegistry()[declaredType];
   if (declaredInterfaceDecoder) return { decoderClass: declaredInterfaceDecoder, reason: `interface decoder for ${declaredType}` };
 
@@ -123,12 +112,7 @@ function resolveDecoderClass(declaredType: string, value: Java.Wrapper): { decod
     return { decoderClass: interfaceDecoder, reason: `interface decoder for ${iface ?? "an implemented interface"}` };
   }
 
-  // 4. no specific decoder is registered for this reference type - fall back to its Java
-  // toString() rather than reflecting its getters, which needs no per-class allowlist: this
-  // is correct for java.lang.String (toString() is itself), for a class with no useful
-  // "get"-prefixed methods (e.g. BigInteger), and for reflection metadata like Class/Method/
-  // Field, whose own getters point back at each other and would recurse without bound through
-  // GetterDecoder - this fallback never calls GetterDecoder, so that recursion can't happen here
+  // 4. toString(). Not GetterDecoder: the getters of e.g. Class/Method/Field reference each other endlessly.
   return { decoderClass: StringDecoder, reason: "toString(), no decoder registered" };
 }
 
@@ -138,10 +122,6 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
 
   decode(value: Java.Wrapper): DecodedValue {
     if (value == null) {
-      // frida-java-bridge hands back a plain JS null for a null Java reference crossing the
-      // bridge, and any declared type that isn't a primitive/String/void/array can legitimately
-      // be null (e.g. an Object-typed return value) - decode it as null instead of crashing on
-      // $className
       return {
         type: this.type,
         name: this.name,
@@ -167,7 +147,7 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       settings: this.settings,
     });
 
-    // at info level, but only once per declared type and runtime class: on a cache miss
+    // logged at info level once per declared type and runtime class (on a cache miss)
     if (reason) {
       const types = runtimeClass === this.type ? this.type : `${this.type} (runtime class ${runtimeClass})`;
       logger.info(`Decoder for ${types}: ${decoder.decoderName} (${reason})`);

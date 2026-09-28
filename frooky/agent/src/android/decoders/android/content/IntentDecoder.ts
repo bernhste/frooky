@@ -4,20 +4,13 @@ import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { GetterDecoder } from "../../builtin/GetterDecoder";
 import { IntentFlagDecoder } from "./IntentFlagDecoder";
 
-/**
- * Decodes an Intent by reflecting its public getters via {@link GetterDecoder} (action, data, type,
- * package, component, categories, extras, ...), then adding the two things a getter can't give us:
- * the raw flags int decoded to its human-readable FLAG_* names, and the caller info the system
- * attaches to identify who launched it.
- */
+// Decodes an Intent's public getters via GetterDecoder, with `flags` decoded to its FLAG_* names.
 export class IntentDecoder extends RecursiveDecoder<Java.Wrapper> {
   readonly decoderName = "IntentDecoder";
-  readonly description =
-    "Decodes an `android.content.Intent`: its getters (action, data, component, extras, ...), its flags as `FLAG_*` names and the caller info.";
+  readonly description = "Decodes an `android.content.Intent`: its getters (action, data, component, extras, ...) and its flags as `FLAG_*` names.";
 
   protected decodeRecursive(value: Java.Wrapper): DecodedValue {
-    // value.get(key)-style callers that only know the declared type (Object, Parcelable, ...) hand
-    // us a wrapper bound to that narrower type - re-cast to Intent itself so its own getters resolve
+    // the wrapper can be typed as a supertype (e.g. Object or Parcelable), so cast it to Intent first
     const intent = Java.cast(value, Java.use("android.content.Intent"));
 
     const properties = new GetterDecoder({ type: "android.content.Intent", settings: this.settings }).decode(intent).value as DecodedValue[];

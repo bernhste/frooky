@@ -4,30 +4,16 @@ import { DecodedArgs } from "../../shared/hook/hookManager";
 import { HookStackTrace } from "../../shared/platformStackTrace";
 import { NativeHook } from "./nativeHook";
 
-/**
- * Represents a native hook event created by frooky.
- *
- * Extends {@link HookEvent} with native-specific fields for module and symbol information.
- * ```
- */
 export class NativeHookEvent extends HookEvent {
-  /** Module the hooked function is located in. */
   module: string;
 
-  /** Symbol of the hooked function, for hooks declared with `symbol`. */
+  // for hooks declared with `symbol`
   symbol?: string;
 
-  /** Offset of the hooked function from the module's base address, for hooks declared with `offset`. */
+  // for hooks declared with `offset`
   offset?: string;
 
-  /** Address of the hooked function. */
-  address?: NativePointer;
-
-  /**
-   * Identifies the hooked function, for compatibility with {@link DecoderSettings.hashCode}. Native
-   * hooks have no per-call instance the way java hooks do, so this is just the function's own address
-   * (the same value on every call to this hook) rather than a per-invocation identity.
-   */
+  // with `hashCode: true`: the function's address, since native calls have no instance
   hashCode?: string;
 
   constructor(hook: NativeHook, decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: HookStackTrace) {

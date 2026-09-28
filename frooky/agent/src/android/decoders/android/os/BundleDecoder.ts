@@ -24,19 +24,11 @@ function getReflectArray(): Java.Wrapper {
   return (reflectArray ??= Java.use("java.lang.reflect.Array"));
 }
 
-// caches the result (including a negative one) per runtime class, keyed by className - a class's
-// TYPE field never changes, and without caching, every non-wrapper entry (String, Parcelable, ...)
-// would pay for a reflective field lookup that throws on every single decode() call
+// primitive type per class name, null for classes that aren't boxed primitives
 const boxedPrimitiveTypeCache = new Map<string, string | null>();
 
-/**
- * Every boxed primitive wrapper (`Integer`, `Boolean`, ...) declares a public static `TYPE` field
- * holding its primitive `Class` (`Integer.TYPE === int.class`), and `Class.getName()` on that
- * primitive `Class` returns the primitive type name itself (`"int"`, `"boolean"`, ...) - which,
- * conveniently, is also the exact prefix of that wrapper's unboxing method (`intValue()`,
- * `booleanValue()`, ...). So the primitive type - and the method that unboxes it - can be derived
- * at runtime from any class, instead of hardcoding the 8 wrapper class names.
- */
+// Boxed primitives declare a static `TYPE` field holding their primitive class, whose name is also the
+// prefix of the unboxing method, e.g. `Integer.TYPE.getName()` is `int` -> `intValue()`.
 function getBoxedPrimitiveType(entry: Java.Wrapper, className: string): string | null {
   const cached = boxedPrimitiveTypeCache.get(className);
   if (cached !== undefined) {
@@ -52,7 +44,7 @@ function getBoxedPrimitiveType(entry: Java.Wrapper, className: string): string |
       primitiveType = typeClass.getName();
     }
   } catch {
-    // no public static TYPE field (NoSuchFieldException) - not a boxed primitive wrapper
+    // no TYPE field: not a boxed primitive
   }
 
   boxedPrimitiveTypeCache.set(className, primitiveType);
@@ -72,9 +64,6 @@ const TYPED_ARRAY_GETTERS: Record<string, string> = {
   "[Ljava.lang.String;": "getStringArray",
 };
 
-/**
- * Decode all key/value pairs from a Bundle.
- */
 export class BundleDecoder extends RecursiveDecoder<Java.Wrapper> {
   readonly decoderName = "BundleDecoder";
   readonly description = "Decodes an `android.os.Bundle` into its key/value pairs, including typed arrays and nested Bundles.";
@@ -143,8 +132,7 @@ export class BundleDecoder extends RecursiveDecoder<Java.Wrapper> {
     }
 
     const maxItems = settings.maxItems;
-    // only re-fetch through a typed getter for the extra itself - a nested array element reached
-    // via reflection below has no key of its own to re-fetch by
+    // only a Bundle value can be re-fetched by key through a typed getter, a nested array element can't
     const typedGetter = isBundleValue ? TYPED_ARRAY_GETTERS[className] : undefined;
 
     if (typedGetter) {

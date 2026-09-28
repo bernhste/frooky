@@ -4,31 +4,18 @@ import { DecoderSettings } from "../frookySettings";
 
 export const MAX_DEPTH_MARKER = "[max depth reached]";
 
-/**
- * Settings for the children of a container value. `maxDepth` counts the container levels still
- * left to expand, so every level down gets one less.
- */
+// `maxDepth` counts the container levels left to expand, so each level down gets one less.
 export function childSettings(settings: DecoderSettings): DecoderSettings {
   return { ...settings, maxDepth: settings.maxDepth - 1 };
 }
 
-/**
- * True when a container has no depth left and must not expand its children. Leaf values
- * (primitives, strings, ...) ignore `maxDepth` and are always decoded.
- */
+// Only containers check it, leaf values (primitives, strings, ...) are always decoded.
 export function isMaxDepthReached(settings: DecoderSettings): boolean {
   return settings.maxDepth <= 0;
 }
 
-/**
- * Base class for decoders of values that contain other values (arrays, collections, maps, bundles,
- * objects decoded through their getters, ...) and can therefore nest.
- *
- * Enforces `maxDepth`: once no depth is left, the value is replaced by {@link MAX_DEPTH_MARKER}
- * without calling {@link decodeRecursive}. Leaf decoders extend {@link Decoder} directly.
- *
- * @template TValue - The raw input type to decode.
- */
+// Base class of decoders for values that contain other values (arrays, maps, bundles, ...). Once no depth is
+// left, the value is replaced by MAX_DEPTH_MARKER. Leaf decoders extend Decoder directly.
 export abstract class RecursiveDecoder<TValue> extends Decoder<TValue> {
   public decode(value: TValue, arg?: any): DecodedValue {
     if (isMaxDepthReached(this.settings)) {
@@ -37,14 +24,7 @@ export abstract class RecursiveDecoder<TValue> extends Decoder<TValue> {
     return this.decodeRecursive(value, childSettings(this.settings), arg);
   }
 
-  /**
-   * Decodes a value that is still within `maxDepth`.
-   *
-   * @param value - The raw value to decode.
-   * @param childSettings - Settings to decode the value's elements with, one level deeper. A decoder
-   * that delegates to another decoder for its own level (e.g. a map to its key set) passes
-   * `this.settings` instead.
-   * @param arg - Arguments passed to the decoder
-   */
+  // `childSettings` are for the elements, one level deeper. A decoder that delegates its own level to another
+  // decoder (e.g. a map to its key set) passes `this.settings` instead.
   protected abstract decodeRecursive(value: TValue, childSettings: DecoderSettings, arg?: any): DecodedValue;
 }

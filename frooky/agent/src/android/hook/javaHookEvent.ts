@@ -5,12 +5,6 @@ import { HookStackTrace } from "../../shared/platformStackTrace";
 import { FieldType } from "./androidHookManager";
 import { JavaHook } from "./javaHook";
 
-/**
- * Class representing a java hook event
- *
- * Extends {@link HookEvent} with hook-specific fields.
- * ```
- */
 export class JavaHookEvent extends HookEvent {
   readonly javaClassName: string;
   readonly method: string;

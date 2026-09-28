@@ -32,27 +32,17 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     protected readonly frookyAgent: FrookyAgent,
   ) {}
 
-  /**
-   * Resolves the given input hooks. The returned promises are index-aligned with `inputHooks`:
-   * the n-th promise yields the resolved hooks of the n-th input hook, or `null` if it failed.
-   * `source` names where the hooks are declared (the hook file) in log messages.
-   */
+  // Returns one promise per input hook (index-aligned), resolving to its hooks or null if it failed.
+  // `source` names the hook file in log messages.
   public abstract resolveHooks(inputHooks: TInputHook[], timeout: number, source?: string): Promise<Promise<THooks[] | null>[]>;
-  /**
-   * Installs the hooks and logs each installed one. Returns how many were installed; failures are logged and skipped.
-   * `source` names where the hooks are declared (the hook file) in log messages.
-   */
+  // Returns how many hooks were installed, failures are logged and skipped.
   public abstract registerHooks(hooks: THooks[], source?: string): number;
-  /** Removes hooks previously installed by {@link registerHooks}. Hooks that were never installed are ignored. */
+  // Hooks that aren't installed are ignored.
   public abstract unregisterHooks(hooks: THooks[]): void;
 
-  /**
-   * Polls `fn` until it returns a value. `label` names what is looked up in the timeout error, e.g. `Module 'libfoo.so'`.
-   *
-   * If the first call finds nothing, the target's own code may not be loaded yet (in spawn mode the app is still
-   * paused), so it retries once {@link FrookyAgent.targetReady} resolves and only then starts the timeout. In spawn
-   * mode that retry runs on the app's main thread before the app's code runs, so what it finds is hooked in time.
-   */
+  // Polls `fn` until it returns a value, e.g. `label` `Module 'libfoo.so'` for the timeout error. If the first call
+  // finds nothing, it retries once FrookyAgent.targetReady resolves (in spawn mode: on the app's main thread before
+  // app code runs), and only then starts the timeout.
   protected async pollUntilResolved<T>(fn: () => T | null, label: string, timeoutSeconds: number): Promise<T> {
     if (timeoutSeconds < 0) throw Error(`Timeout must not be less than 0.`);
     let deadline: number | undefined;
@@ -76,7 +66,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     params.forEach((param: Param, paramIndex: number) => {
       const decoderArgResolution = param.settings.decoderArg ? this.resolveDecoderArg(param, paramIndex, params) : undefined;
       if (param.settings.decoderArg && !decoderArgResolution) {
-        return; // invalid decoderArg reference; warning already logged by resolveDecoderArg()
+        return; // invalid decoderArg, logged by resolveDecoderArg()
       }
 
       const { direction, ...paramDecodable } = param;
@@ -121,8 +111,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
       return undefined;
     }
 
-    // the referenced param's own settings: the referencing param's settings may name a custom decoder
-    // (e.g. `decoder: string` on a buffer) that must not be applied to the length it references
+    // with the referenced param's own settings, not e.g. the `decoder: string` of the buffer referencing it
     const decoder = this.decoderResolver.resolveDecoder({ type: params[index].type, settings: params[index].settings });
     return { index, decoder };
   }
@@ -142,26 +131,18 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return argFilter.some((pattern) => pattern.test(stringValue));
   }
 
-  /**
-   * Decodes one value. At debug level, logs what went in (the declared type), the decoder and what came
-   * out, e.g. `Decoded com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"`.
-   *
-   * @param what - Names the value in the log message, e.g. `com.example.Foo.bar return value`.
-   */
+  // At debug level logs e.g. `Decoded com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"`,
+  // where `what` is `com.example.Foo.bar param #0 'key'`.
   protected decodeValue(decoder: Decoder<TValue>, value: TValue, what: string, arg?: any): DecodedValue {
     const decodedValue = decoder.decode(value, arg);
-    // checked first, since previewValue() serializes the whole (possibly large) decoded value
+    // previewValue() serializes the whole decoded value
     if (logger.isEnabled("debug")) {
       logger.debug(`Decoded ${what} (${decoder.declaredType}, ${decoder.decoderName}): ${previewValue(decodedValue.value)}`);
     }
     return decodedValue;
   }
 
-  /**
-   * Decodes the arguments of one call.
-   *
-   * @param target - The hooked method or function, only used in debug log messages.
-   */
+  // Throws FilterMismatchError if an argument doesn't match its argFilter. `target` is for debug logs.
   protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[], target: string = "hook"): DecodedValue[] {
     const decodedArgs: DecodedValue[] = [];
     for (const paramDecoder of paramDecoders) {

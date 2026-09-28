@@ -47,10 +47,7 @@ describe("HexDecoder", () => {
       expect(result).toEqual({ type: "[B", value: expectedHex });
     });
 
-    it("should decode a null '[B' byte array without throwing (regression)", () => {
-      // a "[B" is a reference type too and can legitimately be null (e.g. an uninitialized
-      // output buffer) - readBytesLimited(null, ...), which the "[B" branch relies on, throws
-      // rather than producing an empty/null result, so null must be checked before that branch is reached
+    it("should decode a null '[B' byte array without throwing", () => {
       const decoder = new HexDecoder({ type: "[B", settings: DEFAULT_DECODER_SETTINGS });
 
       const result = decoder.decode(null as unknown as Java.Wrapper);

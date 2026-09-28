@@ -2,17 +2,10 @@ import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { logger } from "../../../shared/logger";
 
-// Keyed by `${className}#${prefix}` since declared constants never change at runtime, so results
-// are reflected once and shared across every decoder instance that requests the same class/prefix
-// instead of re-walking the class's declared fields per hook.
+// constants per `${className}#${prefix}`
 const constantCache = new Map<string, DecodedValue[]>();
 
-/**
- * Reads a static field's value using the reflection getter matching its declared type. `long`
- * fields are stringified since Frida represents them as Int64/UInt64 wrappers that lose precision
- * if coerced to a JS number; every other type (including `java.lang.String`, which Frida already
- * unwraps to a JS string) is returned as-is.
- */
+// Reads a static field with the getter of its type. `long` is returned as a string to keep its precision.
 function readFieldValue(field: Java.Wrapper, typeName: string): unknown {
   switch (typeName) {
     case "int":
@@ -36,16 +29,10 @@ function readFieldValue(field: Java.Wrapper, typeName: string): unknown {
   }
 }
 
-// java.lang.reflect.Modifier.STATIC, checked as a raw bit instead of via Java.use() since this
-// runs once per field on every newly-encountered class/prefix pair.
+// java.lang.reflect.Modifier.STATIC
 const STATIC_MODIFIER = 0x0008;
 
-/**
- * Reflects every `static` field of `className` whose name starts with `prefix` (e.g. Intent's
- * `FLAG_*` or `URI_*` constants, or "" to match every declared constant), decoding each field's
- * value according to its actual declared type rather than assuming `int`. Instance fields are
- * skipped - reading them the same way as a static field (passing `null` as the target) throws.
- */
+// The static fields of `className` whose name starts with `prefix` ("" for all), e.g. Intent's `FLAG_*`.
 export function decodeConstantValues(className: string, prefix: string): DecodedValue[] {
   const cacheKey = `${className}#${prefix}`;
   const cached = constantCache.get(cacheKey);

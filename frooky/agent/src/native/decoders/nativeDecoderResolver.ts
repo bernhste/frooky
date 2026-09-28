@@ -13,7 +13,7 @@ const CUSTOM_DECODER_REGISTRY: Record<string, NativeDecoderConstructor> = {
   string: NativeStringDecoder,
 };
 
-// resolves the decode based on a decodable type
+// Picks the decoder of a value: the custom decoder from its settings, else by its declared type.
 export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
   resolveDecoder(decodable: Decodable): Decoder<NativePointer> {
     if (decodable.settings.decoder) {
@@ -25,15 +25,14 @@ export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
     }
     const nativeFridaType = parseNativeFridaType(decodable.type);
     if (!nativeFridaType) {
-      // it was not possible to resolve a decoder
+      // unknown type, e.g. a struct pointer
       return new NativeFallbackDecoder(decodable);
     }
     if (typeof nativeFridaType === "object") {
-      // the declared type is a reference (e.g. 'char*', 'void *')
+      // e.g. `char*`
       return new NativeReferenceDecoder(decodable, nativeFridaType);
     } else {
-      // the declared type is a fundamental (e.g. 'int'); `decodable` is kept as-is (not
-      // rewritten to the canonical type name) so decoded output reflects what was declared.
+      // e.g. `int`; the output keeps the declared type name, not the Frida type
       return new NativeValueDecoder(decodable, nativeFridaType);
     }
   },

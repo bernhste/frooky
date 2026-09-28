@@ -3,20 +3,13 @@ import { Param } from "../../shared/decoders/decodable";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { Hook } from "../../shared/hook/hook";
 
-/**
- * Contains all information to hook a java method
- *
- * @public
- */
+// A resolved Java method overload to hook
 export interface JavaHook extends Hook {
   method: Java.Method;
   methodName: string;
   params?: Param[];
 
-  /**
-   * Decoder settings for this overload's return value, taken from its `retType` declaration.
-   * The return type itself always comes from Java reflection, never from user input.
-   * Falls back to {@link Hook.decoderSettings} when not set.
-   */
+  // decoder settings of the return value, from `retType`, else Hook.decoderSettings. The return type itself
+  // comes from reflection.
   retTypeSettings?: DecoderSettings;
 }

@@ -104,10 +104,7 @@ describe("inputJavaHookCollection", () => {
       });
 
       it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
-        // A YAML author only ever writes a *partial* hookSettings/decoderSettings on a hook (e.g.
-        // `hookSettings: { maxStackFrames: 40 }`); the raw config is cast to the input types at
-        // the YAML boundary (see index.frida.ts) without being structurally checked against them,
-        // so this models that real shape rather than the always-complete post-normalize shape.
+        // hook files contain partial settings, e.g. `hookSettings: { maxStackFrames: 40 }`
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
@@ -255,9 +252,7 @@ describe("inputJavaHookCollection", () => {
         expect(hook.overloads?.[0].retType).toBeUndefined();
       });
 
-      // A user used to native's `retType: type` / `retType: [type, decoderSettings]` forms may reuse
-      // that habit for a Java overload. Accepting it (and just ignoring the type) keeps their hook
-      // file valid instead of silently dropping the whole retType declaration.
+      // the native forms `retType: type` and `retType: [type, decoderSettings]` are accepted, the type is ignored
       describe("accepts the native retType forms too, ignoring the type", () => {
         it("accepts a plain type string, which has nothing to merge", () => {
           const hookCollection: InputJavaHookCollection = {
@@ -329,9 +324,7 @@ describe("inputJavaHookCollection", () => {
           type: "java",
           javaClass: "com.example.Foo",
           decoderSettings: { maxDepth: 30 },
-          // A YAML author only ever writes a *partial* decoderSettings on a tuple hook (e.g. `{decoder: "string"}`);
-          // the raw config is cast to the input types at the YAML boundary without being structurally checked
-          // against them, so this models that real shape rather than the always-complete post-normalize shape.
+          // hook files contain partial settings, e.g. `{ decoder: "string" }`
           hooks: [["bar", { decoder: "string" }] as [string, DecoderSettings]],
         };
 

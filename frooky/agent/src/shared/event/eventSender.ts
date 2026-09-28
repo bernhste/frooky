@@ -5,7 +5,7 @@ let senderIntervalId: ReturnType<typeof setInterval> | null = null;
 
 export function startEventSender(eventQueue: BaseEvent[], sendInterval: number = SEND_INTERVAL_MS, sendFn: typeof send = send): void {
   if (senderIntervalId !== null) {
-    return; // already running
+    return;
   }
 
   senderIntervalId = setInterval(() => {

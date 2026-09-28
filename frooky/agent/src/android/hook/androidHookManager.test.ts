@@ -6,9 +6,7 @@ import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { AndroidHookManager } from "./androidHookManager";
 import { JavaHook } from "./javaHook";
 
-// resolveHooks() only resolves method/overload metadata, it never installs an implementation
-// (that's registerHooks()'s job), so it's safe to run against real, always-loaded JVM bootstrap
-// classes (java.lang.String, java.lang.Object) without risking side effects on the host process.
+// resolveHooks() installs nothing, so it can run against always-loaded classes like java.lang.String
 const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
 
@@ -44,10 +42,7 @@ describe("AndroidHookManager", () => {
     it("returns null when the javaClass does not exist", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
-      // timeout 0 makes pollUntilResolved reject on the first check instead of retrying for a
-      // full poll cycle - this test only cares that a failed resolution surfaces as null, not
-      // how many attempts were made, and enumerateLoadedClassesSync()/repeated polling against a
-      // real device is slow enough to noticeably drag out the suite otherwise.
+      // timeout 0: fail after the first lookup instead of polling
       const results = await Promise.all(await manager.resolveHooks([javaHook("com.frooky.test.DoesNotExist", "foo")], 0));
 
       expect(results).toEqual([null]);
@@ -77,8 +72,7 @@ describe("AndroidHookManager", () => {
     it("returns null for a wildcard javaClass that matches no loaded class", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
-      // timeout 0, see the "javaClass does not exist" test above for why - this one is
-      // otherwise even slower, since every poll attempt enumerates all loaded classes.
+      // timeout 0: fail after the first lookup instead of polling
       const results = await Promise.all(await manager.resolveHooks([javaHook("com.frooky.test.*.DoesNotExist", "foo")], 0));
 
       expect(results).toEqual([null]);
@@ -131,8 +125,7 @@ describe("AndroidHookManager", () => {
     });
   });
 
-  // These install real hooks, on java.lang.Integer.reverse(int): a pure, static method the host
-  // process has no reason to call, invoked from the test itself. Every test reverts its hooks.
+  // These hook java.lang.Integer.reverse(int), which only the test calls, and revert their hooks.
   describe("registerHooks() / unregisterHooks()", () => {
     // the stack trace limit tells apart which hook's implementation ran
     function setup() {

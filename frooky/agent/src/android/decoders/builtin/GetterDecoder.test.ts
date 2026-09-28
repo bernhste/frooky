@@ -20,21 +20,14 @@ describe("GetterDecoder", () => {
       expect(classProperty?.type).toBe("java.lang.Class");
     });
 
-    it("should decode getClass()'s result via toString(), not by recursing into its own getters (regression)", () => {
-      // Class's own declared getters (getDeclaredMethods(), getFields(), ...) return arrays of
-      // Method/Field/Constructor objects that point straight back to their declaring Class via
-      // getDeclaringClass() - reflecting those via GetterDecoder would recurse without bound and
-      // crash the Frida script ("Fatal error: Script is destroyed") by exhausting the native call
-      // stack. ReferenceTypeDecoder never routes back into GetterDecoder for an unregistered type
-      // like java.lang.Class - it falls back to StringDecoder instead - so this must complete and
-      // return a plain string.
+    it("should decode getClass()'s result via toString(), not by recursing into its own getters", () => {
+      // the getters of Class/Method/Field reference each other endlessly
       const javaObject = JavaObject.$new();
       const result = decoder.decode(javaObject);
 
       const properties = result.value as DecodedValue[];
       const classProperty = properties.find((p) => p.name === "class");
-      // classProperty.value is itself a DecodedValue (ReferenceTypeDecoder always wraps the
-      // inner decoder's result), whose own value is the toString() from the StringDecoder fallback
+      // ReferenceTypeDecoder wraps the result of the StringDecoder fallback
       const nestedValue = classProperty?.value as DecodedValue;
       expect(nestedValue.type).toBe("java.lang.Class");
       expect(typeof nestedValue.value).toBe("string");

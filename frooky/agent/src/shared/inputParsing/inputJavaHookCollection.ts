@@ -73,12 +73,10 @@ export interface InputJavaHookCollection {
   decoderSettings?: InputDecoderSettings;
 }
 
-// Type guard function
 export function isJavaHookScope(hookScopeInput: object): hookScopeInput is InputJavaHookCollection {
   return "javaClass" in hookScopeInput;
 }
 
-// will return a JavaOverload for any form of JavaOverloadInput
 function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSettings): InputOverload {
   return {
     ...overload,
@@ -87,23 +85,8 @@ function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSett
   };
 }
 
-/**
- * Normalizes a single java hook definition into its canonical form.
- *
- * Exported so callers (e.g. the android hook validator) can normalize and validate hooks one at a time,
- * isolating a malformed param declaration on one hook from the rest of the group.
- *
- * Note: Java hooks have no top-level `retType` - the return type is always resolved from Frida's
- * own Java reflection at hook-registration time. An overload may still declare a `retType` decoder
- * settings object (see {@link InputOverload.retType}) to control how that return value is decoded.
- *
- * @param javaClass - The java class the hook belongs to, taken from the enclosing hook group.
- * @param method - The raw hook definition: a plain method name, a `[method, decoderSettings]` tuple, or a detailed declaration.
- * @param hookSettings - The merged hook settings to apply to this hook.
- * @param decoderSettings - The merged decoder settings to apply to this hook's overloads.
- * @returns The normalized hook.
- * @throws If an overload's param declaration is in an unrecognized format.
- */
+// Normalizes one hook with the merged collection settings. Throws on an invalid param, so validators can
+// skip a single hook.
 export function normalizeJavaHook(
   javaClass: string,
   method: InputJavaHook,
@@ -138,16 +121,7 @@ export function normalizeJavaHook(
   };
 }
 
-/**
- * Merges the hook group's own hook/decoder settings with the given base settings and the hard-coded defaults,
- * repairing any invalid values along the way.
- *
- * Exported so callers can obtain the merged settings for a group without normalizing its hooks (which may throw).
- *
- * @param hookCollection - The input java hook group whose settings should be merged.
- * @param settings - The base frooky settings to merge on top of the defaults.
- * @returns The merged, repaired hook and decoder settings.
- */
+// Merges defaults, file settings and the collection's settings, repairing invalid values.
 export function mergeJavaHookCollectionSettings(
   hookCollection: InputJavaHookCollection,
   settings: FrookySettings,
@@ -165,7 +139,6 @@ export function mergeJavaHookCollectionSettings(
   return { hookSettings, decoderSettings };
 }
 
-// normalized hook group
 export function normalizeJavaHookCollection(hookCollection: InputJavaHookCollection, settings: FrookySettings): InputJavaHookCollection {
   const { hookSettings, decoderSettings } = mergeJavaHookCollectionSettings(hookCollection, settings);
 

@@ -13,8 +13,7 @@ import { InputDecoderSettings, InputHookSettings } from "./inputParsing/inputSet
 import { logger } from "./logger";
 
 describe("configValidator", () => {
-  // validateAndRepairFrookySettings() mutates DEFAULT_FROOKY_SETTINGS.hookSettings/.decoderSettings
-  // in place, so every test restores it from this snapshot to stay isolated regardless of run order.
+  // restored after each test, since some tests check that the defaults stay unchanged
   let pristineFrookySettings: FrookySettings;
   let warnSpy: Mock;
 

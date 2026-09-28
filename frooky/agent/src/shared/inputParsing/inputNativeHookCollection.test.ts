@@ -114,10 +114,7 @@ describe("inputNativeHookCollection", () => {
       });
 
       it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
-        // A YAML author only ever writes a *partial* hookSettings/decoderSettings on a hook (e.g.
-        // `hookSettings: { maxStackFrames: 40 }`); the raw config is cast to the input types at
-        // the YAML boundary (see index.frida.ts) without being structurally checked against them,
-        // so this models that real shape rather than the always-complete post-normalize shape.
+        // hook files contain partial settings, e.g. `hookSettings: { maxStackFrames: 40 }`
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
@@ -277,9 +274,7 @@ describe("inputNativeHookCollection", () => {
           type: "native",
           module: "libc.so",
           decoderSettings: { maxDepth: 30 },
-          // A YAML author only ever writes a *partial* decoderSettings on a tuple hook (e.g. `{decoder: "string"}`);
-          // the raw config is cast to the input types at the YAML boundary without being structurally checked
-          // against them, so this models that real shape rather than the always-complete post-normalize shape.
+          // hook files contain partial settings, e.g. `{ decoder: "string" }`
           hooks: [["malloc", { decoder: "string" }] as [string, DecoderSettings]],
         };
 

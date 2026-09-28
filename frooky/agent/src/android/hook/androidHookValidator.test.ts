@@ -94,8 +94,7 @@ describe("AndroidHookValidator", () => {
     });
 
     it("skips a hook whose overload param declaration is in an unrecognized format, without aborting the rest of the group", () => {
-      // A bare number is not a valid InputParam shape (not a string, tuple, or Param object) and
-      // makes normalization throw a plain Error rather than a ZodError - this must still be caught per-hook.
+      // a number is no valid param and makes normalization throw a plain Error, not a ZodError
       const invalidParamHook = {
         javaClass: "com.example.Foo",
         method: "bad",

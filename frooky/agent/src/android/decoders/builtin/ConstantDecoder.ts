@@ -3,15 +3,8 @@ import { Decoder } from "../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { decodeConstantValues } from "../utils/decodeConstants";
 
-/**
- * Decodes a value to the name of the matching `static final` constant declared on the hooked
- * method's own class (e.g. `1` -> `"ENCRYPT_MODE"` for `javax.crypto.Cipher.init(int, Key)`,
- * since `Cipher.ENCRYPT_MODE == 1`), instead of the raw value. Falls back to the raw value when
- * no declared constant of the same type matches, or the declaring class is unknown.
- *
- * Declared constants never change at runtime, so the per-class reflection lookup happens once via
- * {@link decodeConstantValues}'s own cache and is shared across every decoder instance.
- */
+// Decodes a value to the name of the matching constant of the hooked class, e.g. `1` -> `ENCRYPT_MODE` for
+// `Cipher.init(int, Key)`. Falls back to the raw value if no constant of the same type matches.
 export class ConstantDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "ConstantDecoder";
   readonly description =
@@ -30,9 +23,7 @@ export class ConstantDecoder extends Decoder<Java.Wrapper> {
     };
   }
 
-  // Mirrors decodeConstantValues()'s own `int` handling: Frida delivers Java `int`s as signed JS
-  // numbers, while reflection reads them as unsigned (via `>>> 0`) to stay precise for the full
-  // 32-bit range, so the same conversion is needed here for the two to compare equal.
+  // Frida passes `int`s as signed numbers, decodeConstantValues() returns them unsigned (`>>> 0`)
   private normalize(value: Java.Wrapper): unknown {
     return this.type === "int" ? Number(value) >>> 0 : value;
   }

@@ -44,39 +44,13 @@ const FRIDA_FUNDAMENTAL_TYPE_ALIASES: Record<string, FridaFundamentalType> = Obj
     ["float", ["float"]],
     ["double", ["double"]],
   ].flatMap(([fridaType, aliases]) =>
-    // `parseNativeFridaType` always lowercases its input before this table is consulted,
-    // so alias keys must be lowercased too or they're unreachable (e.g. the literal
-    // "_Bool" alias above would otherwise never match).
+    // parseNativeFridaType() lowercases its input
     (aliases as string[]).map((alias) => [alias.toLowerCase(), fridaType as FridaFundamentalType]),
   ),
 );
 
-/**
- * Constructs a {@link FridaReferenceType} representing a C/C++ pointer type from a
- * normalized type string (e.g. `"char*"`, `"unsigned char**"`).
- *
- * The base type (left of the first `*`) is resolved through
- * {@link FRIDA_FUNDAMENTAL_TYPE_ALIASES} to its canonical form. Unknown base types
- * (e.g. structs, `"FILE*"`) have no fundamental decoder to back them, so the whole
- * declaration is treated as unparseable and `undefined` is returned - the caller
- * falls back to decoding the pointer's raw address instead.
- *
- * @param normalizedType - A normalized pointer type string as produced by
- *   {@link parseNativeFridaType}'s own normalization, e.g. `"char*"` or `"unsigned char**"`.
- * @returns A {@link FridaReferenceType} with a resolved `pointee` and a `depth`
- *   equal to the number of indirection levels, or `undefined` if the base type
- *   isn't a known fundamental type.
- *
- * @example
- * createPointerType("char*")
- *   => { pointee: "char", depth: 1 }
- *
- * createPointerType("unsigned char**")
- *   => { pointee: "uchar", depth: 2 }
- *
- * createPointerType("somestruct*")
- *   => undefined
- */
+// Normalized pointer type to its pointee and depth, undefined if the pointee is no fundamental type:
+// "char*" -> { pointee: "char", depth: 1 }, "unsigned char**" -> { pointee: "uchar", depth: 2 }, "FILE*" -> undefined
 function createPointerType(normalizedType: string): FridaReferenceType | undefined {
   const starIndex = normalizedType.indexOf("*");
   const baseType = normalizedType.slice(0, starIndex).trim();
@@ -90,34 +64,10 @@ function createPointerType(normalizedType: string): FridaReferenceType | undefin
   return { pointee, depth };
 }
 
-/**
- * normalizes the input string from the frooky config to the canonical Frida type
- * which are mapped to the types listed in {@link https://frida.re/docs/javascript-api/#nativefunction}
- *
- * @example
- * parseNativeFridaType("char ")
- *   => "char"
- *
- * parseNativeFridaType("const char ")
- *   => "char"
- *
- * parseNativeFridaType(" long long int ")
- *   => "int64"
- *
- * parseNativeFridaType("_Bool")
- *   => "bool"
- *
- * parseNativeFridaType("boolean")
- *   => "bool"
- *
- * parseNativeFridaType(" char ** ")
- *   => { pointee: "char", depth: 2 }
- *
- */
+// Declared C type to a Frida type (https://frida.re/docs/javascript-api/#nativefunction), undefined if unknown:
+// "const char" -> "char", "long long int" -> "int64", "_Bool" -> "bool", " char ** " -> { pointee: "char", depth: 2 }
 export function parseNativeFridaType(type: string): FridaFundamentalType | FridaReferenceType | undefined {
-  // basic normalization: strip `const`/`volatile` qualifiers wherever they appear
-  // (leading, trailing, or between indirection levels - e.g. "char* const") and
-  // collapse whitespace around `*` so pointer depth can be counted reliably.
+  // drop `const`/`volatile` anywhere (e.g. "char* const") and the whitespace around `*`
   const normalized = type
     .trim()
     .toLowerCase()
@@ -127,10 +77,8 @@ export function parseNativeFridaType(type: string): FridaFundamentalType | Frida
     .trim();
 
   if (normalized.endsWith("*")) {
-    // type pointer
     return createPointerType(normalized);
   }
-  // type fundamental
   return FRIDA_FUNDAMENTAL_TYPE_ALIASES[normalized];
 }
 

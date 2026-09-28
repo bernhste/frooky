@@ -24,15 +24,14 @@ export const DEFAULT_FROOKY_SETTINGS: FrookySettings = {
 
 export const DEFAULT_SETTING_LOG_LEVEL = "info";
 export const DEFAULT_SETTING_LOG_TO = "console";
-// time we wait until we give up hooking a class we cannot resovle.
+// how long a class or module is looked up before its hooks fail
 export const DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS = 5;
 
-// specifies the interval between cached events are send back to the host
+// interval for sending cached events to the host
 export const SEND_INTERVAL_MS = 100;
 
-// the minimum interval between two hook resolving progress reports to the host
+// minimum interval between two progress reports to the host
 export const PROGRESS_INTERVAL_MS = 250;
 
-// specifies the interval during frida module and classes lookup
-// we wait this manyt ms befor anoter attemnt is made to resolve unhooked classes
+// interval between two lookups of a class or module that isn't loaded yet
 export const HOOK_LOOKUP_INTERVAL_MS = 1000;

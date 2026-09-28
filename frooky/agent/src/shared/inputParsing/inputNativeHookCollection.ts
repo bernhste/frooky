@@ -70,7 +70,7 @@ export type InputNativeHookNormalized = InputNativeSymbolHook | InputNativeOffse
 export type InputNativeHook = string | [string, DecoderSettings] | InputNativeHookNormalized;
 
 /**
- * Collection of hooks on functions exported by one native module.
+ * Collection of hooks on functions of one native module.
  *
  * @public
  * @discriminator {type}
@@ -92,25 +92,12 @@ export interface InputNativeHookCollection {
   decoderSettings?: InputDecoderSettings;
 }
 
-// Type guard function
 export function isNativeHookCollection(inputHookScope: object): inputHookScope is InputNativeHookCollection {
   return "module" in inputHookScope && !("javaClass" in inputHookScope) && !("objcClass" in inputHookScope);
 }
 
-/**
- * Normalizes a single native hook definition into its canonical form.
- *
- * Exported so callers (e.g. the native hook validator) can normalize and validate hooks one at a time,
- * isolating a malformed param/retType declaration on one hook from the rest of the group.
- *
- * @param inputHook - The raw hook definition: a plain symbol string, a `[symbol, decoderSettings]` tuple, or a detailed declaration.
- * @param moduleName - The module the hook belongs to, taken from the enclosing hook group.
- * @param hookSettings - The merged hook settings to apply to this hook.
- * @param decoderSettings - The merged decoder settings to apply to this hook's params/retType.
- * @returns The normalized hook.
- * @throws If a param or retType declaration is in an unrecognized format, the hook doesn't have exactly one of
- *   `symbol` or `offset`, or the `offset` is invalid.
- */
+// Normalizes one hook with the merged collection settings. Throws on an invalid param, retType or offset, or
+// unless exactly one of `symbol` and `offset` is set, so validators can skip a single hook.
 export function normalizeNativeHook(
   inputHook: InputNativeHook,
   moduleName: string,
@@ -158,16 +145,8 @@ export function normalizeNativeHook(
   };
 }
 
-/**
- * Normalizes a `offset` to a lowercase hex string such as `"0x1a2b4"`.
- *
- * YAML parses an unquoted `0x1a2b4` into a number, so numbers are accepted as they are. Strings must start
- * with `0x`: without it, `"1234"` could be meant as hex (as disassemblers show addresses) or as decimal.
- *
- * @param offset - The offset as declared in the hook file.
- * @returns The offset as a lowercase `0x`-prefixed hex string.
- * @throws If the offset is negative, not an integer, or a string that is not `0x`-prefixed hex.
- */
+// e.g. `0x1A2B4` or 107188 -> `"0x1a2b4"`. YAML parses unquoted `0x1a2b4` as a number. Strings need `0x`, since
+// `"1234"` could be meant as hex or decimal.
 export function normalizeModuleOffset(offset: string | number): string {
   if (typeof offset === "number") {
     if (!Number.isSafeInteger(offset) || offset < 0) {
@@ -183,25 +162,14 @@ export function normalizeModuleOffset(offset: string | number): string {
   return `0x${match[1].replace(/^0+(?=.)/, "").toLowerCase()}`;
 }
 
-/**
- * Names a native hook target for log messages: `libfoo.so!open` for a symbol, `libfoo.so+0x1a2b4` for a module offset.
- */
+// e.g. `libfoo.so!open` or `libfoo.so+0x1a2b4`
 export function describeNativeTarget(module: string, target: { symbol?: string; offset?: string | number }): string {
   if (target.symbol !== undefined) return `${module}!${target.symbol}`;
   const offset = typeof target.offset === "number" ? `0x${target.offset.toString(16)}` : target.offset;
   return `${module}+${offset}`;
 }
 
-/**
- * Merges the hook group's own hook/decoder settings with the given base settings and the hard-coded defaults,
- * repairing any invalid values along the way.
- *
- * Exported so callers can obtain the merged settings for a group without normalizing its hooks (which may throw).
- *
- * @param hookCollection - The input native hook group whose settings should be merged.
- * @param settings - The base frooky settings to merge on top of the defaults.
- * @returns The merged, repaired hook and decoder settings.
- */
+// Merges defaults, file settings and the collection's settings, repairing invalid values.
 export function mergeNativeHookCollectionSettings(
   hookCollection: InputNativeHookCollection,
   settings: FrookySettings,
@@ -219,16 +187,6 @@ export function mergeNativeHookCollectionSettings(
   return { hookSettings, decoderSettings };
 }
 
-/**
- * Normalizes the hook group by merging default decoder and hook settings with optional settings provided on the hook and decoder level,
- *
- * If no settings are set, the default settings will be set.
- *
- * Then each hook, parameter and return types are normalized by using objects such as InputNativeHookNormalized or Param only.
- *
- * @param hookCollection - The input native hook group to normalize.
- * @returns A new `InputNativeHookCollection` with merged settings and normalized hooks.
- */
 export function normalizeNativeHookCollection(hookCollection: InputNativeHookCollection, settings: FrookySettings): InputNativeHookCollection {
   const { hookSettings, decoderSettings } = mergeNativeHookCollectionSettings(hookCollection, settings);
 

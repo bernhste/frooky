@@ -54,9 +54,7 @@ describe("ArrayDecoder", () => {
     });
 
     it("decodes an array of reference-type elements by delegating to a decoder resolved per element", () => {
-      // java.lang.Object has no registered class/interface decoder, so each element goes through
-      // ReferenceTypeDecoder's ToStringDecoder fallback (see ReferenceTypeDecoder.test.ts branch 7) -
-      // this is the array-of-complex-objects case ArrayDecoder's own element-resolution branch exists for.
+      // java.lang.Object elements are decoded via ReferenceTypeDecoder's toString() fallback
       const JavaObject = Java.use("java.lang.Object");
       const objA = JavaObject.$new();
       const objB = JavaObject.$new();
@@ -73,10 +71,8 @@ describe("ArrayDecoder", () => {
       ]);
     });
 
-    it("decodes a nested array by resolving another ArrayDecoder for the element type (regression)", () => {
-      // the JNI-style element signature for an int[][] element is itself "[I" - elementTypeFromSignature()
-      // must keep it as-is (rather than trying to map it like a primitive/object signature) so
-      // JavaDecoderResolver routes back into ArrayDecoder for the inner dimension.
+    it("decodes a nested array by resolving another ArrayDecoder for the element type", () => {
+      // the element type of int[][] is "[I"
       const inner1 = Java.array("int", [1, 2]);
       const inner2 = Java.array("int", [3, 4]);
       const nested = Java.array("[I", [inner1, inner2]);

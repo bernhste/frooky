@@ -5,8 +5,7 @@
 type BacktraceWithOptions = (context: CpuContext, options: { backtracer: Backtracer; limit: number }) => NativePointer[];
 const backtrace = Thread.backtrace as unknown as BacktraceWithOptions;
 
-// DebugSymbol.fromAddress() is by far the most expensive part of a native stack trace (~35 us per
-// frame), and the same return addresses show up in trace after trace
+// DebugSymbol.fromAddress() takes ~35 us per frame, and the same return addresses recur
 const MAX_CACHED_SYMBOLS = 10_000;
 const symbolCache = new Map<string, string>();
 
@@ -22,14 +21,11 @@ function formatNativeFrame(address: NativePointer): string {
   return frame;
 }
 
-/**
- * Up to `limit` native frames of the call that `ctx` was captured at (an Interceptor callback's
- * `this.context`), innermost first. Returns no frames if the stack can't be walked.
- */
+// Up to `limit` native frames at `ctx` (an Interceptor callback's `this.context`), innermost first.
 export function nativeStackFrames(ctx: CpuContext, limit: number): string[] {
   try {
-    // the accurate backtracer returns only real frames, the fuzzy one also stack values that just look
-    // like return addresses; it's only the fallback for code without unwind information
+    // FUZZY also returns stack values that only look like return addresses, so it's only the fallback for
+    // code without unwind information
     let frames = backtrace(ctx, { backtracer: Backtracer.ACCURATE, limit });
     if (frames.length === 0) frames = backtrace(ctx, { backtracer: Backtracer.FUZZY, limit });
     return frames.map(formatNativeFrame);

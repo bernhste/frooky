@@ -5,23 +5,17 @@ import { DecoderSettings } from "../../../shared/frookySettings";
 import { JavaDecoderResolver } from "../javaDecoderResolver";
 import { logger } from "../../../shared/logger";
 
-// java.lang.reflect.Modifier bit values (stable since Java 1.1), avoids a Java.use() just for these
+// java.lang.reflect.Modifier bits
 const MODIFIER_PUBLIC = 0x1;
 const MODIFIER_STATIC = 0x8;
 
 type JavaMethodDescriptor = { methodName: string; propertyName: string };
 
-// Keyed by `${className}#${prefixes}` since a class's declared methods never change at runtime, so
-// the matching method names are reflected once and shared across every decode call that requests
-// the same class/prefixes combination.
+// getters per `${className}#${prefixes}`
 const methodDescriptorCache = new Map<string, JavaMethodDescriptor[]>();
 
-/**
- * Reflects the names of `className`'s public, non-static, zero-argument methods (getters like
- * `getName()`, `isEnabled()` - never a method that takes arguments) whose name starts with one of
- * `prefixes` (e.g. `["get", "is"]`). The matched prefix is always removed and the next character
- * lowercased to produce a property-style name (e.g. "getKeySize" -> "keySize").
- */
+// The public, non-static, zero-argument methods of `className` starting with one of `prefixes`, with their
+// property name, e.g. `["get", "is"]`: `getKeySize` -> `keySize`, `isEnabled` -> `enabled`.
 function getPublicNonArgumentMethodNames(className: string, prefixes: string[]): JavaMethodDescriptor[] {
   const cacheKey = `${className}#${prefixes.join(",")}`;
   const cached = methodDescriptorCache.get(cacheKey);
@@ -53,20 +47,13 @@ function getPublicNonArgumentMethodNames(className: string, prefixes: string[]):
   return descriptors;
 }
 
-/**
- * Invokes every matching getter on `instance`'s runtime class, decoding each return value with
- * {@link JavaDecoderResolver} under its prefix-stripped property name. `instance` is re-cast to its
- * own runtime class first since its existing JS dispatcher table can be narrower than `$className`
- * (e.g. a declared supertype), which would otherwise resolve every lookup below to `undefined`. A
- * getter can still fail to invoke (unset property, hidden-API policy, missing on this API level) -
- * every such failure is decoded as `null` for that property rather than aborting the whole call.
- * `settings` are the settings to decode the properties with, i.e. the child settings of the
- * {@link RecursiveDecoder} that owns `instance`.
- */
+// Calls every matching getter of `instance` and decodes the results with `settings` (the child settings of
+// the calling decoder). A getter that throws (hidden API, missing on this API level, ...) is decoded as null.
 export function decodeGetterValues(instance: Java.Wrapper, prefixes: string[], settings: DecoderSettings): DecodedValue[] {
   const descriptors = getPublicNonArgumentMethodNames(instance.$className, prefixes);
   const values: DecodedValue[] = [];
 
+  // the wrapper can be typed as a supertype without these getters
   const typedInstance = Java.cast(instance, Java.use(instance.$className));
 
   for (const { methodName, propertyName } of descriptors) {

@@ -47,6 +47,11 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 - Python: ruff, double quotes, `from __future__ import annotations`. Host unit tests live in `tests/unit/` and mirror the module layout.
 - TypeScript: Prettier (`.prettierrc`); tests sit next to the code as `*.test.ts`.
 - Docs: Markdown in `docs/` with markdownlint (`.markdownlint.json`). Every hook-file feature has an example in `docs/examples/` with a `# Docs:` link to the upstream API.
+- Code comments:
+  - Only comment what the code doesn't say itself: why, non-obvious constraints, units, formats. No comments that restate the next line (`// decode the return value`) and no commented-out code.
+  - Describe the current behavior. Never reference old behavior, fixed bugs or how the code got there ("used to", "regression", "previously", "instead of the old ..."), and leave that out of test names too. Bugfix context belongs in the commit message.
+  - Keep it short and technical, usually one or two lines. Give an example when it's clearer than prose, e.g. `` // e.g. `libfoo.so!open` or `libfoo.so+0x1a2b4` ``.
+  - TypeScript: use plain `//` comments above functions, types and fields. JSDoc (`/** */`) only for the public hook-file input types (`frookyConfig.ts`, `frookyMetadata.ts`, `frookySettings.ts`, `decoders/decodable.ts`, `inputParsing/input*.ts`), which document the YAML format. There, no `@param`/`@returns` blocks either.
 - Output events are NDJSON; each line is a JSON **array** (a batch of events), not a single object. See `docs/output.md`.
 
 ## Debugging

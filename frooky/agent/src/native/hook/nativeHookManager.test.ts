@@ -8,9 +8,7 @@ import { NativeHook } from "./nativeHook";
 import { NativeHookEvent } from "./nativeHookEvent";
 import { NativeHookManager } from "./nativeHookManager";
 
-// resolveHooks() only resolves module/symbol addresses, it never installs an implementation
-// (that's registerHooks()'s job), so it's safe to run against real, always-loaded libc.so exports
-// (malloc/free/atoi) without risking side effects on the host process - mirrors androidHookManager.test.ts.
+// resolveHooks() installs nothing, so it can run against always-loaded libc.so exports like malloc
 const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
 // kept alive for the whole file: the Interceptor may still touch a function after detach()
@@ -84,8 +82,7 @@ describe("NativeHookManager", () => {
     it("returns null when the module does not exist", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
-      // timeout 0, see androidHookManager.test.ts's equivalent case for why - this only cares
-      // that an unresolved module surfaces as null, not how many attempts were made.
+      // timeout 0: fail after the first lookup instead of polling
       const results = await Promise.all(await manager.resolveHooks([nativeHook("libDoesNotExist.so", "foo")], 0));
 
       expect(results).toEqual([null]);
@@ -100,10 +97,7 @@ describe("NativeHookManager", () => {
     });
 
     it("resolves the module once and shares that same Module instance across every hook that references it", async () => {
-      // Process.getModuleByName is a read-only native property here, so it can't be spied on -
-      // instead this asserts on the module-caching itself: resolveHooks() creates one modulePromise
-      // per unique module name and every hook in that group awaits the very same promise, so a
-      // single resolution must produce reference-identical Module instances across hooks.
+      // Process.getModuleByName can't be spied on, so this checks that both hooks get the same Module instance
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
       const results = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "malloc"), nativeHook("libc.so", "free")], 5));
@@ -126,10 +120,7 @@ describe("NativeHookManager", () => {
     it("resolves one group as null without aborting the sibling group when only one module fails to resolve", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
-      // The timeout is shared across every module in the batch (it's a single argument to
-      // resolveHooks()), so it can't be 0 here the way the "module does not exist" case above
-      // uses it - a 0s deadline never lets the poll loop attempt even the real, already-loaded
-      // libc.so module once (see pollUntilResolved()), which would fail this test for the wrong reason.
+      // the timeout applies to all modules of the batch, so it isn't 0 like above
       const results = await Promise.all(await manager.resolveHooks([nativeHook("libDoesNotExist.so", "foo"), nativeHook("libc.so", "malloc")], 1));
 
       expect(results.length).toBe(2);

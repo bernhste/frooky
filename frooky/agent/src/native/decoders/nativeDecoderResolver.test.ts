@@ -16,8 +16,7 @@ describe("NativeDecoderResolver", () => {
     it("should decode a fundamental type alias using its canonical decoder, while echoing back the declared type string", () => {
       const decoder = NativeDecoderResolver.resolveDecoder({ type: "unsigned int", settings: DEFAULT_DECODER_SETTINGS });
       expect(decoder instanceof NativeValueDecoder).toBeTruthy();
-      // "unsigned int" isn't a FridaFundamentalType key itself - it's resolved through the
-      // alias table to "uint" for decoding, but the declared string is what's echoed back.
+      // "unsigned int" is decoded as "uint", but the declared type is returned
       expect(decoder.decode(ptr(0xffff))).toEqual({ type: "unsigned int", value: 65535 });
     });
 

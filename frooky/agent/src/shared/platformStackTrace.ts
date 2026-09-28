@@ -7,10 +7,10 @@ export interface PlatformStackTrace {
   build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): HookStackTrace;
 }
 
-// compiled once per stackTraceFilter array, which the hook settings keep for the lifetime of a hook
+// per stackTraceFilter array, which lives as long as its hook
 const filterCache = new WeakMap<string[], RegExp[]>();
 
-/** The stackTraceFilter patterns as regular expressions (validated when the hook file is loaded). */
+// patterns are validated when the hook file is loaded
 export function compileStackTraceFilter(stackTraceFilter: string[]): RegExp[] {
   let regExps = filterCache.get(stackTraceFilter);
   if (regExps === undefined) {

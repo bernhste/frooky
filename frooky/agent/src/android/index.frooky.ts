@@ -16,9 +16,8 @@ function initializedFrookyAgent(): FrookyAgent {
   return frookyAgent;
 }
 
-// RPC calls run on Frida's JS thread. In spawn mode the host resumes the app only after loadFrookyConfigs(),
-// so native hooks and hooks on framework classes are installed before any app code runs. Lookups of app
-// classes wait for Java.perform(), i.e. the app's class loader, see FrookyAgent.targetReady.
+// RPC calls run on Frida's JS thread. In spawn mode the host resumes the app after loadFrookyConfigs(), so
+// native and framework hooks are installed before app code runs. App classes wait for FrookyAgent.targetReady.
 rpc.exports = {
   initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
     if (!Java.available) {
@@ -35,20 +34,19 @@ rpc.exports = {
       logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
       logTo ?? DEFAULT_SETTING_LOG_TO,
       resolverTimeoutSeconds ?? DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
-      // an object payload, which the host tells apart from the event batches (arrays)
+      // objects, unlike event batches (arrays)
       (progress) => send({ frooky: "progress", ...progress }),
       new Promise((resolve) => Java.perform(() => resolve())),
     );
-    // an object payload like the progress report; the host shows it when the process terminates
     frookyAgent.reportCrashes((crash) => send({ frooky: "crash", ...crash }));
   },
-  // configIds (index-aligned, e.g. the hook file paths) let later updateFrookyConfig() calls replace a config
+  // configIds (index-aligned hook file paths) identify the configs for updateFrookyConfig()
   loadFrookyConfigs(frookyConfigs: InputFrookyConfig[], configIds?: string[]) {
     initializedFrookyAgent()
       .loadFrookyConfigs(frookyConfigs, configIds)
       .catch((e) => console.error(`Error loading frooky configs: ${String(e)}`));
   },
-  // replaces the config loaded under configId, re-hooking only what changed; retryFailed also retries hooks that failed to resolve
+  // replaces the config loaded under configId, re-hooking only what changed
   updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig, retryFailed?: boolean) {
     initializedFrookyAgent()
       .loadFrookyConfig(frookyConfig, configId, retryFailed ?? false)

@@ -22,8 +22,7 @@ describe("planArgSlots", () => {
   });
 
   it("indexes int/pointer-class params in their own sequence, independent of float/double params", () => {
-    // f(int a, double b, int c, float d, int e): a=int0, b=float0, c=int1, d=float1, e=int2 -
-    // c and e must NOT get int-lane indices 2 and 4 just because that's their raw position.
+    // f(int a, double b, int c, float d, int e): a=int0, b=float0, c=int1, d=float1, e=int2
     const slots = planArgSlots([param("int"), param("double"), param("int"), param("float"), param("int")]);
     expect(slots).toEqual([
       { kind: "int", argIndex: 0 },
@@ -71,8 +70,7 @@ describe("usesSeparateFloatRegisterFile", () => {
   });
 
   it("is false for 32-bit x86, even though Ia32CpuContext also exposes xmm0-7", () => {
-    // cdecl never routes a scalar float/double argument through xmm - only rax (x64) or x0
-    // (arm64) count as genuinely having an independent float register lane.
+    // cdecl passes float/double arguments on the stack, not in xmm registers
     const context = { eax: ptr(0), xmm0: xmmBufferFor(1, 4) } as unknown as CpuContext;
     expect(usesSeparateFloatRegisterFile(context)).toBe(false);
   });

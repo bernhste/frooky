@@ -101,8 +101,7 @@ describe("NativeReferenceDecoder", () => {
 
     it("should decode int64 as a decimal string to preserve full precision", () => {
       const scratch = Memory.alloc(8);
-      // -(2^53 + 1), outside the safe JS integer range - built from a string so the
-      // test value itself isn't rounded before it even reaches the decoder.
+      // -(2^53 + 1), outside the safe JS integer range
       scratch.writeS64(int64("-9007199254740993"));
       expect(makeDecoder("int64").decode(scratch)).toEqual({ type: "int64*", value: "-9007199254740993" });
     });
@@ -157,7 +156,7 @@ describe("NativeReferenceDecoder", () => {
       expect(result).toEqual({ type: "void*", value: "0x41424344" });
     });
 
-    it("should decode void* using a decimal-string length arg (size_t-typed length regression)", () => {
+    it("should decode void* using a decimal-string length arg (64-bit size_t)", () => {
       const scratch = Memory.alloc(4);
       scratch.writeByteArray([0x41, 0x42, 0x43, 0x44]);
       const result = makeDecoder("void").decode(scratch, decodedArg("4"));

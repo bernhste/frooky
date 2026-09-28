@@ -17,8 +17,7 @@ const readWord = (input: NativePointer, signed: boolean): number | string => {
   return signed ? input.readS64().toString() : input.readU64().toString();
 };
 
-// Reads a buffer of `length` bytes, at most `maxItems` of them, as a hex string. A buffer longer than
-// `maxItems` ends with "...".
+// Up to `maxItems` of `length` bytes as hex, ending with "..." if truncated.
 const readHex = (input: NativePointer, length: number, maxItems: number): string | null => {
   const rawBytes = input.readByteArray(Math.min(length, maxItems));
   if (rawBytes === null) return null;
@@ -27,8 +26,7 @@ const readHex = (input: NativePointer, length: number, maxItems: number): string
 
 const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
   void: (input, setting, arg) => {
-    // TODO: should be generalized to be usable by other reference decoders (char *, int8....)
-    // for now, we assume, that the first argument is the length of the array as an int
+    // only decoded (as hex) with a decoderArg, the buffer length
     try {
       if (arg) {
         const length = parseLengthArgValue(arg.value);
@@ -67,16 +65,14 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
   uint16: (input) => input.readU16(),
   int: (input) => input.readS32(),
   int32: (input) => input.readS32(),
-  // ssize_t/long are signed and pointer/word-sized: 4 bytes on ILP32 targets, 8 bytes on LP64 targets.
+  // pointer-sized: 4 bytes on 32-bit, 8 bytes on 64-bit targets
   ssize_t: (input) => readWord(input, true),
   long: (input) => readWord(input, true),
   uint: (input) => input.readU32(),
   uint32: (input) => input.readU32(),
-  // size_t/ulong are unsigned and pointer/word-sized, same reasoning as above.
   size_t: (input) => readWord(input, false),
   ulong: (input) => readWord(input, false),
-  // Returned as decimal strings: a JS number only carries 53 bits of integer
-  // precision, which a genuine 64-bit value can exceed.
+  // 64-bit values are decimal strings, a JS number has only 53 bits of precision
   int64: (input) => input.readS64().toString(),
   uint64: (input) => input.readU64().toString(),
   float: (input) => input.readFloat(),
