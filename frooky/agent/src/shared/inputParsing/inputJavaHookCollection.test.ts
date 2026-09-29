@@ -252,24 +252,22 @@ describe("inputJavaHookCollection", () => {
         expect(hook.overloads?.[0].retType).toBeUndefined();
       });
 
-      // the native forms `retType: type` and `retType: [type, decoderSettings]` are accepted, the type is ignored
-      describe("accepts the native retType forms too, ignoring the type", () => {
-        it("accepts a plain type string, which has nothing to merge", () => {
-          const hookCollection: InputJavaHookCollection = {
+      describe("rejects type declarations in retType", () => {
+        it("rejects a plain type string", () => {
+          const hookCollection = {
             type: "java",
             javaClass: "com.example.Foo",
             decoderSettings: { maxDepth: 30 },
             hooks: [{ javaClass: "com.example.Foo", method: "bar", overloads: [{ params: ["int"], retType: "int" }] }],
           };
 
-          const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
-          const hook = result.hooks[0] as InputJavaHookNormalized;
-
-          expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 30 });
+          expect(() => normalizeJavaHookCollection(hookCollection as unknown as InputJavaHookCollection, defaultSettings)).toThrow(
+            "Unrecognized InputRetTypeSettings format",
+          );
         });
 
-        it("accepts a [type, decoderSettings] tuple, keeping only the settings", () => {
-          const hookCollection: InputJavaHookCollection = {
+        it("rejects a [type, decoderSettings] tuple", () => {
+          const hookCollection = {
             type: "java",
             javaClass: "com.example.Foo",
             hooks: [
@@ -281,14 +279,13 @@ describe("inputJavaHookCollection", () => {
             ],
           };
 
-          const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
-          const hook = result.hooks[0] as InputJavaHookNormalized;
-
-          expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "myDecoder" });
+          expect(() => normalizeJavaHookCollection(hookCollection as unknown as InputJavaHookCollection, defaultSettings)).toThrow(
+            "Unrecognized InputRetTypeSettings format",
+          );
         });
 
-        it("accepts a normalized RetType object ({ type, settings }), keeping only the settings", () => {
-          const hookCollection: InputJavaHookCollection = {
+        it("rejects an object with a type property", () => {
+          const hookCollection = {
             type: "java",
             javaClass: "com.example.Foo",
             hooks: [
@@ -300,10 +297,9 @@ describe("inputJavaHookCollection", () => {
             ],
           };
 
-          const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
-          const hook = result.hooks[0] as InputJavaHookNormalized;
-
-          expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "myDecoder" });
+          expect(() => normalizeJavaHookCollection(hookCollection as unknown as InputJavaHookCollection, defaultSettings)).toThrow(
+            "Unrecognized InputRetTypeSettings format",
+          );
         });
       });
 

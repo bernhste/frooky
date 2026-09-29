@@ -6,24 +6,24 @@ import { inputParamSchema, inputRetTypeSettingsSchema } from "./inputDecodableTy
 import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputSettings.zod";
 
 export const inputOverloadSchema = z.object({
-  params: z.array(inputParamSchema),
-  retType: inputRetTypeSettingsSchema.optional(),
+    params: z.array(inputParamSchema),
+    retType: inputRetTypeSettingsSchema.optional()
 });
 
 export const inputJavaHookNormalizedSchema = z.object({
-  javaClass: z.string(),
-  method: z.string(),
-  overloads: z.array(inputOverloadSchema).optional(),
-  hookSettings: hookSettingsSchema.optional(),
-  decoderSettings: decoderSettingsSchema.optional(),
+    javaClass: z.string(),
+    method: z.string(),
+    overloads: z.array(inputOverloadSchema).optional(),
+    hookSettings: hookSettingsSchema.optional(),
+    decoderSettings: decoderSettingsSchema.optional()
 });
 
 export const inputJavaHookSchema = z.union([z.string(), z.tuple([z.string(), decoderSettingsSchema]), inputJavaHookNormalizedSchema]);
 
 export const inputJavaHookCollectionSchema = z.object({
-  type: z.literal("java"),
-  javaClass: z.string(),
-  hooks: z.array(inputJavaHookSchema),
-  hookSettings: inputHookSettingsSchema.optional(),
-  decoderSettings: inputDecoderSettingsSchema.optional(),
+    type: z.literal("java"),
+    javaClass: z.string(),
+    hooks: z.array(inputJavaHookSchema),
+    hookSettings: inputHookSettingsSchema.optional(),
+    decoderSettings: inputDecoderSettingsSchema.optional()
 });

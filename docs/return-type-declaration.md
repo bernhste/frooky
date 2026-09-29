@@ -52,4 +52,4 @@ If you also want to customize how the return value is decoded, see [Decoders for
 
 ### Java Return Types
 
-In Java, the method signature can be retrieved at runtime, so you never declare the return type itself. If you want to customize how the return value is decoded, see [Decoders for Return Types](./decoders.md#decoders-for-return-types).
+In Java, the method signature can be retrieved at runtime, so you never declare the return type itself. To customize how the return value is decoded, `retType` accepts only decoder settings (e.g. `retType: { decoder: string }`). See [Decoders for Return Types](./decoders.md#decoders-for-return-types).

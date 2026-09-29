@@ -2,7 +2,7 @@ import { validateAndRepairDecoderSettings } from "../configValidator";
 import { Direction, Param, Decodable as RetType } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_DECODE_AT } from "../defaultValues";
 import { DecoderSettings } from "../frookySettings";
-import { InputParamSettings } from "./inputSettings";
+import { InputDecoderSettings, InputParamSettings } from "./inputSettings";
 
 /**
  * A parameter in a hook file, normalized to a {@link Param}.
@@ -59,6 +59,9 @@ function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSetting
 
 // Throws unless every `decoderArg` names exactly one other parameter of the list.
 export function normalizeInputParams(inputs: InputParam[], decoderSettings?: DecoderSettings): Param[] {
+  if (!Array.isArray(inputs)) {
+    throw new Error(`Expected 'params' to be an array, but received ${inputs === undefined ? "undefined" : typeof inputs}.`);
+  }
   const params = inputs.map((input) => normalizeInputParam(input, decoderSettings));
   validateDecoderArgs(params);
   return params;
@@ -117,36 +120,22 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings?: Dec
 }
 
 /**
- * The return value's decoder settings of a Java overload. The return type comes from reflection, so a type
- * given in the {@link InputRetType} forms is ignored.
+ * Decoder settings for the return value of a Java overload. The return type comes from reflection,
+ * so no type is declared.
  *
- * | Case | Form                      | Example                                      |
- * |------|---------------------------|----------------------------------------------|
- * | 1    | Type only                 | `"int"`                                      |
- * | 2    | Type + settings           | `["int", { maxItems: 10 }]`                  |
- * | 3    | Object                    | `{ type: "int", settings: { maxDepth: 5 } }` |
- * | 4    | Decoder settings only     | `{ maxDepth: 5 }`                            |
+ * | Form                  | Example           |
+ * |-----------------------|-------------------|
+ * | Decoder settings only | `{ maxDepth: 5 }` |
  *
  * @public
  */
-export type InputRetTypeSettings = InputRetType | Partial<DecoderSettings>;
+export type InputRetTypeSettings = InputDecoderSettings;
 
 export function normalizeInputRetTypeSettings(input: InputRetTypeSettings, decoderSettings?: DecoderSettings): DecoderSettings {
   const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
 
-  // Case 1: Type only - "int"
-  if (typeof input === "string") {
-    return validateAndRepairDecoderSettings(mergedSettings);
-  } else if (Array.isArray(input)) {
-    // Case 2: Type + settings - ["int", { maxItems: 10 }]
-    const [, inlineSettings] = input as [string, Partial<DecoderSettings>];
-    return validateAndRepairDecoderSettings({ ...mergedSettings, ...inlineSettings });
-  } else if (typeof input === "object" && "type" in input) {
-    // Case 3: Object - { type: "int", settings: {...} }
-    return validateAndRepairDecoderSettings({ ...mergedSettings, ...(input as RetType).settings });
-  } else if (typeof input === "object") {
-    // Case 4: Decoder settings only - { maxItems: 10 }
-    return validateAndRepairDecoderSettings({ ...mergedSettings, ...(input as Partial<DecoderSettings>) });
+  if (typeof input === "object" && input !== null && !Array.isArray(input) && !("type" in input)) {
+    return validateAndRepairDecoderSettings({ ...mergedSettings, ...input });
   }
   throw new Error(`Unrecognized InputRetTypeSettings format: ${JSON.stringify(input)}`);
 }

@@ -56,6 +56,10 @@ describe("inputDecodableTypes", () => {
     it("should throw for an object without a type", () => {
       expect(() => normalizeInputParams([{ name: "action" } as unknown as Param])).toThrow("Unrecognized InputParam format");
     });
+
+    it("should throw when inputs is not an array", () => {
+      expect(() => normalizeInputParams(undefined as unknown as Param[])).toThrow("Expected 'params' to be an array");
+    });
   });
 
   describe("normalizeInputParams(), settings precedence", () => {
@@ -135,20 +139,23 @@ describe("inputDecodableTypes", () => {
       });
     });
 
-    it("ignores a plain type string, falling back to the base settings", () => {
-      expect(normalizeInputRetTypeSettings("int", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30 })).toEqual({
-        ...DEFAULT_DECODER_SETTINGS,
-        maxDepth: 30,
-      });
+    it("rejects a plain type string", () => {
+      expect(() => normalizeInputRetTypeSettings("int" as unknown as InputRetTypeSettings)).toThrow(
+        "Unrecognized InputRetTypeSettings format",
+      );
     });
 
-    it("ignores the type in a [type, decoderSettings] tuple, keeping only the settings", () => {
-      expect(normalizeInputRetTypeSettings(["int", { maxItems: 10 }])).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 10 });
+    it("rejects a [type, decoderSettings] tuple", () => {
+      expect(() => normalizeInputRetTypeSettings(["int", { maxItems: 10 }] as unknown as InputRetTypeSettings)).toThrow(
+        "Unrecognized InputRetTypeSettings format",
+      );
     });
 
-    it("ignores the type in a normalized RetType object, keeping only the settings", () => {
-      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true } };
-      expect(normalizeInputRetTypeSettings(retType)).toEqual({ ...DEFAULT_DECODER_SETTINGS, hashCode: true });
+    it("rejects an object with a type property", () => {
+      const retType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true } };
+      expect(() => normalizeInputRetTypeSettings(retType as unknown as InputRetTypeSettings)).toThrow(
+        "Unrecognized InputRetTypeSettings format",
+      );
     });
   });
 });

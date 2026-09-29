@@ -16,7 +16,7 @@ export interface InputOverload {
   params: InputParam[];
 
   /**
-   * Decoder settings for the return value. The return type is resolved via reflection; a declared type is ignored.
+   * Decoder settings for the return value. The return type is resolved via reflection; no type is declared.
    */
   retType?: InputRetTypeSettings;
 }

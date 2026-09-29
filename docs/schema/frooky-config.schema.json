@@ -265,86 +265,37 @@
                                 }
                               },
                               "retType": {
-                                "anyOf": [
-                                  {
-                                    "anyOf": [
-                                      {
-                                        "type": "string"
-                                      },
-                                      {
-                                        "type": "array",
-                                        "items": [
-                                          {
-                                            "type": "string"
-                                          },
-                                          {
-                                            "type": "object",
-                                            "properties": {
-                                              "maxDepth": {
-                                                "type": "number",
-                                                "minimum": 1
-                                              },
-                                              "maxItems": {
-                                                "type": "number",
-                                                "minimum": 1
-                                              },
-                                              "hashCode": {
-                                                "type": "boolean"
-                                              },
-                                              "decoder": {
-                                                "type": "string"
-                                              },
-                                              "decoderArg": {
-                                                "type": "string"
-                                              },
-                                              "argFilter": {
-                                                "type": "array",
-                                                "items": {
-                                                  "type": "string"
-                                                }
-                                              }
-                                            }
-                                          }
-                                        ],
-                                        "additionalItems": false,
-                                        "minItems": 2,
-                                        "maxItems": 2
-                                      },
-                                      {}
-                                    ]
+                                "type": "object",
+                                "properties": {
+                                  "maxDepth": {
+                                    "type": "number",
+                                    "minimum": 1
                                   },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "maxDepth": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "maxItems": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "hashCode": {
-                                        "type": "boolean"
-                                      },
-                                      "decoder": {
-                                        "type": "string"
-                                      },
-                                      "decoderArg": {
-                                        "type": "string"
-                                      },
-                                      "argFilter": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string"
-                                        }
-                                      }
+                                  "maxItems": {
+                                    "type": "number",
+                                    "minimum": 1
+                                  },
+                                  "hashCode": {
+                                    "type": "boolean"
+                                  },
+                                  "decoder": {
+                                    "type": "string"
+                                  },
+                                  "decoderArg": {
+                                    "type": "string"
+                                  },
+                                  "argFilter": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
                                     }
                                   }
-                                ]
+                                }
                               }
                             },
-                            "required": ["params"]
+                            "required": [
+                              "params"
+                            ]
                           }
                         },
                         "hookSettings": {
@@ -391,7 +342,9 @@
                           }
                         }
                       },
-                      "required": ["method"]
+                      "required": [
+                        "method"
+                      ]
                     }
                   ]
                 }
@@ -440,7 +393,10 @@
                 }
               }
             },
-            "required": ["javaClass", "hooks"]
+            "required": [
+              "javaClass",
+              "hooks"
+            ]
           },
           {
             "type": "object",
@@ -709,7 +665,9 @@
                           "not": {}
                         }
                       },
-                      "required": ["symbol"]
+                      "required": [
+                        "symbol"
+                      ]
                     },
                     {
                       "type": "object",
@@ -916,13 +874,18 @@
                           }
                         },
                         "offset": {
-                          "type": ["string", "number"]
+                          "type": [
+                            "string",
+                            "number"
+                          ]
                         },
                         "symbol": {
                           "not": {}
                         }
                       },
-                      "required": ["offset"]
+                      "required": [
+                        "offset"
+                      ]
                     }
                   ]
                 }
@@ -971,11 +934,16 @@
                 }
               }
             },
-            "required": ["module", "hooks"]
+            "required": [
+              "module",
+              "hooks"
+            ]
           }
         ]
       }
     }
   },
-  "required": ["hookCollection"]
+  "required": [
+    "hookCollection"
+  ]
 }

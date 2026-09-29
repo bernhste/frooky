@@ -75,7 +75,7 @@ params:
 >
 > There are multiple ways to declare a parameter. In this document, we always use [named parameters](./parameter-declaration.md#named-java-parameters).
 >
-> Java hooks have no `retType`. The return type is always resolved from Frida's own Java reflection at hook-registration time.
+> Java hooks do not declare a return type because it is always resolved via reflection. To customize how the return value is decoded, pass decoder settings to `retType` on the overload (e.g. `retType: { decoder: string }`). See [Return Type Declaration](./return-type-declaration.md).
 
 ## Basic Usage
 
