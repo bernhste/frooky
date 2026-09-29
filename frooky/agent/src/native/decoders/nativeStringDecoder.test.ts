@@ -81,6 +81,59 @@ describe("NativeStringDecoder", () => {
     it("should decode as null and warn when the decoderArg isn't a number", () => {
       expect(makeDecoder().decode(Memory.allocUtf8String("abc"), lengthArg("abc")).value).toBe(null);
     });
+
+    it("should decode an empty C string without truncation", () => {
+      expect(makeDecoder().decode(Memory.allocUtf8String("")).value).toBe("");
+    });
+
+    it("should decode an empty C string when maxItems is 0", () => {
+      const decoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 0 });
+      expect(decoder.decode(Memory.allocUtf8String("")).value).toBe("");
+    });
+
+    it("should truncate a non-empty C string when maxItems is 0", () => {
+      const decoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 0 });
+      expect(decoder.decode(Memory.allocUtf8String("abc")).value).toBe("...");
+    });
+
+    it("should truncate a single-character C string to 1 item when maxItems is 1", () => {
+      const decoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 1 });
+      expect(decoder.decode(Memory.allocUtf8String("a")).value).toBe("a");
+      expect(decoder.decode(Memory.allocUtf8String("ab")).value).toBe("a...");
+    });
+
+    it("should decode a large C string that crosses memory page boundaries", () => {
+      const largeText = "x".repeat(5000);
+      const decoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 6000 });
+      expect(decoder.decode(Memory.allocUtf8String(largeText)).value).toBe(largeText);
+    });
+
+    it("should truncate a large C string that crosses page boundaries", () => {
+      const largeText = "x".repeat(5000);
+      const decoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 4500 });
+      expect(decoder.decode(Memory.allocUtf8String(largeText)).value).toBe("x".repeat(4500) + "...");
+    });
+
+    it("should decode a C string placed directly across a memory page boundary", () => {
+      const pageSize = Process.pageSize;
+      const mem = Memory.alloc(pageSize * 2);
+      const offsetInPage = mem.and(pageSize - 1).toUInt32();
+      const pageBoundary = mem.add(pageSize - offsetInPage);
+      // Place string starting 4 bytes before the boundary: 4 bytes in page 1, 6 bytes in page 2
+      const strPtr = pageBoundary.sub(4);
+      strPtr.writeUtf8String("ABCDEFGHIJ");
+
+      expect(makeDecoder().decode(strPtr).value).toBe("ABCDEFGHIJ");
+
+      const truncDecoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 6 });
+      expect(truncDecoder.decode(strPtr).value).toBe("ABCDEF...");
+
+      const exactPageDecoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 4 });
+      expect(exactPageDecoder.decode(strPtr).value).toBe("ABCD...");
+
+      strPtr.writeUtf8String("ABCD");
+      expect(makeDecoder().decode(strPtr).value).toBe("ABCD");
+    });
   });
 });
 
