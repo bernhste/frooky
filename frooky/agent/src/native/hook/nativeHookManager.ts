@@ -78,8 +78,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       const target = describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset });
 
       // resolved once per hook, not per call
-      let inArgDecoders: ParamDecoder<NativePointer>[];
-      let outArgDecoders: ParamDecoder<NativePointer>[];
+      let inArgDecoders: ParamDecoder<NativePointer>[] = [];
+      let outArgDecoders: ParamDecoder<NativePointer>[] = [];
       if (hook.params) {
         const argDecoders = this.resolveParamDecoders(hook.params);
         inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
@@ -92,6 +92,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       }
       // float/double params and return values are in FP registers, not in args[]/returnValue
       const argSlots = planArgSlots(hook.params);
+      const hasFloatArgs = argSlots.some((slot) => slot.kind === "float");
       const floatRetSlot = planFloatRetTypeSlot(hook.retType);
 
       // per-call state lives on `this` (Frida's invocation context): another thread or a recursive call can
@@ -109,32 +110,41 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             this.argsIn = [];
 
             if (hook.params) {
-              // args[] only holds general-purpose registers, float/double params are read from FP registers
-              const separateLanes = usesSeparateFloatRegisterFile(this.context);
-              const effectiveArgs: NativePointer[] = [];
-              for (let i = 0; i < hook.params.length; i++) {
-                const slot = argSlots[i];
-                if (slot.kind === "float" && separateLanes) {
-                  effectiveArgs[i] = readFloatArgBits(this.context, slot) ?? ptr(0);
-                } else if (slot.kind === "float") {
-                  effectiveArgs[i] = args[i];
-                } else {
-                  effectiveArgs[i] = separateLanes ? args[slot.argIndex] : args[i];
+              let effectiveArgs: NativePointer[];
+              if (hasFloatArgs) {
+                // args[] only holds general-purpose registers, float/double params are read from FP registers
+                const separateLanes = usesSeparateFloatRegisterFile(this.context);
+                effectiveArgs = new Array(hook.params.length);
+                for (let i = 0; i < hook.params.length; i++) {
+                  const slot = argSlots[i];
+                  if (slot.kind === "float" && separateLanes) {
+                    effectiveArgs[i] = readFloatArgBits(this.context, slot) ?? ptr(0);
+                  } else if (slot.kind === "float") {
+                    effectiveArgs[i] = args[i];
+                  } else {
+                    effectiveArgs[i] = separateLanes ? args[slot.argIndex] : args[i];
+                  }
+                }
+              } else {
+                effectiveArgs = args;
+              }
+
+              if (inArgDecoders.length > 0) {
+                try {
+                  this.argsIn = hookManager.decodeArgs(effectiveArgs, inArgDecoders, target);
+                } catch (e) {
+                  if (e instanceof FilterMismatchError) {
+                    this.filtered = true;
+                    return;
+                  }
+                  throw e;
                 }
               }
 
-              try {
-                this.argsIn = hookManager.decodeArgs(effectiveArgs, inArgDecoders, target);
-              } catch (e) {
-                if (e instanceof FilterMismatchError) {
-                  this.filtered = true;
-                  return;
-                }
-                throw e;
+              if (outArgDecoders.length > 0) {
+                // for `out` params decoded onLeave
+                this.savedArgs = effectiveArgs;
               }
-
-              // for `out` params decoded onLeave
-              this.savedArgs = effectiveArgs;
             }
 
             try {
@@ -156,8 +166,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           if (hookManager.activeThreads.has(tid)) return;
           hookManager.activeThreads.add(tid);
           try {
-            const decodedArgs: DecodedArgs = { in: this.argsIn, out: [] };
-            if (hook.params) {
+            const decodedArgs: DecodedArgs = { in: this.argsIn ?? [], out: [] };
+            if (outArgDecoders.length > 0) {
               try {
                 decodedArgs.out = hookManager.decodeArgs(this.savedArgs, outArgDecoders, target);
               } catch (e) {

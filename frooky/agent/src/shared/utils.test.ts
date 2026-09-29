@@ -68,9 +68,27 @@ describe("Utils", () => {
       const uuid = uuidv4();
 
       // UUID v4 regex pattern
-      const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
       expect(uuidV4Regex.test(uuid)).toBeTruthy();
+      expect(uuid.length).toBe(36);
+      expect(uuid[8]).toBe("-");
+      expect(uuid[13]).toBe("-");
+      expect(uuid[14]).toBe("4");
+      expect(uuid[18]).toBe("-");
+      expect(["8", "9", "a", "b"].includes(uuid[19])).toBeTruthy();
+      expect(uuid[23]).toBe("-");
+    });
+
+    it("generates valid RFC 4122 UUIDs across multiple iterations", () => {
+      const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+      const seen = new Set<string>();
+      for (let i = 0; i < 200; i++) {
+        const u = uuidv4();
+        expect(uuidV4Regex.test(u)).toBeTruthy();
+        seen.add(u);
+      }
+      expect(seen.size).toBe(200);
     });
 
     it("generates different values on subsequent calls", () => {

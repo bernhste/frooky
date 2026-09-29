@@ -20,32 +20,37 @@ export function stableStringify(value: unknown): string {
   );
 }
 
-const UUID_HEX_CHARS = "0123456789abcdef";
+const HEX_TABLE: readonly string[] = Object.freeze(Array.from({ length: 256 }, (_, i) => (i < 16 ? "0" : "") + i.toString(16)));
 
 export function uuidv4(): string {
-  const chars = new Array<string>(36);
-  for (let i = 0; i < 36; i++) {
-    switch (i) {
-      case 8:
-      case 13:
-      case 18:
-      case 23:
-        chars[i] = "-";
-        break;
-      case 14:
-        chars[i] = "4";
-        break;
-      case 19:
-        chars[i] = UUID_HEX_CHARS[(Math.random() * 4) | 8]; // one of 8, 9, a, b per RFC 4122
-        break;
-      default:
-        chars[i] = UUID_HEX_CHARS[(Math.random() * 16) | 0];
-    }
-  }
-  return chars.join("");
-}
+  const r0 = (Math.random() * 0x100000000) >>> 0;
+  const r1 = (Math.random() * 0x100000000) >>> 0;
+  const r2 = (Math.random() * 0x100000000) >>> 0;
+  const r3 = (Math.random() * 0x100000000) >>> 0;
 
-const HEX_TABLE: readonly string[] = Object.freeze(Array.from({ length: 256 }, (_, i) => (i < 16 ? "0" : "") + i.toString(16)));
+  return (
+    HEX_TABLE[r0 & 0xff] +
+    HEX_TABLE[(r0 >>> 8) & 0xff] +
+    HEX_TABLE[(r0 >>> 16) & 0xff] +
+    HEX_TABLE[(r0 >>> 24) & 0xff] +
+    "-" +
+    HEX_TABLE[r1 & 0xff] +
+    HEX_TABLE[(r1 >>> 8) & 0xff] +
+    "-" +
+    HEX_TABLE[((r1 >>> 16) & 0x0f) | 0x40] + // RFC 4122 version 4
+    HEX_TABLE[(r1 >>> 24) & 0xff] +
+    "-" +
+    HEX_TABLE[(r2 & 0x3f) | 0x80] + // RFC 4122 variant 1
+    HEX_TABLE[(r2 >>> 8) & 0xff] +
+    "-" +
+    HEX_TABLE[(r2 >>> 16) & 0xff] +
+    HEX_TABLE[(r2 >>> 24) & 0xff] +
+    HEX_TABLE[r3 & 0xff] +
+    HEX_TABLE[(r3 >>> 8) & 0xff] +
+    HEX_TABLE[(r3 >>> 16) & 0xff] +
+    HEX_TABLE[(r3 >>> 24) & 0xff]
+  );
+}
 
 // [lengthToDecode, "..." if truncated else ""]
 function getDecodeBounds(availableLength: number, length: number): [number, string] {

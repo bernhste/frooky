@@ -75,8 +75,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     for (const hook of hooks) {
       const target = `${hook.method.holder.$className}.${hook.methodName}`;
       // resolved once per hook, not per call
-      let inArgDecoders: ParamDecoder<Java.Wrapper>[];
-      let outArgDecoders: ParamDecoder<Java.Wrapper>[];
+      let inArgDecoders: ParamDecoder<Java.Wrapper>[] = [];
+      let outArgDecoders: ParamDecoder<Java.Wrapper>[] = [];
       if (hook.params) {
         const argDecoders = this.resolveParamDecoders(hook.params);
         inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
@@ -105,7 +105,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         }
 
         const decodedArgs: DecodedArgs = { in: [], out: [] };
-        if (hook.params) {
+        if (inArgDecoders.length > 0) {
           try {
             decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders, target);
           } catch (e) {
@@ -124,7 +124,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
           throw e; // the app handles its own exception
         }
 
-        if (hook.params) {
+        if (outArgDecoders.length > 0) {
           try {
             decodedArgs.out = hookManager.decodeArgs(args, outArgDecoders, target);
           } catch (e) {
