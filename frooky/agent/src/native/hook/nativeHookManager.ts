@@ -143,8 +143,18 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
               }
 
               if (outArgDecoders.length > 0) {
-                // for `out` params decoded onLeave
-                this.savedArgs = effectiveArgs;
+                // Frida's InvocationArgs proxy is only valid during onEnter.
+                // For `out` params decoded onLeave, snapshot the arguments into a JS array.
+                if (hasFloatArgs) {
+                  this.savedArgs = effectiveArgs;
+                } else {
+                  const numArgs = hook.params.length;
+                  const saved: NativePointer[] = new Array(numArgs);
+                  for (let i = 0; i < numArgs; i++) {
+                    saved[i] = args[i];
+                  }
+                  this.savedArgs = saved;
+                }
               }
             }
 

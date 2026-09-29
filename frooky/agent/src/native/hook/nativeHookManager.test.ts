@@ -12,7 +12,10 @@ import { NativeHookManager } from "./nativeHookManager";
 const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
 // kept alive for the whole file: the Interceptor may still touch a function after detach()
-const cm = new CModule("int countdown (int n) { return (n == 0) ? 0 : countdown (n - 1) + 1; }");
+const cm = new CModule(`
+  int countdown (int n) { return (n == 0) ? 0 : countdown (n - 1) + 1; }
+  void write_val (int val, int *out) { *out = val * 2; }
+`);
 
 // Interceptor changes are only committed once no thread runs a JS callback, which can take a moment
 // while the app keeps hitting other hooks (e.g. frida-java-bridge's), so call until the hook fires
@@ -188,6 +191,41 @@ describe("NativeHookManager", () => {
         [2, 2, "enter 1"],
         [3, 3, "enter 0"],
       ]);
+    });
+
+    it("decodes out parameters in onLeave without accessing invalidated InvocationArgs", async () => {
+      const events: NativeHookEvent[] = [];
+      const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+      const manager = new NativeHookManager(stackTrace, agent);
+      const params = normalizeInputParams(
+        [
+          ["int", "val"],
+          ["int *", "out", { direction: "out" }],
+        ],
+        DEFAULT_DECODER_SETTINGS,
+      );
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params })], 5));
+      const hook: NativeHook = { ...hooks![0], symbolName: "write_val", symbolAddress: cm.write_val };
+
+      manager.registerHooks([hook]);
+      const writeVal = new NativeFunction(cm.write_val, "void", ["int", "pointer"]);
+      const outBuf = Memory.alloc(4);
+      outBuf.writeInt(0);
+
+      await untilHooked(
+        () => writeVal(21, outBuf),
+        () => events.length > 0,
+      );
+      events.length = 0;
+      try {
+        writeVal(21, outBuf);
+      } finally {
+        manager.unregisterHooks([hook]);
+      }
+
+      expect(events.length).toBe(1);
+      expect(events[0].argsIn).toEqual([{ type: "int", name: "val", value: 21 }]);
+      expect(events[0].argsOut).toEqual([{ type: "int *", name: "out", value: 42 }]);
     });
   });
 });
