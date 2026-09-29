@@ -61,14 +61,27 @@ function getDecodeBounds(availableLength: number, length: number): [number, stri
 
 // Reads only up to `limit` elements, e.g. of a Java array proxy where every access calls into Java.
 export function readBytesLimited(array: ArrayLike<number>, limit: number): [bytes: Uint8Array, truncated: boolean] {
-  const readLength = Math.min(array.length, limit);
-  const bytes = new Uint8Array(readLength);
+  const total = array.length;
+  const readLength = Math.min(total, limit);
 
+  if (readLength === 0) {
+    return [new Uint8Array(0), total > limit];
+  }
+
+  if (typeof (array as any).withElements === "function") {
+    const bytes = (array as any).withElements((elements: NativePointer) => {
+      const raw = elements.readByteArray(readLength);
+      return raw !== null ? new Uint8Array(raw) : new Uint8Array(0);
+    });
+    return [bytes, total > limit];
+  }
+
+  const bytes = new Uint8Array(readLength);
   for (let i = 0; i < readLength; i++) {
     bytes[i] = array[i];
   }
 
-  return [bytes, array.length > limit];
+  return [bytes, total > limit];
 }
 
 // printable ASCII, tab, newline or carriage return

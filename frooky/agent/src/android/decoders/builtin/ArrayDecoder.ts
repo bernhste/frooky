@@ -37,6 +37,90 @@ function elementTypeFromSignature(element: string): string {
   return element;
 }
 
+// Reads primitive array elements in bulk via JNI withElements to avoid per-element JNI pinning.
+export function decodePrimitiveArray(value: any, elementType: string, decodeLen: number): unknown[] {
+  if (decodeLen === 0) {
+    return [];
+  }
+
+  if (typeof value?.withElements === "function") {
+    return value.withElements((elements: NativePointer) => {
+      switch (elementType) {
+        case "B":
+        case "[B":
+        case "byte": {
+          const raw = elements.readByteArray(decodeLen);
+          return raw !== null ? Array.from(new Int8Array(raw)) : [];
+        }
+        case "I":
+        case "[I":
+        case "int": {
+          const raw = elements.readByteArray(decodeLen * 4);
+          return raw !== null ? Array.from(new Int32Array(raw)) : [];
+        }
+        case "Z":
+        case "[Z":
+        case "boolean": {
+          const raw = elements.readByteArray(decodeLen);
+          if (raw === null) return [];
+          const u8 = new Uint8Array(raw);
+          const result = new Array<boolean>(decodeLen);
+          for (let i = 0; i < decodeLen; i++) {
+            result[i] = u8[i] !== 0;
+          }
+          return result;
+        }
+        case "S":
+        case "[S":
+        case "short": {
+          const raw = elements.readByteArray(decodeLen * 2);
+          return raw !== null ? Array.from(new Int16Array(raw)) : [];
+        }
+        case "F":
+        case "[F":
+        case "float": {
+          const raw = elements.readByteArray(decodeLen * 4);
+          return raw !== null ? Array.from(new Float32Array(raw)) : [];
+        }
+        case "D":
+        case "[D":
+        case "double": {
+          const raw = elements.readByteArray(decodeLen * 8);
+          return raw !== null ? Array.from(new Float64Array(raw)) : [];
+        }
+        case "C":
+        case "[C":
+        case "char": {
+          const raw = elements.readByteArray(decodeLen * 2);
+          if (raw === null) return [];
+          const u16 = new Uint16Array(raw);
+          const result = new Array<string>(decodeLen);
+          for (let i = 0; i < decodeLen; i++) {
+            result[i] = String.fromCharCode(u16[i]);
+          }
+          return result;
+        }
+        case "J":
+        case "[J":
+        case "long": {
+          const result = new Array<unknown>(decodeLen);
+          for (let i = 0; i < decodeLen; i++) {
+            result[i] = elements.add(i * 8).readS64();
+          }
+          return result;
+        }
+      }
+      return [];
+    });
+  }
+
+  const result = new Array(decodeLen);
+  for (let i = 0; i < decodeLen; i++) {
+    result[i] = value[i];
+  }
+  return result;
+}
+
 export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
   readonly decoderName = "ArrayDecoder";
   readonly description = "Decodes a Java array element by element, up to `maxItems` elements.";
@@ -60,10 +144,7 @@ export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
     let arrayValue: unknown[];
 
     if (JAVA_PRIMITIVE_TYPES.has(elementType)) {
-      arrayValue = new Array(decodeLen);
-      for (let i = 0; i < decodeLen; i++) {
-        arrayValue[i] = arrayLike[i];
-      }
+      arrayValue = decodePrimitiveArray(value, elementType, decodeLen);
     } else {
       // reference types and nested arrays
       const elementDecodable: Decodable = {

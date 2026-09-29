@@ -27,6 +27,61 @@ describe("ArrayDecoder", () => {
       expect(decoder.decode(array as unknown as Java.Wrapper)).toEqual({ type: "[B", value: [0x41, 0x42, 0x43] });
     });
 
+    it("decodes a primitive short array", () => {
+      const array = Java.array("short", [1000, 2000, -3000]);
+      const decoder = new ArrayDecoder({ type: "[S", settings: DEFAULT_DECODER_SETTINGS });
+
+      expect(decoder.decode(array as unknown as Java.Wrapper)).toEqual({ type: "[S", value: [1000, 2000, -3000] });
+    });
+
+    it("decodes a primitive char array", () => {
+      const array = Java.array("char", ["h", "i"]);
+      const decoder = new ArrayDecoder({ type: "[C", settings: DEFAULT_DECODER_SETTINGS });
+
+      expect(decoder.decode(array as unknown as Java.Wrapper)).toEqual({ type: "[C", value: ["h", "i"] });
+    });
+
+    it("decodes a primitive float array", () => {
+      const array = Java.array("float", [1.5, 2.5]);
+      const decoder = new ArrayDecoder({ type: "[F", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(array as unknown as Java.Wrapper);
+      expect(result.type).toBe("[F");
+      const values = result.value as number[];
+      expect(values.length).toBe(2);
+      expect(Math.abs(values[0] - 1.5) < 0.001).toBe(true);
+      expect(Math.abs(values[1] - 2.5) < 0.001).toBe(true);
+    });
+
+    it("decodes a primitive double array", () => {
+      const array = Java.array("double", [3.14, 2.718]);
+      const decoder = new ArrayDecoder({ type: "[D", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(array as unknown as Java.Wrapper);
+      expect(result.type).toBe("[D");
+      const values = result.value as number[];
+      expect(values.length).toBe(2);
+      expect(Math.abs(values[0] - 3.14) < 0.001).toBe(true);
+      expect(Math.abs(values[1] - 2.718) < 0.001).toBe(true);
+    });
+
+    it("decodes a primitive long array", () => {
+      const array = Java.array("long", [1234567890]);
+      const decoder = new ArrayDecoder({ type: "[J", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(array as unknown as Java.Wrapper);
+      expect(result.type).toBe("[J");
+      const values = result.value as unknown[];
+      expect(values[0]?.toString()).toBe("1234567890");
+    });
+
+    it("falls back gracefully when withElements is not defined (e.g. mock or plain array)", () => {
+      const mockArray = [10, 20, 30];
+      const decoder = new ArrayDecoder({ type: "[I", settings: DEFAULT_DECODER_SETTINGS });
+
+      expect(decoder.decode(mockArray as unknown as Java.Wrapper)).toEqual({ type: "[I", value: [10, 20, 30] });
+    });
+
     it("returns an empty array for an empty primitive array", () => {
       const array = Java.array("int", []);
       const decoder = new ArrayDecoder({ type: "[I", settings: DEFAULT_DECODER_SETTINGS });

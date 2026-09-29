@@ -2,6 +2,7 @@ import Java from "frida-java-bridge";
 import { childSettings, isMaxDepthReached, MAX_DEPTH_MARKER, RecursiveDecoder } from "../../../../shared/decoders/recursiveDecoder";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../../../shared/frookySettings";
+import { ArrayDecoder, decodePrimitiveArray } from "../../builtin/ArrayDecoder";
 import { ReferenceTypeDecoder } from "../../builtin/ReferenceTypeDecoder";
 import { JavaDecoderResolver } from "../../javaDecoderResolver";
 import { logger } from "../../../../shared/logger";
@@ -138,7 +139,7 @@ export class BundleDecoder extends RecursiveDecoder<Java.Wrapper> {
     if (typedGetter) {
       const getter: Java.MethodDispatcher = bundle[typedGetter];
       const typedArray = getter.call(bundle, key) as ArrayLike<unknown> | null;
-      const items = typedArray == null ? [] : this.takeLimited(typedArray, typedArray.length, maxItems);
+      const items = typedArray == null ? [] : this.takeLimited(typedArray, typedArray.length, maxItems, className);
       return { type: className, name: key, value: items };
     }
 
@@ -155,11 +156,16 @@ export class BundleDecoder extends RecursiveDecoder<Java.Wrapper> {
     return { type: className, name: key, value: items };
   }
 
-  private takeLimited(arrayLike: ArrayLike<unknown>, total: number, limit: number): unknown[] {
+  private takeLimited(arrayLike: ArrayLike<unknown>, total: number, limit: number, className?: string): unknown[] {
     const decodeLen = Math.min(total, limit);
-    const items = new Array(decodeLen);
-    for (let i = 0; i < decodeLen; i++) {
-      items[i] = arrayLike[i];
+    let items: unknown[];
+    if (className && typeof (arrayLike as any).withElements === "function") {
+      items = decodePrimitiveArray(arrayLike, className, decodeLen);
+    } else {
+      items = new Array(decodeLen);
+      for (let i = 0; i < decodeLen; i++) {
+        items[i] = arrayLike[i];
+      }
     }
     if (total > decodeLen) {
       items.push(`[truncated at ${limit}]`);
