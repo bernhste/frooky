@@ -58,6 +58,18 @@ describe("HashcodeDecoder", () => {
 
       expect(result).toEqual({ type: "java.lang.Object", value: null });
     });
+
+    it("should decode an object wrapped as an interface without throwing", () => {
+      const BigInteger = Java.use("java.math.BigInteger");
+      const value = BigInteger.$new("123456789");
+      const asInterface = Java.cast(value, Java.use("java.io.Serializable"));
+      const decoder = new HashCodeDecoder({ type: "java.io.Serializable", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(asInterface);
+
+      const expectedHash = (value.hashCode() >>> 0).toString(16);
+      expect(result).toEqual({ type: "java.io.Serializable", value: `java.math.BigInteger@${expectedHash}` });
+    });
   });
 });
 

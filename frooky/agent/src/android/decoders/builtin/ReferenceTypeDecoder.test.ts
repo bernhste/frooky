@@ -113,6 +113,36 @@ describe("ReferenceTypeDecoder", () => {
       });
     });
 
+    it("decodes an unregistered interface value via the StringDecoder fallback using its Java toString() (branch 4)", () => {
+      const BigInteger = Java.use("java.math.BigInteger");
+      const value = BigInteger.$new("123456789");
+      const asInterface = Java.cast(value, Java.use("java.io.Serializable"));
+
+      const decoder = new ReferenceTypeDecoder({ type: "java.io.Serializable", settings: DEFAULT_DECODER_SETTINGS });
+      const result = decoder.decode(asInterface);
+
+      expect(result).toEqual({
+        type: "java.io.Serializable",
+        value: { type: "java.math.BigInteger", value: "123456789" },
+      });
+    });
+
+    it("decodes an unregistered interface value with no overridden toString() using Java Object.toString() (branch 4)", () => {
+      // java.util.Random implements Serializable but does not override toString()
+      const Random = Java.use("java.util.Random");
+      const random = Random.$new();
+      const asInterface = Java.cast(random, Java.use("java.io.Serializable"));
+
+      const decoder = new ReferenceTypeDecoder({ type: "java.io.Serializable", settings: DEFAULT_DECODER_SETTINGS });
+      const result = decoder.decode(asInterface);
+
+      expect(result.type).toBe("java.io.Serializable");
+      const inner = result.value as DecodedValue;
+      expect(inner.type).toBe("java.util.Random");
+      expect(inner.value).not.toBe("[object Object]");
+      expect((inner.value as string).startsWith("java.util.Random@")).toBe(true);
+    });
+
     it("resolves the decoder by the runtime class of each call", () => {
       // a hook reuses one decoder instance for all calls
       const decoder = new ReferenceTypeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });

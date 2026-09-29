@@ -91,6 +91,43 @@ describe("StringDecoder", () => {
 
       expect(result).toEqual({ type: "java.math.BigInteger", value: null });
     });
+
+    it("should decode a regular object with no overridden toString() using Object.toString()", () => {
+      const JavaObject = Java.use("java.lang.Object");
+      const value = JavaObject.$new();
+      const decoder = new StringDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(value);
+
+      expect(typeof result.value).toBe("string");
+      expect((result.value as string).startsWith("java.lang.Object@")).toBe(true);
+    });
+
+    it("should decode an object wrapped as an interface using the runtime object's overridden toString()", () => {
+      // BigInteger overrides toString(), but Serializable is an interface declaring no methods
+      const BigInteger = Java.use("java.math.BigInteger");
+      const value = BigInteger.$new("123456789");
+      const asInterface = Java.cast(value, Java.use("java.io.Serializable"));
+      const decoder = new StringDecoder({ type: "java.io.Serializable", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(asInterface);
+
+      expect(result).toEqual({ type: "java.io.Serializable", value: "123456789" });
+    });
+
+    it("should decode an interface wrapper whose runtime class has no overridden toString() using Java Object.toString()", () => {
+      // java.util.Random implements Serializable but does not override toString()
+      const Random = Java.use("java.util.Random");
+      const random = Random.$new();
+      const asInterface = Java.cast(random, Java.use("java.io.Serializable"));
+      const decoder = new StringDecoder({ type: "java.io.Serializable", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode(asInterface);
+
+      expect(typeof result.value).toBe("string");
+      expect(result.value).not.toBe("[object Object]");
+      expect((result.value as string).startsWith("java.util.Random@")).toBe(true);
+    });
   });
 });
 
