@@ -134,10 +134,23 @@ describe("IterableDecoder", () => {
 
       const decoder = new IterableDecoder({ type: "java.util.List", settings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 2 } });
       const result = decoder.decode(outer);
-
       expect(result).toEqual({
         type: "java.util.List",
         value: [{ type: "java.util.ArrayList", value: { type: "java.util.ArrayList", value: [{ type: "java.lang.String", value: "a" }] } }],
+      });
+    });
+
+    it("should decode null elements as null without throwing", () => {
+      const ArrayList = Java.use("java.util.ArrayList");
+      const list = ArrayList.$new();
+      list.add(null);
+
+      const decoder = new IterableDecoder({ type: "java.util.List", settings: DEFAULT_DECODER_SETTINGS });
+      const result = decoder.decode(list);
+
+      expect(result).toEqual({
+        type: "java.util.List",
+        value: [{ type: "null", value: null }],
       });
     });
   });
