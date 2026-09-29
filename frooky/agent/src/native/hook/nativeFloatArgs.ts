@@ -44,9 +44,12 @@ export function planFloatRetTypeSlot(retType: { type: string } | undefined): Flo
 // False on 32-bit x86 (cdecl passes them on the stack) and 32-bit ARM (softfp passes them in general-purpose
 // registers with alignment padding). There, params are read from args[] by position, which is wrong for
 // signatures that mix int and float/double params.
-export function usesSeparateFloatRegisterFile(context: CpuContext): boolean {
-  const registers = context as unknown as Record<string, unknown>;
-  return "rax" in registers || "x0" in registers;
+export function usesSeparateFloatRegisterFile(context?: CpuContext): boolean {
+  if (context !== undefined) {
+    const registers = context as unknown as Record<string, unknown>;
+    return "rax" in registers || "x0" in registers;
+  }
+  return Process.arch === "arm64" || Process.arch === "x64";
 }
 
 function bitsFromArrayBuffer(buffer: ArrayBuffer, byteLength: 4 | 8): NativePointer {

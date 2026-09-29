@@ -1,6 +1,6 @@
 import { Decodable as RetType, Param } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../defaultValues";
-import { normalizeInputParams, normalizeInputRetType, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
+import { InputRetTypeSettings, normalizeInputParams, normalizeInputRetType, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
 
 describe("inputDecodableTypes", () => {

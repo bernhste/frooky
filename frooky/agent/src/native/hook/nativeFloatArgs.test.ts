@@ -80,6 +80,11 @@ describe("usesSeparateFloatRegisterFile", () => {
     const context = { r0: ptr(0), d0: 1 } as unknown as CpuContext;
     expect(usesSeparateFloatRegisterFile(context)).toBe(false);
   });
+
+  it("infers from Process.arch when context is omitted", () => {
+    const expected = Process.arch === "arm64" || Process.arch === "x64";
+    expect(usesSeparateFloatRegisterFile()).toBe(expected);
+  });
 });
 
 describe("readFloatArgBits", () => {

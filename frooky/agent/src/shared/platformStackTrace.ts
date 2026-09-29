@@ -3,6 +3,11 @@ export interface HookStackTrace {
   nativeStackTrace: string[];
 }
 
+export const EMPTY_STACK_TRACE: HookStackTrace = Object.freeze({
+  platformStackTrace: [],
+  nativeStackTrace: [],
+});
+
 export interface PlatformStackTrace {
   build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): HookStackTrace;
 }

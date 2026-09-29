@@ -94,6 +94,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       const argSlots = planArgSlots(hook.params);
       const hasFloatArgs = argSlots.some((slot) => slot.kind === "float");
       const floatRetSlot = planFloatRetTypeSlot(hook.retType);
+      const separateFloatLanes = usesSeparateFloatRegisterFile();
+      const needsStackTrace = hook.hookSettings.maxStackFrames > 0 || (hook.hookSettings.stackTraceFilter && hook.hookSettings.stackTraceFilter.length > 0);
 
       // per-call state lives on `this` (Frida's invocation context): another thread or a recursive call can
       // enter the hook between onEnter and onLeave
@@ -113,16 +115,15 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
               let effectiveArgs: NativePointer[];
               if (hasFloatArgs) {
                 // args[] only holds general-purpose registers, float/double params are read from FP registers
-                const separateLanes = usesSeparateFloatRegisterFile(this.context);
                 effectiveArgs = new Array(hook.params.length);
                 for (let i = 0; i < hook.params.length; i++) {
                   const slot = argSlots[i];
-                  if (slot.kind === "float" && separateLanes) {
+                  if (slot.kind === "float" && separateFloatLanes) {
                     effectiveArgs[i] = readFloatArgBits(this.context, slot) ?? ptr(0);
                   } else if (slot.kind === "float") {
                     effectiveArgs[i] = args[i];
                   } else {
-                    effectiveArgs[i] = separateLanes ? args[slot.argIndex] : args[i];
+                    effectiveArgs[i] = separateFloatLanes ? args[slot.argIndex] : args[i];
                   }
                 }
               } else {
@@ -148,7 +149,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             }
 
             try {
-              this.stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter, this.context);
+              const ctx = needsStackTrace ? this.context : undefined;
+              this.stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter, ctx);
             } catch (e) {
               if (e instanceof FilterMismatchError) {
                 this.filtered = true;
@@ -179,7 +181,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             let decodedRetValue: DecodedValue | undefined;
             if (hook.retType) {
               // returnValue is the general-purpose return register, a float/double is returned in an FP register
-              const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile(this.context) ? readFloatArgBits(this.context, floatRetSlot) : null;
+              const floatRetBits = floatRetSlot && separateFloatLanes ? readFloatArgBits(this.context, floatRetSlot) : null;
               decodedRetValue = hookManager.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
             }
 
