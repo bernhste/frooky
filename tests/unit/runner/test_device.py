@@ -110,7 +110,7 @@ class TestAttachOrSpawn:
         device = MagicMock()
         matching = MagicMock(identifier="com.example.app", pid=99)
         other = MagicMock(identifier="com.other.app", pid=1)
-        device.enumerate_processes.return_value = [other, matching]
+        device.enumerate_applications.return_value = [other, matching]
 
         attach_or_spawn(device, options)
 
@@ -119,7 +119,26 @@ class TestAttachOrSpawn:
     def test_attach_identifier_falls_back_when_not_running(self):
         options = make_options(attach_identifier="com.example.app")
         device = MagicMock()
-        device.enumerate_processes.return_value = []
+        not_running = MagicMock(identifier="com.example.app", pid=0)
+        device.enumerate_applications.return_value = [not_running]
+
+        attach_or_spawn(device, options)
+
+        device.attach.assert_called_once_with("com.example.app")
+
+    def test_attach_identifier_falls_back_when_not_found(self):
+        options = make_options(attach_identifier="com.example.app")
+        device = MagicMock()
+        device.enumerate_applications.return_value = []
+
+        attach_or_spawn(device, options)
+
+        device.attach.assert_called_once_with("com.example.app")
+
+    def test_attach_identifier_falls_back_on_error(self):
+        options = make_options(attach_identifier="com.example.app")
+        device = MagicMock()
+        device.enumerate_applications.side_effect = RuntimeError("enumerate error")
 
         attach_or_spawn(device, options)
 

@@ -47,9 +47,12 @@ def attach_or_spawn(device: frida.core.Device, options: RunnerOptions) -> tuple[
         return device.attach(options.attach_name), None
 
     elif options.attach_identifier:
-        for proc in device.enumerate_processes():
-            if proc.identifier == options.attach_identifier:
-                return device.attach(proc.pid), None
+        try:
+            for app in device.enumerate_applications():
+                if app.identifier == options.attach_identifier and app.pid != 0:
+                    return device.attach(app.pid), None
+        except Exception:
+            pass
         return device.attach(options.attach_identifier), None
 
     elif options.attach_pid:
