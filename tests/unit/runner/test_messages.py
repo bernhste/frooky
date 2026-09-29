@@ -73,6 +73,28 @@ class TestCreateMessageHandler:
 
         assert on_event.call_count == 2
 
+    def test_calls_on_batch_once_per_batch(self, tmp_path):
+        output = OutputWriter(tmp_path / "out.json")
+        on_batch = MagicMock()
+        on_message = create_message_handler(output, MagicMock(), print_events=False, on_batch=on_batch)
+        payload = [{"symbol": "a"}, {"symbol": "b"}, {"symbol": "c"}]
+
+        on_message({"type": "send", "payload": payload}, None)
+
+        assert on_batch.call_count == 1
+
+    def test_calls_both_on_batch_and_on_event(self, tmp_path):
+        output = OutputWriter(tmp_path / "out.json")
+        on_event = MagicMock()
+        on_batch = MagicMock()
+        on_message = create_message_handler(output, MagicMock(), print_events=False, on_event=on_event, on_batch=on_batch)
+        payload = [{"symbol": "a"}, {"symbol": "b"}]
+
+        on_message({"type": "send", "payload": payload}, None)
+
+        assert on_batch.call_count == 1
+        assert on_event.call_count == 2
+
     def test_print_events_prints_each_event_to_the_feed(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         feed = MagicMock()

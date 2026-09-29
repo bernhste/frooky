@@ -16,15 +16,12 @@ from .device import attach_or_spawn, describe_target, detect_platform, get_devic
 from .feed import LEVEL_STYLES, Feed, HookStatus
 from .keys import KeyListener
 from .messages import create_log_handler, create_message_handler
-from .options import RunnerOptions
+from .options import DEBUGGER_PORT, RunnerOptions
 from .output import OutputWriter
 from .watcher import HookFileWatcher, describe_reload_error
 
 # DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS in the agent's defaultValues.ts, used when no -t is given
 AGENT_DEFAULT_RESOLVER_TIMEOUT_SECONDS = 5
-
-# port of the Chrome Inspector server opened by --debug, the same as the frida CLI's --debug
-DEBUGGER_PORT = 9229
 
 
 class FrookyRunner:
@@ -238,6 +235,7 @@ class FrookyRunner:
         """Run the Frooky hooks."""
         try:
             self.output.truncate()
+            self.output.open()
 
             self.device = get_device(self.options)
             self.platform = detect_platform(self.device)
@@ -259,7 +257,17 @@ class FrookyRunner:
             self.script = self.session.create_script(script_source, runtime=self.options.runtime)
             if self.options.enable_debugger:
                 self.script.enable_debugger(DEBUGGER_PORT)
-            self.script.on("message", create_message_handler(self.output, self.feed, self.options.print_events, self._update_status_line, self._on_progress, self._on_agent_crash))
+            self.script.on(
+                "message",
+                create_message_handler(
+                    self.output,
+                    self.feed,
+                    self.options.print_events,
+                    on_progress=self._on_progress,
+                    on_crash=self._on_agent_crash,
+                    on_batch=self._update_status_line,
+                ),
+            )
             self.script.set_log_handler(create_log_handler(self.feed))
             self.script.load()
 
@@ -309,6 +317,7 @@ class FrookyRunner:
                     self.session.detach()
                 except Exception:
                     pass
+            self.output.close()
             self._stop_live_terminal()
             self._print_summary()
 

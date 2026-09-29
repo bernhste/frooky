@@ -439,6 +439,20 @@ class TestRunWatch:
 
         script.exports_sync.update_frooky_config.assert_not_called()
 
+    def test_opens_and_closes_output_writer_during_run(self, monkeypatch, tmp_path):
+        runner, _script, _hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
+        was_open = []
+
+        def check_open(seconds):
+            was_open.append(runner.output._file is not None)
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr("frooky.runner.runner.time.sleep", check_open)
+        runner.run()
+
+        assert was_open == [True]
+        assert runner.output._file is None
+
 
 def _rewrite(path, content):
     """Write new content and bump the mtime, which a same-tick rewrite might otherwise not change."""

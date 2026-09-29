@@ -64,3 +64,61 @@ class TestOutputWriter:
 
         assert writer.event_count == 2
         assert writer.last_event == "libc.so: strcpy"
+
+    def test_record_events_batch_updates_count_and_last_event(self, tmp_path):
+        writer = OutputWriter(tmp_path / "out.json")
+        payload = [
+            {"module": "libc.so", "symbol": "strcpy"},
+            {"javaClassName": "com.example.Foo", "method": "bar"},
+            {},
+        ]
+
+        writer.record_events(payload)
+
+        assert writer.event_count == 3
+        assert writer.last_event == "com.example.Foo.bar"
+
+    def test_record_events_batch_without_descriptions_keeps_default(self, tmp_path):
+        writer = OutputWriter(tmp_path / "out.json")
+
+        writer.record_events([{}, {}])
+
+        assert writer.event_count == 2
+        assert writer.last_event == "Waiting for events..."
+
+    def test_open_close_persistent_file_handle(self, tmp_path):
+        output_path = tmp_path / "out.json"
+        writer = OutputWriter(output_path)
+
+        writer.open()
+        writer.append([{"a": 1}])
+        writer.append([{"b": 2}])
+        writer.close()
+
+        lines = output_path.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 2
+        assert json.loads(lines[0]) == [{"a": 1}]
+        assert json.loads(lines[1]) == [{"b": 2}]
+
+    def test_context_manager(self, tmp_path):
+        output_path = tmp_path / "out.json"
+        with OutputWriter(output_path) as writer:
+            writer.append([{"x": 10}])
+
+        lines = output_path.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+        assert json.loads(lines[0]) == [{"x": 10}]
+
+    def test_truncate_while_open_reopens_file(self, tmp_path):
+        output_path = tmp_path / "out.json"
+        writer = OutputWriter(output_path)
+
+        writer.open()
+        writer.append([{"old": 1}])
+        writer.truncate()
+        writer.append([{"new": 2}])
+        writer.close()
+
+        lines = output_path.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+        assert json.loads(lines[0]) == [{"new": 2}]

@@ -25,6 +25,14 @@ class TestLoadHookConfigs:
 
         assert [t["category"] for t in targets] == ["A", "B"]
 
+    def test_loads_yaml_with_c_safe_loader(self, tmp_path):
+        hook_file = tmp_path / "hooks.yaml"
+        hook_file.write_text("category: CRYPTO\nhooks:\n  - class: javax.crypto.Cipher\n    methods: [doFinal]\n")
+
+        targets = load_hook_configs([hook_file])
+
+        assert targets == [{"category": "CRYPTO", "hooks": [{"class": "javax.crypto.Cipher", "methods": ["doFinal"]}]}]
+
     def test_loads_deprecated_json_file_and_warns(self, tmp_path, caplog):
         hook_file = tmp_path / "hooks.json"
         hook_file.write_text(json.dumps({"category": "STORAGE", "hooks": []}))

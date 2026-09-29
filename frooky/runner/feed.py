@@ -215,8 +215,8 @@ class Feed:
 
     def event(self, event: dict) -> None:
         """Print a hook event as a box as wide as the terminal."""
-        for line in format_hook_event(event, self.console.width):
-            self.console.print(Text.from_ansi(line), no_wrap=True, crop=True)
+        lines = format_hook_event(event, self.console.width)
+        self.console.print(Text.from_ansi("\n".join(lines)), no_wrap=True, crop=True)
 
     def status(self, event_count: int, last_event: str) -> None:
         """Update the event count and the last event in the status bar; they show on the next redraw."""

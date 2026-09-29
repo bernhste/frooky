@@ -102,7 +102,7 @@ def _render_spans(spans: list[_Span], start: int, end: int) -> str:
 
 
 def _is_decoded_value(v) -> bool:
-    return isinstance(v, dict) and "value" in v and set(v.keys()) <= _DECODED_VALUE_KEYS
+    return isinstance(v, dict) and "value" in v and len(v) <= 3 and all(k in _DECODED_VALUE_KEYS for k in v)
 
 
 def _unwrap(v):
@@ -169,8 +169,10 @@ def _param_colors(args_in: list, args_out: list) -> tuple[list[str], list[str]]:
 
 
 def _is_integer_string(t: str, v) -> bool:
+    if not isinstance(v, str):
+        return False
     words = [w for w in t.lower().split() if w not in ("const", "volatile")]
-    return isinstance(v, str) and " ".join(words) in _INTEGER_STRING_TYPES and bool(_INTEGER_STRING.fullmatch(v))
+    return " ".join(words) in _INTEGER_STRING_TYPES and bool(_INTEGER_STRING.fullmatch(v))
 
 
 def _value_lines(v, width: int) -> list[str]:

@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+# port of the Chrome Inspector server opened by --debug, the same as the frida CLI's --debug
+DEBUGGER_PORT = 9229
+
 
 @dataclass
 class RunnerOptions:

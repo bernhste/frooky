@@ -6,8 +6,15 @@ from importlib.resources import files
 from pathlib import Path
 
 from . import __version__
-from .runner import FrookyRunner, RunnerOptions
-from .runner.runner import DEBUGGER_PORT
+from .runner.options import DEBUGGER_PORT, RunnerOptions
+
+
+def __getattr__(name: str):
+    if name == "FrookyRunner":
+        from .runner import FrookyRunner
+
+        return FrookyRunner
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -163,7 +170,8 @@ def main() -> int:
 
     options = _build_runner_options(args, hook_paths, script_paths)
 
-    runner = FrookyRunner(options)
+    runner_cls = getattr(sys.modules[__name__], "FrookyRunner")
+    runner = runner_cls(options)
     return runner.run()
 
 

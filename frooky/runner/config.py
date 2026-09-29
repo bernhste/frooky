@@ -18,7 +18,8 @@ def load_hook_config(hook_path: Path) -> dict:
     """Load a single hook YAML (or deprecated JSON) file."""
     with open(hook_path, "r", encoding="utf-8") as f:
         if Path(hook_path).suffix in (".yaml", ".yml"):
-            return yaml.safe_load(f)
+            loader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+            return yaml.load(f, Loader=loader)
         logger.warning("%s is in JSON format, which is deprecated. Please migrate to YAML.", Path(hook_path).name)
         return json.load(f)
 

@@ -13,9 +13,10 @@ def create_message_handler(
     on_event: Optional[Callable[[], None]] = None,
     on_progress: Optional[Callable[[dict], None]] = None,
     on_crash: Optional[Callable[[dict], None]] = None,
+    on_batch: Optional[Callable[[], None]] = None,
 ):
     """Build the frooky agent's message callback: writes hook/log events to the output file
-    and optionally prints them to the feed, calling on_event after each event in a batch.
+    and optionally prints them to the feed, calling on_event after each event in a batch (or on_batch once per batch).
     Hook resolving progress reports ({"frooky": "progress", "hooked": n, "pending": n}) go to on_progress,
     crash reports ({"frooky": "crash", "type": ..., "address": ..., "backtrace": [...], "nativeHooks": [...]}) to on_crash."""
 
@@ -48,12 +49,16 @@ def create_message_handler(
             return
 
         output.append(payload)
+        output.record_events(payload)
 
-        for event in payload:
-            output.record_event(event)
-            if on_event:
+        if on_event:
+            for _ in payload:
                 on_event()
-            if print_events:
+        if on_batch:
+            on_batch()
+
+        if print_events:
+            for event in payload:
                 feed.event(event)
 
     return on_message

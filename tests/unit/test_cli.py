@@ -163,6 +163,14 @@ class TestArgumentParsing:
         assert exc_info.value.code == 0
         assert "frooky" in capsys.readouterr().out.lower()
 
+    def test_cli_import_does_not_import_runner_or_frida(self):
+        import subprocess
+        import sys
+
+        cmd = [sys.executable, "-c", "import sys, frooky.cli; assert 'frooky.runner.runner' not in sys.modules; assert 'frida' not in sys.modules"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+
 
 @pytest.fixture
 def stub_runner(monkeypatch):
