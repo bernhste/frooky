@@ -1,9 +1,6 @@
-/**
- * Parser for Objective-C type encodings, as returned by `method_getTypeEncoding()` (e.g. `@32@0:8@16q24`).
- *
- * Frida's own `argumentTypes` collapse every object to `pointer`. The encoding keeps the difference between
- * objects, classes, selectors, C strings and plain pointers, which the decoders need.
- */
+// Parser for Objective-C method type encodings from `method_getTypeEncoding()`, e.g. `@32@0:8@16q24`. Frida's
+// `argumentTypes` turn every object into `pointer`, the encoding still tells objects, classes, selectors,
+// C strings and plain pointers apart, which the decoders need.
 
 const TYPE_QUALIFIERS = new Set(["r", "n", "N", "o", "O", "R", "V"]);
 
@@ -31,9 +28,9 @@ const PRIMITIVE_NAMES: Record<string, string> = {
 };
 
 export type ObjcMethodSignature = {
-  /** Type of the return value, e.g. `id` or `void`. */
+  // e.g. `id` or `void`
   returnType: string;
-  /** Types of the explicit arguments only. The implicit `self` and `_cmd` are not included. */
+  // the explicit arguments, without `self` and `_cmd`
   argTypes: string[];
 };
 
@@ -74,14 +71,12 @@ function readType(encoding: string, pos: number): [type: string, next: number] {
   return [type, pos];
 }
 
-/**
- * Converts one single type encoding to the type name frooky uses for Objective-C (`@` -> `id`, `q` -> `long long` ...).
- * Structs, unions and arrays are named after their kind, pointers to anything but `void` are `void*`.
- */
+// One type encoding as the type name the Objective-C decoders use, e.g. `@` -> `id`, `q` -> `long long`,
+// `@"NSString"` -> `NSString*`. Structs, unions and arrays are named after their kind, every pointer is `void*`.
 export function objcTypeNameFromEncoding(encoding: string): string {
   const c = encoding[0];
   if (c === "@" && encoding[1] === "?") return "block";
-  if (c === "@" && encoding[1] === '"') return encoding.slice(2, -1) + "*"; // @"NSString" -> NSString*
+  if (c === "@" && encoding[1] === '"') return encoding.slice(2, -1) + "*";
   if (c === "^") return "void*";
   if (c === "{") return "struct";
   if (c === "(") return "union";
@@ -90,12 +85,7 @@ export function objcTypeNameFromEncoding(encoding: string): string {
   return PRIMITIVE_NAMES[c] ?? "unknown";
 }
 
-/**
- * Parses a method type encoding.
- *
- * @param encoding - The type encoding of a method, e.g. `v24@0:8@16`.
- * @throws If the encoding is malformed or does not contain `self` and `_cmd`.
- */
+// Parses a method type encoding, e.g. `v24@0:8@16`. Throws if it is malformed or lacks `self` and `_cmd`.
 export function parseObjcMethodEncoding(encoding: string): ObjcMethodSignature {
   const types: string[] = [];
   let pos = 0;

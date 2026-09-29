@@ -1,11 +1,12 @@
 # Agent (TypeScript) notes
 
-This is the Frida agent that runs inside the target process. It is compiled with `frida-compile` through `build.js`, which stages `src/android` + `src/shared` + `src/native` into a temp dir. Anything outside those folders is not part of the Android build.
+This is the Frida agent that runs inside the target process. It is compiled with `frida-compile` through `build.js`, which stages `src/<platform>` (`android` or `ios`) + `src/shared` + `src/native` into a temp dir. Anything outside those folders is not part of the build.
 
 ## Layout
 
 - `src/shared/`: platform-agnostic code: hook-file input types (`inputParsing/`), settings, events, decoder and hook base classes.
 - `src/android/`: Java/Kotlin hooking via `frida-java-bridge`, plus Java decoders.
+- `src/ios/`: Objective-C hooking via `frida-objc-bridge` (`objc/`) and Swift hooking via `frida-swift-bridge` (`swift/`), each with its own decoders. `IosHookManager` passes each hook to the manager of its bridge.
 - `src/native/`: native (C/C++) hooking and decoders, shared across platforms.
 - `src/FrookyAgent.ts`: entry class that wires validators, managers and the event sender together.
 

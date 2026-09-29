@@ -9,9 +9,7 @@ import { SwiftHookValidator } from "../swift/hook/swiftHookValidator";
 export type IosInputHookNormalized = InputObjcHookNormalized | InputSwiftHookNormalized;
 export type IosInputHookCollection = InputObjcHookCollection | InputSwiftHookCollection;
 
-/**
- * Validates the hooks of all iOS bridges. Every bridge has its own validator, this class only collects the results.
- */
+// Collects the hooks of the validators of each iOS bridge (Objective-C, Swift).
 export class IosHookValidator implements HookValidator<IosInputHookNormalized, IosInputHookCollection> {
   private readonly objcHookValidator = new ObjcHookValidator();
   private readonly swiftHookValidator = new SwiftHookValidator();

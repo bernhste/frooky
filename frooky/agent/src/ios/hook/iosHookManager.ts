@@ -6,6 +6,7 @@ import { InputObjcHookNormalized } from "../../shared/inputParsing/inputObjcHook
 import { InputSwiftHookNormalized, isSwiftHookNormalized } from "../../shared/inputParsing/inputSwiftHookCollection";
 import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
+import { plural } from "../../shared/utils";
 import { ObjcHook } from "../objc/hook/objcHook";
 import { ObjcHookManager } from "../objc/hook/objcHookManager";
 import { SwiftHook } from "../swift/hook/swiftHook";
@@ -13,13 +14,14 @@ import { SwiftHookManager } from "../swift/hook/swiftHookManager";
 import { IosHook } from "./iosHook";
 import { IosInputHookNormalized } from "./iosHookValidator";
 
-/**
- * Hook manager for iOS. It does not resolve or register anything itself, but routes the hooks
- * to the manager of the bridge they were declared for (Objective-C, Swift).
- */
+function isObjcHook(hook: IosHook): hook is ObjcHook {
+  return "objcClass" in hook;
+}
+
+// Passes each hook to the manager of its bridge (Objective-C, Swift).
 export class IosHookManager implements PlatformHookManager<IosInputHookNormalized, IosHook> {
   private readonly objcHookManager: ObjcHookManager;
-  // only available if the process uses Swift
+  // only set if the process uses Swift
   private readonly swiftHookManager?: SwiftHookManager;
 
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
@@ -35,23 +37,42 @@ export class IosHookManager implements PlatformHookManager<IosInputHookNormalize
     }
   }
 
-  async resolveHooks(inputHooks: IosInputHookNormalized[], timeout: number): Promise<Promise<IosHook[] | null>[]> {
-    logger.debug(`Resolving iOS hooks`);
-    const objcInputHooks = inputHooks.filter((inputHook): inputHook is InputObjcHookNormalized => "objcClass" in inputHook);
-    const swiftInputHooks = inputHooks.filter((inputHook): inputHook is InputSwiftHookNormalized => isSwiftHookNormalized(inputHook));
-    if (swiftInputHooks.length > 0 && !this.swiftHookManager) {
-      logger.warn(`Skipping ${swiftInputHooks.length} Swift hook(s), as the Swift runtime is not available.`);
+  // The returned promises are index-aligned with `inputHooks`, as FrookyAgent expects.
+  async resolveHooks(inputHooks: IosInputHookNormalized[], timeout: number, source?: string): Promise<Promise<IosHook[] | null>[]> {
+    const objcIndices: number[] = [];
+    const swiftIndices: number[] = [];
+    inputHooks.forEach((inputHook, i) => (isSwiftHookNormalized(inputHook) ? swiftIndices : objcIndices).push(i));
+
+    const results: Promise<IosHook[] | null>[] = new Array(inputHooks.length);
+    if (objcIndices.length > 0) {
+      const objcInputHooks = objcIndices.map((i) => inputHooks[i] as InputObjcHookNormalized);
+      const objcResults = await this.objcHookManager.resolveHooks(objcInputHooks, timeout, source);
+      objcIndices.forEach((inputIndex, i) => (results[inputIndex] = objcResults[i]));
     }
-    return [
-      ...(await this.objcHookManager.resolveHooks(objcInputHooks, timeout)),
-      ...((await this.swiftHookManager?.resolveHooks(swiftInputHooks, timeout)) ?? []),
-    ];
+    if (swiftIndices.length > 0) {
+      if (this.swiftHookManager) {
+        const swiftInputHooks = swiftIndices.map((i) => inputHooks[i] as InputSwiftHookNormalized);
+        const swiftResults = await this.swiftHookManager.resolveHooks(swiftInputHooks, timeout, source);
+        swiftIndices.forEach((inputIndex, i) => (results[inputIndex] = swiftResults[i]));
+      } else {
+        logger.warn(`Skipping ${plural(swiftIndices.length, "Swift hook")}, as the Swift runtime is not available.`);
+        swiftIndices.forEach((inputIndex) => (results[inputIndex] = Promise.resolve(null)));
+      }
+    }
+    return results;
   }
 
-  registerHooks(hooks: IosHook[]): number {
+  registerHooks(hooks: IosHook[], source?: string): number {
+    const objcHooks = hooks.filter(isObjcHook);
+    const swiftHooks = hooks.filter((hook): hook is SwiftHook => !isObjcHook(hook));
     return (
-      this.objcHookManager.registerHooks(hooks.filter((hook): hook is ObjcHook => "objcClass" in hook)) +
-      (this.swiftHookManager?.registerHooks(hooks.filter((hook): hook is SwiftHook => "swiftType" in hook)) ?? 0)
+      (objcHooks.length > 0 ? this.objcHookManager.registerHooks(objcHooks, source) : 0) +
+      (swiftHooks.length > 0 && this.swiftHookManager ? this.swiftHookManager.registerHooks(swiftHooks, source) : 0)
     );
+  }
+
+  unregisterHooks(hooks: IosHook[]): void {
+    this.objcHookManager.unregisterHooks(hooks.filter(isObjcHook));
+    this.swiftHookManager?.unregisterHooks(hooks.filter((hook): hook is SwiftHook => !isObjcHook(hook)));
   }
 }

@@ -1,20 +1,29 @@
-import { buildNativeFrames, PlatformStackTrace } from "../shared/platformStackTrace";
+import { nativeStackFrames } from "../native/nativeStackTrace";
+import { compileStackTraceFilter, HookStackTrace, PlatformStackTrace } from "../shared/platformStackTrace";
 import { FilterMismatchError } from "../shared/utils";
 
-/**
- * iOS stack traces are native frames only, no matter which bridge (Objective-C, Swift) the hooked code was called through.
- * Objective-C methods and Swift functions show up with their symbol name if the symbols are available.
- */
-export const IosStackTrace: PlatformStackTrace = {
-  build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): string[] {
-    const frames = buildNativeFrames(limit, ctx);
+// Frames searched by a stackTraceFilter without a frame limit, e.g. for app frames below UIKit code
+const FILTER_SEARCH_FRAMES = 128;
 
-    if (stackTraceFilter && stackTraceFilter.length > 0) {
-      const matches = frames.some((line) => stackTraceFilter.some((pattern) => new RegExp(pattern).test(line)));
-      if (!matches) {
+// iOS stack traces only have native frames: Objective-C methods and Swift functions are native code, and
+// show up by their symbol name, e.g. `-[NSURLSession dataTaskWithRequest:] (CFNetwork:0x1a2b3c)`.
+export const IosStackTrace: PlatformStackTrace = {
+  build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): HookStackTrace {
+    const hasFilter = stackTraceFilter !== undefined && stackTraceFilter.length > 0;
+    // no frames and no filter: skip the backtrace
+    if ((limit <= 0 && !hasFilter) || !ctx) {
+      if (hasFilter) throw new FilterMismatchError();
+      return { platformStackTrace: [], nativeStackTrace: [] };
+    }
+
+    // with a limit, the filter only searches the captured frames, as on Android
+    const frames = nativeStackFrames(ctx, limit > 0 ? limit : FILTER_SEARCH_FRAMES);
+    if (hasFilter) {
+      const regExps = compileStackTraceFilter(stackTraceFilter);
+      if (!frames.some((frame) => regExps.some((regExp) => regExp.test(frame)))) {
         throw new FilterMismatchError();
       }
     }
-    return frames;
+    return { platformStackTrace: [], nativeStackTrace: limit > 0 ? frames : [] };
   },
 };

@@ -22,7 +22,7 @@ export interface InputFrookyConfig {
   settings?: InputFrookySettings;
 
   /**
-   * Java and native hook collections to install.
+   * Java, Objective-C, Swift and native hook collections to install.
    */
   hookCollection: (InputJavaHookCollection | InputObjcHookCollection | InputSwiftHookCollection | InputNativeHookCollection)[];
 }

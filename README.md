@@ -96,10 +96,12 @@ Depending on the platform, the `<hook_declaration>` may look different. Please r
 
 frooky supports these types of hooks:
 
-| Hook Type    | Platform    | Description                                 | Documentation                                                 |
-| ------------ | ----------- | ------------------------------------------- | ------------------------------------------------------------- |
-| `JavaHook`   | Android     | Hook for Java/Kotlin methods                | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)     |
-| `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
+| Hook Type    | Platform    | Description                                   | Documentation                                                 |
+| ------------ | ----------- | --------------------------------------------- | ------------------------------------------------------------- |
+| `JavaHook`   | Android     | Hook for Java/Kotlin methods                  | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)     |
+| `ObjcHook`   | iOS         | Hook for Objective-C methods                  | [iOS examples](./docs/examples/ios/01_api_examples.yaml)      |
+| `SwiftHook`  | iOS         | Hook for Swift class, struct and enum methods | [iOS examples](./docs/examples/ios/01_api_examples.yaml)      |
+| `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.)   | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
 
 > [!NOTE]
 > `hookCollection` may freely mix different hook declarations within the same hook file, as long as they are compatible to the platform. For example an Android hook file with `JavaHook` and `NativeHook` is valid.

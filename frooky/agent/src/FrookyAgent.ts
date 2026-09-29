@@ -45,11 +45,28 @@ function describeConfig(inputFrookyConfig: InputFrookyConfig, configId?: string)
   return configId !== undefined ? configLabel(configId) : (inputFrookyConfig.metadata?.name ?? "frooky config");
 }
 
+type DeclaredTarget = {
+  javaClass?: string;
+  objcClass?: string;
+  swiftClass?: string;
+  swiftStruct?: string;
+  swiftEnum?: string;
+  method?: string;
+  module?: string;
+  symbol?: string;
+  offset?: string;
+};
+
+// e.g. `com.example.Foo` or `MyApp.LoginViewModel`
+function declaredClassOf(hook: DeclaredTarget): string | undefined {
+  return hook.javaClass ?? hook.objcClass ?? hook.swiftClass ?? hook.swiftStruct ?? hook.swiftEnum;
+}
+
 // The class or module a hook declaration waits for, e.g. `platform:com.example.Foo`.
 function lookupOf(kind: string, inputHook: unknown): string | undefined {
   if (typeof inputHook !== "object" || inputHook === null) return undefined;
-  const hook = inputHook as { javaClass?: string; module?: string };
-  const lookup = hook.javaClass ?? hook.module;
+  const hook = inputHook as DeclaredTarget;
+  const lookup = declaredClassOf(hook) ?? hook.module;
   return lookup ? `${kind}:${lookup}` : undefined;
 }
 
@@ -63,8 +80,9 @@ function describeInputHook(inputHook: unknown): string {
 // properties (overloads, settings, ...) keeps the target, so a reload reports the declaration as updated.
 function targetOf(kind: string, inputHook: unknown): string | undefined {
   if (typeof inputHook !== "object" || inputHook === null) return undefined;
-  const hook = inputHook as { javaClass?: string; method?: string; module?: string; symbol?: string; offset?: string };
-  if (hook.javaClass && hook.method) return `${kind}:${hook.javaClass}.${hook.method}`;
+  const hook = inputHook as DeclaredTarget;
+  const declaredClass = declaredClassOf(hook);
+  if (declaredClass && hook.method) return `${kind}:${declaredClass}.${hook.method}`;
   if (hook.module && (hook.symbol || hook.offset)) return `${kind}:${describeNativeTarget(hook.module, hook)}`;
   return undefined;
 }

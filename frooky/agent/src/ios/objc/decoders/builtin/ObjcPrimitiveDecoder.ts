@@ -3,11 +3,11 @@ import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 
 export type ObjcIntegerType = { bits: 8 | 16 | 32 | 64; signed: boolean };
 
-/**
- * Decodes integer, char and BOOL values. Objective-C passes them in general-purpose registers,
- * so Frida hands them over as the raw register content in a `NativePointer`.
- */
+// Integers, chars and BOOLs are passed in general-purpose registers, so the value is the raw register content.
 export class ObjcPrimitiveDecoder extends Decoder<NativePointer> {
+  readonly decoderName = "ObjcPrimitiveDecoder";
+  readonly description = "Decodes integer, `char` and `BOOL` values; 64-bit integers become decimal strings to keep their precision.";
+
   constructor(
     decodable: ConstructorParameters<typeof Decoder>[0],
     private readonly integerType: ObjcIntegerType,
@@ -26,7 +26,8 @@ export class ObjcPrimitiveDecoder extends Decoder<NativePointer> {
     if (this.isBool) {
       decodedValue = number !== 0n;
     } else if (bits === 64) {
-      decodedValue = number.toString(); // does not fit safely into a JavaScript number
+      // a JS number has only 53 bits of precision
+      decodedValue = number.toString();
     } else {
       decodedValue = Number(number);
     }

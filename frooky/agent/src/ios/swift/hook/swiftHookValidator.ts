@@ -9,6 +9,7 @@ import {
   isSwiftHookCollection,
   mergeSwiftHookCollectionSettings,
   normalizeSwiftHook,
+  swiftOwnerName,
 } from "../../../shared/inputParsing/inputSwiftHookCollection";
 import { inputSwiftHookNormalizedSchema } from "../../../shared/inputParsing/zodSchemas/inputSwiftHookCollection.zod";
 import { logger } from "../../../shared/logger";
@@ -20,18 +21,18 @@ export class SwiftHookValidator implements HookValidator<InputSwiftHookNormalize
 
     for (const swiftHookCollection of swiftHookCollections) {
       const { hookSettings, decoderSettings } = mergeSwiftHookCollectionSettings(swiftHookCollection, settings);
+      const owner = getSwiftOwner(swiftHookCollection);
       for (const inputSwiftHook of swiftHookCollection.hooks) {
         try {
-          const normalizedSwiftHook = normalizeSwiftHook(getSwiftOwner(swiftHookCollection), inputSwiftHook, hookSettings, decoderSettings);
+          const normalizedSwiftHook = normalizeSwiftHook(owner, inputSwiftHook, hookSettings, decoderSettings);
           normalizedSwiftHooks.push(inputSwiftHookNormalizedSchema.parse(normalizedSwiftHook));
         } catch (e) {
           const method =
             typeof inputSwiftHook === "string" ? inputSwiftHook : Array.isArray(inputSwiftHook) ? inputSwiftHook[0] : inputSwiftHook.method;
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
-          logger.warn([
-            `Skipping hook for Swift method '${method}' from '${Object.values(getSwiftOwner(swiftHookCollection))[0]}' due to an invalid declaration.`,
-            `Validation error:\n${validationError}`,
-          ]);
+          logger.warn(
+            `Skipping hook for Swift method '${method}' from '${swiftOwnerName(owner)}' due to an invalid declaration:\n${validationError}`,
+          );
         }
       }
     }

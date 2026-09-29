@@ -13,7 +13,7 @@ describe("SwiftHookValidator", () => {
   const validator = new SwiftHookValidator();
 
   it("only returns the swift hook groups of a mixed hookCollection", () => {
-    const swiftGroup: InputSwiftHookCollection = { swiftClass: "MyApp.Foo", hooks: [] };
+    const swiftGroup: InputSwiftHookCollection = { type: "swift", swiftClass: "MyApp.Foo", hooks: [] };
     const config = {
       hookCollection: [{ objcClass: "NSData", hooks: [] }, swiftGroup],
     } as unknown as InputFrookyConfig;
@@ -21,7 +21,7 @@ describe("SwiftHookValidator", () => {
   });
 
   it("normalizes a plain method name using the default settings", () => {
-    const config: InputFrookyConfig = { hookCollection: [{ swiftClass: "MyApp.Foo", hooks: ["authenticate(user:_:)"] }] };
+    const config: InputFrookyConfig = { hookCollection: [{ type: "swift", swiftClass: "MyApp.Foo", hooks: ["authenticate(user:_:)"] }] };
     const [hook] = validator.validateAndNormalizeHooks(config, defaultSettings);
     expect("swiftClass" in hook && hook.swiftClass).toBe("MyApp.Foo");
     expect(hook.method).toBe("authenticate(user:_:)");
@@ -31,8 +31,8 @@ describe("SwiftHookValidator", () => {
   it("normalizes struct and enum hooks", () => {
     const config: InputFrookyConfig = {
       hookCollection: [
-        { swiftStruct: "MyApp.Credentials", hooks: ["validate"] },
-        { swiftEnum: "MyApp.LoginState", hooks: ["isFinal"] },
+        { type: "swift", swiftStruct: "MyApp.Credentials", hooks: ["validate"] },
+        { type: "swift", swiftEnum: "MyApp.LoginState", hooks: ["isFinal"] },
       ],
     };
     const hooks = validator.validateAndNormalizeHooks(config, defaultSettings);

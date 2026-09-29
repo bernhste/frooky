@@ -15,16 +15,10 @@ function getModuleSymbols(module: Module): ModuleSymbolDetails[] {
   return symbols;
 }
 
-/**
- * Finds the methods of a struct or enum.
- *
- * The bridge only enumerates the methods of classes (`$methods`, taken from the class' vtable). The methods of structs
- * and enums are dispatched statically and are not listed anywhere, so they are found by their symbol: every symbol of the
- * binary the type lives in, which demangles to `Module.Type.method(...) -> ...`, is a method of that type.
- * This requires the symbols not to be stripped.
- *
- * @returns The methods with their demangled symbol as name, the same format the bridge uses for class methods.
- */
+// The methods of a struct or enum, named by their demangled symbol like the bridge's class methods. The bridge
+// only lists class methods (from the vtable), struct and enum methods are dispatched statically, so they are
+// found by their symbols: every symbol of the type's binary that demangles to `Module.Type.method(...) -> ...`.
+// This needs the symbols not to be stripped.
 export function findValueTypeMethods(type: Struct | Enum): SwiftMethodDetails[] {
   const module = Process.findModuleByAddress(type.descriptor.handle);
   if (!module) return [];

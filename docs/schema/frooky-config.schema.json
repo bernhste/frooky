@@ -403,6 +403,1210 @@
             "properties": {
               "type": {
                 "type": "string",
+                "const": "objc"
+              },
+              "objcClass": {
+                "type": "string"
+              },
+              "hooks": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "additionalItems": false,
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "objcClass": {
+                          "type": "string"
+                        },
+                        "method": {
+                          "type": "string"
+                        },
+                        "params": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "hashCode": {
+                                        "type": "boolean"
+                                      },
+                                      "decoder": {
+                                        "type": "string"
+                                      },
+                                      "decoderArg": {
+                                        "type": "string"
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "direction": {}
+                                    }
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "hashCode": {
+                                        "type": "boolean"
+                                      },
+                                      "decoder": {
+                                        "type": "string"
+                                      },
+                                      "decoderArg": {
+                                        "type": "string"
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "direction": {}
+                                    }
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 3,
+                                "maxItems": 3
+                              },
+                              {}
+                            ]
+                          }
+                        },
+                        "retType": {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "hookSettings": {
+                          "type": "object",
+                          "properties": {
+                            "maxStackFrames": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "stackTraceFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "decoderSettings": {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "method"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "hookSettings": {
+                "type": "object",
+                "properties": {
+                  "maxStackFrames": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "stackTraceFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "decoderSettings": {
+                "type": "object",
+                "properties": {
+                  "maxDepth": {
+                    "type": "number",
+                    "minimum": 1
+                  },
+                  "maxItems": {
+                    "type": "number",
+                    "minimum": 1
+                  },
+                  "hashCode": {
+                    "type": "boolean"
+                  },
+                  "decoder": {
+                    "type": "string"
+                  },
+                  "decoderArg": {
+                    "type": "string"
+                  },
+                  "argFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "objcClass",
+              "hooks"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "swift"
+              },
+              "hooks": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "additionalItems": false,
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "method": {
+                          "type": "string"
+                        },
+                        "params": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "hashCode": {
+                                        "type": "boolean"
+                                      },
+                                      "decoder": {
+                                        "type": "string"
+                                      },
+                                      "decoderArg": {
+                                        "type": "string"
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "direction": {}
+                                    }
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "hashCode": {
+                                        "type": "boolean"
+                                      },
+                                      "decoder": {
+                                        "type": "string"
+                                      },
+                                      "decoderArg": {
+                                        "type": "string"
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "direction": {}
+                                    }
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 3,
+                                "maxItems": 3
+                              },
+                              {}
+                            ]
+                          }
+                        },
+                        "retType": {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "hookSettings": {
+                          "type": "object",
+                          "properties": {
+                            "maxStackFrames": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "stackTraceFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "decoderSettings": {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "swiftClass": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "method"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "hookSettings": {
+                "type": "object",
+                "properties": {
+                  "maxStackFrames": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "stackTraceFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "decoderSettings": {
+                "type": "object",
+                "properties": {
+                  "maxDepth": {
+                    "type": "number",
+                    "minimum": 1
+                  },
+                  "maxItems": {
+                    "type": "number",
+                    "minimum": 1
+                  },
+                  "hashCode": {
+                    "type": "boolean"
+                  },
+                  "decoder": {
+                    "type": "string"
+                  },
+                  "decoderArg": {
+                    "type": "string"
+                  },
+                  "argFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "swiftClass": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hooks",
+              "swiftClass"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "swift"
+              },
+              "hooks": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "additionalItems": false,
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "method": {
+                          "type": "string"
+                        },
+                        "params": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "hashCode": {
+                                        "type": "boolean"
+                                      },
+                                      "decoder": {
+                                        "type": "string"
+                                      },
+                                      "decoderArg": {
+                                        "type": "string"
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "direction": {}
+                                    }
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "hashCode": {
+                                        "type": "boolean"
+                                      },
+                                      "decoder": {
+                                        "type": "string"
+                                      },
+                                      "decoderArg": {
+                                        "type": "string"
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "direction": {}
+                                    }
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 3,
+                                "maxItems": 3
+                              },
+                              {}
+                            ]
+                          }
+                        },
+                        "retType": {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "hookSettings": {
+                          "type": "object",
+                          "properties": {
+                            "maxStackFrames": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "stackTraceFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "decoderSettings": {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "swiftStruct": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "method"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "hookSettings": {
+                "type": "object",
+                "properties": {
+                  "maxStackFrames": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "stackTraceFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "decoderSettings": {
+                "type": "object",
+                "properties": {
+                  "maxDepth": {
+                    "type": "number",
+                    "minimum": 1
+                  },
+                  "maxItems": {
+                    "type": "number",
+                    "minimum": 1
+                  },
+                  "hashCode": {
+                    "type": "boolean"
+                  },
+                  "decoder": {
+                    "type": "string"
+                  },
+                  "decoderArg": {
+                    "type": "string"
+                  },
+                  "argFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "swiftStruct": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hooks",
+              "swiftStruct"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "swift"
+              },
+              "hooks": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      ],
+                      "additionalItems": false,
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "method": {
+                          "type": "string"
+                        },
+                        "params": {
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "string"
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "hashCode": {
+                                        "type": "boolean"
+                                      },
+                                      "decoder": {
+                                        "type": "string"
+                                      },
+                                      "decoderArg": {
+                                        "type": "string"
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "direction": {}
+                                    }
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 2,
+                                "maxItems": 2
+                              },
+                              {
+                                "type": "array",
+                                "items": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "hashCode": {
+                                        "type": "boolean"
+                                      },
+                                      "decoder": {
+                                        "type": "string"
+                                      },
+                                      "decoderArg": {
+                                        "type": "string"
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "direction": {}
+                                    }
+                                  }
+                                ],
+                                "additionalItems": false,
+                                "minItems": 3,
+                                "maxItems": 3
+                              },
+                              {}
+                            ]
+                          }
+                        },
+                        "retType": {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "hookSettings": {
+                          "type": "object",
+                          "properties": {
+                            "maxStackFrames": {
+                              "type": "number",
+                              "minimum": 0
+                            },
+                            "stackTraceFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "decoderSettings": {
+                          "type": "object",
+                          "properties": {
+                            "maxDepth": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "maxItems": {
+                              "type": "number",
+                              "minimum": 1
+                            },
+                            "hashCode": {
+                              "type": "boolean"
+                            },
+                            "decoder": {
+                              "type": "string"
+                            },
+                            "decoderArg": {
+                              "type": "string"
+                            },
+                            "argFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "swiftEnum": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "method"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "hookSettings": {
+                "type": "object",
+                "properties": {
+                  "maxStackFrames": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "stackTraceFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "decoderSettings": {
+                "type": "object",
+                "properties": {
+                  "maxDepth": {
+                    "type": "number",
+                    "minimum": 1
+                  },
+                  "maxItems": {
+                    "type": "number",
+                    "minimum": 1
+                  },
+                  "hashCode": {
+                    "type": "boolean"
+                  },
+                  "decoder": {
+                    "type": "string"
+                  },
+                  "decoderArg": {
+                    "type": "string"
+                  },
+                  "argFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "swiftEnum": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "hooks",
+              "swiftEnum"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
                 "const": "native"
               },
               "module": {

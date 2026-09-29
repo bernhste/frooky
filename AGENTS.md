@@ -10,13 +10,14 @@ Two components, each with its own build and tests:
 ## Commands
 
 ```bash
-./compileAgent.sh --dev                 # build agent -> frooky/agent/dist/agent-android.js (runs npm ci)
+./compileAgent.sh --dev                 # build agents -> frooky/agent/dist/agent-{android,ios}.js (runs npm ci); optional 2nd arg: android|ios
 pip install -e '.[dev]'                 # host in editable mode (devcontainer venv: /opt/venv)
 pytest tests/unit                       # host unit tests, no device needed
 ruff check . && ruff format --check .   # Python lint/format (config in pyproject.toml)
 
 cd frooky/agent
 npm run build:dev:android               # rebuild agent only
+npm run build:dev:ios                   # rebuild the iOS agent only
 npm run build:zodSchema                 # regenerate Zod schemas after changing hook-file types
 npm run build:jsonSchema                # regenerate docs/schema/frooky-config.schema.json
 npm run test:android                    # agent tests, needs a device (see below)
@@ -37,7 +38,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
   - `docs/schema/frooky-config.schema.json`: `npm run build:jsonSchema` (post-processed by `frooky/agent/scripts/generateJsonSchema.ts`). VS Code uses it for YAML autocompletion.
   - `frooky/_version.py`: from git tags via setuptools-scm. Never edit version numbers.
 - **The hook-file format is the public API.** Any change to it must update the types, both generated schemas, `docs/*.md`, `docs/examples/`, and the README. Use the `change-hook-schema` skill.
-- **iOS is not implemented.** There is no `frooky/agent/src/ios/` and there are no iOS npm scripts. Don't claim or document iOS behavior without evidence in the source.
+- **iOS is agent-only.** `frooky/agent/src/ios/` hooks Objective-C and Swift methods and builds `dist/agent-ios.js`, usable with `npm run build:watch:ios` and the plain `frida` CLI. The host only loads `agent-android.js` and there is no iOS CI. Don't claim or document host-side iOS support without evidence in the source.
 - `.github/workflows/publish-host.yml` publishing is disabled. Don't re-enable it unless asked.
 - Use `npm ci`, not `npm install`, unless you are adding a dependency. CI uses Node 24 and Python 3.14; minimum Python is 3.10.
 - Use `git --no-pager` for git commands.

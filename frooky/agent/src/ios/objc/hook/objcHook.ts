@@ -1,26 +1,20 @@
 import { Param, RetType } from "../../../shared/decoders/decodable";
 import { Hook } from "../../../shared/hook/hook";
 
-/**
- * Contains all information to hook an Objective-C method
- *
- * @public
- */
+// A resolved Objective-C method to hook
 export interface ObjcHook extends Hook {
-  /** The class the method was resolved on. */
+  // the class that implements the method
   objcClass: string;
-
-  /** The selector without `+`/`-` prefix, e.g. `initWithString:`. */
+  // without the `+`/`-` prefix, e.g. `initWithString:`
   selector: string;
-
   methodType: "instance" | "class";
-
-  /** Address of the method's implementation (IMP). */
+  // address of the method's implementation (IMP)
   implementation: NativePointer;
-
-  /** Explicit arguments only. The implicit `self` (args[0]) and `_cmd` (args[1]) are not decoded. */
+  // the explicit arguments, without `self` and `_cmd`
   params: Param[];
-
-  /** Not set if the method returns `void`. */
+  // not set if the method returns `void`
   retType?: RetType;
+
+  // set while the hook is installed
+  listener?: InvocationListener;
 }

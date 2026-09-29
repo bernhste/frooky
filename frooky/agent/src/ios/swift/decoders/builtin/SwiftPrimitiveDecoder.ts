@@ -4,7 +4,7 @@ import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 
 type PrimitiveReader = (handle: NativePointer) => number | boolean | string;
 
-// 64 bit integers are returned as decimal strings: a JS number only carries 53 bits of integer precision
+// 64-bit values are decimal strings, a JS number has only 53 bits of precision
 export const SWIFT_PRIMITIVE_READERS: Record<string, PrimitiveReader> = {
   "Swift.Int": (p) => p.readS64().toString(),
   "Swift.Int64": (p) => p.readS64().toString(),
@@ -21,11 +21,12 @@ export const SWIFT_PRIMITIVE_READERS: Record<string, PrimitiveReader> = {
   "Swift.Double": (p) => p.readDouble(),
 };
 
-/**
- * Decodes the Swift standard library's integer, floating point and boolean structs.
- * The bridge hands them over as a struct value whose handle points to their raw bytes.
- */
+// The bridge passes these structs as a value whose handle points to their raw bytes.
 export class SwiftPrimitiveDecoder extends Decoder<RuntimeInstance> {
+  readonly decoderName = "SwiftPrimitiveDecoder";
+  readonly description =
+    "Decodes the standard library's integer, floating point and `Bool` types; 64-bit integers become decimal strings to keep their precision.";
+
   decode(value: RuntimeInstance): DecodedValue {
     return { type: this.type, name: this.name, value: SWIFT_PRIMITIVE_READERS[this.type](value.handle) };
   }

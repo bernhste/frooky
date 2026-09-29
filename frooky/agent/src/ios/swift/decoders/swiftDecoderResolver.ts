@@ -9,7 +9,7 @@ import { SwiftStringDecoder } from "./swift/SwiftStringDecoder";
 
 export type SwiftDecoderConstructor = { new (decodable: Decodable): Decoder<RuntimeInstance> };
 
-// resolved on first use: the array decoder resolves the decoders of its elements using this resolver
+// created on first use, since SwiftArrayDecoder imports this resolver for its elements
 let customDecoderRegistry: Record<string, SwiftDecoderConstructor> | undefined;
 function getCustomDecoderRegistry(): Record<string, SwiftDecoderConstructor> {
   return (customDecoderRegistry ??= {
@@ -18,15 +18,13 @@ function getCustomDecoderRegistry(): Record<string, SwiftDecoderConstructor> {
   });
 }
 
-// types of the standard library can be declared with or without the `Swift.` module prefix
+// e.g. `String` -> `Swift.String`, standard library types can be declared without their module
 function qualifySwiftType(type: string): string {
   const trimmed = type.trim();
   return trimmed.includes(".") ? trimmed : `Swift.${trimmed}`;
 }
 
-/**
- * resolves the decoder based on a decodable type
- */
+// Picks the decoder of a value: the custom decoder from its settings, else by its declared type.
 export const SwiftDecoderResolver: DecoderResolver<RuntimeInstance> = {
   resolveDecoder(decodable: Decodable): Decoder<RuntimeInstance> {
     if (decodable.settings.decoder) {

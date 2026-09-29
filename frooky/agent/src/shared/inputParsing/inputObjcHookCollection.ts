@@ -1,70 +1,80 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
-import { InputParam, InputRetTypeSettings, normalizeInputParam, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
+import { InputParam, InputRetTypeSettings, normalizeInputParams, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
- * Objective-C method selector - either a simple method name, a `[method, decoderSettings]` tuple shorthand,
- * or a detailed definition.
- *
- * The `method` is an Objective-C selector, optionally prefixed with `-` (instance method) or `+` (class method),
- * e.g. `-initWithString:` or `+sharedInstance`. Without a prefix, instance and class methods with that selector are hooked.
- *
- * Objective-C has no overloads. The parameter and return types are read from the method's type encoding,
- * so `params` is optional. If declared, `params` covers the explicit arguments only (not `self` and `_cmd`) and overrides the read types.
- * The return type itself is never declared, only how the return value is decoded ({@link InputRetTypeSettings}).
+ * Detailed declaration of an Objective-C method hook. Objective-C has no overloads, and the parameter and
+ * return types are read from the method's type encoding.
  *
  * @public
  */
 export type InputObjcHookNormalized = {
+  /** Objective-C class name. Inherited from the hook collection. */
   objcClass: string;
+
+  /**
+   * Selector, optionally prefixed with `-` (instance method) or `+` (class method), e.g. `-initWithString:`.
+   * Without a prefix, both the instance and the class method with that selector are hooked.
+   */
   method: string;
+
+  /**
+   * Parameters of the method, in order, without the implicit `self` and `_cmd`. Replace the types read from
+   * the type encoding, so the number of parameters must match.
+   */
   params?: InputParam[];
+
+  /** Decoder settings for the return value. The return type is read from the type encoding; no type is declared. */
   retType?: InputRetTypeSettings;
+
+  /** Hook settings for this method. Override the collection's settings. */
   hookSettings?: HookSettings;
+
+  /** Decoder settings for this method. Override the collection's settings. */
   decoderSettings?: DecoderSettings;
 };
 
 /**
+ * An Objective-C method hook: a selector, a `[selector, decoderSettings]` tuple, or a detailed declaration.
+ *
  * @public
  */
 export type InputObjcHook = string | [string, DecoderSettings] | InputObjcHookNormalized;
 
 /**
- * Objective-C hook configuration.
- *
- * Extended type for YAML input parsing.
- *
- * The settings are optional here.
+ * Collection of hooks on methods of one Objective-C class.
  *
  * @public
+ * @discriminator {type}
  */
 export interface InputObjcHookCollection {
+  /** Collection kind. Optional in hook files; inferred from `objcClass`. */
+  type: "objc";
+
+  /**
+   * Name of the class to hook, e.g. `NSURLSession`. `*` matches any characters, e.g. `NS*URL*` hooks every
+   * loaded class matching the pattern.
+   */
   objcClass: string;
+
+  /** Methods to hook. Only methods the class implements itself are hooked, not inherited ones. */
   hooks: InputObjcHook[];
+
+  /** Hook settings for all hooks in this collection. */
   hookSettings?: InputHookSettings;
+
+  /** Decoder settings for all hooks in this collection. */
   decoderSettings?: InputDecoderSettings;
 }
 
-// Type guard function
 export function isObjcHookCollection(hookScopeInput: object): hookScopeInput is InputObjcHookCollection {
   return "objcClass" in hookScopeInput;
 }
 
-/**
- * Normalizes a single Objective-C hook definition into its canonical form.
- *
- * Exported so callers (e.g. the objc hook validator) can normalize and validate hooks one at a time,
- * isolating a malformed param declaration on one hook from the rest of the group.
- *
- * @param objcClass - The Objective-C class the hook belongs to, taken from the enclosing hook group.
- * @param method - The raw hook definition: a plain selector, a `[selector, decoderSettings]` tuple, or a detailed declaration.
- * @param hookSettings - The merged hook settings to apply to this hook.
- * @param decoderSettings - The merged decoder settings to apply to this hook's params and return value.
- * @returns The normalized hook.
- * @throws If a param declaration is in an unrecognized format.
- */
+// Normalizes one hook with the merged collection settings. Throws on an invalid param, so validators can
+// skip a single hook.
 export function normalizeObjcHook(
   objcClass: string,
   method: InputObjcHook,
@@ -93,21 +103,14 @@ export function normalizeObjcHook(
   return {
     ...method,
     objcClass,
-    params: method.params?.map((param: InputParam) => normalizeInputParam(param, mergedDecoderSettings)),
+    params: method.params ? normalizeInputParams(method.params, mergedDecoderSettings) : undefined,
     retType: method.retType ? normalizeInputRetTypeSettings(method.retType, mergedDecoderSettings) : undefined,
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
   };
 }
 
-/**
- * Merges the hook group's own hook/decoder settings with the given base settings and the hard-coded defaults,
- * repairing any invalid values along the way.
- *
- * @param hookCollection - The input objc hook group whose settings should be merged.
- * @param settings - The base frooky settings to merge on top of the defaults.
- * @returns The merged, repaired hook and decoder settings.
- */
+// Merges defaults, file settings and the collection's settings, repairing invalid values.
 export function mergeObjcHookCollectionSettings(
   hookCollection: InputObjcHookCollection,
   settings: FrookySettings,

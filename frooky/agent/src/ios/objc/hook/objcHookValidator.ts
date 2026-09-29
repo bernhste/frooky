@@ -26,10 +26,9 @@ export class ObjcHookValidator implements HookValidator<InputObjcHookNormalized,
         } catch (e) {
           const method = typeof inputObjcHook === "string" ? inputObjcHook : Array.isArray(inputObjcHook) ? inputObjcHook[0] : inputObjcHook.method;
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
-          logger.warn([
-            `Skipping hook for Objective-C method '${method}' from class '${objcHookCollection.objcClass}' due to an invalid declaration.`,
-            `Validation error:\n${validationError}`,
-          ]);
+          logger.warn(
+            `Skipping hook for Objective-C method '${method}' from class '${objcHookCollection.objcClass}' due to an invalid declaration:\n${validationError}`,
+          );
         }
       }
     }

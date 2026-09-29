@@ -21,18 +21,27 @@ const jsonSchema = z.toJSONSchema(inputFrookyConfigSchema, {
   io: "input",
 }) as unknown as JsonSchemaNode & { properties: { hookCollection: { items: { anyOf: JsonSchemaNode[] } } } };
 
-// ts-to-zod turns InputJavaHookCollection/InputNativeHookCollection into JSON schema literally,
-// but two of their fields aren't actually required in the YAML *input* format the way they are
-// on the normalized TS types:
-// - `type` ("java"/"native") is a TS-only discriminator. At runtime hook collections are told
-//   apart by duck-typing (presence of `javaClass` vs `module`, see isJavaHookScope /
-//   isNativeHookCollection), and no docs/examples/*.yaml file ever sets it.
-// - a per-hook object entry's `javaClass`/`module` is always inherited from its parent
-//   collection (see normalizeJavaHook/normalizeNativeHook, which overwrite it unconditionally),
-//   so individual hooks only ever specify their own `method`/`symbol`/`offset`.
+// ts-to-zod turns the Input*HookCollection types into JSON schema literally, but two of their
+// fields aren't actually required in the YAML *input* format the way they are on the normalized
+// TS types:
+// - `type` ("java"/"objc"/"swift"/"native") is a TS-only discriminator. At runtime hook
+//   collections are told apart by duck-typing (presence of `javaClass`, `objcClass`,
+//   `swiftClass`/`swiftStruct`/`swiftEnum` or `module`, see isJavaHookScope,
+//   isObjcHookCollection, isSwiftHookCollection and isNativeHookCollection), and no
+//   docs/examples/*.yaml file ever sets it.
+// - a per-hook object entry's class/module key is always inherited from its parent collection
+//   (see the normalize*Hook functions, which overwrite it unconditionally), so individual hooks
+//   only ever specify their own `method`/`symbol`/`offset`.
 // Leaving these required would make the schema flag every real hook file as invalid.
-for (const hookCollectionVariant of jsonSchema.properties.hookCollection.items.anyOf) {
-  const inheritedKey = hookCollectionVariant.required?.find((key) => key === "javaClass" || key === "module");
+const inheritedKeys = ["javaClass", "objcClass", "swiftClass", "swiftStruct", "swiftEnum", "module"];
+
+// The Swift collection is itself a union (class, struct or enum), which nests an anyOf inside the
+// hookCollection's anyOf. Flatten it so each object variant is reached below.
+const hookCollectionItems = jsonSchema.properties.hookCollection.items;
+hookCollectionItems.anyOf = hookCollectionItems.anyOf.flatMap((variant) => (variant.anyOf && !variant.type ? variant.anyOf : [variant]));
+
+for (const hookCollectionVariant of hookCollectionItems.anyOf) {
+  const inheritedKey = hookCollectionVariant.required?.find((key) => inheritedKeys.includes(key));
   hookCollectionVariant.required = hookCollectionVariant.required?.filter((key) => key !== "type");
 
   const hooksItems = hookCollectionVariant.properties?.hooks?.items;
@@ -40,6 +49,10 @@ for (const hookCollectionVariant of jsonSchema.properties.hookCollection.items.a
     // A detailed hook that is itself a union (native: `symbol` or `offset`) nests an anyOf
     // inside the hook's anyOf. Flatten it so each object variant is reached below.
     hooksItems.anyOf = hooksItems.anyOf.flatMap((variant) => (variant.anyOf && !variant.type ? variant.anyOf : [variant]));
+  }
+  if (hooksItems && !Array.isArray(hooksItems) && hooksItems.anyOf) {
+    // a Swift class collection only takes class hooks, not the struct or enum ones of the same union
+    hooksItems.anyOf = hooksItems.anyOf.filter((variant) => !variant.required?.some((key) => key !== inheritedKey && inheritedKeys.includes(key)));
   }
   const hookVariants = (!Array.isArray(hooksItems) && hooksItems?.anyOf) || [];
   for (const hookVariant of hookVariants) {

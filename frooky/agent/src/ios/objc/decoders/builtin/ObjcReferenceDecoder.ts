@@ -15,15 +15,16 @@ function getClassDecoderRegistry(): Record<string, ObjcDecoderConstructor> {
   });
 }
 
-// runtime class name -> decoder. Class clusters (e.g. `__NSCFData`) are common, so cache the (super class walking) lookup
-const decoderCache = new Map<string, ObjcDecoderConstructor>();
+// runtime class name -> decoder class. Class clusters (e.g. `__NSCFData`) are common, so the lookup walking
+// the superclasses is cached.
+const decoderClassCache = new Map<string, ObjcDecoderConstructor>();
 
 function resolveClassDecoder(object: ObjC.Object): ObjcDecoderConstructor {
   const className = object.$className;
-  const cached = decoderCache.get(className);
+  const cached = decoderClassCache.get(className);
   if (cached) return cached;
 
-  // the runtime class is usually a private subclass of the class a decoder is registered for, so walk up the hierarchy
+  // the runtime class is usually a private subclass of the class a decoder is registered for
   const registry = getClassDecoderRegistry();
   let decoderConstructor: ObjcDecoderConstructor = ObjcStringDecoder;
   for (let cls: ObjC.Object | null = object.$class; cls; cls = cls.$superClass) {
@@ -33,26 +34,35 @@ function resolveClassDecoder(object: ObjC.Object): ObjcDecoderConstructor {
       break;
     }
   }
-  decoderCache.set(className, decoderConstructor);
+  decoderClassCache.set(className, decoderConstructor);
   return decoderConstructor;
 }
 
-/**
- * Decodes values of type `id` (or a declared class such as `NSString *`).
- * The declared type says little, so the decoder is picked by the runtime class of the object the first time it is decoded.
- */
+// The declared type of an object (`id`, `NSString *`, ...) says little, so the decoder is picked by the
+// runtime class of each value.
 export class ObjcReferenceDecoder extends Decoder<NativePointer> {
+  readonly decoderName = "ObjcReferenceDecoder";
+  readonly description = "Decodes an object by its runtime class: `NSData` as hex, `NSDictionary` as an object, anything else as its `-description`.";
+
+  // decoder per `$kind:$className`, e.g. `instance:__NSCFData`, with this decoder's settings
+  private readonly decoders = new Map<string, Decoder<NativePointer>>();
+
   decode(value: NativePointer): DecodedValue {
     if (value.isNull()) {
       return { type: this.type, name: this.name, value: null };
     }
 
     const object = new ObjC.Object(value);
-    // a class object (`Class`) is decoded as its name
-    const decoderConstructor = object.$kind === "class" ? ObjcStringDecoder : resolveClassDecoder(object);
-    logger.debug(`Resolved decoder for Objective-C object of class '${object.$className}'.`);
-
-    const decoder = new decoderConstructor({ type: object.$className, name: this.name, settings: this.settings });
+    const className = object.$className;
+    const key = `${object.$kind}:${className}`;
+    let decoder = this.decoders.get(key);
+    if (!decoder) {
+      // a class object (`Class`) is decoded as its name
+      const decoderConstructor = object.$kind === "class" ? ObjcStringDecoder : resolveClassDecoder(object);
+      decoder = new decoderConstructor({ type: className, name: this.name, settings: this.settings });
+      this.decoders.set(key, decoder);
+      logger.debug(`Objective-C class '${className}' is decoded by ${decoder.decoderName}.`);
+    }
     return { type: this.type, name: this.name, value: decoder.decode(value).value };
   }
 }

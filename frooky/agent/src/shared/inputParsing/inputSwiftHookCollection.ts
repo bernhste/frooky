@@ -1,97 +1,143 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
-import { InputParam, InputRetTypeSettings, normalizeInputParam, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
+import { InputParam, InputRetTypeSettings, normalizeInputParams, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
- * Swift hook properties shared by classes, structs and enums.
- *
- * The `method` is the base name of the Swift method, e.g. `authenticate`. Swift methods can be overloaded by
- * their argument labels and types, so a plain name hooks every overload. To hook one, add the argument labels
- * like in Swift documentation, e.g. `authenticate(user:password:)` (`_` for an unlabeled argument).
- *
- * The parameter and return types are taken from the demangled symbol of the method, so `params` is optional.
- * If declared, `params` covers the explicit arguments only (not `self`) and overrides the types taken from the symbol.
- * The return type itself is never declared, only how the return value is decoded ({@link InputRetTypeSettings}).
+ * Fields shared by every detailed Swift method hook. The parameter and return types are taken from the
+ * demangled symbol of the method.
  *
  * @public
  */
 export type InputSwiftMethodHook = {
+  /**
+   * Base name of the method, e.g. `authenticate`, which hooks every overload. To hook a single overload, add
+   * the argument labels as in the Swift documentation, e.g. `authenticate(user:password:)` (`_` for an unlabeled argument).
+   */
   method: string;
+
+  /**
+   * Parameters of the method, in order, without the implicit `self`. Replace the types taken from the symbol,
+   * so the number of parameters must match.
+   */
   params?: InputParam[];
+
+  /** Decoder settings for the return value. The return type is taken from the symbol; no type is declared. */
   retType?: InputRetTypeSettings;
+
+  /** Hook settings for this method. Override the collection's settings. */
   hookSettings?: HookSettings;
+
+  /** Decoder settings for this method. Override the collection's settings. */
   decoderSettings?: DecoderSettings;
 };
 
-/** @public */
-export type InputSwiftClassHookNormalized = InputSwiftMethodHook & { swiftClass: string };
-/** @public */
-export type InputSwiftStructHookNormalized = InputSwiftMethodHook & { swiftStruct: string };
-/** @public */
-export type InputSwiftEnumHookNormalized = InputSwiftMethodHook & { swiftEnum: string };
+/**
+ * Detailed declaration of a hook on a method of a Swift class.
+ *
+ * @public
+ */
+export type InputSwiftClassHookNormalized = InputSwiftMethodHook & {
+  /** Swift class name. Inherited from the hook collection. */
+  swiftClass: string;
+};
 
 /**
- * Swift method selector of a class, struct or enum. Which one it is, is told by `swiftClass`, `swiftStruct` or `swiftEnum`.
+ * Detailed declaration of a hook on a method of a Swift struct.
+ *
+ * @public
+ */
+export type InputSwiftStructHookNormalized = InputSwiftMethodHook & {
+  /** Swift struct name. Inherited from the hook collection. */
+  swiftStruct: string;
+};
+
+/**
+ * Detailed declaration of a hook on a method of a Swift enum.
+ *
+ * @public
+ */
+export type InputSwiftEnumHookNormalized = InputSwiftMethodHook & {
+  /** Swift enum name. Inherited from the hook collection. */
+  swiftEnum: string;
+};
+
+/**
+ * Detailed declaration of a Swift method hook, on a class, struct or enum.
  *
  * @public
  */
 export type InputSwiftHookNormalized = InputSwiftClassHookNormalized | InputSwiftStructHookNormalized | InputSwiftEnumHookNormalized;
 
 /**
+ * A Swift method hook: a method name, a `[method, decoderSettings]` tuple, or a detailed declaration.
+ *
  * @public
  */
 export type InputSwiftHook = string | [string, DecoderSettings] | InputSwiftHookNormalized;
 
-interface InputSwiftHookCollectionBase {
+/**
+ * Fields shared by every Swift hook collection.
+ *
+ * @public
+ */
+export interface InputSwiftHookCollectionBase {
+  /** Collection kind. Optional in hook files; inferred from `swiftClass`, `swiftStruct` or `swiftEnum`. */
+  type: "swift";
+
+  /** Methods to hook. */
   hooks: InputSwiftHook[];
+
+  /** Hook settings for all hooks in this collection. */
   hookSettings?: InputHookSettings;
+
+  /** Decoder settings for all hooks in this collection. */
   decoderSettings?: InputDecoderSettings;
 }
 
 /**
- * Swift hook configuration for the methods of a class.
- *
- * `swiftClass` is the name of a Swift class, optionally qualified with its module (`MyApp.LoginViewModel`).
+ * Collection of hooks on methods of one Swift class.
  *
  * @public
  */
 export interface InputSwiftClassHookCollection extends InputSwiftHookCollectionBase {
+  /**
+   * Name of the class to hook, optionally qualified with its module, e.g. `MyApp.LoginViewModel`. `*` matches
+   * any characters of the module qualified name, e.g. `MyApp.*ViewModel`.
+   */
   swiftClass: string;
 }
 
 /**
- * Swift hook configuration for the methods of a struct, e.g. `MyApp.Credentials`.
- *
- * The bridge does not enumerate the methods of structs, so they are found by their symbol in the module of the struct.
- * That requires the symbols of the app not to be stripped.
+ * Collection of hooks on methods of one Swift struct. Struct methods are found by their symbols, so the app's
+ * symbols must not be stripped.
  *
  * @public
  */
 export interface InputSwiftStructHookCollection extends InputSwiftHookCollectionBase {
+  /** Name of the struct to hook, optionally qualified with its module, e.g. `MyApp.Credentials`. `*` works as for `swiftClass`. */
   swiftStruct: string;
 }
 
 /**
- * Swift hook configuration for the methods of an enum, e.g. `MyApp.LoginState`. Same restrictions as {@link InputSwiftStructHookCollection}.
+ * Collection of hooks on methods of one Swift enum. Enum methods are found by their symbols, so the app's
+ * symbols must not be stripped.
  *
  * @public
  */
 export interface InputSwiftEnumHookCollection extends InputSwiftHookCollectionBase {
+  /** Name of the enum to hook, optionally qualified with its module, e.g. `MyApp.LoginState`. `*` works as for `swiftClass`. */
   swiftEnum: string;
 }
 
 /**
- * Swift hook configuration. Extended type for YAML input parsing.
- *
- * The settings are optional here.
+ * Collection of hooks on methods of one Swift class, struct or enum.
  *
  * @public
  */
 export type InputSwiftHookCollection = InputSwiftClassHookCollection | InputSwiftStructHookCollection | InputSwiftEnumHookCollection;
 
-// Type guard functions
 export function isSwiftHookCollection(hookScopeInput: object): hookScopeInput is InputSwiftHookCollection {
   return "swiftClass" in hookScopeInput || "swiftStruct" in hookScopeInput || "swiftEnum" in hookScopeInput;
 }
@@ -100,7 +146,7 @@ export function isSwiftHookNormalized(hook: object): hook is InputSwiftHookNorma
   return isSwiftHookCollection(hook);
 }
 
-/** Which kind of Swift type a hook targets, and its (optionally module qualified) name. */
+// The kind of Swift type a hook targets and its name, e.g. `{ swiftClass: "MyApp.LoginViewModel" }`.
 export type SwiftOwner = { swiftClass: string } | { swiftStruct: string } | { swiftEnum: string };
 
 export function getSwiftOwner(hook: InputSwiftHookCollection | InputSwiftHookNormalized): SwiftOwner {
@@ -109,19 +155,15 @@ export function getSwiftOwner(hook: InputSwiftHookCollection | InputSwiftHookNor
   return { swiftEnum: hook.swiftEnum };
 }
 
-/**
- * Normalizes a single Swift hook definition into its canonical form.
- *
- * Exported so callers (e.g. the swift hook validator) can normalize and validate hooks one at a time,
- * isolating a malformed param declaration on one hook from the rest of the group.
- *
- * @param owner - The Swift class, struct or enum the hook belongs to, taken from the enclosing hook group.
- * @param method - The raw hook definition: a plain method name, a `[method, decoderSettings]` tuple, or a detailed declaration.
- * @param hookSettings - The merged hook settings to apply to this hook.
- * @param decoderSettings - The merged decoder settings to apply to this hook's params and return value.
- * @returns The normalized hook.
- * @throws If a param declaration is in an unrecognized format.
- */
+// e.g. `MyApp.LoginViewModel`
+export function swiftOwnerName(owner: SwiftOwner): string {
+  if ("swiftClass" in owner) return owner.swiftClass;
+  if ("swiftStruct" in owner) return owner.swiftStruct;
+  return owner.swiftEnum;
+}
+
+// Normalizes one hook with the merged collection settings. Throws on an invalid param, so validators can
+// skip a single hook.
 export function normalizeSwiftHook(
   owner: SwiftOwner,
   method: InputSwiftHook,
@@ -150,21 +192,14 @@ export function normalizeSwiftHook(
   return {
     ...method,
     ...owner,
-    params: method.params?.map((param: InputParam) => normalizeInputParam(param, mergedDecoderSettings)),
+    params: method.params ? normalizeInputParams(method.params, mergedDecoderSettings) : undefined,
     retType: method.retType ? normalizeInputRetTypeSettings(method.retType, mergedDecoderSettings) : undefined,
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
   };
 }
 
-/**
- * Merges the hook group's own hook/decoder settings with the given base settings and the hard-coded defaults,
- * repairing any invalid values along the way.
- *
- * @param hookCollection - The input swift hook group whose settings should be merged.
- * @param settings - The base frooky settings to merge on top of the defaults.
- * @returns The merged, repaired hook and decoder settings.
- */
+// Merges defaults, file settings and the collection's settings, repairing invalid values.
 export function mergeSwiftHookCollectionSettings(
   hookCollection: InputSwiftHookCollection,
   settings: FrookySettings,

@@ -290,6 +290,23 @@ describe("FrookyAgent", () => {
 
       expect(summaryLogs()[1]).toBe("Updated hooks.yaml: 1 updated, 1 removed; hooked 1 method");
     });
+
+    it("counts changed Objective-C and Swift declarations of the same method as updated", async () => {
+      const rawManager = fakeResolvingHookManager();
+      const validator = fakePlatformHookValidator();
+      const objcBefore = { objcClass: "NSData", method: "-length" };
+      const objcAfter = { objcClass: "NSData", method: "-length", retType: { maxItems: 5 } };
+      const swiftBefore = { swiftStruct: "MyApp.Credentials", method: "validate" };
+      const swiftAfter = { swiftStruct: "MyApp.Credentials", method: "validate", params: ["Swift.String"] };
+      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce([objcBefore, swiftBefore]);
+      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce([objcAfter, swiftAfter]);
+      const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>);
+
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+
+      expect(summaryLogs()[1]).toBe("Updated hooks.yaml: 2 updated; hooked 2 methods");
+    });
   });
 
   describe("hook progress", () => {

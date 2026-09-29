@@ -1,24 +1,19 @@
 import { tryParseSwiftMethodSignature } from "frida-swift-bridge/dist/lib/symbols.js";
 
-/**
- * A Swift method, described by its demangled symbol, e.g.
- * `MyApp.LoginViewModel.authenticate(user: Swift.String, password: Swift.String) -> Swift.Bool`.
- */
+// A Swift method, from its demangled symbol, e.g.
+// `MyApp.LoginViewModel.authenticate(user: Swift.String, password: Swift.String) -> Swift.Bool`.
 export type SwiftMethodSignature = {
   methodName: string;
-  /** Argument labels, `""` for an unlabeled argument. */
+  // `""` for an unlabeled argument
   argLabels: string[];
-  /** Fully qualified type names of the explicit arguments (`self` excluded), e.g. `Swift.String`. */
+  // types of the explicit arguments, without `self`, e.g. `Swift.String`
   argTypeNames: string[];
-  /** `void` if the method does not return anything. */
+  // `void` if the method returns nothing
   retTypeName: string;
 };
 
-/**
- * Parses a demangled method symbol using the parser of the bridge, which is also what `Swift.Interceptor` uses to map
- * the raw arguments to types. Returns `undefined` for symbols the bridge is not able to parse.
- * A method we cannot parse cannot be hooked by the bridge either.
- */
+// Parses a demangled method symbol with the bridge's parser, which Swift.Interceptor also uses to map the raw
+// arguments to types. undefined for a symbol the bridge can't parse, whose method it can't hook either.
 export function parseSwiftMethod(demangledSymbol: string | undefined): SwiftMethodSignature | undefined {
   if (!demangledSymbol) return undefined;
   const parsed = tryParseSwiftMethodSignature(demangledSymbol);
@@ -31,12 +26,8 @@ export function parseSwiftMethod(demangledSymbol: string | undefined): SwiftMeth
   };
 }
 
-/**
- * Checks if a method matches the declaration of a hook.
- *
- * @param declaration - `authenticate` matches every overload, `authenticate(user:password:)` only the one with these labels.
- *   `_` stands for an unlabeled argument, as in Swift.
- */
+// `authenticate` matches every overload, `authenticate(user:password:)` only the one with these argument
+// labels, `_` being an unlabeled argument as in Swift.
 export function matchesSwiftMethodDeclaration(signature: SwiftMethodSignature, declaration: string): boolean {
   const match = /^\s*([A-Za-z_]\w*)\s*(?:\((.*)\))?\s*$/.exec(declaration);
   if (!match) return false;

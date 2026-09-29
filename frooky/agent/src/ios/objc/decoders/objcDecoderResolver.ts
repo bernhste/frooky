@@ -42,7 +42,7 @@ const FLOAT_TYPES: Record<string, "float" | "double"> = { float: "float", double
 const UNSUPPORTED_TYPES = new Set(["struct", "union", "array", "bitfield", "unknown"]);
 const C_TYPES = new Set(["void", ...Object.keys(FLOAT_TYPES), ...Object.keys(INTEGER_TYPES), ...BOOL_TYPES, ...UNSUPPORTED_TYPES]);
 
-/** `const NSString  *` -> `NSString*` */
+// e.g. `const NSString  *` -> `NSString*`
 export function normalizeObjcType(type: string): string {
   return type
     .replace(/\bconst\b/g, "")
@@ -51,14 +51,12 @@ export function normalizeObjcType(type: string): string {
     .trim();
 }
 
-/** Returns `float` or `double` if the declared type is a floating point type, `undefined` otherwise. */
+// `float` or `double` for a floating point type, else undefined
 export function objcFloatType(type: string): "float" | "double" | undefined {
   return FLOAT_TYPES[normalizeObjcType(type)];
 }
 
-/**
- * resolves the decoder based on a decodable type
- */
+// Picks the decoder of a value: the custom decoder from its settings, else by its declared type.
 export const ObjcDecoderResolver: DecoderResolver<NativePointer> = {
   resolveDecoder(decodable: Decodable): Decoder<NativePointer> {
     if (decodable.settings.decoder) {
@@ -72,7 +70,7 @@ export const ObjcDecoderResolver: DecoderResolver<NativePointer> = {
     const type = normalizeObjcType(decodable.type);
     if (type in INTEGER_TYPES) return new ObjcPrimitiveDecoder(decodable, INTEGER_TYPES[type]);
     if (BOOL_TYPES.has(type)) return new ObjcPrimitiveDecoder(decodable, { bits: 8, signed: false }, true);
-    // the raw bits are handed over by the hook manager (see nativeFloatArgs.ts), the native decoder reinterprets them
+    // the hook manager passes the raw FP register bits (see nativeFloatArgs.ts), which NativeValueDecoder reinterprets
     if (type in FLOAT_TYPES) return new NativeValueDecoder(decodable, FLOAT_TYPES[type]);
     if (UNSUPPORTED_TYPES.has(type)) return new ObjcUnsupportedDecoder(decodable);
     if (type === "SEL") return new ObjcSelectorDecoder(decodable);

@@ -29,7 +29,8 @@ export const inputSwiftHookNormalizedSchema = z.union([inputSwiftClassHookNormal
 
 export const inputSwiftHookSchema = z.union([z.string(), z.tuple([z.string(), decoderSettingsSchema]), inputSwiftHookNormalizedSchema]);
 
-const inputSwiftHookCollectionBaseSchema = z.object({
+export const inputSwiftHookCollectionBaseSchema = z.object({
+    type: z.literal("swift"),
     hooks: z.array(inputSwiftHookSchema),
     hookSettings: inputHookSettingsSchema.optional(),
     decoderSettings: inputDecoderSettingsSchema.optional()

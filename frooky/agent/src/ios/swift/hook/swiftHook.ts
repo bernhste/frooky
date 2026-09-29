@@ -1,29 +1,21 @@
 import { Param, RetType } from "../../../shared/decoders/decodable";
 import { Hook } from "../../../shared/hook/hook";
 
-/**
- * Contains all information to hook a Swift method
- *
- * @public
- */
+// A resolved Swift method to hook
 export interface SwiftHook extends Hook {
-  /** The class, struct or enum the method was resolved on, qualified with its module, e.g. `MyApp.LoginViewModel`. */
+  // the class, struct or enum that implements the method, qualified with its module, e.g. `MyApp.LoginViewModel`
   swiftType: string;
-
   swiftKind: "class" | "struct" | "enum";
-
-  /** The base name of the method, e.g. `authenticate`. */
+  // base name of the method, e.g. `authenticate`
   methodName: string;
-
-  /** The demangled symbol, which identifies the exact overload. */
+  // the demangled symbol, which identifies the overload
   methodSymbol: string;
-
-  /** Address of the method's implementation. */
   address: NativePointer;
-
-  /** Explicit arguments only. The implicit `self` is not decoded. */
+  // the explicit arguments, without `self`
   params: Param[];
-
-  /** Not set if the method returns `void`. */
+  // not set if the method returns `void`
   retType?: RetType;
+
+  // set while the hook is installed
+  listener?: InvocationListener;
 }
