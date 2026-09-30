@@ -44,7 +44,13 @@ async function buildInNativeHook(limit: number): Promise<{ built: HookStackTrace
   let result: { built: HookStackTrace; native: string[] } | undefined;
   const listener = Interceptor.attach(cm.identity, {
     onEnter() {
-      result = { built: AndroidStackTrace.build(limit, undefined, this.context), native: nativeStackFrames(this.context, limit) };
+      result = {
+        built: AndroidStackTrace.build(
+          { maxStackFrames: limit, stackTraceFilter: [], nativeStackTrace: true, platformStackTrace: true },
+          this.context,
+        ),
+        native: nativeStackFrames(this.context, limit),
+      };
     },
   });
   try {

@@ -4,7 +4,7 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { describeNativeTarget, InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
-import { PlatformStackTrace } from "../../shared/platformStackTrace";
+import { EMPTY_STACK_TRACE, PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
@@ -95,7 +95,10 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       const hasFloatArgs = argSlots.some((slot) => slot.kind === "float");
       const floatRetSlot = planFloatRetTypeSlot(hook.retType);
       const separateFloatLanes = usesSeparateFloatRegisterFile();
-      const needsStackTrace = hook.hookSettings.maxStackFrames > 0 || (hook.hookSettings.stackTraceFilter && hook.hookSettings.stackTraceFilter.length > 0);
+      const needsStackTrace =
+        hook.hookSettings.platformStackTrace ||
+        hook.hookSettings.nativeStackTrace ||
+        (hook.hookSettings.stackTraceFilter && hook.hookSettings.stackTraceFilter.length > 0);
 
       // per-call state lives on `this` (Frida's invocation context): another thread or a recursive call can
       // enter the hook between onEnter and onLeave
@@ -159,8 +162,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
             }
 
             try {
-              const ctx = needsStackTrace ? this.context : undefined;
-              this.stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter, ctx);
+              const ctx = hook.hookSettings.nativeStackTrace ? this.context : undefined;
+              this.stackTrace = needsStackTrace ? hookManager.stackTrace.build(hook.hookSettings, ctx) : EMPTY_STACK_TRACE;
             } catch (e) {
               if (e instanceof FilterMismatchError) {
                 this.filtered = true;
@@ -195,7 +198,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
               decodedRetValue = hookManager.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
             }
 
-            hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, this.stackTrace));
+            hookManager.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, this.stackTrace ?? EMPTY_STACK_TRACE));
           } finally {
             hookManager.activeThreads.delete(tid);
           }

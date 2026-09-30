@@ -5,7 +5,7 @@
  */
 export interface HookSettings {
   /**
-   * Maximum number of stack frames captured per event. `0` captures none. Default: `0`.
+   * Maximum number of stack frames captured per event. Default: `10`.
    *
    * @minimum 0
    */
@@ -15,6 +15,16 @@ export interface HookSettings {
    * Regular expressions matched against stack frames. The event is only captured if at least one frame matches. Default: `[]`.
    */
   stackTraceFilter: string[];
+
+  /**
+   * Whether to capture native (C/C++) stack frames. Default: `false`.
+   */
+  nativeStackTrace: boolean;
+
+  /**
+   * Whether to capture platform (managed runtime, e.g. Java) stack frames. Default: `false`.
+   */
+  platformStackTrace: boolean;
 }
 
 /**

@@ -49,6 +49,12 @@
               "items": {
                 "type": "string"
               }
+            },
+            "nativeStackTrace": {
+              "type": "boolean"
+            },
+            "platformStackTrace": {
+              "type": "boolean"
             }
           }
         },
@@ -310,6 +316,12 @@
                               "items": {
                                 "type": "string"
                               }
+                            },
+                            "nativeStackTrace": {
+                              "type": "boolean"
+                            },
+                            "platformStackTrace": {
+                              "type": "boolean"
                             }
                           }
                         },
@@ -361,6 +373,12 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "nativeStackTrace": {
+                    "type": "boolean"
+                  },
+                  "platformStackTrace": {
+                    "type": "boolean"
                   }
                 }
               },
@@ -627,6 +645,12 @@
                               "items": {
                                 "type": "string"
                               }
+                            },
+                            "nativeStackTrace": {
+                              "type": "boolean"
+                            },
+                            "platformStackTrace": {
+                              "type": "boolean"
                             }
                           }
                         },
@@ -842,6 +866,12 @@
                               "items": {
                                 "type": "string"
                               }
+                            },
+                            "nativeStackTrace": {
+                              "type": "boolean"
+                            },
+                            "platformStackTrace": {
+                              "type": "boolean"
                             }
                           }
                         },
@@ -902,6 +932,12 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "nativeStackTrace": {
+                    "type": "boolean"
+                  },
+                  "platformStackTrace": {
+                    "type": "boolean"
                   }
                 }
               },

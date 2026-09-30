@@ -57,7 +57,7 @@ for (const hookCollectionVariant of jsonSchema.properties.hookCollection.items.a
 // InputDecoderSettings/InputHookSettings it's aliased from. Strip `required` from any object
 // node whose own properties are exactly a decoder- or hook-settings shape, wherever it's nested.
 const decoderSettingsKeys = ["maxDepth", "maxItems", "hashCode", "decoder", "decoderArg", "argFilter"];
-const hookSettingsKeys = ["maxStackFrames", "stackTraceFilter"];
+const hookSettingsKeys = ["maxStackFrames", "stackTraceFilter", "nativeStackTrace", "platformStackTrace"];
 
 function isExactly(propertyKeys: string[], knownKeys: string[]): boolean {
   return propertyKeys.length > 0 && propertyKeys.every((key) => knownKeys.includes(key));

@@ -133,7 +133,11 @@ describe("inputNativeHookCollection", () => {
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ maxStackFrames: 40, stackTraceFilter: ["^group"] });
+        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({
+          ...DEFAULT_HOOK_SETTINGS,
+          maxStackFrames: 40,
+          stackTraceFilter: ["^group"],
+        });
         expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
           maxDepth: 40,

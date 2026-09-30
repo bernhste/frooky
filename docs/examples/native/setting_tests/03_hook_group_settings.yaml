@@ -7,8 +7,10 @@ metadata:
 # default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings
 # settings:
 #   hookSettings:
-#     maxStackFrames: 0
+#     maxStackFrames: 10
 #     stackTraceFilter: []
+#     nativeStackTrace: false
+#     platformStackTrace: false
 #   decoderSettings:
 #     hashCode: false
 #     maxDepth: 10
@@ -45,8 +47,10 @@ hookCollection:
 # both the file-level settings and the hard-coded defaults.
 #
 # expected applied settings for `open`:
-#   maxStackFrames:    30        (group; overrides file's 5 and default's 0)
+#   maxStackFrames:    30        (group; overrides file's 5 and default's 10)
 #   stackTraceFilter:  ["^L3"]   (group; overrides file's [] )
+#   nativeStackTrace:  false     (default; never overridden at any level here)
+#   platformStackTrace: false    (default; never overridden at any level here)
 #   maxDepth:          30        (group; overrides file's 1 and default's 10)
 #   maxItems:          30        (group; overrides file's 1 and default's 100)
 #   hashCode:          false     (default; never overridden at any level here)

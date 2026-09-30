@@ -7,8 +7,10 @@ metadata:
 # default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings
 # settings:
 #   hookSettings:
-#     maxStackFrames: 0
+#     maxStackFrames: 10
 #     stackTraceFilter: []
+#     nativeStackTrace: false
+#     platformStackTrace: false
 #   decoderSettings:
 #     hashCode: false
 #     maxDepth: 10

@@ -133,6 +133,8 @@ metadata:
 
 hookCollection:
   - javaClass: javax.crypto.Cipher
+    hookSettings:
+      platformStackTrace: true
     hooks:
       - [ doFinal, {decoder: "string"} ]
 ```
@@ -157,13 +159,16 @@ Example Output (pretty-printed for readability):
     "fieldType": {
         "fieldType": "static"
     },
-    "stackTrace": [
-      "javax.crypto.Cipher.doFinal (Cipher.java:2066)",
-      "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:58)",
-      "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)",
-      "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)",
-      "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)"
-    ],
+    "stackTrace": {
+      "platformStackTrace": [
+        "javax.crypto.Cipher.doFinal (Cipher.java:2066)",
+        "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:58)",
+        "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)",
+        "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)",
+        "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)"
+      ],
+      "nativeStackTrace": []
+    },
     "argsIn": [
         {
             "type": "[B",

@@ -27,7 +27,7 @@ Hook events additionally carry:
 
 | Field         | Type             | Description                                                                                                                                                                    |
 | ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `stackTrace`  | `object`         | Captured stack trace leading to the hooked call (`{ platformStackTrace: string[], nativeStackTrace: string[] }`), subject to `hookSettings.maxStackFrames`/`stackTraceFilter`. |
+| `stackTrace`  | `object`         | Captured stack trace leading to the hooked call (`{ platformStackTrace: string[], nativeStackTrace: string[] }`), enabled via `hookSettings.platformStackTrace`/`nativeStackTrace` and subject to `maxStackFrames`/`stackTraceFilter`. |
 | `argsIn`      | `DecodedValue[]` | Arguments decoded on entry (`direction: in`/`inout`).                                                                                                                          |
 | `argsOut`     | `DecodedValue[]` | Arguments decoded on exit (`direction: out`/`inout`).                                                                                                                          |
 | `returnValue` | `DecodedValue`   | The decoded return value.                                                                                                                                                      |

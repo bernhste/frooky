@@ -1,3 +1,5 @@
+import { HookSettings } from "./frookySettings";
+
 export interface HookStackTrace {
   platformStackTrace: string[];
   nativeStackTrace: string[];
@@ -9,7 +11,7 @@ export const EMPTY_STACK_TRACE: HookStackTrace = Object.freeze({
 });
 
 export interface PlatformStackTrace {
-  build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): HookStackTrace;
+  build(settings: HookSettings, ctx?: CpuContext): HookStackTrace;
 }
 
 // per stackTraceFilter array, which lives as long as its hook

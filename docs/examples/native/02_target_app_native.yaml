@@ -7,6 +7,8 @@ metadata:
 # Global settings for the hooks in this hook file.
 settings:
   hookSettings:
+    platformStackTrace: true
+    nativeStackTrace: true
     maxStackFrames: 5                # Sets maxStackFrames to 5 for all hooks
   decoderSettings:
     # Cutoff limit for recursion depth when decoding nested data structures
@@ -207,26 +209,42 @@ hookCollection:
         params:
           - [char *, string]
 
-  # # Hook with named parameters and filters
-  # # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
-  # - module: libc.so
-  #   hookSettings:
-  #     maxStackFrames: 10
-  #     stackTraceFilter: ['^org\.owasp\.mastestapp']
-  #   hooks:
-  #     - symbol: open
-  #       retType: int
-  #       params:
-  #         - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated'] }]
-  #         - [int, flags]
-  #         - [mode_t, mode]
-
-  # Hook with named parameters and filters
+  # Hook with named parameters and filters (both argument and stack trace)
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   - module: libc.so
     hookSettings:
+      platformStackTrace: true                        # Required for stackTraceFilter to inspect platform frames
+      nativeStackTrace: false                         # Override global settings: disable native unwinding on libc to avoid recursion
       maxStackFrames: 10
       stackTraceFilter: ['^org\.owasp\.mastestapp']
+    hooks:
+      - symbol: open
+        retType: int
+        params:
+          - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated'] }] # Evaluated first; non-matching calls return early before stack trace is built
+          - [int, flags]
+          - [mode_t, mode]
+
+  # Hook with parameter filter and platform stack trace
+  - module: libc.so
+    hookSettings:
+      platformStackTrace: true                        # Captures platform stack trace for calls matching argFilter
+      nativeStackTrace: false                         # Override global settings: disable native unwinding on libc
+      maxStackFrames: 10
+    hooks:
+      - symbol: open
+        retType: int
+        params:
+          - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated'] }]
+          - [int, flags]
+          - [mode_t, mode]
+
+  # Hook with stack traces completely disabled (safest for high-frequency low-level functions)
+  - module: libc.so
+    hookSettings:
+      platformStackTrace: false
+      nativeStackTrace: false                         # Override global settings: disable native unwinding for low-level functions
+      maxStackFrames: 0
     hooks:
       - symbol: open
         retType: int

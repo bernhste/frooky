@@ -96,7 +96,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         // throws FilterMismatchError if the stackTraceFilter matches no frame
         let stackTrace: HookStackTrace;
         try {
-          stackTrace = hookManager.stackTrace.build(hook.hookSettings.maxStackFrames, hook.hookSettings.stackTraceFilter);
+          stackTrace = hookManager.stackTrace.build(hook.hookSettings);
         } catch (e) {
           if (e instanceof FilterMismatchError) {
             return hook.method.apply(this, args);

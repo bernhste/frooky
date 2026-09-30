@@ -2,6 +2,7 @@ import Java from "frida-java-bridge";
 import { FrookyAgent } from "../../FrookyAgent";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
+import { HookSettings } from "../../shared/frookySettings";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { AndroidHookManager } from "./androidHookManager";
 import { JavaHook } from "./javaHook";
@@ -131,8 +132,8 @@ describe("AndroidHookManager", () => {
     function setup() {
       const calledLimits: number[] = [];
       const recordingStackTrace: PlatformStackTrace = {
-        build: (limit: number) => {
-          calledLimits.push(limit);
+        build: (settings: HookSettings) => {
+          calledLimits.push(settings.maxStackFrames);
           return { platformStackTrace: [], nativeStackTrace: [] };
         },
       };

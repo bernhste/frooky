@@ -123,7 +123,11 @@ describe("inputJavaHookCollection", () => {
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ maxStackFrames: 40, stackTraceFilter: ["^group"] });
+        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({
+          ...DEFAULT_HOOK_SETTINGS,
+          maxStackFrames: 40,
+          stackTraceFilter: ["^group"],
+        });
         expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
           maxDepth: 40,

@@ -13,8 +13,10 @@ export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
 };
 
 export const DEFAULT_HOOK_SETTINGS: HookSettings = {
-  maxStackFrames: 0,
+  maxStackFrames: 5,
   stackTraceFilter: [],
+  nativeStackTrace: false,
+  platformStackTrace: false,
 };
 
 export const DEFAULT_FROOKY_SETTINGS: FrookySettings = {

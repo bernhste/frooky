@@ -14,10 +14,12 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 
 `hookSettings` controls how a hook itself behaves, independent of argument/return value decoding.
 
-| Setting            | Type       | Default | Description                                                                                                                                                                                                                                                                                 |
-| ------------------ | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `maxStackFrames`   | `number`   | `0`     | Limits the number of stack frames captured per event. With a `stackTraceFilter`, it also limits how deep the filter searches.                                                                                                                                                               |
-| `stackTraceFilter` | `string[]` | `[]`    | Regular expressions; the event is only captured if at least one stack frame matches one of them. With a `maxStackFrames`, only the captured frames are searched, otherwise the whole stack. Frames themselves are not filtered individually - a match keeps the whole captured stack trace. |
+| Setting              | Type       | Default | Description                                                                                                                                                                                                                   |
+| -------------------- | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxStackFrames`     | `number`   | `10`    | Limits the number of stack frames captured per event when stack traces are enabled. With a `stackTraceFilter`, it also limits how deep the filter searches.                                                                  |
+| `stackTraceFilter`   | `string[]` | `[]`    | Regular expressions; the event is only captured if at least one stack frame matches one of them. Frames themselves are not filtered individually - a match keeps the whole captured stack trace.                            |
+| `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames.                                                                                                                                                                               |
+| `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames.                                                                                                                                            |
 
 ## Settings Precedence
 
@@ -70,6 +72,7 @@ To filter out events that do not originate from the target app, frooky can filte
 ```yaml
 javaClass: android.app.SharedPreferencesImpl$EditorImpl
 hookSettings:
+  platformStackTrace: true
   stackTraceFilter: ["^org\\.owasp\\.mastestapp"]
 hooks:
   - putString

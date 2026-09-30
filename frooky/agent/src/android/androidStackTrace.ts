@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { nativeStackFrames } from "../native/nativeStackTrace";
+import { HookSettings } from "../shared/frookySettings";
 import { compileStackTraceFilter, HookStackTrace, PlatformStackTrace } from "../shared/platformStackTrace";
 import { FilterMismatchError } from "../shared/utils";
 
@@ -50,9 +51,12 @@ export function isOnSignalStack(ctx?: CpuContext): boolean {
 }
 
 export const AndroidStackTrace: PlatformStackTrace = {
-  build(limit: number, stackTraceFilter?: string[], ctx?: CpuContext): HookStackTrace {
-    // no frames and no filter: skip the expensive native and Java backtraces
-    if (limit <= 0 && !stackTraceFilter?.length) {
+  build(settings: HookSettings, ctx?: CpuContext): HookStackTrace {
+    const { maxStackFrames: limit, stackTraceFilter, nativeStackTrace, platformStackTrace } = settings;
+
+    // no frames requested: skip the expensive native and Java backtraces
+    if ((!nativeStackTrace && !platformStackTrace) || limit <= 0) {
+      if (stackTraceFilter?.length) throw FilterMismatchError.INSTANCE;
       return { platformStackTrace: [], nativeStackTrace: [] };
     }
 
@@ -61,9 +65,9 @@ export const AndroidStackTrace: PlatformStackTrace = {
       return { platformStackTrace: [], nativeStackTrace: [] };
     }
 
-    const nativeFrames = ctx ? nativeStackFrames(ctx, limit) : [];
+    const nativeFrames = nativeStackTrace && ctx ? nativeStackFrames(ctx, limit) : [];
 
-    if (!Java.available) {
+    if (!platformStackTrace || !Java.available) {
       if (stackTraceFilter?.length) {
         const regExps = compileStackTraceFilter(stackTraceFilter);
         const matchesFilter = (line: string) => regExps.some((regExp) => regExp.test(line));
@@ -97,14 +101,14 @@ export const AndroidStackTrace: PlatformStackTrace = {
       } catch (_) {}
     });
 
-    const javaFrames = limit > 0 ? javaStack.slice(0, limit).map(formatJavaFrame) : [];
+    const javaFrames = javaStack.slice(0, limit).map(formatJavaFrame);
 
     // with a limit, the filter only searches the captured frames, so app frames deep down the stack (e.g.
-    // framework code called from an app's onCreate) don't match. Without a limit it searches the whole stack.
+    // framework code called from an app's onCreate) don't match.
     if (stackTraceFilter && stackTraceFilter.length > 0) {
       const regExps = compileStackTraceFilter(stackTraceFilter);
       const matchesFilter = (line: string) => regExps.some((regExp) => regExp.test(line));
-      const javaMatches = limit > 0 ? javaFrames.some(matchesFilter) : javaStack.some((frame) => matchesFilter(formatJavaFrame(frame)));
+      const javaMatches = javaFrames.some(matchesFilter);
       const nativeMatches = nativeFrames.some(matchesFilter);
       if (!javaMatches && !nativeMatches) {
         throw new FilterMismatchError();
