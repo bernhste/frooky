@@ -13,23 +13,23 @@
     "test:android": "npx frida-test -U -f 'com.google.android.dialer' ./src/android ./src/shared ./src/native ./src/FrookyAgent.test.ts"
   },
   "devDependencies": {
-    "@types/frida-gum": "^19.0.1",
+    "@types/frida-gum": "^19.11.0",
     "@types/js-yaml": "^4.0.9",
-    "@types/node": "^24.10.9",
+    "@types/node": "^26.6.3",
     "chokidar": "^5.0.0",
-    "eslint": "^10.9.1",
-    "frida-compile": "^19.0.4",
-    "frida-java-bridge": "^7.0.11",
-    "frida-objc-bridge": "^8.0.5",
+    "eslint": "^10.11.0",
+    "frida-compile": "^19.0.6",
+    "frida-java-bridge": "^7.0.13",
+    "frida-objc-bridge": "^8.0.6",
     "frida-swift-bridge": "^3.0.2",
     "frida-test": "^0.4.0",
     "ts-to-zod": "^5.1.0",
     "tsx": "^4.23.15"
   },
   "dependencies": {
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^5.4.2",
     "typescript": "^5.9.3",
-    "zod": "^4.3.6"
+    "zod": "^4.6.5"
   },
   "allowScripts": {
     "frida@17.19.0": true
