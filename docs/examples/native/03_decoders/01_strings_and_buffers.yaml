@@ -1,0 +1,36 @@
+metadata:
+  name: "Decoders (Native): Strings and Buffers"
+  description: |
+    `char *` is read as a NUL-terminated string. A `void *` buffer without a terminator needs its length
+    (`decoderArg`) and is shown as hex, or as text with `decoder: string`.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/01_strings_and_buffers.yaml
+# See:    docs/decoders.md#decoderarg-pass-arguments-to-decoder
+
+hookCollection:
+  # const char *receive_utf8(const char *s)
+  - module: libreceiveString.so
+    hooks:
+      - symbol: receive_utf8
+        params:
+          - ["char *", s]
+
+  # int send_message(const void *buf, int len) is called with the 12 bytes of "Hello frooky", like write(2)
+  - module: libreceiveFundamentalReference.so
+    hooks:
+      - symbol: send_message
+        params:
+          - ["void *", buf, { decoderArg: len }]
+          - [int, len]
+      - symbol: send_message
+        params:
+          - ["void *", text, { decoderArg: len, decoder: string }]
+          - [int, len]
+
+# Expected values (argsIn[0].value):
+#   receive_utf8: "Welcome the first OWASP MASCon 📱❤️"
+#   send_message: "0x48656c6c6f2066726f6f6b79" (hex) and "Hello frooky" (decoder: string), one event per hook

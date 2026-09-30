@@ -1,0 +1,32 @@
+metadata:
+  name: "Parameters (Android): Output Parameters"
+  description: |
+    Arguments are decoded when the method is called. A method that writes its result into an argument
+    needs `direction: out` (decoded after the call, in `argsOut`) or `direction: inout` (decoded
+    before and after the call).
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/02_parameters_and_return_values/02_output_parameters.yaml
+# See:    docs/decoders.md#direction-declare-the-time-of-decoding
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # fillSecret(out: ByteArray): Int copies "s3cr3t" into `out`
+      - method: fillSecret
+        overloads:
+          - params:
+              - ["[B", out, { direction: out, decoder: string }]
+
+      # toggleCase(data: ByteArray) flips the case of every letter in place
+      - method: toggleCase
+        overloads:
+          - params:
+              - ["[B", data, { direction: inout, decoder: string }]
+
+# Expected events:
+#   fillSecret: argsIn [], argsOut [{type: "[B", name: out, value: "s3cr3t"}], returnValue {type: int, value: 6}
+#   toggleCase: argsIn [{..., value: "frooky"}], argsOut [{..., value: "FROOKY"}]

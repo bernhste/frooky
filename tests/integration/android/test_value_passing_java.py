@@ -13,18 +13,11 @@ docs/parameter-declaration.md, docs/decoders.md and docs/additional-features.md.
 
 import re
 import textwrap
-from pathlib import Path
 
 import pytest
 
 TARGET_APP = "value-passing-java"
-SETTING_EXAMPLES = Path(__file__).parents[3] / "docs" / "examples" / "android" / "setting_tests"
 MASTG_CLASS = "org.owasp.mastestapp.MastgTest"
-
-
-def _cut(value, max_items):
-    """A string as decoded with `maxItems`: cut after that many characters, marked with `...`."""
-    return value if max_items is None else f"{value[:max_items]}..."
 
 
 @pytest.mark.parametrize("platform", ["android"], indirect=True)
@@ -511,31 +504,3 @@ class TestValuePassingJava:
 
         frooky.update_hook_file(hook_file("A", "B", "C"))
         assert recorded_by(frooky) == ["A", "B", "C"]
-
-    # Settings precedence (see additional-features.md#settings-precedence): runs the example hook files, which
-    # set different values on each level, and checks the event against the expectation documented in each file.
-
-    @pytest.mark.parametrize(
-        "example, max_stack_frames, arg_max_items, ret_max_items",
-        [
-            ("01_default_settings.yaml", 0, None, None),
-            ("02_file_settings.yaml", 1, 10, 10),
-            ("03_hook_collection_settings.yaml", 2, 15, 15),
-            ("04_hook_settings.yaml", 3, 20, 20),
-            ("05_param_and_return_type_settings.yaml", 3, 25, 30),
-            ("06_partial_overrides.yaml", 3, 15, 30),
-        ],
-    )
-    def test_settings_precedence_examples(self, run_frooky, find_matched_events, example, max_stack_frames, arg_max_items, ret_max_items):
-        """The closest level that sets a field wins; fields it leaves out fall through to the next level out."""
-        run_frooky((SETTING_EXAMPLES / example).read_text(encoding="utf8"), TARGET_APP)
-
-        received = "Welcome the first OWASP MASCon 📱❤️"
-        [event] = find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"})
-        assert event["argsIn"] == [{"type": "java.lang.String", "name": "arg", "value": _cut(received, arg_max_items)}]
-        assert event["returnValue"] == {"type": "java.lang.String", "value": _cut(received, ret_max_items)}
-        platform_frames = event["stackTrace"]["platformStackTrace"]
-        assert len(platform_frames) == max_stack_frames
-        if platform_frames:
-            assert platform_frames[0].startswith(f"{MASTG_CLASS}.receiveString ")
-        assert event["stackTrace"]["nativeStackTrace"] == []

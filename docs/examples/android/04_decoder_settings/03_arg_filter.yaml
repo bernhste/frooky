@@ -1,0 +1,31 @@
+metadata:
+  name: "Decoder Settings (Android): argFilter"
+  description: |
+    `argFilter` only records a call if the decoded argument matches one of the regular expressions.
+    It matches the decoded value as it appears in the event, so after `maxItems` cut it.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/04_decoder_settings/03_arg_filter.yaml
+# See:    docs/decoders.md#decoder-settings
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # trackEvent is called with "button_click" and "sdk_flush"
+      - method: trackEvent
+        overloads:
+          - params:
+              - [java.lang.String, name, { argFilter: ["^button_"] }]
+
+      # a filter on a number matches its decimal text
+      - method: receiveInt
+        overloads:
+          - params:
+              - [int, value, { argFilter: ["^2147483647$"] }]
+
+# Expected events:
+#   trackEvent: only name "button_click"
+#   receiveInt: value 2147483647

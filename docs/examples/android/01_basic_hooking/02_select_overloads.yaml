@@ -1,0 +1,24 @@
+metadata:
+  name: "Basic Hooking (Android): Select Overloads"
+  description: |
+    `overloads` hooks only the overloads with the listed parameter types. Here `receiveOverloaded(String)`
+    is not hooked.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/02_select_overloads.yaml
+# See:    docs/java-hook-declaration.md#method-overloads
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - method: receiveOverloaded
+        overloads:
+          - params: [int]                     # receiveOverloaded(int)
+          - params: [java.lang.String, int]   # receiveOverloaded(String, int)
+
+# Expected events:
+#   receiveOverloaded: argsIn [{type: int, value: 42}]
+#   receiveOverloaded: argsIn [{type: java.lang.String, value: "frooky"}, {type: int, value: 42}], returnValue "frooky42"

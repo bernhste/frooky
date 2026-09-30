@@ -5,7 +5,7 @@ metadata:
     event per call, decoded with its own params and filters; the method
     itself still runs once. See docs/additional-features.md.
     Run frooky with:
-      frooky -U -f org.owasp.mastestapp docs/examples/android/05_multiple_hooks.yaml
+      frooky -U -f value_passing_java.frooky.target.app docs/examples/android/07_multiple_hooks/01_multiple_hooks.yaml
   version: 1
   author: frooky dev
   platform: Android

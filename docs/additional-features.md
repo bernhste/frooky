@@ -64,7 +64,7 @@ hookCollection:
 
 For `receiveString`, the event has 3 platform stack frames: the hook's `maxStackFrames` wins, and `platformStackTrace: true` still comes from the file. The argument is decoded up to 25 characters (parameter level), the return value up to 30 (return type level).
 
-The examples in [`examples/android/setting_tests/`](./examples/android/setting_tests/) and [`examples/native/setting_tests/`](./examples/native/setting_tests/) add one level per file and document the resulting event. They run against the target apps in `tests/target-apps/android` as part of the integration tests.
+The examples in [`examples/android/06_settings_precedence/`](./examples/android/06_settings_precedence/) and [`examples/native/06_settings_precedence/`](./examples/native/06_settings_precedence/) add one level per file and document the resulting event. They run against the target apps in `tests/target-apps/android` as part of the integration tests.
 
 ## Event Filter Based on Stack Trace
 
@@ -155,4 +155,4 @@ hookCollection:
 
 A call to `init(int, Key)` produces two events: one from the first hook with the raw `opmode` (e.g. `1`), and one from the second hook with the constant name (e.g. `"ENCRYPT_MODE"`). Calls to other `init` overloads produce one event.
 
-See [`docs/examples/android/05_multiple_hooks.yaml`](./examples/android/05_multiple_hooks.yaml) and [`docs/examples/native/06_multiple_hooks.yaml`](./examples/native/06_multiple_hooks.yaml) for full examples.
+See [`examples/android/07_multiple_hooks/`](./examples/android/07_multiple_hooks/) and [`examples/native/07_multiple_hooks/`](./examples/native/07_multiple_hooks/) for full examples.

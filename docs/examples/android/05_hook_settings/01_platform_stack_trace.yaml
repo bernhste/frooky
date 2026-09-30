@@ -1,0 +1,31 @@
+metadata:
+  name: "Hook Settings (Android): Platform Stack Trace"
+  description: |
+    `platformStackTrace` captures the Java frames that led to the call, innermost (the hooked method)
+    first, up to `maxStackFrames`. Stack traces are off by default because they are expensive.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/05_hook_settings/01_platform_stack_trace.yaml
+# See:    docs/additional-features.md#hook-settings
+#
+# A Java hook has no CPU context, so `nativeStackTrace` has no effect here: nativeStackTrace is always [].
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      platformStackTrace: true
+      maxStackFrames: 3
+    hooks:
+      # trackEvent is called by MastgTest.mastgTest ("button_click") and by ThirdPartySdk.flush ("sdk_flush")
+      - trackEvent
+
+# Expected events, stackTrace.platformStackTrace:
+#   "button_click": ["org.owasp.mastestapp.MastgTest.trackEvent (MastgTest.kt:-1)",
+#                    "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:<line>)",
+#                    "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$... (MainActivity.kt:101)"]
+#   "sdk_flush":    ["org.owasp.mastestapp.MastgTest.trackEvent (MastgTest.kt:-1)",
+#                    "org.owasp.mastestapp.ThirdPartySdk.flush (MastgTest.kt:<line>)",
+#                    "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:<line>)"]

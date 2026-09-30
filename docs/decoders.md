@@ -230,15 +230,15 @@ Return values are always decoded once the function or method completes (see [Ret
 Use a `[ type, {decoderSettings} ]` tuple instead of a plain type:
 
 ```yaml
-module: libssl.so
+module: libc.so
 hooks:
-  - symbol: EVP_DigestFinal_ex
-    retType: [ int, { decoder: exitCode } ]
+  - symbol: getenv
+    retType: [ "char *", { maxItems: 256 } ]
     params:
-      - [ "EVP_MD_CTX *", ctx ]
-      - [ "unsigned char *", md ]
-      - [ "unsigned int *", s ]
+      - [ "char *", name ]
 ```
+
+This example hooks [`getenv`](https://www.man7.org/linux/man-pages/man3/getenv.3.html) and decodes up to 256 characters of the returned value, instead of the default 100.
 
 ### Java Return Type Decoders
 
@@ -250,7 +250,7 @@ hooks:
   - method: getFlags
     overloads:
       - params: []
-        retType: { decoder: intentFlags }
+        retType: { decoder: intentFlag }
 ```
 
 This example hooks the following method from the [Android Java Library](<https://developer.android.com/reference/android/content/Intent#getFlags()>):
@@ -259,4 +259,4 @@ This example hooks the following method from the [Android Java Library](<https:/
 public int getFlags ()
 ```
 
-`getFlags()` returns a raw bitmask `int`. Instead of reporting the raw number, the return value is decoded using the built in `intentFlags` decoder which resolves the individual `Intent.FLAG_*` constants set in the bitmask.
+`getFlags()` returns a raw bitmask `int`. Instead of reporting the raw number, the return value is decoded using the built-in `intentFlag` decoder which resolves the individual `Intent.FLAG_*` constants set in the bitmask.

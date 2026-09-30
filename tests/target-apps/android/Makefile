@@ -62,7 +62,7 @@ build: $(BUILD_DIR) $(DIST_DIR)
 		echo "Replaced AndroidManifest.xml" || true
 
 	@[ -d "$(TARGET_APP)/cpp" ] && \
-		cp -R "$(TARGET_APP)/cpp" "$(BUILD_DIR)/app/cpp" && \
+		mkdir -p "$(BUILD_DIR)/app/cpp" && cp -R "$(TARGET_APP)/cpp/." "$(BUILD_DIR)/app/cpp/" && \
 		echo "Copied native source code folder." || true
 
 	@[ -f "$(BUILD_DIR)/app/src/main/res/values/strings.xml" ] && \

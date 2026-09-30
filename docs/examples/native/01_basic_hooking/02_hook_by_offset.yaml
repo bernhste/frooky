@@ -1,0 +1,34 @@
+metadata:
+  name: "Basic Hooking (Native): Hook Functions by Offset"
+  description: |
+    A function without an exported symbol, e.g. in a stripped library, is hooked by its offset from the
+    library's base address. The offset is a YAML integer or a hex string.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/01_basic_hooking/02_hook_by_offset.yaml
+# See:    docs/native-hook-declaration.md#hooking-functions-without-a-symbol
+#
+# The offsets are valid for the x86_64 build of the app. Other ABIs or builds need other offsets:
+#   llvm-nm -D --defined-only libreceiveFundamentalValue.so
+
+hookCollection:
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      # int receive_int(int minValue, int maxValue)
+      - offset: 0xf20
+        retType: int
+        params:
+          - [int, minValue]
+          - [int, maxValue]
+      # short receive_short(short minValue, short maxValue), offset as a hex string
+      - offset: "0x0000000000000EE0"
+        params:
+          - [short, minValue]
+          - [short, maxValue]
+
+# Expected events (they have an `offset` instead of a `symbol`):
+#   0xf20: minValue -2147483648, maxValue 2147483647, returnValue -2147483648
+#   0xee0: minValue -32768, maxValue 32767

@@ -1,0 +1,31 @@
+metadata:
+  name: "Return Values (Android): Decode Return Values"
+  description: |
+    Return values are always decoded, with the return type from reflection. `retType` on an overload
+    only sets decoder settings for the return value, e.g. a different decoder or limits.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/02_parameters_and_return_values/03_return_values.yaml
+# See:    docs/return-type-declaration.md#java-return-types
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # returns the byte array it received, here the bytes of "FROOKY"
+      - method: toggleCase
+        overloads:
+          - params: ["[B"]
+            retType: { decoder: string }
+
+      # returns the BigInteger it received
+      - method: receiveBigInteger
+        overloads:
+          - params: [java.math.BigInteger]
+            retType: { decoder: hashCode }
+
+# Expected events:
+#   toggleCase:        returnValue {type: "[B", value: "FROOKY"} (without the decoder: [70, 82, 79, 79, 75, 89])
+#   receiveBigInteger: returnValue {type: java.math.BigInteger, value: "java.math.BigInteger@<hashCode>"}

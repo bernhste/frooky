@@ -1,0 +1,25 @@
+metadata:
+  name: "Decoder Settings (Android): maxDepth"
+  description: |
+    `maxDepth` limits how many nested levels are decoded. The hooked value itself is level 1; a
+    container below `maxDepth` is replaced by "[max depth reached]".
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/04_decoder_settings/02_max_depth.yaml
+# See:    docs/decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # int[][][] {{{1, 2, 3}, {4, 5, 6}}, {{7, 8, 9}, {10, 11, 12}}}
+      - method: receiveNestedPrimitivesArray
+        overloads:
+          - params:
+              - ["[[[I", matrix, { maxDepth: 2 }]
+
+# Expected value (argsIn[0].value):
+#   [["[max depth reached]", "[max depth reached]"], ["[max depth reached]", "[max depth reached]"]]
+#   With maxDepth: 3 or more, the innermost int arrays are decoded too.

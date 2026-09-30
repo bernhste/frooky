@@ -41,8 +41,8 @@ hookCollection:
       - params:
         - [android.content.Intent, intent]
 
-  # Use `stackTraceFilter` with regex patterns to exclude framework/library stack frames.
-  # This keeps only relevant app code by filtering out `java.*`, `android.*`, and external SDKs.
+  # Use `stackTraceFilter` to keep only the queries made by the app's own code: an event is kept if a
+  # captured frame matches. It needs a stack trace; replace com.example.app with the app's package.
   # Docs: https://developer.android.com/reference/android/database/sqlite/SQLiteDatabase#query(java.lang.String,%20java.lang.String[],%20java.lang.String,%20java.lang.String[],%20java.lang.String,%20java.lang.String,%20java.lang.String)
   - javaClass: android.database.sqlite.SQLiteDatabase
     hooks:
@@ -57,11 +57,10 @@ hookCollection:
         - ["java.lang.String", having]
         - ["java.lang.String", orderBy]
     hookSettings:
-      maxStackFrames: 5
+      platformStackTrace: true
+      maxStackFrames: 10
       stackTraceFilter:
-        - "^java\\."
-        - "^android\\."
-        - "^com\\.external\\.sdk\\."
+        - "^com\\.example\\.app\\."
 
   # Hook multiple overloads of the same method.
   # Docs: https://developer.android.com/reference/android/content/Intent

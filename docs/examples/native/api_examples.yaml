@@ -93,16 +93,6 @@ hookCollection:
       - [int, num]
 
 
-# decode argument: null terminated string 
-  - module: libreceiveString.so
-    hooks:
-    - symbol: receive_cstring
-      params: 
-      - [char *, string]
-    - symbol: receive_utf8
-      params: 
-      - [char *, string]
-
   # Use `direction: out` to decode buffer contents after function execution.
   # Since `buf` is a pointer, we need to decode it at exit using the `count` parameter for the length.
   # Pass `decoderArg` with the length parameter name/index.
@@ -141,11 +131,13 @@ hookCollection:
           - [pointer, error]
           - [pointer, accessControl, { direction: inout }]
 
-  # Hook with named parameters (names provide context in output).
+  # Keep only the files the app's Java code opens on external storage. `argFilter` is checked first, so
+  # only matching calls pay for the stack trace. Replace com.example.app with the app's package.
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   - module: libc.so
     hookSettings:
-      stackTraceFilter: ['^org\.owasp\.mastestapp']
+      platformStackTrace: true
+      stackTraceFilter: ['^com\.example\.app\.']
     hooks:
     - symbol: open
       retType: int

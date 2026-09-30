@@ -1,0 +1,30 @@
+metadata:
+  name: "Decoder Settings (Native): maxItems"
+  description: |
+    `maxItems` limits how many bytes of a string or buffer are read. Native values have no nested
+    containers, so `maxDepth` has no effect on native hooks.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/04_decoder_settings/01_max_items.yaml
+# See:    docs/decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values
+
+hookCollection:
+  - module: libreceiveString.so
+    hooks:
+      - symbol: receive_cstring
+        params:
+          - ["char *", s, { maxItems: 7 }]
+
+  - module: libreceiveFundamentalReference.so
+    hooks:
+      - symbol: send_message
+        params:
+          - ["void *", buf, { decoderArg: len, maxItems: 5 }]
+          - [int, len]
+
+# Expected values (argsIn[0].value):
+#   receive_cstring: "Welcome..."
+#   send_message:    "0x48656c6c6f..." (the first 5 of 12 bytes)

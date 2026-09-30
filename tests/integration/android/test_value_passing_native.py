@@ -16,12 +16,11 @@ docs/parameter-declaration.md and docs/decoders.md.
 import re
 import struct
 import textwrap
-from pathlib import Path
 
+import frida
 import pytest
 
 TARGET_APP = "value-passing-native"
-SETTING_EXAMPLES = Path(__file__).parents[3] / "docs" / "examples" / "native" / "setting_tests"
 MODULE_VALUE = "libreceiveFundamentalValue.so"
 MODULE_REFERENCE = "libreceiveFundamentalReference.so"
 MODULE_STRING = "libreceiveString.so"
@@ -43,14 +42,43 @@ def _round_trip_float32(value: float) -> float:
     return struct.unpack("<f", struct.pack("<f", value))[0]
 
 
-def _cut(value, max_items):
-    """A string as decoded with `maxItems`: cut after that many characters, marked with `...`."""
-    return value if max_items is None else f"{value[:max_items]}..."
+def _export_offset(pid: int, module: str, symbol: str) -> str:
+    """The offset of an exported symbol from its module's base, e.g. `0xf20`, read from the running app."""
+    session = frida.get_usb_device().attach(pid)
+    try:
+        script = session.create_script("rpc.exports = { offset(name, symbol) { const module = Process.getModuleByName(name); return module.getExportByName(symbol).sub(module.base).toString(); } };")
+        script.load()
+        return script.exports_sync.offset(module, symbol)
+    finally:
+        session.detach()
 
 
 @pytest.mark.parametrize("platform", ["android"], indirect=True)
 class TestValuePassingNative:
     """Tests for native C function hooking on Android."""
+
+    def test_hook_by_offset(self, app_session, run_frooky, find_matched_events):
+        """A hook by `offset` from the module base (see native-hook-declaration.md). The offset of receive_int
+        depends on the build of the app, so it's looked up in the running app first."""
+        _, pid = app_session(f"{TARGET_APP.replace('-', '_')}.frooky.target.app")
+        offset = _export_offset(int(pid), MODULE_VALUE, "receive_int")
+        hook_file = textwrap.dedent(f"""\
+            hookCollection:
+              - module: {MODULE_VALUE}
+                hooks:
+                  - offset: {offset}
+                    retType: int
+                    params:
+                      - [int, minValue]
+                      - [int, maxValue]
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        [event] = find_matched_events({"module": MODULE_VALUE, "offset": offset})
+        assert "symbol" not in event
+        assert event["argsIn"] == [{"type": "int", "name": "minValue", "value": -2147483648}, {"type": "int", "name": "maxValue", "value": 2147483647}]
+        assert event["returnValue"]["value"] == -2147483648
 
     def test_by_value_fundamental_types(self, run_frooky, count_matched_events):
         """Basic usage + named parameters: fundamental types passed by value (see Type Descriptors)."""
@@ -714,28 +742,3 @@ class TestValuePassingNative:
 
         frooky.update_hook_file(hook_file("A", "B", "C"))
         assert recorded_by(frooky) == ["A", "B", "C"]
-
-    # Settings precedence (see additional-features.md#settings-precedence): runs the example hook files, which
-    # set different values on each level, and checks the event against the expectation documented in each file.
-
-    @pytest.mark.parametrize(
-        "example, max_stack_frames, arg_max_items, ret_max_items",
-        [
-            ("01_default_settings.yaml", 0, None, None),
-            ("02_file_settings.yaml", 1, 10, 10),
-            ("03_hook_collection_settings.yaml", 2, 15, 15),
-            ("04_hook_settings.yaml", 3, 20, 20),
-            ("05_param_and_return_type_settings.yaml", 3, 25, 30),
-            ("06_partial_overrides.yaml", 3, 15, 30),
-        ],
-    )
-    def test_settings_precedence_examples(self, run_frooky, find_matched_events, example, max_stack_frames, arg_max_items, ret_max_items):
-        """The closest level that sets a field wins; fields it leaves out fall through to the next level out."""
-        run_frooky((SETTING_EXAMPLES / example).read_text(encoding="utf8"), TARGET_APP)
-
-        received = "Welcome the first OWASP MASCon, CString!"
-        [event] = find_matched_events({"module": MODULE_STRING, "symbol": "receive_cstring"})
-        assert event["argsIn"] == [{"type": "char *", "name": "s", "value": _cut(received, arg_max_items)}]
-        assert event["returnValue"] == {"type": "char *", "value": _cut(received, ret_max_items)}
-        assert len(event["stackTrace"]["platformStackTrace"]) == max_stack_frames
-        assert len(event["stackTrace"]["nativeStackTrace"]) == max_stack_frames

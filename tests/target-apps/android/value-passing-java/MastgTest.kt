@@ -1,15 +1,35 @@
 package org.owasp.mastestapp
 
+import android.content.ClipData
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.security.KeyPairGenerator
 
+// A top-level function is a static method of the class MastgTestKt.
+fun receiveStatic(arg: String): String = arg
+
+// Constructed in mastgTest(), so its class is only loaded after pressing Start.
+class Secret(val value: String)
+
+// Stands in for a third-party library that calls into the app, for stack trace filters.
+class ThirdPartySdk {
+        fun flush(test: MastgTest): String = test.trackEvent("sdk_flush")
+}
+
 class MastgTest(private val context: Context) {
+        companion object {
+                // compiled to static final fields of MastgTest, for the `constant` decoder
+                const val MODE_ENCRYPT = 1
+                const val MODE_DECRYPT = 2
+        }
+
         fun initRsaKeyPair(): String {
                 val keyPairGenerator =
                         KeyPairGenerator.getInstance(
@@ -91,6 +111,33 @@ class MastgTest(private val context: Context) {
                 arg: Array<Array<Array<String>>>
         ): Array<Array<Array<String>>> = arg
         fun receiveNestedPrimitivesArray(arg: Array<Array<IntArray>>): Array<Array<IntArray>> = arg
+        fun receiveNestedList(arg: List<List<String>>): List<List<String>> = arg
+
+        // Overloads
+        fun receiveOverloaded(arg: Int): Int = arg
+        fun receiveOverloaded(arg: String): String = arg
+        fun receiveOverloaded(first: String, second: Int): String = "$first$second"
+
+        // Output parameter: copies a secret into `out` and returns its length.
+        fun fillSecret(out: ByteArray): Int {
+                val secret = "s3cr3t".toByteArray()
+                secret.copyInto(out)
+                return secret.size
+        }
+
+        // In/out parameter: XORs every byte with 0x20 in place, e.g. "frooky" becomes "FROOKY".
+        fun toggleCase(data: ByteArray): ByteArray {
+                for (i in data.indices) data[i] = (data[i].toInt() xor 0x20).toByte()
+                return data
+        }
+
+        fun receiveMode(mode: Int): Int = mode
+        fun receiveTextBytes(arg: ByteArray): ByteArray = arg
+        fun receiveBundle(arg: Bundle): Bundle = arg
+        fun receiveContentValues(arg: ContentValues): ContentValues = arg
+        fun receiveClipData(arg: ClipData): ClipData = arg
+        fun receiveIntent(arg: Intent): Intent = arg
+        fun trackEvent(name: String): String = name
 
         fun mastgTest(): String {
                 val r = DemoResults("basic-parameter")
@@ -211,6 +258,47 @@ class MastgTest(private val context: Context) {
                 r.add(Status.PASS, this.buildIntentWithFlags())
 
                 r.add(Status.PASS, initRsaKeyPair())
+
+                receiveNestedList(listOf(listOf("a", "b"), listOf("c", "d")))
+                r.add(Status.PASS, "nested list")
+
+                receiveOverloaded(42)
+                receiveOverloaded("frooky")
+                receiveOverloaded("frooky", 42)
+                r.add(Status.PASS, "overloads")
+
+                receiveStatic("static")
+                r.add(Status.PASS, Secret("s3cr3t").value)
+
+                val secretBuffer = ByteArray(6)
+                fillSecret(secretBuffer)
+                r.add(Status.PASS, String(secretBuffer))
+
+                val caseBuffer = "frooky".toByteArray()
+                toggleCase(caseBuffer)
+                r.add(Status.PASS, String(caseBuffer))
+
+                receiveMode(MODE_DECRYPT)
+                receiveTextBytes("Hello frooky".toByteArray())
+                r.add(Status.PASS, "mode and text bytes")
+
+                receiveBundle(Bundle().apply {
+                        putString("user", "alice")
+                        putInt("age", 42)
+                        putStringArray("roles", arrayOf("admin", "dev"))
+                })
+                receiveContentValues(ContentValues().apply {
+                        put("name", "alice")
+                        put("score", 42)
+                })
+                receiveClipData(ClipData.newPlainText("label", "copied secret"))
+                receiveIntent(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.org")).putExtra("token", "abc123"))
+                Intent.parseUri("intent:#Intent;action=android.intent.action.VIEW;end", Intent.URI_INTENT_SCHEME)
+                r.add(Status.PASS, "android types")
+
+                trackEvent("button_click")
+                ThirdPartySdk().flush(this)
+                r.add(Status.PASS, "events tracked")
 
                 return r.toJson()
         }

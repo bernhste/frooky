@@ -151,7 +151,7 @@ Notes on this example:
 Pass `-e`/`--print-events` to `frooky` to also pretty-print each `hook-java`/`hook-native` event to the terminal as it's captured, in addition to writing it to the output file.
 
 ```sh
-$ frooky -U -f org.owasp.mastestapp  docs/examples/01_android.yaml -e
+$ frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/01_hook_by_name.yaml -e
    ___    ____                                Frooky v0.1.dev174+gc704d263c.d20260914
   / __\  / _  |    _     _    _  _   _   _
  / _\   | (_) |  / _ \ / _ \ | / /  | | | |   Frida host:   v17.18.0

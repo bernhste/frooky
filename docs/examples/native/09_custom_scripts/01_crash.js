@@ -1,5 +1,5 @@
 // Crashes tests/target-apps/android/value-passing-native on purpose, to test frooky's crash report.
-// Load it with 05_crash.yaml, see there.
+// Load it with 01_crash.yaml, see there.
 //
 // Replaces the first byte of the string literal "Called functions ..." in libreceiveString.so, which
 // receiveStringsJNI returns with NewStringUTF, with 0x80, a UTF-8 continuation byte that cannot start a character.

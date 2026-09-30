@@ -1,0 +1,38 @@
+metadata:
+  name: "Early Hooking (Native): Spawn vs. Attach"
+  description: |
+    Code that runs while the app starts, e.g. loading its native libraries, only shows up if frooky
+    starts the app itself.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native, which loads its 3 libraries at startup.
+# See:    docs/native-hook-declaration.md
+#
+# Spawn (-f): frooky starts the app suspended, installs the hooks, then resumes it. The library loads are recorded:
+#   frooky -U -f value_passing_native.frooky.target.app docs/examples/native/08_early_hooking/01_spawn_vs_attach.yaml
+#
+# Attach (-n, -N, -p): the app already runs, so its libraries are already loaded and nothing is recorded:
+#   frooky -U -N value_passing_native.frooky.target.app docs/examples/native/08_early_hooking/01_spawn_vs_attach.yaml
+#
+# A hook on a function in the app's own library (e.g. libreceiveString.so) resolves once the library is
+# loaded. frooky retries for up to 5 seconds; for a library the app loads later, raise it, e.g. `-t 30`.
+# frooky looks for the library periodically, so a function called right when the library loads (e.g. from
+# JNI_OnLoad) can run before the hook is installed. Hook the loader, as below, to see such libraries.
+
+hookCollection:
+  # void *android_dlopen_ext(const char *filename, int flags, const android_dlextinfo *extinfo)
+  # Docs: https://developer.android.com/ndk/reference/group/libdl#android_dlopen_ext
+  - module: libdl.so
+    hooks:
+      - symbol: android_dlopen_ext
+        params:
+          # the path is longer than the default maxItems: 100, and argFilter matches the cut value
+          - ["char *", filename, { maxItems: 500, argFilter: ['/libreceive\w+\.so$'] }]
+          - [int, flags]
+
+# Expected events:
+#   spawn:  3 events, filename ".../base.apk!/lib/<abi>/libreceiveFundamentalValue.so",
+#           ".../libreceiveFundamentalReference.so" and ".../libreceiveString.so"
+#   attach: none

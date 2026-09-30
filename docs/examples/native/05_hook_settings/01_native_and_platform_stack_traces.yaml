@@ -1,0 +1,35 @@
+metadata:
+  name: "Hook Settings (Native): Native and Platform Stack Traces"
+  description: |
+    `nativeStackTrace` captures the C/C++ frames from the hook's CPU context, `platformStackTrace` the
+    Java frames of the calling thread, if the call came from Java. `maxStackFrames` caps each of them.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/05_hook_settings/01_native_and_platform_stack_traces.yaml
+# See:    docs/additional-features.md#hook-settings
+#
+# A native frame is "<symbol>+<offset> (<module>:<address>)". It starts with the caller of the hooked
+# function; the hooked function itself is not part of the trace.
+
+hookCollection:
+  # track_event is called by the JNI method ("button_click") and by sdk_flush ("sdk_flush")
+  - module: libreceiveString.so
+    hookSettings:
+      nativeStackTrace: true
+      platformStackTrace: true
+      maxStackFrames: 2
+    hooks:
+      - symbol: track_event
+        params:
+          - ["char *", name]
+
+# Expected events:
+#   "button_click": nativeStackTrace   ["Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI+0x... (libreceiveString.so:0x...)",
+#                                       "art_quick_generic_jni_trampoline+0x... (libart.so:0x...)"]
+#                   platformStackTrace ["org.owasp.mastestapp.MastgTest.receiveStringsJNI (MastgTest.kt:-2)",
+#                                       "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:<line>)"]
+#   "sdk_flush":    nativeStackTrace   ["sdk_flush+0x... (libreceiveString.so:0x...)",
+#                                       "Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI+0x... (libreceiveString.so:0x...)"]

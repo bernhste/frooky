@@ -1,0 +1,25 @@
+metadata:
+  name: "Basic Hooking (Android): Hook Methods by Name"
+  description: |
+    The short form lists method names only. frooky hooks every overload of each method and decodes
+    all arguments and the return value, using the parameter types from reflection.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/01_hook_by_name.yaml
+# See:    docs/java-hook-declaration.md#basic-usage
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - receiveString
+      - receiveInt
+      # 3 overloads: (int), (String) and (String, int), each called once
+      - receiveOverloaded
+
+# Expected events:
+#   receiveString:     argsIn [{type: java.lang.String, value: "Welcome the first OWASP MASCon 📱❤️"}], same returnValue
+#   receiveInt:        argsIn [{type: int, value: 2147483647}]
+#   receiveOverloaded: 3 events, one per overload. Parameters have no names, since reflection doesn't provide them.

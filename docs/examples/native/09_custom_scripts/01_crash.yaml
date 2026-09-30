@@ -12,8 +12,8 @@ metadata:
 # the app passes to JNI, so ART aborts the app when you tap "Start":
 #
 #   frooky -U -f value_passing_native.frooky.target.app \
-#     -l docs/examples/native/05_crash.js \
-#     docs/examples/native/05_crash.yaml
+#     -l docs/examples/native/09_custom_scripts/01_crash.js \
+#     docs/examples/native/09_custom_scripts/01_crash.yaml
 #
 # The summary then shows "Stopped: process crashed (abort at ...)", the
 # backtrace of the crashing thread, and the hooks below as the native hooks in
@@ -27,16 +27,16 @@ hookCollection:
     hookSettings:
       maxStackFrames: 0
     hooks:
-      - offset: 0x7a0             # receive_cstring
+      - offset: 0x9c0             # receive_cstring
         params:
           - [char *, string]
-      - offset: 0x7b0             # receive_utf8
+      - offset: 0x9d0             # receive_utf8
         params:
           - [char *, string]
 
-      # Rejected, not hooked: 0x5b0 lies in .rodata, which this small library
+      # Rejected, not hooked: 0x700 lies in .rodata, which this small library
       # maps into its executable segment. Hooking it would overwrite a string
       # literal, which causes the same crash as the script.
-      - offset: 0x5b0
+      - offset: 0x700
         params:
           - [char *, string]

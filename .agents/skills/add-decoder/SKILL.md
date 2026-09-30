@@ -47,4 +47,4 @@ Type parsing lives in `nativeFridaType.ts`. Values are handled by `NativeValueDe
 
 1. Build: `cd frooky/agent && npm run build:dev:android`.
 2. Test on a device: `npm run test:android` (see the `device-testing` skill). If no device is available, say that the new tests were not run.
-3. Update `docs/decoders.md` if user-visible output changed. If the new decoder is worth showing, add a hook to `docs/examples/01_android.yaml` that exercises it.
+3. Update `docs/decoders.md` if user-visible output changed. If the new decoder is worth showing, add it to `docs/examples/android/03_decoders/` (running against a target app) with a test in `tests/integration/android/test_examples.py`.

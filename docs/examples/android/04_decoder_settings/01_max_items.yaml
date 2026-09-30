@@ -1,0 +1,35 @@
+metadata:
+  name: "Decoder Settings (Android): maxItems"
+  description: |
+    `maxItems` limits how many elements of an array or collection, or characters of a string, are
+    decoded. Hooks run inside the app on every call, so large values slow the app down.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/04_decoder_settings/01_max_items.yaml
+# See:    docs/decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # called with [1, 2, 3] and with 1..100
+      - method: receiveIntArray
+        overloads:
+          - params:
+              - ["[I", numbers, { maxItems: 5 }]
+      - method: receiveString
+        overloads:
+          - params:
+              - [java.lang.String, greeting, { maxItems: 7 }]
+      # the elements of a container are decoded with the same maxItems
+      - method: receiveList
+        overloads:
+          - params:
+              - [java.util.List, letters, { maxItems: 2 }]
+
+# Expected values (argsIn[0].value):
+#   receiveIntArray: [1, 2, 3] and [1, 2, 3, 4, 5, "[truncated at 5]"]
+#   receiveString:   "Welcome..."
+#   receiveList:     ["a", "b", "[truncated at 2]"]

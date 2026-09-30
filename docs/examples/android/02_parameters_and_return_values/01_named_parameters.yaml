@@ -1,0 +1,24 @@
+metadata:
+  name: "Parameters (Android): Named Parameters"
+  description: |
+    Reflection only provides parameter types. Declaring the parameters of an overload adds a name
+    to each decoded argument, which makes events easier to read.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/02_parameters_and_return_values/01_named_parameters.yaml
+# See:    docs/parameter-declaration.md#named-java-parameters
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - method: receiveOverloaded
+        overloads:
+          - params:
+              - [java.lang.String, prefix]
+              - [int, suffix]
+
+# Expected event:
+#   receiveOverloaded: argsIn [{type: java.lang.String, name: prefix, value: "frooky"}, {type: int, name: suffix, value: 42}]

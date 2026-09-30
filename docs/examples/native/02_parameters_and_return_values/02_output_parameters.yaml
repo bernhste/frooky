@@ -1,0 +1,34 @@
+metadata:
+  name: "Parameters (Native): Output Parameters"
+  description: |
+    Arguments are decoded when the function is called. A function that writes its result into a buffer
+    needs `direction: out` (decoded after the call, in `argsOut`) or `direction: inout` (decoded
+    before and after the call).
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/02_parameters_and_return_values/02_output_parameters.yaml
+# See:    docs/decoders.md#direction-declare-the-time-of-decoding
+
+hookCollection:
+  - module: libreceiveFundamentalReference.so
+    hooks:
+      # int get_secret(char *out, int out_len) copies the NUL-terminated "s3cr3t" into `out`
+      - symbol: get_secret
+        retType: int
+        params:
+          - ["char *", out, { direction: out }]
+          - [int, out_len]
+
+      # unsigned char *receive_byte_array(unsigned char *data, int length) XORs each byte with 0xFF in place.
+      # `data` has no terminator, so `decoderArg` passes the length.
+      - symbol: receive_byte_array
+        params:
+          - ["unsigned char *", data, { direction: inout, decoderArg: length }]
+          - [int, length]
+
+# Expected events:
+#   get_secret:         argsIn [{name: out_len, value: 16}], argsOut [{name: out, value: "s3cr3t"}], returnValue 6
+#   receive_byte_array: argsIn data "0x48656c6c6f" ("Hello"), argsOut data "0xb79a939390"

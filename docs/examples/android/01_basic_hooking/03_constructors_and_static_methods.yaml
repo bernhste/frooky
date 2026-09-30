@@ -1,0 +1,31 @@
+metadata:
+  name: "Basic Hooking (Android): Constructors and Static Methods"
+  description: |
+    `$init` hooks the constructors of a class. Static methods are hooked like instance methods;
+    the event's `fieldType` tells them apart. Kotlin top-level functions are static methods of the
+    class `<File>Kt`.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/03_constructors_and_static_methods.yaml
+# See:    docs/java-hook-declaration.md#basic-usage
+
+hookCollection:
+  # class Secret(val value: String)
+  - javaClass: org.owasp.mastestapp.Secret
+    hooks:
+      - method: $init
+        overloads:
+          - params:
+              - [java.lang.String, value]
+
+  # fun receiveStatic(arg: String): String, a top-level function in MastgTest.kt
+  - javaClass: org.owasp.mastestapp.MastgTestKt
+    hooks:
+      - receiveStatic
+
+# Expected events:
+#   Secret:        argsIn [{type: java.lang.String, name: value, value: "s3cr3t"}], returnValue {type: void}
+#   receiveStatic: argsIn [{type: java.lang.String, value: "static"}], fieldType {fieldType: static}

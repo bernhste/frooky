@@ -1,0 +1,57 @@
+metadata:
+  name: "Decoders (Android): Custom Decoders"
+  description: |
+    `decoder` replaces the decoder chosen by type with a registered custom decoder, e.g. to show a
+    byte array as text, an object by its identity, or an int as the name of a constant.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/03_custom_decoders.yaml
+# See:    docs/decoders.md#decoder-override-the-default-decoder
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # `string`: a byte[] as text, instead of a list of numbers
+      - method: receiveTextBytes
+        overloads:
+          - params:
+              - ["[B", text, { decoder: string }]
+
+      # `hashCode`: <class>@<hashCode>, without calling the object's own toString()
+      - method: receiveBigInteger
+        overloads:
+          - params:
+              - [java.math.BigInteger, number, { decoder: hashCode }]
+
+      # `constant`: the name of the matching static final constant of the hooked class (MODE_ENCRYPT = 1, MODE_DECRYPT = 2)
+      - method: receiveMode
+        overloads:
+          - params:
+              - [int, mode, { decoder: constant }]
+
+  # `intentFlag`: the Intent.FLAG_* constants set in a bitmask
+  # Docs: https://developer.android.com/reference/android/content/Intent#setFlags(int)
+  - javaClass: android.content.Intent
+    hooks:
+      - method: setFlags
+        overloads:
+          - params:
+              - [int, flags, { decoder: intentFlag }]
+
+      # `intentUriFlag`: the Intent.URI_* constants set in a bitmask
+      # Docs: https://developer.android.com/reference/android/content/Intent#parseUri(java.lang.String,%20int)
+      - method: parseUri
+        overloads:
+          - params:
+              - [java.lang.String, uri]
+              - [int, flags, { decoder: intentUriFlag }]
+
+# Expected values (argsIn):
+#   receiveTextBytes:  "Hello frooky"
+#   receiveBigInteger: "java.math.BigInteger@<hashCode>"
+#   receiveMode:       "MODE_DECRYPT"
+#   setFlags:          {type: android.content.IntentFlag, value: [FLAG_GRANT_READ_URI_PERMISSION, ..., FLAG_ACTIVITY_NEW_TASK, FLAG_ACTIVITY_CLEAR_TASK]}
+#   parseUri:          flags {type: android.content.IntentUriFlag, value: [URI_INTENT_SCHEME]}

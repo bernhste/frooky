@@ -1,0 +1,46 @@
+metadata:
+  name: "Parameters (Native): Values and Pointers"
+  description: |
+    Parameters are declared with their C type. Pointers to numbers are dereferenced, `char *` is read
+    as a NUL-terminated string, and names make the decoded arguments easier to read.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/02_parameters_and_return_values/01_values_and_pointers.yaml
+# See:    docs/parameter-declaration.md#named-native-parameters
+
+hookCollection:
+  # int receive_int(int minValue, int maxValue), double receive_double(double minValue, double maxValue)
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - symbol: receive_int
+        params:
+          - [int, minValue]
+          - [int, maxValue]
+      - symbol: receive_double
+        params:
+          - [double, minValue]
+          - [double, maxValue]
+
+  # int *receive_int_ref(int *minValue, int *maxValue)
+  - module: libreceiveFundamentalReference.so
+    hooks:
+      - symbol: receive_int_ref
+        params:
+          - ["int *", minValue]
+          - ["int *", maxValue]
+
+  # const char *receive_cstring(const char *s)
+  - module: libreceiveString.so
+    hooks:
+      - symbol: receive_cstring
+        params:
+          - ["char *", s]
+
+# Expected values (argsIn):
+#   receive_int:     minValue -2147483648, maxValue 2147483647
+#   receive_double:  minValue -1.7976931348623157e308, maxValue 1.7976931348623157e308
+#   receive_int_ref: the values the pointers point to, -2147483648 and 2147483647
+#   receive_cstring: s "Welcome the first OWASP MASCon, CString!"

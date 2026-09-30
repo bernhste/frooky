@@ -1,0 +1,30 @@
+metadata:
+  name: "Decoders (Android): Android Types"
+  description: |
+    Android types that carry data between components, such as Intent, Bundle, ContentValues and
+    ClipData, have dedicated decoders that show their contents.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/02_android_types.yaml
+# See:    docs/decoders.md#what-are-decoders
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # Docs: https://developer.android.com/reference/android/os/Bundle
+      - receiveBundle
+      # Docs: https://developer.android.com/reference/android/content/ContentValues
+      - receiveContentValues
+      # Docs: https://developer.android.com/reference/android/content/ClipData
+      - receiveClipData
+      # Docs: https://developer.android.com/reference/android/content/Intent
+      - receiveIntent
+
+# Expected values (argsIn[0].value):
+#   receiveBundle:        each extra with its key as name: user "alice", age 42, roles ["admin", "dev"]
+#   receiveContentValues: {name: "alice", score: "42"}
+#   receiveClipData:      description {label, mimeTypes}, itemCount 1, items [{text: "copied secret", ...}]
+#   receiveIntent:        action "android.intent.action.VIEW", data "https://example.org", the extras, flags, ...

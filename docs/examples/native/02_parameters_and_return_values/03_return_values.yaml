@@ -1,0 +1,29 @@
+metadata:
+  name: "Return Values (Native): Decode Return Values"
+  description: |
+    `retType` declares the C return type. Without it, the return value is not decoded. A
+    `[type, {decoderSettings}]` tuple sets decoder settings for the return value.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/02_parameters_and_return_values/03_return_values.yaml
+# See:    docs/return-type-declaration.md#native-return-types
+
+hookCollection:
+  - module: libreceiveString.so
+    hooks:
+      # const char *receive_cstring(const char *s) returns `s`
+      - symbol: receive_cstring
+        retType: ["char *", { maxItems: 7 }]
+
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      # double receive_double(double minValue, double maxValue) returns minValue
+      - symbol: receive_double
+        retType: double
+
+# Expected events:
+#   receive_cstring: returnValue {type: "char *", value: "Welcome..."}
+#   receive_double:  returnValue {type: double, value: -1.7976931348623157e308}

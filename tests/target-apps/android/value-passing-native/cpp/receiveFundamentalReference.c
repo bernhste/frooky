@@ -40,6 +40,24 @@ NOINLINE EXPORT unsigned char *reverse_byte_array(unsigned char *data, int lengt
     return data;
 }
 
+// Output parameter: copies a NUL-terminated secret into `out`.
+NOINLINE EXPORT int get_secret(char *out, int out_len)
+{
+    const char secret[] = "s3cr3t";
+    if (out_len < (int)sizeof(secret))
+        return -1;
+    for (int i = 0; i < (int)sizeof(secret); i++)
+        out[i] = secret[i];
+    return (int)sizeof(secret) - 1;
+}
+
+// A buffer of `len` bytes without a terminator, like write(2).
+NOINLINE EXPORT int send_message(const void *buf, int len)
+{
+    (void)buf;
+    return len;
+}
+
 JNIEXPORT jstring JNICALL
 Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI(JNIEnv *env, jobject thiz)
 {
@@ -80,6 +98,11 @@ Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI(JNIEnv *env, 
     receive_ldouble_ref(&minLd, &maxLd);
     receive_byte_array(data, 5);
     reverse_byte_array(welcome, (int)(sizeof(welcome) - 1));
+
+    char secret[16];
+    get_secret(secret, (int)sizeof(secret));
+    const char message[] = "Hello frooky";
+    send_message(message, (int)(sizeof(message) - 1));
 
     return (*env)->NewStringUTF(env, "Called functions with primitives received by reference (e.g. void receive_int(int *minValue, int *maxValue)).");
 }

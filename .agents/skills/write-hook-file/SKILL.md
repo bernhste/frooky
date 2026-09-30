@@ -12,7 +12,7 @@ description: Use when writing, reviewing, or fixing a frooky hook file (YAML), e
 3. **Add context.** Name parameters, pick decoders, set `direction` for output buffers, and add filters to cut noise.
 4. **Validate** (see below), then run: `frooky -U -f <package> -e hooks.yaml`.
 
-Reference docs: `docs/java-hook-declaration.md`, `docs/native-hook-declaration.md`, `docs/parameter-declaration.md`, `docs/return-type-declaration.md`, `docs/decoders.md`, `docs/additional-features.md`. Worked examples: `docs/examples/01_android.yaml` (Java) and `docs/examples/03_native.yaml` (native).
+Reference docs: `docs/java-hook-declaration.md`, `docs/native-hook-declaration.md`, `docs/parameter-declaration.md`, `docs/return-type-declaration.md`, `docs/decoders.md`, `docs/additional-features.md`. Worked examples, one folder per topic: `docs/examples/android/` (Java) and `docs/examples/native/` (native), see `docs/examples/README.md`.
 
 ## Skeleton
 

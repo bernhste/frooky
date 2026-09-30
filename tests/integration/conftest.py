@@ -132,6 +132,10 @@ def _build_options(platform, app_bundle_id):
     return options
 
 
+def _start_button(platform):
+    return (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Start")') if platform == "android" else (AppiumBy.ACCESSIBILITY_ID, "Start")
+
+
 def _wait_for_pid(driver, platform, app_bundle_id):
     """Resolve the PID of the freshly launched app via Appium only."""
     deadline = time.monotonic() + APP_START_TIMEOUT
@@ -192,7 +196,10 @@ def app_session(platform, appium_drivers):
         if driver is None:
             driver = _new_session(_build_options(platform, app_bundle_id))
             appium_drivers[platform] = driver
-        return driver, _wait_for_pid(driver, platform, app_bundle_id)
+        pid = _wait_for_pid(driver, platform, app_bundle_id)
+        # attaching while the app still starts up can time out syncing with the agent
+        WebDriverWait(driver, APP_START_TIMEOUT).until(EC.presence_of_element_located(_start_button(platform)))
+        return driver, pid
 
     return _launch
 
@@ -202,8 +209,7 @@ def mastg_app_click_start(platform):
     """Replaces maestro/mastg_demo.yaml: press the start button."""
 
     def _flow(driver):
-        locator = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textContains("Start")') if platform == "android" else (AppiumBy.ACCESSIBILITY_ID, "Start")
-        WebDriverWait(driver, UI_TIMEOUT).until(EC.element_to_be_clickable(locator)).click()
+        WebDriverWait(driver, UI_TIMEOUT).until(EC.element_to_be_clickable(_start_button(platform))).click()
 
     return _flow
 
@@ -383,6 +389,49 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, m
         return output_file_path
 
     return _run_frooky
+
+
+@pytest.fixture
+def run_frooky_spawn(platform, output_file_path, app_session, tmp_path):
+    def _run_frooky_spawn(hook_file_yaml, target_app):
+        """Let frooky spawn target_app (-f) with hook_file_yaml, and collect the events of the app's startup.
+
+        No UI is triggered: this is for hooks on code that runs while the app starts."""
+        app_bundle_id = f"{target_app.replace('-', '_')}.frooky.target.app"
+
+        # stop the app, so frooky starts a fresh process
+        driver, _ = app_session(app_bundle_id)
+        driver.terminate_app(app_bundle_id)
+
+        hook_path = tmp_path / "hooks.yaml"
+        hook_path.write_text(hook_file_yaml, encoding="utf8")
+
+        process = subprocess.Popen(
+            [
+                "frooky",
+                *(["-U"] if platform == "android" else []),
+                "-f",
+                app_bundle_id,
+                "-o",
+                str(output_file_path),
+                str(hook_path),
+            ],
+            cwd=FROOKY_WORKING_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        chunks = _drain_output(process)
+
+        try:
+            _wait_for_frooky(process, chunks)
+            _wait_for_events(process, chunks, output_file_path)
+        finally:
+            _stop_frooky(process)
+
+        return output_file_path
+
+    return _run_frooky_spawn
 
 
 # frooky logs e.g. `Updated hooks.yaml: 1 removed, 2 unchanged` once a changed hook file is applied (-w)

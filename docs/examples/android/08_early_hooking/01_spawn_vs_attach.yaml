@@ -1,0 +1,33 @@
+metadata:
+  name: "Early Hooking (Android): Spawn vs. Attach"
+  description: |
+    Code that runs while the app starts, e.g. in Application.onCreate or MainActivity.onCreate, only
+    shows up if frooky starts the app itself.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java.
+# See:    docs/java-hook-declaration.md
+#
+# Spawn (-f): frooky starts the app suspended, installs the hooks, then resumes it. The startup calls are recorded:
+#   frooky -U -f value_passing_java.frooky.target.app docs/examples/android/08_early_hooking/01_spawn_vs_attach.yaml
+#
+# Attach (-n, -N, -p): the app already runs, so onCreate has already happened and is not recorded:
+#   frooky -U -N value_passing_java.frooky.target.app docs/examples/android/08_early_hooking/01_spawn_vs_attach.yaml
+#
+# frooky retries a hook until its class or native library is found, for up to 5 seconds. If the app loads
+# a library later, raise the timeout, e.g. `-t 30`; the hook is reported as not resolved otherwise.
+
+hookCollection:
+  # Docs: https://developer.android.com/reference/android/app/Activity#onCreate(android.os.Bundle)
+  - javaClass: org.owasp.mastestapp.MainActivity
+    hooks:
+      - method: onCreate
+        overloads:
+          - params:
+              - [android.os.Bundle, savedInstanceState]
+
+# Expected events:
+#   spawn:  onCreate with argsIn [{type: android.os.Bundle, name: savedInstanceState, value: null}]
+#   attach: none

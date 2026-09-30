@@ -1,0 +1,49 @@
+metadata:
+  name: "Decoders (Android): Java Types"
+  description: |
+    frooky picks a decoder by the runtime type of a value: primitives, strings, arrays and nested
+    arrays, collections, maps, enums, and any other object via `toString()`.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/01_java_types.yaml
+# See:    docs/decoders.md#what-are-decoders
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # primitives
+      - receiveBoolean
+      - receiveChar
+      - receiveLong
+      - receiveDouble
+      # arrays
+      - receiveStringArray
+      - receiveCharArray
+      - receiveNestedPrimitivesArray
+      # collections
+      - receiveList
+      - receiveMap
+      - receiveSet
+      # other objects: enums and objects without a dedicated decoder use toString()
+      - receiveEnum
+      - receiveBigDecimal
+
+# Expected values (argsIn[0]):
+#   receiveBoolean:               true
+#   receiveChar:                  "A"
+#   receiveLong:                  "9223372036854775807" (a string: JSON numbers can't hold every long)
+#   receiveDouble:                3.141592653589793
+#   receiveStringArray:           ["a", "b", "c"]
+#   receiveCharArray:             ["x", "y", "z"]
+#   receiveNestedPrimitivesArray: [[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]]
+#   receiveEnum:                  {type: org.owasp.mastestapp.MastgTest$Direction, value: "NORTH"}
+#   receiveBigDecimal:            {type: java.math.BigDecimal, value: "3.141592653589793238462643383"}
+#   receiveList:                  {type: java.util.Arrays$ArrayList, value: [{type: java.lang.String, value: "a"}, ... "b", "c"]}
+#   receiveSet:                   {type: java.util.LinkedHashSet, value: [... "a", "b", "c"]}
+#   receiveMap:                   {type: java.util.Collections$SingletonMap, value: [{name: key, value: [... "key"]}, {name: value, value: [... "value"]}]}
+#
+# A value of a reference type (not a primitive or String) is wrapped in {type: <runtime class>, value: ...},
+# since the declared type (e.g. java.util.List) can be an interface.
