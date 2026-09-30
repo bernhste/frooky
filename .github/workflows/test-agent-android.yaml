@@ -36,7 +36,7 @@ jobs:
           python-version: "3.14"
 
       - name: Install frida-tools
-        run: uv pip install --system "frida-tools>=14.10.4"
+        run: uv pip install --system --break-system-packages "frida-tools>=14.10.4"
 
       - name: Setup Android emulator environment
         uses: ./.github/actions/setup-android-emulator

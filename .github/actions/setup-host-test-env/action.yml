@@ -19,7 +19,7 @@ runs:
       shell: bash
       run: |
         echo "Installing frooky"
-        uv pip install --system dist/*.whl
+        uv pip install --system --break-system-packages dist/*.whl
 
         echo "Installing dev dependencies from pyproject.toml"
-        uv pip install --system --group dev -r pyproject.toml
+        uv pip install --system --break-system-packages --group dev -r pyproject.toml

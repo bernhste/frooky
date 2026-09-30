@@ -38,7 +38,7 @@ jobs:
 
       - name: Install wheel
         run: |
-          uv pip install --system dist/*.whl
+          uv pip install --system --break-system-packages dist/*.whl
           frooky --help
 
       - name: Check agent artifacts
