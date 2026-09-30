@@ -280,56 +280,82 @@ class TestValuePassingJava:
         assert len(events) >= 1
         assert all(isinstance(e["returnValue"]["value"], str) for e in events)
 
-    def test_max_stack_trace(self, run_frooky, find_matched_events):
-        """`maxStackFrames` (see additional-features.md) caps how many stack frames are captured."""
+    # Stack traces (see additional-features.md#hook-settings) are opt-in via `platformStackTrace` and
+    # `nativeStackTrace`. A Java hook has no CPU context, so it only ever captures platform (Java) frames.
+
+    def _receive_string_events(self, run_frooky, find_matched_events, hook_settings, expect_events=True):
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - javaClass: {MASTG_CLASS}
-                hookSettings:
-                  maxStackFrames: 3
+                hookSettings: {hook_settings}
                 hooks:
                   - receiveString
             """)
+        run_frooky(hook_file, TARGET_APP, expect_events=expect_events)
+        return find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"})
 
-        run_frooky(hook_file, TARGET_APP)
+    def test_no_stack_trace_by_default(self, run_frooky, find_matched_events):
+        """Without `platformStackTrace`/`nativeStackTrace`, no frames are captured."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{}")
 
-        events = find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"})
         assert len(events) == 1
-        assert 0 < len(events[0]["stackTrace"]["platformStackTrace"]) <= 3
+        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+
+    def test_platform_stack_trace_is_capped_by_max_stack_frames(self, run_frooky, find_matched_events):
+        """`platformStackTrace` captures the Java frames, innermost (the hooked method) first, up to `maxStackFrames`."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{platformStackTrace: true, maxStackFrames: 3}")
+
+        assert len(events) == 1
+        platform_frames = events[0]["stackTrace"]["platformStackTrace"]
+        assert 0 < len(platform_frames) <= 3
+        assert platform_frames[0].startswith(f"{MASTG_CLASS}.receiveString ")
         assert events[0]["stackTrace"]["nativeStackTrace"] == []
 
-    def test_stack_trace_filter_keeps_event_when_a_frame_matches(self, run_frooky, count_matched_events):
+    def test_native_stack_trace_is_empty_for_java_hooks(self, run_frooky, find_matched_events):
+        """`nativeStackTrace` needs the CPU context of a native hook, so a Java hook captures no native frames."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{nativeStackTrace: true}")
+
+        assert len(events) == 1
+        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+
+    def test_stack_trace_filter_keeps_event_when_a_frame_matches(self, run_frooky, find_matched_events):
         """`stackTraceFilter` is an event-level gate: if any captured frame matches, the whole
         (unfiltered) stack trace is kept - individual non-matching frames are not trimmed."""
-        hook_file = textwrap.dedent(f"""\
-            hookCollection:
-              - javaClass: {MASTG_CLASS}
-                hookSettings:
-                  maxStackFrames: 5
-                  stackTraceFilter: ['^org\\.owasp\\.mastestapp']
-                hooks:
-                  - receiveString
-            """)
+        events = self._receive_string_events(run_frooky, find_matched_events, "{platformStackTrace: true, maxStackFrames: 5, stackTraceFilter: ['^org\\.owasp\\.mastestapp']}")
 
-        run_frooky(hook_file, TARGET_APP)
+        assert len(events) == 1
+        platform_frames = events[0]["stackTrace"]["platformStackTrace"]
+        assert 0 < len(platform_frames) <= 5
+        assert any(frame.startswith("org.owasp.mastestapp") for frame in platform_frames)
 
-        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"}) == 1
-
-    def test_stack_trace_filter_drops_event_when_no_frame_matches(self, run_frooky, count_matched_events):
+    def test_stack_trace_filter_drops_event_when_no_frame_matches(self, run_frooky, find_matched_events):
         """If no captured frame matches any pattern, the whole event is dropped."""
-        hook_file = textwrap.dedent(f"""\
-            hookCollection:
-              - javaClass: {MASTG_CLASS}
-                hookSettings:
-                  maxStackFrames: 5
-                  stackTraceFilter: ['^this\\.matches\\.nothing']
-                hooks:
-                  - receiveString
-            """)
+        events = self._receive_string_events(
+            run_frooky,
+            find_matched_events,
+            "{platformStackTrace: true, maxStackFrames: 5, stackTraceFilter: ['^this\\.matches\\.nothing']}",
+            expect_events=False,
+        )
 
-        run_frooky(hook_file, TARGET_APP, expect_events=False)
+        assert events == []
 
-        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"}) == 0
+    def test_stack_trace_filter_only_searches_the_first_max_stack_frames(self, run_frooky, find_matched_events):
+        """With `maxStackFrames: 1` only the hooked method's own frame is searched, so a pattern that only
+        matches its callers drops the event."""
+        events = self._receive_string_events(
+            run_frooky,
+            find_matched_events,
+            "{platformStackTrace: true, maxStackFrames: 1, stackTraceFilter: ['^org\\.owasp\\.mastestapp\\.MainActivity']}",
+            expect_events=False,
+        )
+
+        assert events == []
+
+    def test_stack_trace_filter_drops_every_event_without_captured_frames(self, run_frooky, find_matched_events):
+        """A `stackTraceFilter` only searches captured frames: with no stack trace enabled nothing can match."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{stackTraceFilter: ['^org\\.owasp\\.mastestapp']}", expect_events=False)
+
+        assert events == []
 
     def test_arg_filter_only_captures_matching_values(self, run_frooky, count_matched_events):
         """`argFilter` (see decoders.md) only captures the event if a decoded value matches."""
@@ -360,3 +386,69 @@ class TestValuePassingJava:
         # are expected to be written.
         run_frooky(non_matching_hook_file, TARGET_APP, expect_events=False)
         assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 0
+
+    def test_same_method_hooked_twice_records_one_event_per_declaration(self, run_frooky, count_matched_events):
+        """Multiple hooks (see additional-features.md): two declarations of the same method each record their own
+        event per call, decoded with their own params."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollection:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: receiveString
+                    overloads:
+                      - params:
+                          - [java.lang.String, first]
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: receiveString
+                    overloads:
+                      - params:
+                          - [java.lang.String, second]
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        for name in ["first", "second"]:
+            expected = {
+                "javaClassName": MASTG_CLASS,
+                "method": "receiveString",
+                "argsIn": [{"type": "java.lang.String", "name": name, "value": "Welcome the first OWASP MASCon 📱❤️"}],
+            }
+            assert count_matched_events(expected) == 1, f"the '{name}' declaration did not fire exactly once."
+
+    def test_identical_declarations_record_one_event(self, run_frooky, count_matched_events):
+        """An identical declaration repeated in one hook file is hooked once."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollection:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - receiveInt
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - receiveInt
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 1
+
+    def test_arg_filter_of_one_declaration_does_not_affect_another(self, run_frooky, count_matched_events):
+        """Each hook on the same method applies its own filters."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollection:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: receiveInt
+                    overloads:
+                      - params:
+                          - [int, filtered, {{argFilter: ['^0$']}}]
+                  - method: receiveInt
+                    overloads:
+                      - params:
+                          - [int, unfiltered]
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        assert count_matched_events({"method": "receiveInt", "argsIn": [{"name": "filtered"}]}) == 0
+        assert count_matched_events({"method": "receiveInt", "argsIn": [{"name": "unfiltered", "value": 2147483647}]}) == 1

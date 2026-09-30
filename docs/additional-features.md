@@ -7,6 +7,7 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 - [Hook Settings](#hook-settings)
 - [Settings Precedence](#settings-precedence)
 - [Event Filter Based on Stack Trace](#event-filter-based-on-stack-trace)
+- [Multiple Hooks on the Same Method or Function](#multiple-hooks-on-the-same-method-or-function)
 
 <!-- /TOC -->
 
@@ -14,12 +15,12 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 
 `hookSettings` controls how a hook itself behaves, independent of argument/return value decoding.
 
-| Setting              | Type       | Default | Description                                                                                                                                                                                                                   |
-| -------------------- | ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `maxStackFrames`     | `number`   | `10`    | Limits the number of stack frames captured per event when stack traces are enabled. With a `stackTraceFilter`, it also limits how deep the filter searches.                                                                  |
-| `stackTraceFilter`   | `string[]` | `[]`    | Regular expressions; the event is only captured if at least one stack frame matches one of them. Frames themselves are not filtered individually - a match keeps the whole captured stack trace.                            |
-| `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames.                                                                                                                                                                               |
-| `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames.                                                                                                                                            |
+| Setting              | Type       | Default | Description                                                                                                                                                                                                                                                                       |
+| -------------------- | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxStackFrames`     | `number`   | `10`    | Limits the number of frames captured per event, separately for the native and the platform stack trace. With a `stackTraceFilter`, it also limits how deep the filter searches.                                                                                                   |
+| `stackTraceFilter`   | `string[]` | `[]`    | Regular expressions; the event is only captured if at least one captured stack frame matches one of them. Only the enabled stack traces are searched, so without `nativeStackTrace` or `platformStackTrace` every event is dropped. A match keeps the whole captured stack trace. |
+| `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames. Native hooks only: Java hooks have no native context and always capture an empty native stack trace.                                                                                                                              |
+| `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames. For a native hook, these are the Java frames that led to the native call, if it was called from Java.                                                                                           |
 
 ## Settings Precedence
 
@@ -78,7 +79,9 @@ hooks:
   - putString
 ```
 
-With this filter, noise can be reduced.
+With this filter, noise can be reduced. The filter only searches the captured frames, so it needs `platformStackTrace` or `nativeStackTrace`; without either, every event is dropped.
+
+Stack traces are off by default because capturing them is expensive, and a native stack walk can crash hooks on low-level functions such as libc's `open`: these may run on a small signal stack, or the stack walk itself calls the hooked function again. On a signal stack, frooky captures no frames at all.
 
 **Example: `SharedPreferences` used by Android**
 
@@ -123,3 +126,30 @@ frooky will capture the events you are looking for, as well as many more, such a
 This method call is initiated by Android when `EncryptedSharedPreferences` are initiated. This library uses `SharedPreferences` to store an encryption key.
 
 These events are usually not of interest to security testers, who want to test the target app rather than OS libraries.
+
+## Multiple Hooks on the Same Method or Function
+
+A Java method or native function can be hooked more than once, e.g. by two hook files that both hook `javax.crypto.Cipher.init`, or by two declarations in one file with different parameters, filters or settings. Every hook records its own event on each call, decoded with its own `params`, `retType`, `decoderSettings` and `hookSettings`. Java and native hooks behave the same:
+
+- The hooked method or function still runs once per call. Only the number of events changes.
+- Each hook applies its own filters. If one hook's `argFilter` or `stackTraceFilter` doesn't match, the other hooks still record the call.
+- Removing a hook, e.g. by deleting it from a hook file while frooky runs with `--watch`, stops only that hook's events. The method or function is restored once no hook is left on it.
+- A declaration that is repeated identically in the same hook file is only hooked once.
+
+**Example:** record every `Cipher.init` call, and additionally decode `opmode` of the `init(int, Key)` overload with the `constant` decoder:
+
+```yaml
+hookCollection:
+  - javaClass: javax.crypto.Cipher
+    hooks:
+      - init
+      - method: init
+        overloads:
+          - params:
+              - [int, opmode, { decoder: constant }]
+              - [java.security.Key, key]
+```
+
+A call to `init(int, Key)` produces two events: one from the first hook with the raw `opmode` (e.g. `1`), and one from the second hook with the constant name (e.g. `"ENCRYPT_MODE"`). Calls to other `init` overloads produce one event.
+
+See [`docs/examples/android/05_multiple_hooks.yaml`](./examples/android/05_multiple_hooks.yaml) and [`docs/examples/native/06_multiple_hooks.yaml`](./examples/native/06_multiple_hooks.yaml) for full examples.

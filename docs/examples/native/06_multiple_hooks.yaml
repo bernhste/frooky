@@ -1,0 +1,46 @@
+metadata:
+  name: Native Multiple Hooks Testing (value-passing-native)
+  description: |
+    Hooks the same native functions more than once. Every hook records its
+    own event per call, decoded with its own params and filters; the function
+    itself still runs once. See docs/additional-features.md.
+    Run frooky with:
+      frooky -U -f org.owasp.mastestapp docs/examples/native/06_multiple_hooks.yaml
+  version: 1
+  author: frooky dev
+  platform: Android
+
+hookCollection:
+  # Two hooks on receive_int: each call produces two events, one decoding
+  # only the first argument and one decoding both arguments and the return value.
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - symbol: receive_int
+        params:
+          - [int, minValue]
+      - symbol: receive_int
+        retType: int
+        params:
+          - [int, minValue]
+          - [int, maxValue]
+
+  # Record every receive_long call, and additionally flag the value -2147483648 with a stack trace.
+  # A filter only applies to its own hook, the other one records every call.
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - symbol: receive_long
+        params:
+          - [long, value]
+      - symbol: receive_long
+        hookSettings:
+          nativeStackTrace: true
+        params:
+          - [long, minValue, { argFilter: ["^-2147483648$"] }]
+
+  # An identical repeated declaration is hooked only once: one event per call.
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - receive_bool
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      - receive_bool

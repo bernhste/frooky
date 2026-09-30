@@ -83,7 +83,7 @@ describe("configValidator", () => {
         stackTraceFilter: ["a", "b"],
       };
       expect(validateAndRepairHookSettings(incompleteInputHookSettings)).toEqual({
-        maxStackFrames: DEFAULT_HOOK_SETTINGS.maxStackFrames,
+        ...DEFAULT_HOOK_SETTINGS,
         stackTraceFilter: ["a", "b"],
       });
     });
@@ -94,7 +94,7 @@ describe("configValidator", () => {
         stackTraceFilter: ["a", "b"],
       };
       expect(validateAndRepairHookSettings(incorrectInputHookSettings)).toEqual({
-        maxStackFrames: DEFAULT_HOOK_SETTINGS.maxStackFrames,
+        ...DEFAULT_HOOK_SETTINGS,
         stackTraceFilter: ["a", "b"],
       });
 
@@ -109,7 +109,7 @@ describe("configValidator", () => {
         stackTraceFilter: ["^org\\.owasp\\.", "(unclosed", "[a-"],
       };
       expect(validateAndRepairHookSettings(inputHookSettings)).toEqual({
-        maxStackFrames: DEFAULT_HOOK_SETTINGS.maxStackFrames,
+        ...DEFAULT_HOOK_SETTINGS,
         stackTraceFilter: ["^org\\.owasp\\."],
       });
       expect(warnSpy).toHaveBeenCalledWith("Hook setting 'stackTraceFilter' contains invalid regular expressions, which are ignored: (unclosed, [a-");

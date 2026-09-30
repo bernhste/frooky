@@ -492,41 +492,140 @@ class TestValuePassingNative:
         assert len(events) == 1
         assert events[0].get("hashCode")
 
-    def test_max_stack_trace(self, run_frooky, find_matched_events):
-        """`maxStackFrames` (see native-hook-declaration.md) caps how many stack frames are captured.
+    # Stack traces (see additional-features.md#hook-settings) are opt-in: `nativeStackTrace` captures the
+    # C/C++ frames from the hook's CPU context, `platformStackTrace` the Java frames of the calling thread
+    # (receive_int is called from a JNI method, so there are some). `maxStackFrames` caps each of them.
 
-        For a native hook, the limit is applied separately to the native and platform (Java)
-        traces, captured in `nativeStackTrace` and `platformStackTrace`.
-        """
-        limit = 5
+    def _receive_int_events(self, run_frooky, find_matched_events, hook_settings, expect_events=True):
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_VALUE}
-                hookSettings:
-                  maxStackFrames: {limit}
+                hookSettings: {hook_settings}
                 hooks:
                   - receive_int
             """)
+        run_frooky(hook_file, TARGET_APP, expect_events=expect_events)
+        return find_matched_events({"module": MODULE_VALUE, "symbol": "receive_int"})
 
-        run_frooky(hook_file, TARGET_APP)
+    def test_no_stack_trace_by_default(self, run_frooky, find_matched_events):
+        """Without `platformStackTrace`/`nativeStackTrace`, no frames are captured, which keeps hooks on
+        low-level functions (e.g. libc's open) safe on small signal stacks."""
+        events = self._receive_int_events(run_frooky, find_matched_events, "{}")
 
-        events = find_matched_events({"module": MODULE_VALUE, "symbol": "receive_int"})
+        assert len(events) == 1
+        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+
+    def test_native_stack_trace_only(self, run_frooky, find_matched_events):
+        """`nativeStackTrace` alone captures the native frames, starting in the JNI caller in the same library."""
+        limit = 5
+        events = self._receive_int_events(run_frooky, find_matched_events, f"{{nativeStackTrace: true, maxStackFrames: {limit}}}")
+
+        assert len(events) == 1
+        native_frames = events[0]["stackTrace"]["nativeStackTrace"]
+        assert 0 < len(native_frames) <= limit
+        assert MODULE_VALUE in native_frames[0]
+        assert events[0]["stackTrace"]["platformStackTrace"] == []
+
+    def test_platform_stack_trace_only(self, run_frooky, find_matched_events):
+        """`platformStackTrace` alone captures the Java frames that led to the native call."""
+        limit = 5
+        events = self._receive_int_events(run_frooky, find_matched_events, f"{{platformStackTrace: true, maxStackFrames: {limit}}}")
+
+        assert len(events) == 1
+        platform_frames = events[0]["stackTrace"]["platformStackTrace"]
+        assert 0 < len(platform_frames) <= limit
+        assert any(frame.startswith("org.owasp.mastestapp") for frame in platform_frames)
+        assert events[0]["stackTrace"]["nativeStackTrace"] == []
+
+    def test_native_and_platform_stack_traces_are_capped_separately(self, run_frooky, find_matched_events):
+        """With both enabled, `maxStackFrames` applies to each trace on its own."""
+        limit = 3
+        events = self._receive_int_events(run_frooky, find_matched_events, f"{{nativeStackTrace: true, platformStackTrace: true, maxStackFrames: {limit}}}")
+
         assert len(events) == 1
         assert 0 < len(events[0]["stackTrace"]["platformStackTrace"]) <= limit
         assert 0 < len(events[0]["stackTrace"]["nativeStackTrace"]) <= limit
 
-    def test_stack_trace_filter_keeps_event_when_a_frame_matches(self, run_frooky, count_matched_events):
+    def test_stack_trace_filter_keeps_event_when_a_platform_frame_matches(self, run_frooky, find_matched_events):
         """`stackTraceFilter` is an event-level gate, same as for Java hooks: if any captured frame
-        matches, the whole event is kept. For a native hook this also means the platform stack
-        builder drops the native/JNI frames entirely and returns only the Java-side frames leading
-        to the call (see androidStackTrace.ts) - the JNI entry point and its Kotlin caller are both
-        in the app's own package, so the filter still matches."""
+        matches, the whole event is kept. The platform stack builder drops the native/JNI frames and
+        returns only the Java-side frames leading to the call (see androidStackTrace.ts) - the JNI entry
+        point and its Kotlin caller are both in the app's own package, so the filter matches."""
+        events = self._receive_int_events(run_frooky, find_matched_events, "{platformStackTrace: true, maxStackFrames: 10, stackTraceFilter: ['^org\\.owasp\\.mastestapp']}")
+
+        assert len(events) == 1
+        assert events[0]["stackTrace"]["nativeStackTrace"] == []
+
+    def test_stack_trace_filter_keeps_event_when_a_native_frame_matches(self, run_frooky, find_matched_events):
+        """The filter also searches native frames, formatted as `<symbol> (<module>:<address>)`."""
+        events = self._receive_int_events(run_frooky, find_matched_events, "{nativeStackTrace: true, maxStackFrames: 10, stackTraceFilter: ['libreceiveFundamentalValue\\.so']}")
+
+        assert len(events) == 1
+        assert events[0]["stackTrace"]["platformStackTrace"] == []
+
+    def test_stack_trace_filter_drops_event_when_no_frame_matches(self, run_frooky, find_matched_events):
+        """If no captured native or platform frame matches any pattern, the whole event is dropped."""
+        events = self._receive_int_events(
+            run_frooky,
+            find_matched_events,
+            "{nativeStackTrace: true, platformStackTrace: true, maxStackFrames: 10, stackTraceFilter: ['^this\\.matches\\.nothing']}",
+            expect_events=False,
+        )
+
+        assert events == []
+
+    def test_stack_trace_filter_does_not_search_disabled_traces(self, run_frooky, find_matched_events):
+        """A pattern matching only Java frames drops the event when only native frames are captured."""
+        events = self._receive_int_events(
+            run_frooky,
+            find_matched_events,
+            "{nativeStackTrace: true, maxStackFrames: 10, stackTraceFilter: ['^org\\.owasp\\.mastestapp']}",
+            expect_events=False,
+        )
+
+        assert events == []
+
+    def test_stack_trace_filter_drops_every_event_without_captured_frames(self, run_frooky, find_matched_events):
+        """A `stackTraceFilter` only searches captured frames: with no stack trace enabled nothing can match."""
+        events = self._receive_int_events(run_frooky, find_matched_events, "{stackTraceFilter: ['^org\\.owasp\\.mastestapp']}", expect_events=False)
+
+        assert events == []
+
+    def test_same_function_hooked_twice_records_one_event_per_declaration(self, run_frooky, count_matched_events):
+        """Multiple hooks (see additional-features.md): two declarations of the same function each record their own
+        event per call, decoded with their own params."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_VALUE}
-                hookSettings:
-                  maxStackFrames: 10
-                  stackTraceFilter: ['^org\\.owasp\\.mastestapp']
+                hooks:
+                  - symbol: receive_int
+                    params:
+                      - [int, first]
+              - module: {MODULE_VALUE}
+                hooks:
+                  - symbol: receive_int
+                    params:
+                      - [int, second]
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        for name in ["first", "second"]:
+            expected = {
+                "module": MODULE_VALUE,
+                "symbol": "receive_int",
+                "argsIn": [{"type": "int", "name": name, "value": -2147483648}],
+            }
+            assert count_matched_events(expected) == 1, f"the '{name}' declaration did not fire exactly once."
+
+    def test_identical_declarations_record_one_event(self, run_frooky, count_matched_events):
+        """An identical declaration repeated in one hook file is hooked once."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollection:
+              - module: {MODULE_VALUE}
+                hooks:
+                  - receive_int
+              - module: {MODULE_VALUE}
                 hooks:
                   - receive_int
             """)
@@ -535,18 +634,21 @@ class TestValuePassingNative:
 
         assert count_matched_events({"module": MODULE_VALUE, "symbol": "receive_int"}) == 1
 
-    def test_stack_trace_filter_drops_event_when_no_frame_matches(self, run_frooky, count_matched_events):
-        """If no captured frame matches any pattern, the whole event is dropped."""
+    def test_arg_filter_of_one_declaration_does_not_affect_another(self, run_frooky, count_matched_events):
+        """Each hook on the same function applies its own filters."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_VALUE}
-                hookSettings:
-                  maxStackFrames: 10
-                  stackTraceFilter: ['^this\\.matches\\.nothing']
                 hooks:
-                  - receive_int
+                  - symbol: receive_int
+                    params:
+                      - [int, filtered, {{argFilter: ['^0$']}}]
+                  - symbol: receive_int
+                    params:
+                      - [int, unfiltered]
             """)
 
-        run_frooky(hook_file, TARGET_APP, expect_events=False)
+        run_frooky(hook_file, TARGET_APP)
 
-        assert count_matched_events({"module": MODULE_VALUE, "symbol": "receive_int"}) == 0
+        assert count_matched_events({"symbol": "receive_int", "argsIn": [{"name": "filtered"}]}) == 0
+        assert count_matched_events({"symbol": "receive_int", "argsIn": [{"name": "unfiltered", "value": -2147483648}]}) == 1

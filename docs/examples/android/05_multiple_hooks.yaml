@@ -1,0 +1,48 @@
+metadata:
+  name: Android Multiple Hooks Testing (value-passing-java)
+  description: |
+    Hooks the same Java methods more than once. Every hook records its own
+    event per call, decoded with its own params and filters; the method
+    itself still runs once. See docs/additional-features.md.
+    Run frooky with:
+      frooky -U -f org.owasp.mastestapp docs/examples/android/05_multiple_hooks.yaml
+  version: 1
+  author: frooky dev
+  platform: Android
+
+hookCollection:
+  # Two hooks on receiveString: each call produces two events,
+  # one with the param named `first` and one with `second`.
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - method: receiveString
+        overloads:
+          - params:
+              - [java.lang.String, first]
+      - method: receiveString
+        overloads:
+          - params:
+              - [java.lang.String, second, { maxItems: 10 }]
+
+  # Record every receiveInt call, and additionally flag Integer.MAX_VALUE.
+  # A filter only applies to its own hook, the other one records every call.
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - method: receiveInt
+        overloads:
+          - params:
+              - [int, value]
+      - method: receiveInt
+        hookSettings:
+          platformStackTrace: true
+        overloads:
+          - params:
+              - [int, maxValue, { argFilter: ["^2147483647$"] }]
+
+  # An identical repeated declaration is hooked only once: one event per call.
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - receiveBoolean
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      - receiveBoolean

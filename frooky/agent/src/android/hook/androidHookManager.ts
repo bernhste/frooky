@@ -20,18 +20,30 @@ export type FieldType = {
   hashCode?: string;
 };
 
+// A registered hook with the decoders it uses on every call
+type InstalledJavaHook = {
+  hook: JavaHook;
+  target: string; // e.g. `java.lang.Integer.reverse`
+  inArgDecoders: ParamDecoder<Java.Wrapper>[];
+  outArgDecoders: ParamDecoder<Java.Wrapper>[];
+  retTypeDecoder?: Decoder<Java.Wrapper>;
+};
+
+type HookedOverload = { method: Java.Method; hooks: InstalledJavaHook[] };
+
+// what a hook captured before the original method ran
+type JavaHookCall = { installedHook: InstalledJavaHook; stackTrace: HookStackTrace; decodedArgs: DecodedArgs };
+
 // Resolves and installs hooks on Java methods.
 export class AndroidHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(JavaDecoderResolver, platformStackTrace, frookyAgent);
   }
-  // hooks claiming an overload, keyed by its ArtMethod handle. Several configs can hook the same overload: the
-  // last claim is active, removing it restores the previous one. frida-java-bridge keeps the replacement on the
-  // Method wrapper, so all installs and reverts of an overload go through the same wrapper.
-  private readonly overloadClaims = new Map<
-    string,
-    { method: Java.Method; claims: { hook: JavaHook; implementation: Java.MethodImplementation }[] }
-  >();
+  // the hooks installed on an overload, keyed by its ArtMethod handle. Several configs can hook the same overload and
+  // each records its own event per call, like several Interceptor listeners on a native function. frida-java-bridge
+  // allows one replacement per method and keeps it on the Method wrapper, so one dispatcher per overload runs all of
+  // its hooks, and the install and the revert go through the same wrapper.
+  private readonly hookedOverloads = new Map<string, HookedOverload>();
 
   async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number, source?: string): Promise<Promise<JavaHook[] | null>[]> {
     logger.info(
@@ -69,99 +81,27 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   }
 
   registerHooks(hooks: JavaHook[], source?: string): number {
-    const hookManager = this;
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
       const target = `${hook.method.holder.$className}.${hook.methodName}`;
-      // resolved once per hook, not per call
-      let inArgDecoders: ParamDecoder<Java.Wrapper>[] = [];
-      let outArgDecoders: ParamDecoder<Java.Wrapper>[] = [];
-      if (hook.params) {
-        const argDecoders = this.resolveParamDecoders(hook.params);
-        inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
-        outArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout");
-      }
-      let retTypeDecoder: Decoder<Java.Wrapper>;
-      if (hook.method.returnType.className) {
-        const retType = {
-          type: hook.method.returnType.className,
-          declaringClass: hook.method.holder.$className,
-          settings: hook.retTypeSettings ?? hook.decoderSettings,
-        };
-        retTypeDecoder = this.resolveRetTypeDecoder(retType);
-      }
-
-      const implementation = function (this: Java.Wrapper, ...args: Java.Wrapper[]) {
-        // throws FilterMismatchError if the stackTraceFilter matches no frame
-        let stackTrace: HookStackTrace;
-        try {
-          stackTrace = hookManager.stackTrace.build(hook.hookSettings);
-        } catch (e) {
-          if (e instanceof FilterMismatchError) {
-            return hook.method.apply(this, args);
-          }
-          throw e;
-        }
-
-        const decodedArgs: DecodedArgs = { in: [], out: [] };
-        if (inArgDecoders.length > 0) {
-          try {
-            decodedArgs.in = hookManager.decodeArgs(args, inArgDecoders, target);
-          } catch (e) {
-            if (!(e instanceof FilterMismatchError)) {
-              logger.error(`Decoder error during 'onEnter' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
-            }
-            return hook.method.apply(this, args);
-          }
-        }
-
-        let returnValue;
-        try {
-          returnValue = hook.method.apply(this, args);
-        } catch (e) {
-          logger.error(`Error during execution of hooked method: ${e}`);
-          throw e; // the app handles its own exception
-        }
-
-        if (outArgDecoders.length > 0) {
-          try {
-            decodedArgs.out = hookManager.decodeArgs(args, outArgDecoders, target);
-          } catch (e) {
-            if (!(e instanceof FilterMismatchError)) {
-              logger.error(`Decoder error during 'onLeave' argument decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
-            }
-            return returnValue;
-          }
-        }
-
-        let decodedRetValue: DecodedValue | undefined;
-        try {
-          if (retTypeDecoder) {
-            decodedRetValue = hookManager.decodeValue(retTypeDecoder, returnValue, `${target} return value`);
-          }
-        } catch (e) {
-          logger.error(`Decoder error during return value decoding of ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
-          return returnValue;
-        }
-
-        const fieldType = hookManager.buildFieldType(this as Java.Wrapper, hook.decoderSettings.hashCode);
-
-        hookManager.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, stackTrace));
-
-        return returnValue;
-      };
+      const installedHook = this.prepareHook(hook, target);
 
       const key = hook.method.handle.toString();
-      const overload = this.overloadClaims.get(key) ?? { method: hook.method, claims: [] };
-      try {
-        overload.method.implementation = implementation;
-      } catch (e) {
-        logger.warn(`Failed to hook ${target}: ${e}`);
-        continue;
+      let overload = this.hookedOverloads.get(key);
+      if (!overload) {
+        const newOverload: HookedOverload = { method: hook.method, hooks: [] };
+        try {
+          newOverload.method.implementation = this.createDispatcher(newOverload);
+        } catch (e) {
+          logger.warn(`Failed to hook ${target}: ${e}`);
+          continue;
+        }
+        overload = newOverload;
+        this.hookedOverloads.set(key, overload);
       }
-      overload.claims.push({ hook, implementation });
-      this.overloadClaims.set(key, overload);
+      // copied on write: a call in progress keeps running the hooks it started with
+      overload.hooks = [...overload.hooks, installedHook];
       logger.info(`Hooked ${target}(${hook.method.argumentTypes.map((t) => t.className ?? t.name).join(", ")})${fromSource(source)}`);
 
       countSuccessfulHooks++;
@@ -172,24 +112,122 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   unregisterHooks(hooks: JavaHook[]): void {
     for (const hook of hooks) {
       const key = hook.method.handle.toString();
-      const overload = this.overloadClaims.get(key);
-      const index = overload ? overload.claims.findIndex((claim) => claim.hook === hook) : -1;
+      const overload = this.hookedOverloads.get(key);
+      const index = overload ? overload.hooks.findIndex((installedHook) => installedHook.hook === hook) : -1;
       if (!overload || index < 0) continue;
 
-      const { claims } = overload;
-      claims.splice(index, 1);
-      // only the last claim is active, an older one can be dropped without touching the method
-      if (index < claims.length) continue;
+      overload.hooks = overload.hooks.filter((_, i) => i !== index);
+      if (overload.hooks.length > 0) continue;
 
-      const previous = claims[claims.length - 1];
-      if (!previous) this.overloadClaims.delete(key);
+      this.hookedOverloads.delete(key);
       try {
         // null reverts the method to its original implementation
-        overload.method.implementation = previous?.implementation ?? null;
+        overload.method.implementation = null;
       } catch (e) {
         logger.warn(`Failed to unhook ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
       }
     }
+  }
+
+  // resolves the decoders once per hook, not per call
+  private prepareHook(hook: JavaHook, target: string): InstalledJavaHook {
+    let inArgDecoders: ParamDecoder<Java.Wrapper>[] = [];
+    let outArgDecoders: ParamDecoder<Java.Wrapper>[] = [];
+    if (hook.params) {
+      const argDecoders = this.resolveParamDecoders(hook.params);
+      inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
+      outArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout");
+    }
+    let retTypeDecoder: Decoder<Java.Wrapper> | undefined;
+    if (hook.method.returnType.className) {
+      retTypeDecoder = this.resolveRetTypeDecoder({
+        type: hook.method.returnType.className,
+        declaringClass: hook.method.holder.$className,
+        settings: hook.retTypeSettings ?? hook.decoderSettings,
+      });
+    }
+    return { hook, target, inArgDecoders, outArgDecoders, retTypeDecoder };
+  }
+
+  // Replaces the overload: every hook decodes its `in` args, the original method runs once, then every hook that
+  // passed its filters decodes its `out` args and return value and logs its event.
+  private createDispatcher(overload: HookedOverload): Java.MethodImplementation {
+    const hookManager = this;
+    return function (this: Java.Wrapper, ...args: Java.Wrapper[]) {
+      const calls: JavaHookCall[] = [];
+      for (const installedHook of overload.hooks) {
+        const call = hookManager.enterHook(installedHook, args);
+        if (call) calls.push(call);
+      }
+
+      let returnValue;
+      try {
+        returnValue = overload.method.apply(this, args);
+      } catch (e) {
+        logger.error(`Error during execution of hooked method: ${e}`);
+        throw e; // the app handles its own exception
+      }
+
+      for (const call of calls) {
+        hookManager.leaveHook(call, this, args, returnValue);
+      }
+      return returnValue;
+    };
+  }
+
+  // null if the stackTraceFilter or an argFilter doesn't match, or decoding fails
+  private enterHook(installedHook: InstalledJavaHook, args: Java.Wrapper[]): JavaHookCall | null {
+    const { hook, target, inArgDecoders } = installedHook;
+    let stackTrace: HookStackTrace;
+    try {
+      stackTrace = this.stackTrace.build(hook.hookSettings);
+    } catch (e) {
+      if (!(e instanceof FilterMismatchError)) {
+        logger.error(`Failed to build the stack trace of ${target}: ${e}`);
+      }
+      return null;
+    }
+
+    const decodedArgs: DecodedArgs = { in: [], out: [] };
+    if (inArgDecoders.length > 0) {
+      try {
+        decodedArgs.in = this.decodeArgs(args, inArgDecoders, target);
+      } catch (e) {
+        if (!(e instanceof FilterMismatchError)) {
+          logger.error(`Decoder error during 'onEnter' argument decoding of ${target}: ${e}`);
+        }
+        return null;
+      }
+    }
+    return { installedHook, stackTrace, decodedArgs };
+  }
+
+  private leaveHook(call: JavaHookCall, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any): void {
+    const { hook, target, outArgDecoders, retTypeDecoder } = call.installedHook;
+    const { decodedArgs } = call;
+    if (outArgDecoders.length > 0) {
+      try {
+        decodedArgs.out = this.decodeArgs(args, outArgDecoders, target);
+      } catch (e) {
+        if (!(e instanceof FilterMismatchError)) {
+          logger.error(`Decoder error during 'onLeave' argument decoding of ${target}: ${e}`);
+        }
+        return;
+      }
+    }
+
+    let decodedRetValue: DecodedValue | undefined;
+    if (retTypeDecoder) {
+      try {
+        decodedRetValue = this.decodeValue(retTypeDecoder, returnValue, `${target} return value`);
+      } catch (e) {
+        logger.error(`Decoder error during return value decoding of ${target}: ${e}`);
+        return;
+      }
+    }
+
+    const fieldType = this.buildFieldType(instance, hook.decoderSettings.hashCode);
+    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, call.stackTrace));
   }
 
   private buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {

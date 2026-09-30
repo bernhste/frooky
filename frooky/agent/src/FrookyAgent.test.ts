@@ -204,6 +204,30 @@ describe("FrookyAgent", () => {
       expect(hookNames(rawManager.unregisterHooks.mock.calls[0])).toEqual(["a"]);
     });
 
+    it("resolves and installs an identical declaration only once per config", async () => {
+      const { agent, rawManager } = setup(["a", "a"]);
+
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+
+      expect(rawManager.resolveHooks).toHaveBeenCalledTimes(1);
+      expect(resolvedNames(rawManager.resolveHooks.mock.calls[0])).toEqual(["a"]);
+      expect(rawManager.registerHooks).toHaveBeenCalledTimes(1);
+    });
+
+    it("installs a declaration once per config that declares it, and removing it from one config keeps the other's", async () => {
+      const { agent, rawManager } = setup(["a"], ["a"], []);
+
+      await agent.loadFrookyConfig(makeConfig(), "first.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "second.yaml");
+      await agent.loadFrookyConfig(makeConfig(), "second.yaml");
+
+      expect(rawManager.registerHooks).toHaveBeenCalledTimes(2);
+      const [firstHooks, secondHooks] = rawManager.registerHooks.mock.calls.map((call) => call[0]);
+      expect(firstHooks).not.toBe(secondHooks);
+      expect(rawManager.unregisterHooks).toHaveBeenCalledTimes(1);
+      expect(rawManager.unregisterHooks.mock.calls[0][0]).toBe(secondHooks);
+    });
+
     it("treats configs with different ids independently", async () => {
       const { agent, rawManager } = setup(["a"], ["b"]);
 
