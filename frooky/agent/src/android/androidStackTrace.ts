@@ -57,7 +57,7 @@ export const AndroidStackTrace: PlatformStackTrace = {
     }
 
     if (isOnSignalStack(ctx)) {
-      if (stackTraceFilter?.length) throw new FilterMismatchError();
+      if (stackTraceFilter?.length) throw FilterMismatchError.INSTANCE;
       return { platformStackTrace: [], nativeStackTrace: [] };
     }
 

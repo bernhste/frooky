@@ -1,4 +1,6 @@
-export class FilterMismatchError extends Error {}
+export class FilterMismatchError extends Error {
+  static readonly INSTANCE = new FilterMismatchError();
+}
 
 // `*` matches exactly one dot-separated segment, e.g. `org.owasp.*.HttpClient` matches
 // `org.owasp.net.HttpClient` but not `org.owasp.net.http.HttpClient`.
