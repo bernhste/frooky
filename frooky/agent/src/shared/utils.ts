@@ -208,6 +208,16 @@ export function trimIncompleteUtf8Tail(bytes: Uint8Array): Uint8Array {
   return bytes;
 }
 
+// The first `limit` UTF-16 code units of `text`, ending with "..." if cut off. A surrogate pair (e.g. an emoji)
+// cut in half at the end is dropped.
+export function truncateString(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  let end = limit;
+  const lastCode = text.charCodeAt(end - 1);
+  if (lastCode >= 0xd800 && lastCode <= 0xdbff) end--;
+  return text.slice(0, end) + "...";
+}
+
 // UTF-8 if valid, else ASCII with "." for non-printable bytes
 export function bytesToString(bytes: Uint8Array): string {
   const hasMultiByteChars = bytes.some((byte) => byte >= 0x80);

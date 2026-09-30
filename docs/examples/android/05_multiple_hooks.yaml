@@ -11,8 +11,9 @@ metadata:
   platform: Android
 
 hookCollection:
-  # Two hooks on receiveString: each call produces two events,
-  # one with the param named `first` and one with `second`.
+  # Two hooks on receiveString: each call produces two events, one with the
+  # param named `first` and the full string, and one with `second` and the
+  # string cut after 5 characters (`Welco...`).
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       - method: receiveString
@@ -22,7 +23,7 @@ hookCollection:
       - method: receiveString
         overloads:
           - params:
-              - [java.lang.String, second, { maxItems: 10 }]
+              - [java.lang.String, second, { maxItems: 5 }]
 
   # Record every receiveInt call, and additionally flag Integer.MAX_VALUE.
   # A filter only applies to its own hook, the other one records every call.
@@ -37,7 +38,7 @@ hookCollection:
           platformStackTrace: true
         overloads:
           - params:
-              - [int, maxValue, { argFilter: ["^2147483647$"] }]
+              - [int, maxValue, { argFilter: ["^2147483647$"]}]
 
   # An identical repeated declaration is hooked only once: one event per call.
   - javaClass: org.owasp.mastestapp.MastgTest

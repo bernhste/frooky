@@ -41,7 +41,8 @@ export interface DecoderSettings {
   maxDepth: number;
 
   /**
-   * Maximum number of elements decoded per array, list or map, or bytes per native buffer. Default: `100`.
+   * Maximum number of elements decoded per array, list or map, bytes per buffer, or characters per Java string (also for
+   * each string in a list or map). Default: `100`.
    *
    * @minimum 1
    */

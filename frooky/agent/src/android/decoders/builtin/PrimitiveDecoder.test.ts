@@ -74,6 +74,27 @@ describe("PrimitiveDecoder", () => {
       expect(result).toEqual({ type: "java.lang.String", value: "hello world" });
     });
 
+    it("should cut a java string longer than maxItems characters and append an ellipsis", () => {
+      const decoder = new PrimitiveDecoder({ type: "java.lang.String", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 } });
+
+      expect(decoder.decode("hello world" as unknown as Java.Wrapper)).toEqual({ type: "java.lang.String", value: "hello..." });
+    });
+
+    it("should keep a java string of at most maxItems characters complete", () => {
+      const decoder = new PrimitiveDecoder({ type: "java.lang.String", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 } });
+
+      expect(decoder.decode("hello" as unknown as Java.Wrapper)).toEqual({ type: "java.lang.String", value: "hello" });
+    });
+
+    it("should not cut a long by maxItems", () => {
+      const decoder = new PrimitiveDecoder({ type: "long", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 } });
+
+      expect(decoder.decode(Java.use("java.lang.Long").$new("9223372036854775807").longValue())).toEqual({
+        type: "long",
+        value: "9223372036854775807",
+      });
+    });
+
     it("should decode a null java string without throwing", () => {
       const decoder = new PrimitiveDecoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
       const result = decoder.decode(null as unknown as Java.Wrapper);

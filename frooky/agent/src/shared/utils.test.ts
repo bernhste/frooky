@@ -5,6 +5,7 @@ import {
   toAscii,
   toHex,
   trimIncompleteUtf8Tail,
+  truncateString,
   uuidv4,
   wildcardPatternToRegExp,
 } from "./utils";
@@ -120,6 +121,23 @@ describe("Utils", () => {
     it("throws a RangeError for a negative length", () => {
       const bytes = Uint8Array.from([0x00]);
       expect(() => toHex(bytes, -1)).toThrow("Length cannot be negative");
+    });
+  });
+
+  describe("truncateString()", () => {
+    it("keeps a string of at most limit characters unchanged", () => {
+      expect(truncateString("abc", 3)).toBe("abc");
+      expect(truncateString("", 3)).toBe("");
+    });
+
+    it("cuts a longer string to limit characters and appends an ellipsis", () => {
+      expect(truncateString("abcdef", 3)).toBe("abc...");
+    });
+
+    it("drops a surrogate pair cut in half at the end", () => {
+      // "a📱b": the emoji is 2 UTF-16 code units
+      expect(truncateString("a📱b", 2)).toBe("a...");
+      expect(truncateString("a📱b", 3)).toBe("a📱...");
     });
   });
 

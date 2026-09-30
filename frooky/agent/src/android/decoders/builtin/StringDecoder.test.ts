@@ -15,6 +15,13 @@ describe("StringDecoder", () => {
       expect(result).toEqual({ type: "java.math.BigInteger", value: value.toString() });
     });
 
+    it("should cut the toString() of an object at maxItems characters", () => {
+      const value = Java.use("java.math.BigInteger").$new("123456789");
+      const decoder = new StringDecoder({ type: "java.math.BigInteger", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 4 } });
+
+      expect(decoder.decode(value)).toEqual({ type: "java.math.BigInteger", value: "1234..." });
+    });
+
     it("should include the decodable name in the result", () => {
       const BigInteger = Java.use("java.math.BigInteger");
       const value = BigInteger.$new("42");

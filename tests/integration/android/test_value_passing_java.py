@@ -174,6 +174,24 @@ class TestValuePassingJava:
         for method in methods:
             assert count_matched_events({"javaClassName": MASTG_CLASS, "method": method}) == 1, f"{method} did not fire exactly once."
 
+    def test_max_items_cuts_java_strings(self, run_frooky, find_matched_events):
+        """`maxItems` cuts a java.lang.String after that many characters and appends `...` (see decoders.md)."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollection:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: receiveString
+                    overloads:
+                      - params:
+                          - [java.lang.String, receivedString, {{maxItems: 7}}]
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        events = find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"})
+        assert len(events) == 1
+        assert events[0]["argsIn"] == [{"type": "java.lang.String", "name": "receivedString", "value": "Welcome..."}]
+
     def test_decode_limit_truncates_collections(self, run_frooky, find_matched_events):
         """`maxItems` caps how many elements of a List/Collection get decoded (see decoders.md)."""
         hook_file = textwrap.dedent(f"""\

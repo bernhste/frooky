@@ -26,14 +26,14 @@ frooky comes with a set of decoders for various use cases. By default, frooky ch
 
 A decoder's behavior is controlled by `decoderSettings`:
 
-| Setting      | Type       | Default     | Description                                                                                                                                                                   |
-| ------------ | ---------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `decoder`    | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder, see [`decoder`](#decoder-override-the-default-decoder).                                                          |
-| `decoderArg` | `string`   | `undefined` | Name of another parameter passed to this parameter's decoder for additional context (e.g. a buffer's length).                                                                 |
-| `maxDepth`   | `number`   | `10`        | Maximum number of nested levels decoded (arrays, lists, maps, bundles, etc.). Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).       |
-| `maxItems`   | `number`   | `100`       | Maximum number of elements decoded per array, list, map, etc., or bytes per buffer. Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values). |
-| `hashCode`   | `boolean`  | `false`     | Adds an identifier to each event: `Object.hashCode()` of the instance for Java hooks, the function's address for native hooks.                                                |
-| `argFilter`  | `string[]` | `undefined` | Regular expressions matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them.               |
+| Setting      | Type       | Default     | Description                                                                                                                                                                                               |
+| ------------ | ---------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `decoder`    | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder, see [`decoder`](#decoder-override-the-default-decoder).                                                                                      |
+| `decoderArg` | `string`   | `undefined` | Name of another parameter passed to this parameter's decoder for additional context (e.g. a buffer's length).                                                                                             |
+| `maxDepth`   | `number`   | `10`        | Maximum number of nested levels decoded (arrays, lists, maps, bundles, etc.). Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                   |
+| `maxItems`   | `number`   | `100`       | Maximum number of elements decoded per array, list, map, etc., bytes per buffer, or characters per Java string. Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values). |
+| `hashCode`   | `boolean`  | `false`     | Adds an identifier to each event: `Object.hashCode()` of the instance for Java hooks, the function's address for native hooks.                                                                            |
+| `argFilter`  | `string[]` | `undefined` | Regular expressions matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them.                                           |
 
 When settings are attached to a parameter or a return type, an additional `direction` field is available, see [`direction`](#direction-declare-the-time-of-decoding).
 
@@ -193,22 +193,25 @@ hooks:
 
 Hooks run inside the target app on every call, so frooky bounds how much of a value it decodes.
 
-`maxItems` limits the number of elements decoded from a single array, collection or buffer. Anything beyond it is dropped and a `"[truncated at N]"` marker is appended in its place. For `ContentValues`, whose output is a key/value object, the marker is added as a key with the value `null`. Byte buffers decoded as text or hex end with `...` instead: Java byte arrays with the `string` or `hex` decoder, native strings, and native buffers decoded as hex (`void *`, and `unsigned char *` with a `decoderArg`).
+`maxItems` limits the number of elements decoded from a single array, collection or buffer. Anything beyond it is dropped and a `"[truncated at N]"` marker is appended in its place. For `ContentValues`, whose output is a key/value object, the marker is added as a key with the value `null`. Text and hex end with `...` instead: Java strings and other Java values decoded with their `toString()` (cut after `maxItems` characters), Java byte arrays with the `string` or `hex` decoder, native strings, and native buffers decoded as hex (`void *`, and `unsigned char *` with a `decoderArg`).
+
+The elements of a container are decoded with the same `maxItems`, so `maxItems: 5` on a `List<String>` decodes at most 5 elements and cuts each string after 5 characters. An `argFilter` is matched against the cut value.
 
 `maxDepth` limits how many nested levels are decoded. The hooked value itself is level 1, and each container (array, collection, map, bundle, object decoded through its getters) decodes its elements one level deeper. A container found below `maxDepth` is not expanded; its value is replaced by `"[max depth reached]"`. Leaf values, such as primitives and strings, are always decoded. With `maxDepth: 1`, a `List<List<String>>` shows the outer list, but each inner list is replaced by the marker.
 
-| Decoder                                         | `maxItems` limits                    | Counts as a `maxDepth` level |
-| ----------------------------------------------- | ------------------------------------ | ---------------------------- |
-| Java arrays (`[I`, `[Ljava.lang.String;`, ...)  | Elements                             | Yes                          |
-| `java.lang.Iterable` (lists, sets, ...)         | Elements                             | Yes                          |
-| `java.util.Map`                                 | Keys and values                      | Yes                          |
-| `android.os.Bundle`                             | Extras, and elements of array extras | Yes, array extras too        |
-| `android.content.ContentValues`                 | Key/value pairs                      | Yes                          |
-| `android.content.ClipData`                      | Items                                | Yes, and each item           |
-| `android.content.Intent`                        | -                                    | Yes                          |
-| `android.security.keystore.KeyGenParameterSpec` | -                                    | Yes                          |
-| `string` and `hex` (for `[B`)                   | Bytes                                | No                           |
-| Native `char *`, `unsigned char *`, `void *`    | Bytes read from the buffer           | No                           |
+| Decoder                                           | `maxItems` limits                    | Counts as a `maxDepth` level |
+| ------------------------------------------------- | ------------------------------------ | ---------------------------- |
+| Java arrays (`[I`, `[Ljava.lang.String;`, ...)    | Elements                             | Yes                          |
+| `java.lang.Iterable` (lists, sets, ...)           | Elements                             | Yes                          |
+| `java.util.Map`                                   | Keys and values                      | Yes                          |
+| `android.os.Bundle`                               | Extras, and elements of array extras | Yes, array extras too        |
+| `android.content.ContentValues`                   | Key/value pairs                      | Yes                          |
+| `android.content.ClipData`                        | Items                                | Yes, and each item           |
+| `android.content.Intent`                          | -                                    | Yes                          |
+| `android.security.keystore.KeyGenParameterSpec`   | -                                    | Yes                          |
+| `string` and `hex` (for `[B`)                     | Bytes                                | No                           |
+| `java.lang.String`, other values via `toString()` | Characters                           | No                           |
+| Native `char *`, `unsigned char *`, `void *`      | Bytes read from the buffer           | No                           |
 
 ```yaml
 javaClass: android.content.Intent
