@@ -67,17 +67,19 @@ const TYPED_ARRAY_GETTERS: Record<string, string> = {
 
 export class BundleDecoder extends RecursiveDecoder<Java.Wrapper> {
   readonly decoderName = "BundleDecoder";
-  readonly description = "Decodes an `android.os.Bundle` into its key/value pairs, including typed arrays and nested Bundles.";
+  readonly description = "Decodes an `android.os.Bundle` or `PersistableBundle` into its key/value pairs, including typed arrays and nested bundles.";
 
   protected decodeRecursive(value: Java.Wrapper, entrySettings: DecoderSettings): DecodedValue {
+    // the wrapper can be typed as a supertype (e.g. Parcelable), and the typed array getters differ per class
+    const bundle = Java.cast(value, useCached(value.$className));
     const values: DecodedValue[] = [];
-    const keys = value.keySet().toArray();
+    const keys = bundle.keySet().toArray();
     const maxItems = this.settings.maxItems;
     const decodeLen = Math.min(keys.length, maxItems);
 
     for (let i = 0; i < decodeLen; i++) {
       const key = keys[i].toString();
-      values.push(this.decodeEntry(value, key, value.get(key), true, entrySettings));
+      values.push(this.decodeEntry(bundle, key, bundle.get(key), true, entrySettings));
     }
     if (keys.length > decodeLen) {
       values.push({ type: "java.lang.String", value: `[truncated at ${maxItems}]` });
@@ -133,7 +135,8 @@ export class BundleDecoder extends RecursiveDecoder<Java.Wrapper> {
     }
 
     const maxItems = settings.maxItems;
-    // only a Bundle value can be re-fetched by key through a typed getter, a nested array element can't
+    // only a Bundle value can be re-fetched by key through a typed getter, a nested array element can't.
+    // PersistableBundle has no getters for e.g. byte[], but can't hold such arrays either.
     const typedGetter = isBundleValue ? TYPED_ARRAY_GETTERS[className] : undefined;
 
     if (typedGetter) {

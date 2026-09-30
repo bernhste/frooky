@@ -2,7 +2,8 @@ metadata:
   name: "Decoders (Android): Custom Decoders"
   description: |
     `decoder` replaces the decoder chosen by type with a registered custom decoder, e.g. to show a
-    byte array as text, an object by its identity, or an int as the name of a constant.
+    byte array or a char array as text, an object by its identity or its getters, or an int as the
+    name of a constant.
   version: 1
   author: frooky dev
   platform: Android
@@ -19,6 +20,18 @@ hookCollection:
         overloads:
           - params:
               - ["[B", text, { decoder: string }]
+
+      # `string` on a char[]: text, e.g. a password, instead of a list of characters
+      - method: receivePassword
+        overloads:
+          - params:
+              - ["[C", password, { decoder: string }]
+
+      # `getters`: the values of the get*() and is*() methods, e.g. of an app class without a decoder
+      - method: receiveProfile
+        overloads:
+          - params:
+              - [org.owasp.mastestapp.UserProfile, profile, { decoder: getters }]
 
       # `hashCode`: <class>@<hashCode>, without calling the object's own toString()
       - method: receiveBigInteger
@@ -51,6 +64,8 @@ hookCollection:
 
 # Expected values (argsIn):
 #   receiveTextBytes:  "Hello frooky"
+#   receivePassword:   "s3cr3t"
+#   receiveProfile:    [{name: age, value: 42}, {name: name, value: "alice"}, {name: admin, value: true}] (in the order of reflection)
 #   receiveBigInteger: "java.math.BigInteger@<hashCode>"
 #   receiveMode:       "MODE_DECRYPT"
 #   setFlags:          {type: android.content.IntentFlag, value: [FLAG_GRANT_READ_URI_PERMISSION, ..., FLAG_ACTIVITY_NEW_TASK, FLAG_ACTIVITY_CLEAR_TASK]}

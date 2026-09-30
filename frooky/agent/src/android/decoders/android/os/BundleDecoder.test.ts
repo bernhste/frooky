@@ -2,6 +2,7 @@ import Java from "frida-java-bridge";
 import { MAX_DEPTH_MARKER } from "../../../../shared/decoders/recursiveDecoder";
 import { DEFAULT_DECODER_SETTINGS } from "../../../../shared/defaultValues";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
+import { ReferenceTypeDecoder } from "../../builtin/ReferenceTypeDecoder";
 import { BundleDecoder } from "./BundleDecoder";
 
 describe("BundleDecoder", () => {
@@ -176,6 +177,19 @@ describe("BundleDecoder", () => {
     expect(findEntry("nested")).toEqual({ type: "android.os.Bundle", name: "nested", value: MAX_DEPTH_MARKER });
     expect(findEntry("array")).toEqual({ type: "[I", name: "array", value: MAX_DEPTH_MARKER });
     expect(findEntry("string")).toEqual({ type: "java.lang.String", name: "string", value: "y" });
+  });
+
+  it("decodes a PersistableBundle declared as a supertype", () => {
+    const bundle = Java.use("android.os.PersistableBundle").$new();
+    bundle.putString("user", "alice");
+    bundle.putIntArray("scores", Java.array("int", [1, 2]));
+    const decoder = new ReferenceTypeDecoder({ type: "java.lang.Object", settings: DEFAULT_DECODER_SETTINGS });
+
+    const inner = decoder.decode(bundle).value as DecodedValue;
+
+    expect(inner.type).toBe("android.os.PersistableBundle");
+    const entries = Object.fromEntries((inner.value as DecodedValue[]).map((entry) => [entry.name, entry.value]));
+    expect(entries).toEqual({ user: "alice", scores: [1, 2] });
   });
 });
 

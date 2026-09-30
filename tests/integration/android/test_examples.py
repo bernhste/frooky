@@ -103,6 +103,20 @@ class TestAndroidExamples:
             "receiveNestedPrimitivesArray": [[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]],
             "receiveEnum": {"type": "org.owasp.mastestapp.MastgTest$Direction", "value": "NORTH"},
             "receiveBigDecimal": {"type": "java.math.BigDecimal", "value": "3.141592653589793238462643383"},
+            # name(), toString() of HIGH is "high!"
+            "receiveLevel": {"type": "org.owasp.mastestapp.Level$HIGH", "value": "HIGH"},
+            "receiveByteBuffer": {
+                "type": "java.nio.HeapByteBuffer",
+                "value": {"position": 2, "limit": 6, "capacity": 6, "direct": False, "readOnly": False, "remaining": "0x6f6f6b79"},
+            },
+            "receiveCharSequence": {"type": "java.lang.StringBuilder", "value": "built text"},
+            "receiveMapEntry": {
+                "type": "java.util.AbstractMap$SimpleImmutableEntry",
+                "value": [
+                    {"type": "java.lang.String", "name": "key", "value": "token"},
+                    {"type": "java.lang.String", "name": "value", "value": "abc123"},
+                ],
+            },
         }
         for method, value in expected.items():
             [event] = self._events(find_matched_events, method)
@@ -134,6 +148,27 @@ class TestAndroidExamples:
         fields = {field["name"]: field["value"] for field in intent["argsIn"][0]["value"]["value"]}
         assert fields["action"] == "android.intent.action.VIEW"
         assert fields["data"]["value"] == "https://example.org"
+        [persistable] = self._events(find_matched_events, "receivePersistableBundle")
+        assert persistable["argsIn"][0]["value"]["value"] == [{"type": "java.lang.String", "name": "user", "value": "alice"}]
+        [location] = self._events(find_matched_events, "receiveLocation")
+        assert location["argsIn"][0]["value"]["value"] == {
+            "provider": "gps",
+            "latitude": 47.3769,
+            "longitude": 8.5417,
+            "accuracy": 5,
+            "altitude": None,
+            "speed": None,
+            "bearing": None,
+            "time": "1970-01-01T00:00:00.000Z",
+            "mock": False,
+        }
+        [request] = self._events(find_matched_events, "receiveWebResourceRequest")
+        properties = {prop["name"]: prop["value"] for prop in request["argsIn"][0]["value"]["value"]}
+        assert properties["method"] == "POST"
+        assert properties["url"]["value"] == "https://example.org/api"
+        assert properties["forMainFrame"] is False
+        headers = properties["requestHeaders"]["value"]
+        assert [[item["value"] for item in part["value"]] for part in headers] == [["Authorization"], ["Bearer abc123"]]
 
     def test_custom_decoders(self, run_frooky, find_matched_events):
         run_frooky(_example("android/03_decoders/03_custom_decoders.yaml"), JAVA_APP)
@@ -142,6 +177,10 @@ class TestAndroidExamples:
         assert _values(text["argsIn"]) == ["Hello frooky"]
         [big_integer] = self._events(find_matched_events, "receiveBigInteger")
         assert re.fullmatch(r"java\.math\.BigInteger@[0-9a-f]+", big_integer["argsIn"][0]["value"])
+        [password] = self._events(find_matched_events, "receivePassword")
+        assert password["argsIn"] == [{"type": "[C", "name": "password", "value": "s3cr3t"}]
+        [profile] = self._events(find_matched_events, "receiveProfile")
+        assert {prop["name"]: prop["value"] for prop in profile["argsIn"][0]["value"]} == {"name": "alice", "age": 42, "admin": True}
         [mode] = self._events(find_matched_events, "receiveMode")
         assert mode["argsIn"] == [{"type": "int", "name": "mode", "value": "MODE_DECRYPT"}]
         # setFlags is a framework method, so the app process may call it more than once
@@ -180,6 +219,48 @@ class TestAndroidExamples:
         # Headers implements Map and Iterable: Map comes first in the registry
         [headers] = self._events(find_matched_events, "receiveHeaders")
         assert map_entries(headers["argsIn"][0]["value"]) == {"Accept": "application/json"}
+
+    def test_crypto_types(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/03_decoders/05_crypto_types.yaml"), JAVA_APP)
+
+        def decoded(method):
+            [event] = self._events(find_matched_events, method)
+            return event["argsIn"][0]["value"]
+
+        def properties(value):
+            return {prop["name"]: prop["value"] for prop in value["value"]}
+
+        assert decoded("receiveKey") == {
+            "type": "javax.crypto.spec.SecretKeySpec",
+            "value": {"algorithm": "AES", "format": "RAW", "encoded": "0x000102030405060708090a0b0c0d0e0f"},
+        }
+        assert properties(decoded("receiveParameterSpec")) == {"TLen": 128, "IV": "0x000102030405060708090a0b"}
+        assert properties(decoded("receiveKeySpec")) == {"password": "s3cr3t", "salt": "0x0a0b", "iterationCount": 1000, "keyLength": 256}
+
+        cipher = decoded("receiveCipher")["value"]
+        assert cipher == {
+            "algorithm": "AES/GCM/NoPadding",
+            "initialized": True,
+            "opmode": "ENCRYPT_MODE",
+            "provider": cipher["provider"],
+            "iv": "0x000102030405060708090a0b",
+            "blockSize": 16,
+        }
+        assert cipher["provider"]
+        # not initialized, so no provider is chosen yet
+        assert decoded("receiveMac")["value"] == {"algorithm": "HmacSHA256", "initialized": False, "provider": None, "macLength": None}
+        signature = decoded("receiveSignature")["value"]
+        assert (signature["algorithm"], signature["state"]) == ("SHA256withECDSA", "SIGN")
+        assert signature["provider"]
+        digest = decoded("receiveMessageDigest")["value"]
+        assert (digest["algorithm"], digest["digestLength"]) == ("SHA-256", 32)
+
+        certificate = decoded("receiveCertificate")["value"]
+        assert "CN=Android Debug" in certificate["subject"]
+        assert re.fullmatch(r"[0-9a-f]{64}", certificate["sha256"])
+        # the app signature is the DER encoding of the same certificate
+        assert decoded("receiveAppSignature")["value"] == certificate
+        assert properties(decoded("receiveCryptoObject"))["cipher"]["value"] == cipher
 
     def test_max_items(self, run_frooky, find_matched_events):
         run_frooky(_example("android/04_decoder_settings/01_max_items.yaml"), JAVA_APP)

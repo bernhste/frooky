@@ -1,0 +1,57 @@
+metadata:
+  name: "Decoders (Android): Crypto Types"
+  description: |
+    Keys, parameter specs, crypto engines (Cipher, Mac, Signature, MessageDigest), certificates and
+    app signatures have dedicated decoders that show what an app encrypts, signs or trusts with.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/05_crypto_types.yaml
+# See:    docs/decoders.md#how-frooky-picks-a-decoder
+#
+# The app passes the objects of MastgTest.useCryptoTypes() to these methods. To see the objects an app
+# really uses, hook the APIs themselves, e.g. Cipher.init() (see ../api_examples.yaml).
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # any java.security.Key: algorithm, format and key material as hex
+      # Docs: https://developer.android.com/reference/java/security/Key
+      - receiveKey
+      # AlgorithmParameterSpec and KeySpec through their getters, byte[] as hex and char[] as text
+      # Docs: https://developer.android.com/reference/javax/crypto/spec/GCMParameterSpec
+      - receiveParameterSpec
+      # Docs: https://developer.android.com/reference/javax/crypto/spec/PBEKeySpec
+      - receiveKeySpec
+      # The crypto engines show their provider only once chosen, frooky never chooses one itself.
+      # Docs: https://developer.android.com/reference/javax/crypto/Cipher
+      - receiveCipher
+      # Docs: https://developer.android.com/reference/javax/crypto/Mac
+      - receiveMac
+      # Docs: https://developer.android.com/reference/java/security/Signature
+      - receiveSignature
+      # Docs: https://developer.android.com/reference/java/security/MessageDigest
+      - receiveMessageDigest
+      # Docs: https://developer.android.com/reference/java/security/cert/X509Certificate
+      - receiveCertificate
+      # an app signing certificate, decoded like an X509Certificate
+      # Docs: https://developer.android.com/reference/android/content/pm/Signature
+      - receiveAppSignature
+      # the Cipher, Signature or Mac a biometric prompt unlocks
+      # Docs: https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject
+      - receiveCryptoObject
+
+# Expected values (argsIn[0].value):
+#   receiveKey:           {type: javax.crypto.spec.SecretKeySpec, value: {algorithm: "AES", format: "RAW", encoded: "0x000102030405060708090a0b0c0d0e0f"}}
+#   receiveParameterSpec: {type: javax.crypto.spec.GCMParameterSpec, value: [{name: IV, value: "0x000102030405060708090a0b"}, {name: TLen, value: 128}]}
+#   receiveKeySpec:       {type: javax.crypto.spec.PBEKeySpec, value: iterationCount 1000, keyLength 256, password "s3cr3t", salt "0x0a0b"}
+#   receiveCipher:        {algorithm: "AES/GCM/NoPadding", initialized: true, opmode: "ENCRYPT_MODE", provider: "AndroidOpenSSL", iv: "0x000102030405060708090a0b", blockSize: 16}
+#   receiveMac:           {algorithm: "HmacSHA256", initialized: false, provider: null, macLength: null}
+#   receiveSignature:     {algorithm: "SHA256withECDSA", state: "SIGN", provider: "AndroidOpenSSL"}
+#   receiveMessageDigest: {algorithm: "SHA-256", provider: "AndroidOpenSSL", digestLength: 32}
+#   receiveCertificate:   {subject: "C=US,O=Android,CN=Android Debug", issuer: (the same), serialNumber: "0x1", notBefore, notAfter,
+#                          signatureAlgorithm: "SHA256withRSA", publicKeyAlgorithm: "RSA", subjectAlternativeNames: null, sha256: "<fingerprint>"}
+#   receiveAppSignature:  the same fields as receiveCertificate, it is the same certificate
+#   receiveCryptoObject:  [{name: cipher, value: <the Cipher as above>}, {name: mac, value: null}, {name: signature, value: null}, ...]

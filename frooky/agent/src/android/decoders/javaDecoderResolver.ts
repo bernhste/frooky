@@ -6,6 +6,7 @@ import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
 import { ConstantDecoder } from "./builtin/ConstantDecoder";
+import { GetterDecoder } from "./builtin/GetterDecoder";
 import { HashCodeDecoder } from "./builtin/HashCodeDecoder";
 import { OverrideDecoder } from "./builtin/OverrideDecoder";
 import { PrimitiveDecoder } from "./builtin/PrimitiveDecoder";
@@ -14,13 +15,18 @@ import { StringDecoder } from "./builtin/StringDecoder";
 
 export type DecoderConstructor = { new (decodable: Decodable): Decoder<Java.Wrapper> };
 
-const CUSTOM_DECODER_REGISTRY: Record<string, DecoderConstructor> = {
-  string: StringDecoder,
-  hashCode: HashCodeDecoder,
-  intentFlag: IntentFlagDecoder,
-  intentUriFlag: IntentUriFlagDecoder,
-  constant: ConstantDecoder,
-};
+// created on first use: GetterDecoder imports this module through decodeGetterValues()
+let customDecoderRegistry: Record<string, DecoderConstructor> | undefined;
+function getCustomDecoderRegistry(): Record<string, DecoderConstructor> {
+  return (customDecoderRegistry ??= {
+    string: StringDecoder,
+    hashCode: HashCodeDecoder,
+    intentFlag: IntentFlagDecoder,
+    intentUriFlag: IntentUriFlagDecoder,
+    constant: ConstantDecoder,
+    getters: GetterDecoder,
+  });
+}
 
 export const JAVA_PRIMITIVE_TYPES = new Set(["int", "long", "short", "byte", "char", "boolean", "float", "double"]);
 
@@ -41,7 +47,7 @@ function resolveTypeDecoder(decodable: Decodable): Decoder<Java.Wrapper> {
 export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
   resolveDecoder(decodable: Decodable): Decoder<Java.Wrapper> {
     if (decodable.settings.decoder) {
-      const CustomDecoderClass = CUSTOM_DECODER_REGISTRY[decodable.settings.decoder];
+      const CustomDecoderClass = getCustomDecoderRegistry()[decodable.settings.decoder];
       if (!CustomDecoderClass) {
         throw new Error(`Unknown custom decoder: "${decodable.settings.decoder}"`);
       }

@@ -14,8 +14,9 @@ export class IntentDecoder extends RecursiveDecoder<Java.Wrapper> {
     // those of Intent, also for a subclass such as LabeledIntent.
     const intent = Java.cast(value, Java.use("android.content.Intent"));
 
-    const properties = new GetterDecoder({ type: "android.content.Intent", settings: this.settings }, "android.content.Intent").decode(intent)
-      .value as DecodedValue[];
+    const properties = new GetterDecoder({ type: "android.content.Intent", settings: this.settings }, { className: "android.content.Intent" }).decode(
+      intent,
+    ).value as DecodedValue[];
 
     const flags = properties.find((property) => property.name === "flags");
     if (flags) {

@@ -43,4 +43,14 @@ describe("GetterDecoder", () => {
       expect(Array.isArray(result.value)).toBe(true);
     });
   });
+
+  it("decodes the get*() and is*() getters of the runtime class and its superclasses", () => {
+    const uri = Java.use("java.net.URI").create("https://example.org");
+    const decoder = new GetterDecoder({ type: "java.net.URI", settings: DEFAULT_DECODER_SETTINGS });
+
+    const properties = decoder.decode(uri).value as DecodedValue[];
+
+    expect(properties.find((p) => p.name === "host")?.value).toBe("example.org");
+    expect(properties.find((p) => p.name === "absolute")?.value).toBe(true);
+  });
 });

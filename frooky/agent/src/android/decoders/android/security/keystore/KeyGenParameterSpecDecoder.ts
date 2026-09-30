@@ -12,7 +12,7 @@ export class KeyGenParameterSpecDecoder extends RecursiveDecoder<Java.Wrapper> {
     return {
       type: this.type,
       name: this.name,
-      value: decodeGetterValues(value, ["get", "is"], childSettings),
+      value: decodeGetterValues(value, childSettings, { prefixes: ["get", "is"] }),
     };
   }
 }

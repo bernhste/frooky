@@ -136,6 +136,20 @@ describe("StringDecoder", () => {
       expect((result.value as string).startsWith("java.util.Random@")).toBe(true);
     });
   });
+
+  describe("char[]", () => {
+    it("decodes a char[] as text", () => {
+      const decoder = new StringDecoder({ type: "[C", settings: DEFAULT_DECODER_SETTINGS });
+
+      expect(decoder.decode(Java.array("char", ["p", "w", "d"]) as unknown as Java.Wrapper)).toEqual({ type: "[C", value: "pwd" });
+    });
+
+    it("limits a char[] to maxItems characters", () => {
+      const decoder = new StringDecoder({ type: "[C", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 2 } });
+
+      expect(decoder.decode(Java.array("char", ["p", "w", "d"]) as unknown as Java.Wrapper).value).toBe("pw...");
+    });
+  });
 });
 
 export {};

@@ -2,6 +2,9 @@ import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
 import { IntentDecoder } from "../android/content/IntentDecoder";
+import { KeyGenParameterSpecDecoder } from "../android/security/keystore/KeyGenParameterSpecDecoder";
+import { KeyDecoder } from "../java/security/KeyDecoder";
+import { SpecDecoder } from "../java/security/spec/SpecDecoder";
 import { IterableDecoder } from "../java/lang/IterableDecoder";
 import { MapDecoder } from "../java/util/MapDecoder";
 import { HashCodeDecoder } from "./HashCodeDecoder";
@@ -288,9 +291,25 @@ describe("ReferenceTypeDecoder", () => {
     });
 
     it("resolves the built-in registries", () => {
-      expect(resolveDecoderClass(Java.use("android.content.Intent").class).decoderClass).toBe(IntentDecoder);
-      expect(resolveDecoderClass(Java.use("java.util.HashMap").class).decoderClass).toBe(MapDecoder);
-      expect(resolveDecoderClass(arrayListClass()).decoderClass).toBe(IterableDecoder);
+      const resolve = (className: string) => resolveDecoderClass(Java.use(className).class);
+
+      expect(resolve("android.content.Intent").decoderClass).toBe(IntentDecoder);
+      expect(resolve("java.util.HashMap").decoderClass).toBe(MapDecoder);
+      expect(resolve("java.util.ArrayList").decoderClass).toBe(IterableDecoder);
+      expect(resolve("javax.crypto.spec.GCMParameterSpec").decoderClass).toBe(SpecDecoder);
+      // a class decoder wins over the AlgorithmParameterSpec interface
+      expect(resolve("android.security.keystore.KeyGenParameterSpec").decoderClass).toBe(KeyGenParameterSpecDecoder);
+      // Key comes before KeySpec in the registry
+      const secretKeySpec = resolve("javax.crypto.spec.SecretKeySpec");
+      expect(secretKeySpec.decoderClass).toBe(KeyDecoder);
+      expect(secretKeySpec.ambiguousWith).toEqual(["java.security.spec.KeySpec"]);
+      // StringBuilder implements CharSequence, Appendable, Serializable and Comparable
+      expect(resolve("java.lang.StringBuilder")).toEqual({
+        decoderClass: StringDecoder,
+        reason: "interface decoder for java.lang.CharSequence",
+        ambiguousWith: undefined,
+      });
+      expect(resolve("android.os.Bundle").reason).toBe("class decoder for superclass android.os.BaseBundle");
     });
   });
 });

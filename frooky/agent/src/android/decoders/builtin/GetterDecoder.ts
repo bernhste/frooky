@@ -1,27 +1,29 @@
 import type Java from "frida-java-bridge";
-import { RecursiveDecoder } from "../../../shared/decoders/recursiveDecoder";
-import { DecoderSettings } from "../../../shared/frookySettings";
 import { Decodable } from "../../../shared/decoders/decodable";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
-import { decodeGetterValues } from "../utils/decodeGetterValues";
+import { RecursiveDecoder } from "../../../shared/decoders/recursiveDecoder";
+import { DecoderSettings } from "../../../shared/frookySettings";
+import { decodeGetterValues, GetterOptions } from "../utils/decodeGetterValues";
+
+// With `decoder: getters`: the `get*()` and `is*()` getters of the runtime class and its superclasses.
+const DEFAULT_OPTIONS: GetterOptions = { prefixes: ["get", "is"], inherited: true };
 
 export class GetterDecoder extends RecursiveDecoder<Java.Wrapper> {
-  readonly decoderName = "GetterDecoder";
-  readonly description = "Decodes an object by calling its public, no-argument `get*()` methods.";
+  readonly decoderName: string = "GetterDecoder";
+  readonly description: string = "Decodes an object by calling its public, no-argument `get*()` and `is*()` methods, including inherited ones.";
 
-  // the class whose getters are called, by default the runtime class of the value
-  private readonly reflectedClass?: string;
+  private readonly options: GetterOptions;
 
-  constructor(decodable: Decodable, reflectedClass?: string) {
+  constructor(decodable: Decodable, options: GetterOptions = DEFAULT_OPTIONS) {
     super(decodable);
-    this.reflectedClass = reflectedClass;
+    this.options = options;
   }
 
   protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
     return {
       type: this.type,
       name: this.name,
-      value: decodeGetterValues(value, ["get"], childSettings, this.reflectedClass),
+      value: decodeGetterValues(value, childSettings, this.options),
     };
   }
 }

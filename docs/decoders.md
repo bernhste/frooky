@@ -4,6 +4,7 @@
 
 - [What Are Decoders?](#what-are-decoders)
 - [How frooky Picks a Decoder](#how-frooky-picks-a-decoder)
+  - [Built-in Java Decoders](#built-in-java-decoders)
 - [Decoder Settings](#decoder-settings)
   - [`direction`: Declare the Time of Decoding](#direction-declare-the-time-of-decoding)
   - [`decoderArg`: Pass Arguments to Decoder](#decoderarg-pass-arguments-to-decoder)
@@ -33,6 +34,43 @@ For a Java object, frooky picks the decoder by the object's runtime class, not b
 4. **`toString()`** of the object.
 
 Primitives, `java.lang.String` and arrays are decoded by their declared type. With `-v`, frooky logs which decoder it picked for each runtime class and why. See [`04_decoder_resolution.yaml`](examples/android/03_decoders/04_decoder_resolution.yaml).
+
+### Built-in Java Decoders
+
+Class decoders, also used for subclasses:
+
+| Class                                                      | Decoded as                                                                                             |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `android.content.Intent`                                   | Its getters (action, data, extras, ...), flags as `FLAG_*` names                                       |
+| `android.os.Bundle`, `android.os.PersistableBundle`        | Key/value pairs                                                                                        |
+| `android.content.ContentValues`                            | Column/value pairs                                                                                     |
+| `android.content.ClipData`                                 | Description, item count and items                                                                      |
+| `android.security.keystore.KeyGenParameterSpec`            | Its `get*()` and `is*()` getters                                                                       |
+| `android.content.pm.Signature`                             | The signing certificate, like `X509Certificate`                                                        |
+| `android.hardware.biometrics.BiometricPrompt$CryptoObject` | The Cipher, Signature or Mac it wraps                                                                  |
+| `android.location.Location`                                | Provider, coordinates, accuracy, altitude, speed, bearing, time, whether it is mocked                  |
+| `java.lang.Enum`                                           | The declared name (`name()`), even if the enum overrides `toString()`                                  |
+| `java.nio.ByteBuffer`                                      | Position, limit, capacity, and the bytes between position and limit as hex. The position doesn't move. |
+| `java.security.cert.X509Certificate`                       | Subject, issuer, serial number, validity, algorithms, subject alternative names, SHA-256 fingerprint   |
+| `javax.crypto.Cipher`                                      | Transformation, and once initialized its mode (`ENCRYPT_MODE`, ...), provider, IV and block size       |
+| `javax.crypto.Mac`                                         | Algorithm, and once initialized its provider and MAC length                                            |
+| `java.security.Signature`                                  | Algorithm, state (`UNINITIALIZED`, `SIGN`, `VERIFY`) and provider                                      |
+| `java.security.MessageDigest`                              | Algorithm, provider and digest length                                                                  |
+
+Interface decoders, in the order that decides between unrelated interfaces:
+
+| Interface                                   | Decoded as                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `java.security.Key`                         | Algorithm, format and the encoded key as hex (`null` for keys of the Android Keystore)      |
+| `java.security.spec.KeySpec`                | Its getters, e.g. password, salt and iteration count of a `PBEKeySpec`                      |
+| `java.security.spec.AlgorithmParameterSpec` | Its getters, e.g. IV and tag length of a `GCMParameterSpec`                                 |
+| `android.webkit.WebResourceRequest`         | URL, method, request headers, and whether it is for the main frame, a redirect or a gesture |
+| `java.util.Map`                             | Keys and values                                                                             |
+| `java.util.Map$Entry`                       | Key and value                                                                               |
+| `java.lang.Iterable`                        | Elements                                                                                    |
+| `java.lang.CharSequence`                    | Its text (`toString()`), e.g. of a `StringBuilder`                                          |
+
+The spec decoders show a `byte[]` as hex and a `char[]` as text. `Cipher`, `Mac` and `Signature` choose their provider when they are initialized, depending on the key. Their decoders never make them choose one early, so they show the provider only once it is chosen. See [`05_crypto_types.yaml`](examples/android/03_decoders/05_crypto_types.yaml).
 
 ## Decoder Settings
 
@@ -146,7 +184,8 @@ For some types, frooky's built-in decoders are not sufficient to give the captur
 > [!NOTE]
 > The currently registered decoders for Java hooks are:
 >
-> - `string`: decodes a `byte[]` as text, or calls `toString()` on any other reference type
+> - `string`: decodes a `byte[]` or `char[]` as text, or calls `toString()` on any other reference type
+> - `getters`: decodes an object through its public `get*()` and `is*()` methods, including inherited ones, e.g. an app class without a decoder
 > - `hashCode`: renders a reference type as `<class>@<hashCode>`, without invoking a custom `toString()` override
 > - `intentFlag`: decodes an `int` bitmask into the matching `Intent.FLAG_*` constant names
 > - `intentUriFlag`: decodes an `int` bitmask into the matching `Intent.URI_*` constant names
@@ -220,7 +259,11 @@ The elements of a container are decoded with the same `maxItems`, so `maxItems: 
 | `android.content.ClipData`                        | Items                                | Yes, and each item           |
 | `android.content.Intent`                          | -                                    | Yes                          |
 | `android.security.keystore.KeyGenParameterSpec`   | -                                    | Yes                          |
-| `string` and `hex` (for `[B`)                     | Bytes                                | No                           |
+| `getters`, `KeySpec`, `AlgorithmParameterSpec`    | -                                    | Yes                          |
+| `java.security.Key`, `Cipher`, `Mac`              | Bytes of the key or IV               | No                           |
+| `java.nio.ByteBuffer`                             | Remaining bytes                      | No                           |
+| `X509Certificate`                                 | Subject alternative names            | No                           |
+| `string` and `hex` (for `[B`), `string` for `[C`  | Bytes or characters                  | No                           |
 | `java.lang.String`, other values via `toString()` | Characters                           | No                           |
 | Native `char *`, `unsigned char *`, `void *`      | Bytes read from the buffer           | No                           |
 

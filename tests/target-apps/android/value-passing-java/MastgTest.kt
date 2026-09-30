@@ -5,14 +5,33 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.LabeledIntent
+import android.content.pm.PackageManager
+import android.hardware.biometrics.BiometricPrompt
+import android.location.Location
 import android.net.Uri
 import android.os.Bundle
 import android.os.Parcelable
+import android.os.PersistableBundle
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.math.BigDecimal
 import java.math.BigInteger
+import android.webkit.WebResourceRequest
+import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
+import java.security.Key
 import java.security.KeyPairGenerator
+import java.security.MessageDigest
+import java.security.Signature
+import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
+import java.security.spec.AlgorithmParameterSpec
+import java.security.spec.KeySpec
+import javax.crypto.Cipher
+import javax.crypto.Mac
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
 
 // A top-level function is a static method of the class MastgTestKt.
 fun receiveStatic(arg: String): String = arg
@@ -23,6 +42,27 @@ class Secret(val value: String)
 // Implements the unrelated interfaces Map and Iterable, both with a decoder, like OkHttp's Headers.
 class Headers : LinkedHashMap<String, String>(), Iterable<Map.Entry<String, String>> {
         override fun iterator(): Iterator<Map.Entry<String, String>> = entries.iterator()
+}
+
+// Decoded with `decoder: getters`: getName(), getAge() and isAdmin().
+class UserProfile(val name: String, val age: Int, val isAdmin: Boolean)
+
+// HIGH has a body, which makes it a subclass of Level, and overrides toString().
+enum class Level {
+        LOW,
+        HIGH {
+                override fun toString() = "high!"
+        }
+}
+
+// Stands in for the request a WebView passes to WebViewClient.shouldInterceptRequest().
+class ApiRequest(private val url: String) : WebResourceRequest {
+        override fun getUrl(): Uri = Uri.parse(url)
+        override fun isForMainFrame() = false
+        override fun isRedirect() = false
+        override fun hasGesture() = false
+        override fun getMethod() = "POST"
+        override fun getRequestHeaders() = mapOf("Authorization" to "Bearer abc123")
 }
 
 // Stands in for a third-party library that calls into the app, for stack trace filters.
@@ -147,7 +187,58 @@ class MastgTest(private val context: Context) {
         fun receiveParcelable(arg: Parcelable): Parcelable = arg
         fun receiveAny(arg: Any): Any = arg
         fun receiveHeaders(arg: Headers): Headers = arg
+        fun receiveByteBuffer(arg: ByteBuffer): ByteBuffer = arg
+        fun receiveMapEntry(arg: Map.Entry<String, String>): Map.Entry<String, String> = arg
+        fun receiveCharSequence(arg: CharSequence): CharSequence = arg
+        fun receiveLevel(arg: Level): Level = arg
+        fun receivePassword(arg: CharArray): CharArray = arg
+        fun receiveProfile(arg: UserProfile): UserProfile = arg
+        fun receivePersistableBundle(arg: PersistableBundle): PersistableBundle = arg
+        fun receiveLocation(arg: Location): Location = arg
+        fun receiveWebResourceRequest(arg: WebResourceRequest): WebResourceRequest = arg
+        fun receiveKey(arg: Key): Key = arg
+        fun receiveParameterSpec(arg: AlgorithmParameterSpec): AlgorithmParameterSpec = arg
+        fun receiveKeySpec(arg: KeySpec): KeySpec = arg
+        fun receiveCipher(arg: Cipher): Cipher = arg
+        fun receiveMac(arg: Mac): Mac = arg
+        fun receiveSignature(arg: Signature): Signature = arg
+        fun receiveMessageDigest(arg: MessageDigest): MessageDigest = arg
+        fun receiveCertificate(arg: X509Certificate): X509Certificate = arg
+        fun receiveAppSignature(arg: android.content.pm.Signature): android.content.pm.Signature = arg
+        fun receiveCryptoObject(arg: BiometricPrompt.CryptoObject): BiometricPrompt.CryptoObject = arg
         fun trackEvent(name: String): String = name
+
+        // Passes the objects of a typical encryption, signing and signature check to the receive* methods.
+        fun useCryptoTypes(): String {
+                val key = SecretKeySpec(ByteArray(16) { it.toByte() }, "AES")
+                receiveKey(key)
+                val gcmSpec = GCMParameterSpec(128, ByteArray(12) { it.toByte() })
+                receiveParameterSpec(gcmSpec)
+                receiveKeySpec(PBEKeySpec("s3cr3t".toCharArray(), byteArrayOf(0x0a, 0x0b), 1000, 256))
+
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.ENCRYPT_MODE, key, gcmSpec)
+                receiveCipher(cipher)
+                // not initialized: the provider is chosen on init()
+                receiveMac(Mac.getInstance("HmacSHA256"))
+                val signature = Signature.getInstance("SHA256withECDSA")
+                signature.initSign(KeyPairGenerator.getInstance("EC").apply { initialize(256) }.generateKeyPair().private)
+                receiveSignature(signature)
+                receiveMessageDigest(MessageDigest.getInstance("SHA-256"))
+
+                val appSignature =
+                        context.packageManager
+                                .getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+                                .signingInfo!!
+                                .apkContentsSigners[0]
+                receiveAppSignature(appSignature)
+                val certificate =
+                        CertificateFactory.getInstance("X.509")
+                                .generateCertificate(ByteArrayInputStream(appSignature.toByteArray())) as X509Certificate
+                receiveCertificate(certificate)
+                receiveCryptoObject(BiometricPrompt.CryptoObject(cipher))
+                return "crypto types"
+        }
 
         fun mastgTest(): String {
                 val r = DemoResults("basic-parameter")
@@ -310,6 +401,26 @@ class MastgTest(private val context: Context) {
                 receiveAny(sortedMapOf("b" to "2", "a" to "1"))
                 receiveHeaders(Headers().apply { put("Accept", "application/json") })
                 r.add(Status.PASS, "decoder resolution")
+
+                receiveByteBuffer(ByteBuffer.wrap("frooky".toByteArray()).position(2) as ByteBuffer)
+                receiveMapEntry(mapOf("token" to "abc123").entries.first())
+                receiveCharSequence(StringBuilder("built ").append("text"))
+                receiveLevel(Level.HIGH)
+                receivePassword("s3cr3t".toCharArray())
+                receiveProfile(UserProfile("alice", 42, true))
+                r.add(Status.PASS, "more java types")
+
+                receivePersistableBundle(PersistableBundle().apply { putString("user", "alice") })
+                receiveLocation(Location("gps").apply {
+                        latitude = 47.3769
+                        longitude = 8.5417
+                        accuracy = 5f
+                        time = 0
+                })
+                receiveWebResourceRequest(ApiRequest("https://example.org/api"))
+                r.add(Status.PASS, "more android types")
+
+                r.add(Status.PASS, useCryptoTypes())
 
                 trackEvent("button_click")
                 ThirdPartySdk().flush(this)

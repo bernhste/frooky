@@ -8,8 +8,22 @@ import { ContentValuesDecoder } from "../android/content/ContentValuesDecoder";
 import { IntentDecoder } from "../android/content/IntentDecoder";
 import { BundleDecoder } from "../android/os/BundleDecoder";
 import { KeyGenParameterSpecDecoder } from "../android/security/keystore/KeyGenParameterSpecDecoder";
+import { PackageSignatureDecoder } from "../android/content/pm/PackageSignatureDecoder";
+import { CryptoObjectDecoder } from "../android/hardware/biometrics/CryptoObjectDecoder";
+import { LocationDecoder } from "../android/location/LocationDecoder";
+import { WebResourceRequestDecoder } from "../android/webkit/WebResourceRequestDecoder";
+import { EnumDecoder } from "../java/lang/EnumDecoder";
 import { IterableDecoder } from "../java/lang/IterableDecoder";
+import { ByteBufferDecoder } from "../java/nio/ByteBufferDecoder";
+import { X509CertificateDecoder } from "../java/security/cert/X509CertificateDecoder";
+import { KeyDecoder } from "../java/security/KeyDecoder";
+import { MessageDigestDecoder } from "../java/security/MessageDigestDecoder";
+import { SignatureDecoder } from "../java/security/SignatureDecoder";
+import { SpecDecoder } from "../java/security/spec/SpecDecoder";
 import { MapDecoder } from "../java/util/MapDecoder";
+import { MapEntryDecoder } from "../java/util/MapEntryDecoder";
+import { CipherDecoder } from "../javax/crypto/CipherDecoder";
+import { MacDecoder } from "../javax/crypto/MacDecoder";
 import { DecoderConstructor } from "../javaDecoderResolver";
 import { StringDecoder } from "./StringDecoder";
 
@@ -23,18 +37,38 @@ function getClassDecoderRegistry(): ClassDecoderRegistry {
   return (classDecoderRegistry ??= {
     "android.content.ClipData": ClipDataDecoder,
     "android.content.ClipData$Item": ClipDataItemDecoder,
-    "android.os.Bundle": BundleDecoder,
+    // also PersistableBundle
+    "android.os.BaseBundle": BundleDecoder,
     "android.security.keystore.KeyGenParameterSpec": KeyGenParameterSpecDecoder,
     "android.content.ContentValues": ContentValuesDecoder,
     "android.content.Intent": IntentDecoder,
+    "android.content.pm.Signature": PackageSignatureDecoder,
+    "android.hardware.biometrics.BiometricPrompt$CryptoObject": CryptoObjectDecoder,
+    "android.location.Location": LocationDecoder,
+    // every enum, also a constant with a body, which is a subclass of its enum
+    "java.lang.Enum": EnumDecoder,
+    "java.nio.ByteBuffer": ByteBufferDecoder,
+    "java.security.cert.X509Certificate": X509CertificateDecoder,
+    "java.security.MessageDigest": MessageDigestDecoder,
+    "java.security.Signature": SignatureDecoder,
+    "javax.crypto.Cipher": CipherDecoder,
+    "javax.crypto.Mac": MacDecoder,
   });
 }
 
 let interfaceDecoderRegistry: InterfaceDecoderRegistry | undefined;
 function getInterfaceDecoderRegistry(): InterfaceDecoderRegistry {
   return (interfaceDecoderRegistry ??= [
+    // e.g. SecretKeySpec is both a Key and a KeySpec, and decoded as a Key
+    ["java.security.Key", KeyDecoder],
+    ["java.security.spec.KeySpec", SpecDecoder],
+    ["java.security.spec.AlgorithmParameterSpec", SpecDecoder],
+    ["android.webkit.WebResourceRequest", WebResourceRequestDecoder],
     ["java.util.Map", MapDecoder],
+    ["java.util.Map$Entry", MapEntryDecoder],
     ["java.lang.Iterable", IterableDecoder],
+    // the same as the toString() fallback, but chosen before it for a class that also implements another interface
+    ["java.lang.CharSequence", StringDecoder],
   ]);
 }
 

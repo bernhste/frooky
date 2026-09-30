@@ -40,6 +40,14 @@ describe("JavaDecoderResolver", () => {
       expect(decoder.decode(intent).value).toBe(intent.toString());
     });
 
+    it("resolves 'getters' to the getter decoder of any object", () => {
+      const uri = Java.use("java.net.URI").create("https://example.org");
+      const decoder = JavaDecoderResolver.resolveDecoder(decodableOf("java.net.URI", "getters"));
+
+      expect(decoder.decoderName).toBe("GetterDecoder");
+      expect((decoder.decode(uri).value as { name?: string; value: unknown }[]).find((p) => p.name === "host")?.value).toBe("example.org");
+    });
+
     it("throws a descriptive error when settings.decoder names an unregistered decoder", () => {
       const call = () => JavaDecoderResolver.resolveDecoder(decodableOf("int", "not.a.real.Decoder"));
       expect(call).toThrow("not.a.real.Decoder");

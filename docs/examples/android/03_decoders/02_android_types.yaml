@@ -2,7 +2,7 @@ metadata:
   name: "Decoders (Android): Android Types"
   description: |
     Android types that carry data between components, such as Intent, Bundle, ContentValues and
-    ClipData, have dedicated decoders that show their contents.
+    ClipData, have dedicated decoders that show their contents, as do locations and WebView requests.
   version: 1
   author: frooky dev
   platform: Android
@@ -22,9 +22,18 @@ hookCollection:
       - receiveClipData
       # Docs: https://developer.android.com/reference/android/content/Intent
       - receiveIntent
+      # Docs: https://developer.android.com/reference/android/os/PersistableBundle
+      - receivePersistableBundle
+      # Docs: https://developer.android.com/reference/android/location/Location
+      - receiveLocation
+      # Docs: https://developer.android.com/reference/android/webkit/WebResourceRequest
+      - receiveWebResourceRequest
 
 # Expected values (argsIn[0].value):
 #   receiveBundle:        each extra with its key as name: user "alice", age 42, roles ["admin", "dev"]
 #   receiveContentValues: {name: "alice", score: "42"}
 #   receiveClipData:      description {label, mimeTypes}, itemCount 1, items [{text: "copied secret", ...}]
 #   receiveIntent:        action "android.intent.action.VIEW", data "https://example.org", the extras, flags, ...
+#   receivePersistableBundle: user "alice"
+#   receiveLocation:          {provider: "gps", latitude: 47.3769, longitude: 8.5417, accuracy: 5, altitude: null, ..., time: "1970-01-01T00:00:00.000Z", mock: false}
+#   receiveWebResourceRequest: url "https://example.org/api", method "POST", requestHeaders {Authorization: "Bearer abc123"}, forMainFrame, redirect, gesture
