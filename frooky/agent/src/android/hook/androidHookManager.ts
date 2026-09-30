@@ -15,6 +15,11 @@ import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
 import { JavaHookEvent } from "./javaHookEvent";
 
+let javaSystem: Java.Wrapper | undefined;
+function getJavaSystem(): Java.Wrapper {
+  return (javaSystem ??= Java.use("java.lang.System"));
+}
+
 export type FieldType = {
   fieldType: "static" | "instance";
 };
@@ -226,8 +231,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     }
 
     const fieldType = this.buildFieldType(instance);
-    // only on request, hashCode() calls into Java
-    const hashCode = hook.decoderSettings.hashCode && fieldType.fieldType === "instance" ? formatHashCode(instance.hashCode()) : undefined;
+    // identityHashCode() runs no app code, unlike an overridden hashCode(), and stays the same while the object mutates
+    const hashCode = fieldType.fieldType === "instance" ? formatHashCode(getJavaSystem().identityHashCode(instance)) : undefined;
     this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace));
   }
 

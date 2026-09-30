@@ -26,7 +26,7 @@ type InstalledNativeHook = {
   floatRetSlot: ReturnType<typeof planFloatRetTypeSlot>;
   needsStackTrace: boolean | undefined;
   // the same for every call
-  hashCode?: string;
+  hashCode: string;
 };
 
 type HookedFunction = { listener?: InvocationListener; hooks: InstalledNativeHook[] };
@@ -170,7 +170,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         hook.hookSettings.platformStackTrace ||
         hook.hookSettings.nativeStackTrace ||
         (hook.hookSettings.stackTraceFilter && hook.hookSettings.stackTraceFilter.length > 0),
-      hashCode: hook.decoderSettings.hashCode ? addressHashCode(hook.symbolAddress) : undefined,
+      hashCode: addressHashCode(hook.symbolAddress),
     };
   }
 

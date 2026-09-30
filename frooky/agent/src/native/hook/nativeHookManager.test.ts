@@ -369,18 +369,15 @@ describe("NativeHookManager", () => {
         const events: NativeHookEvent[] = [];
         const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
         const manager = new NativeHookManager(stackTrace, agent);
-        const decoderSettings = { ...DEFAULT_DECODER_SETTINGS, hashCode: true };
-        const resolved = await Promise.all(
-          await manager.resolveHooks([nativeHook("libc.so", "atoi", { decoderSettings }), nativeHook("libc.so", "atoi")], 5),
-        );
-        const [withHashCode, withoutHashCode]: NativeHook[] = resolved.map((hooks) => ({
+        const resolved = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi"), nativeHook("libc.so", "atoi")], 5));
+        const [first, second]: NativeHook[] = resolved.map((hooks) => ({
           ...hooks![0],
           symbolName: "add_one",
           symbolAddress: cm.add_one,
         }));
         const addOne = new NativeFunction(cm.add_one, "int", ["int"]);
 
-        manager.registerHooks([withHashCode, withoutHashCode]);
+        manager.registerHooks([first, second]);
         try {
           await untilHooked(
             () => addOne(0),
@@ -389,11 +386,11 @@ describe("NativeHookManager", () => {
           events.length = 0;
           addOne(1);
         } finally {
-          manager.unregisterHooks([withHashCode, withoutHashCode]);
+          manager.unregisterHooks([first, second]);
         }
 
         expect(events.map((event) => event.address)).toEqual([cm.add_one.toString(), cm.add_one.toString()]);
-        expect(events.map((event) => event.hashCode).sort()).toEqual([addressHashCode(cm.add_one), undefined]);
+        expect(events.map((event) => event.hashCode)).toEqual([addressHashCode(cm.add_one), addressHashCode(cm.add_one)]);
       });
 
       it("records with the other hooks when one hook's filter does not match", async () => {

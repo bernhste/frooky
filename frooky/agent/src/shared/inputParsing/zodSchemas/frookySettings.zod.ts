@@ -11,7 +11,6 @@ export const hookSettingsSchema = z.object({
 export const decoderSettingsSchema = z.object({
     maxDepth: z.number().min(1),
     maxItems: z.number().min(1),
-    hashCode: z.boolean(),
     decoder: z.string().optional(),
     decoderArg: z.string().optional(),
     argFilter: z.array(z.string()).optional()

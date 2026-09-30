@@ -69,9 +69,6 @@
               "type": "number",
               "minimum": 1
             },
-            "hashCode": {
-              "type": "boolean"
-            },
             "decoder": {
               "type": "string"
             },
@@ -125,9 +122,6 @@
                             "maxItems": {
                               "type": "number",
                               "minimum": 1
-                            },
-                            "hashCode": {
-                              "type": "boolean"
                             },
                             "decoder": {
                               "type": "string"
@@ -200,9 +194,6 @@
                                               "type": "number",
                                               "minimum": 1
                                             },
-                                            "hashCode": {
-                                              "type": "boolean"
-                                            },
                                             "decoder": {
                                               "type": "string"
                                             },
@@ -243,9 +234,6 @@
                                               "type": "number",
                                               "minimum": 1
                                             },
-                                            "hashCode": {
-                                              "type": "boolean"
-                                            },
                                             "decoder": {
                                               "type": "string"
                                             },
@@ -280,9 +268,6 @@
                                   "maxItems": {
                                     "type": "number",
                                     "minimum": 1
-                                  },
-                                  "hashCode": {
-                                    "type": "boolean"
                                   },
                                   "decoder": {
                                     "type": "string"
@@ -335,9 +320,6 @@
                             "maxItems": {
                               "type": "number",
                               "minimum": 1
-                            },
-                            "hashCode": {
-                              "type": "boolean"
                             },
                             "decoder": {
                               "type": "string"
@@ -393,9 +375,6 @@
                     "type": "number",
                     "minimum": 1
                   },
-                  "hashCode": {
-                    "type": "boolean"
-                  },
                   "decoder": {
                     "type": "string"
                   },
@@ -449,9 +428,6 @@
                             "maxItems": {
                               "type": "number",
                               "minimum": 1
-                            },
-                            "hashCode": {
-                              "type": "boolean"
                             },
                             "decoder": {
                               "type": "string"
@@ -516,9 +492,6 @@
                                         "type": "number",
                                         "minimum": 1
                                       },
-                                      "hashCode": {
-                                        "type": "boolean"
-                                      },
                                       "decoder": {
                                         "type": "string"
                                       },
@@ -558,9 +531,6 @@
                                       "maxItems": {
                                         "type": "number",
                                         "minimum": 1
-                                      },
-                                      "hashCode": {
-                                        "type": "boolean"
                                       },
                                       "decoder": {
                                         "type": "string"
@@ -607,9 +577,6 @@
                                     "maxItems": {
                                       "type": "number",
                                       "minimum": 1
-                                    },
-                                    "hashCode": {
-                                      "type": "boolean"
                                     },
                                     "decoder": {
                                       "type": "string"
@@ -664,9 +631,6 @@
                             "maxItems": {
                               "type": "number",
                               "minimum": 1
-                            },
-                            "hashCode": {
-                              "type": "boolean"
                             },
                             "decoder": {
                               "type": "string"
@@ -737,9 +701,6 @@
                                         "type": "number",
                                         "minimum": 1
                                       },
-                                      "hashCode": {
-                                        "type": "boolean"
-                                      },
                                       "decoder": {
                                         "type": "string"
                                       },
@@ -779,9 +740,6 @@
                                       "maxItems": {
                                         "type": "number",
                                         "minimum": 1
-                                      },
-                                      "hashCode": {
-                                        "type": "boolean"
                                       },
                                       "decoder": {
                                         "type": "string"
@@ -828,9 +786,6 @@
                                     "maxItems": {
                                       "type": "number",
                                       "minimum": 1
-                                    },
-                                    "hashCode": {
-                                      "type": "boolean"
                                     },
                                     "decoder": {
                                       "type": "string"
@@ -885,9 +840,6 @@
                             "maxItems": {
                               "type": "number",
                               "minimum": 1
-                            },
-                            "hashCode": {
-                              "type": "boolean"
                             },
                             "decoder": {
                               "type": "string"
@@ -951,9 +903,6 @@
                   "maxItems": {
                     "type": "number",
                     "minimum": 1
-                  },
-                  "hashCode": {
-                    "type": "boolean"
                   },
                   "decoder": {
                     "type": "string"

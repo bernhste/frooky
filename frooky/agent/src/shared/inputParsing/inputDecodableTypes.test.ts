@@ -5,8 +5,8 @@ import { InputParamSettings } from "./inputSettings";
 
 describe("inputDecodableTypes", () => {
   describe("normalizeInputParams(), param formats", () => {
-    const inlineSettings: InputParamSettings = { direction: "out", maxDepth: 10, maxItems: 10, hashCode: true };
-    const expectedSettings = { maxDepth: 10, maxItems: 10, hashCode: true };
+    const inlineSettings: InputParamSettings = { direction: "out", maxDepth: 10, maxItems: 10 };
+    const expectedSettings = { maxDepth: 10, maxItems: 10 };
 
     it("should normalize a valid string to Param", () => {
       expect(normalizeInputParams(["testParam"])[0]).toEqual({ type: "testParam", direction: "in", settings: DEFAULT_DECODER_SETTINGS });
@@ -64,7 +64,7 @@ describe("inputDecodableTypes", () => {
 
   describe("normalizeInputParams(), settings precedence", () => {
     // the merged file, group and hook level settings
-    const outerSettings = { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, hashCode: true };
+    const outerSettings = { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, maxItems: 30 };
 
     it("uses the outer settings for the forms without own settings", () => {
       const params = normalizeInputParams(["int", ["int", "n"]], outerSettings);
@@ -121,7 +121,7 @@ describe("inputDecodableTypes", () => {
     });
 
     it("should return RetType unchanged", () => {
-      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true } };
+      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 30 } };
       expect(normalizeInputRetType(retType)).toEqual(retType);
     });
   });
@@ -140,9 +140,7 @@ describe("inputDecodableTypes", () => {
     });
 
     it("rejects a plain type string", () => {
-      expect(() => normalizeInputRetTypeSettings("int" as unknown as InputRetTypeSettings)).toThrow(
-        "Unrecognized InputRetTypeSettings format",
-      );
+      expect(() => normalizeInputRetTypeSettings("int" as unknown as InputRetTypeSettings)).toThrow("Unrecognized InputRetTypeSettings format");
     });
 
     it("rejects a [type, decoderSettings] tuple", () => {
@@ -152,10 +150,8 @@ describe("inputDecodableTypes", () => {
     });
 
     it("rejects an object with a type property", () => {
-      const retType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true } };
-      expect(() => normalizeInputRetTypeSettings(retType as unknown as InputRetTypeSettings)).toThrow(
-        "Unrecognized InputRetTypeSettings format",
-      );
+      const retType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 30 } };
+      expect(() => normalizeInputRetTypeSettings(retType as unknown as InputRetTypeSettings)).toThrow("Unrecognized InputRetTypeSettings format");
     });
   });
 });

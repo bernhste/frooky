@@ -4,7 +4,6 @@ import { DecoderSettings, FrookySettings, HookSettings } from "./frookySettings"
 export const DEFAULT_DECODE_AT: Direction = "in";
 
 export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
-  hashCode: false,
   maxDepth: 10,
   maxItems: 100,
   decoder: undefined,

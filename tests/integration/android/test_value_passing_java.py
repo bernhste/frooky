@@ -412,8 +412,6 @@ class TestValuePassingJava:
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - javaClass: {MASTG_CLASS}
-                decoderSettings:
-                  hashCode: true
                 hooks:
                   - method: receiveString
                     overloads:

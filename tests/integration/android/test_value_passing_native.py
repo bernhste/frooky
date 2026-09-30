@@ -488,19 +488,17 @@ class TestValuePassingNative:
             hookCollection:
               - module: {MODULE_VALUE}
                 hooks:
-                  - [receive_int, {{hashCode: true}}]
+                  - [receive_int, {{maxItems: 5}}]
             """)
 
         run_frooky(hook_file, TARGET_APP)
 
-        # short form still means no params/retType, regardless of the decoderSettings override,
-        # and the override itself is applied: hashCode adds a hash of the function's address to the event.
+        # short form still means no params/retType, regardless of the decoderSettings override
         events = find_matched_events({"module": MODULE_VALUE, "symbol": "receive_int", "argsIn": [], "argsOut": []})
         assert len(events) == 1
-        assert events[0]["hashCode"] == _address_hash_code(events[0]["address"])
 
-    def test_address_without_hash_code(self, run_frooky, find_matched_events):
-        """Every native event carries the function's `address`; `hashCode` only with the `hashCode` setting."""
+    def test_address_and_hash_code(self, run_frooky, find_matched_events):
+        """Every native event carries the function's `address` and a `hashCode` of it."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_VALUE}
@@ -512,7 +510,7 @@ class TestValuePassingNative:
 
         [event] = find_matched_events({"module": MODULE_VALUE, "symbol": "receive_int"})
         assert re.fullmatch(r"0x[0-9a-f]+", event["address"])
-        assert "hashCode" not in event
+        assert event["hashCode"] == _address_hash_code(event["address"])
 
     # Stack traces (see additional-features.md#hook-settings) are opt-in: `nativeStackTrace` captures the
     # C/C++ frames from the hook's CPU context, `platformStackTrace` the Java frames of the calling thread
@@ -620,8 +618,6 @@ class TestValuePassingNative:
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_VALUE}
-                decoderSettings:
-                  hashCode: true
                 hooks:
                   - symbol: receive_int
                     params:

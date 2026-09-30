@@ -13,11 +13,9 @@ metadata:
 hookCollection:
   # Two hooks on receiveString: each call produces two events, one with the
   # param named `first` and the full string, and one with `second` and the
-  # string cut after 5 characters (`Welco...`). With `hashCode`, both events
-  # carry the same hashCode: they are about the same MastgTest instance.
+  # string cut after 5 characters (`Welco...`). Both events carry the same
+  # hashCode: they are about the same MastgTest instance.
   - javaClass: org.owasp.mastestapp.MastgTest
-    decoderSettings:
-      hashCode: true
     hooks:
       - method: receiveString
         overloads:

@@ -13,6 +13,10 @@ import { JavaHookEvent } from "./javaHookEvent";
 const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
 
+function identityHashCode(object: Java.Wrapper): number {
+  return Java.use("java.lang.System").identityHashCode(object);
+}
+
 function javaHook(javaClass: string, method: string): InputJavaHookNormalized {
   return { javaClass, method, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
 }
@@ -350,10 +354,7 @@ describe("AndroidHookManager", () => {
       it("records the same hashCode, the instance's, from every hook", async () => {
         const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
         const manager = new AndroidHookManager(stackTrace, agent);
-        const declare = (): InputJavaHookNormalized => ({
-          ...javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet"),
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true },
-        });
+        const declare = (): InputJavaHookNormalized => javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet");
         const [first, second] = (await Promise.all(await manager.resolveHooks([declare(), declare()], 5))) as JavaHook[][];
         const counter = Java.use("java.util.concurrent.atomic.AtomicInteger").$new(0);
 
@@ -368,19 +369,37 @@ describe("AndroidHookManager", () => {
 
         const events = (agent.addEventToLog as unknown as Mock).mock.calls
           .map((call) => call[0] as JavaHookEvent)
-          .filter((event) => event.hashCode === formatHashCode(counter.hashCode()));
+          .filter((event) => event.hashCode === formatHashCode(identityHashCode(counter)));
         expect(events.length).toBe(2);
         expect(events.map((event) => event.fieldType)).toEqual([{ fieldType: "instance" }, { fieldType: "instance" }]);
       });
     });
 
+    it("records the instance's identity hash code, which stays the same while a content-based hashCode() changes", async () => {
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(stackTrace, agent);
+      const [hooks] = (await Promise.all(await manager.resolveHooks([javaHook("java.util.BitSet", "set")], 5))) as JavaHook[][];
+      const bits = Java.use("java.util.BitSet").$new();
+      const expected = formatHashCode(identityHashCode(bits));
+
+      try {
+        manager.registerHooks(hooks);
+        bits.set(1);
+        bits.set(2);
+      } finally {
+        manager.unregisterHooks(hooks);
+      }
+
+      const events = (agent.addEventToLog as unknown as Mock).mock.calls
+        .map((call) => call[0] as JavaHookEvent)
+        .filter((event) => event.hashCode === expected);
+      expect(events.length).toBe(2);
+      expect(formatHashCode(bits.hashCode())).not.toBe(expected);
+    });
+
     it("records no hashCode for a static method", async () => {
       const { manager, reverse, addEventToLog } = setup();
-      const hook: InputJavaHookNormalized = {
-        ...javaHook("java.lang.Integer", "reverse"),
-        decoderSettings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true },
-      };
-      const [hooks] = (await Promise.all(await manager.resolveHooks([hook], 5))) as JavaHook[][];
+      const [hooks] = (await Promise.all(await manager.resolveHooks([javaHook("java.lang.Integer", "reverse")], 5))) as JavaHook[][];
 
       try {
         manager.registerHooks(hooks);

@@ -12,7 +12,6 @@ metadata:
 #     nativeStackTrace: false
 #     platformStackTrace: false
 #   decoderSettings:
-#     hashCode: false
 #     maxDepth: 10
 #     maxItems: 100
 #     decoder: undefined
@@ -48,4 +47,3 @@ hookCollection:
 #   platformStackTrace: false    (default; never overridden at any level here)
 #   maxDepth:          30        (group; overrides file's 1 and default's 10)
 #   maxItems:          30        (group; overrides file's 1 and default's 100)
-#   hashCode:          false     (default; never overridden at any level here)

@@ -133,7 +133,6 @@ describe("configValidator", () => {
         maxItems: 30,
       };
       expect(validateAndRepairDecoderSettings(incompleteInputDecoderSettings)).toEqual({
-        hashCode: false,
         maxDepth: 10,
         maxItems: 30,
       });
@@ -195,10 +194,10 @@ describe("configValidator", () => {
     it("repairs both hookSettings and decoderSettings when both are provided", () => {
       const result = validateAndRepairFrookySettings({
         hookSettings: { maxStackFrames: 7 },
-        decoderSettings: { hashCode: true },
+        decoderSettings: { maxItems: 42 },
       });
       expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, maxStackFrames: 7 });
-      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, hashCode: true });
+      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, maxItems: 42 });
     });
   });
 
@@ -251,7 +250,7 @@ describe("configValidator", () => {
         metadata: { name: "Test Config", platform: "Android" },
         settings: {
           hookSettings: { maxStackFrames: "10" as unknown as number },
-          decoderSettings: { hashCode: 10 as unknown as boolean },
+          decoderSettings: { maxDepth: "10" as unknown as number },
         },
         hookCollection: [],
       };

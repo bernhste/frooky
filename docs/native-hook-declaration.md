@@ -112,10 +112,10 @@ To hook a symbol while also overriding its `decoderSettings`, write the hook as 
 ```yaml
 module: libc.so
 hooks:
-  - [malloc, { hashCode: true }]
+  - [malloc, { maxItems: 16 }]
 ```
 
-This hooks `malloc` from `libc.so`, with `hashCode` enabled for that hook only, so its events carry a hash code of the function's address. Every native event also carries the function's `address`.
+This hooks `malloc` from `libc.so`, with `maxItems` set to `16` for that hook only. Every native event carries the function's `address` and a `hashCode` of it.
 
 ## Hooking Functions Without a Symbol
 

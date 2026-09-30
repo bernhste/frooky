@@ -135,7 +135,7 @@ A Java method or native function can be hooked more than once, e.g. by two hook 
 - Each hook applies its own filters. If one hook's `argFilter` or `stackTraceFilter` doesn't match, the other hooks still record the call.
 - Removing a hook, e.g. by deleting it from a hook file while frooky runs with `--watch`, stops only that hook's events. The method or function is restored once no hook is left on it.
 - A declaration that is repeated identically in the same hook file is only hooked once.
-- With the [`hashCode`](./decoders.md#decoder-settings) decoder setting, the events of all hooks on one call carry the same `hashCode`: of the Java instance, or of the native function's address.
+- The events of all hooks on one call carry the same [`hashCode`](./output.md): of the Java instance, or of the native function's address.
 
 **Example:** record every `Cipher.init` call, and additionally decode `opmode` of the `init(int, Key)` overload with the `constant` decoder:
 

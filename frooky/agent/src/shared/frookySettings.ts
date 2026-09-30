@@ -49,12 +49,6 @@ export interface DecoderSettings {
   maxItems: number;
 
   /**
-   * Adds a `hashCode` to each event, as 32-bit hex: `Object.hashCode()` of the instance for Java hooks (none for
-   * static methods), a hash of the function's address for native hooks. Default: `false`.
-   */
-  hashCode: boolean;
-
-  /**
    * Name of the decoder to use instead of the one chosen from the declared type.
    */
   decoder?: string;

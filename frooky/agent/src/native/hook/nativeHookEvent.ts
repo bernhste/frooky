@@ -17,7 +17,7 @@ export class NativeHookEvent extends HookEvent {
   // the hooked function's address in the process, e.g. `0x7b3c2a1f40`
   address: string;
 
-  constructor(hook: NativeHook, hashCode: string | undefined, decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: HookStackTrace) {
+  constructor(hook: NativeHook, hashCode: string, decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: HookStackTrace) {
     super(decodedArgs, returnValue, stackTrace);
     this.type += "-native";
     this.module = hook.module.name;

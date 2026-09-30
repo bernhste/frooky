@@ -266,7 +266,7 @@ def _format_hook(out: _Lines, hook: dict, id_key: str, id_label: str, fn_key: st
     # native events only
     if "address" in hook:
         _add_field(out, "address", hook["address"])
-    # only with the `hashCode` decoder setting, and never for static Java methods
+    # never for static Java methods
     if "hashCode" in hook:
         _add_field(out, "hashCode", hook["hashCode"])
 

@@ -32,7 +32,6 @@ A decoder's behavior is controlled by `decoderSettings`:
 | `decoderArg` | `string`   | `undefined` | Name of another parameter passed to this parameter's decoder for additional context (e.g. a buffer's length).                                                                                             |
 | `maxDepth`   | `number`   | `10`        | Maximum number of nested levels decoded (arrays, lists, maps, bundles, etc.). Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                   |
 | `maxItems`   | `number`   | `100`       | Maximum number of elements decoded per array, list, map, etc., bytes per buffer, or characters per Java string. Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values). |
-| `hashCode`   | `boolean`  | `false`     | Adds a `hashCode` to each event, as 32-bit hex: `Object.hashCode()` of the instance for Java hooks (none for static methods), a hash of the function's address for native hooks.                          |
 | `argFilter`  | `string[]` | `undefined` | Regular expressions matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them.                                           |
 
 When settings are attached to a parameter or a return type, an additional `direction` field is available, see [`direction`](#direction-declare-the-time-of-decoding).
