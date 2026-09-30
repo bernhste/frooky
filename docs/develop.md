@@ -11,32 +11,36 @@ This document describes how to set up a local development environment for the re
 
 ## Running the CLI locally
 
-1. **Create a new Python virtual environment and activate it**
+1. **Sync dependencies and install frooky in editable mode**:
 
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate
+   uv sync
    ```
 
-2. Compiling the frooky agent:
+   This creates a virtual environment at `.venv` with all dependencies installed.
+
+2. **Compile the frooky agent**:
 
    ```bash
-   ./compileAgent.sh --dev
+   uv run compile-agent --dev
    ```
 
-3. **Install the CLI for development**
+3. **Run the CLI**:
+
+   Run `frooky` directly using `uv run`:
 
    ```bash
-   pip install -e .
+   uv run frooky --help
    ```
 
-4. **Ensure which CLI version you're running**
+   Or activate the virtual environment:
 
    ```bash
+   source .venv/bin/activate
    which frooky
    ```
 
-   The output must be a path within the VENV directory, typically ending with `venv/bin/frooky`. If not, a different version might be used instead, such as a global installation.
+   The output should be a path within `.venv`, typically ending with `.venv/bin/frooky`.
 
 ## Debugging and Profiling the Agent
 

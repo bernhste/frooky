@@ -53,8 +53,8 @@ cd tests/target-apps/android
 make build TARGET_APP=value-passing-java    # or: make build-all
 make install TARGET_APP=value-passing-java  # or: make install-all
 cd -
-./compileAgent.sh --dev && pip install -e '.[dev]'   # the host must bundle the current agent
-pytest tests/integration/android -k <pattern>
+uv run compile-agent --dev && uv sync   # the host must bundle the current agent
+uv run pytest tests/integration/android -k <pattern>
 ```
 
 - Package ids are `<target-app with - replaced by _>.frooky.target.app`, e.g. `value_passing_java.frooky.target.app`.
@@ -64,8 +64,8 @@ pytest tests/integration/android -k <pattern>
 ## 4. Manual end-to-end check
 
 ```bash
-./compileAgent.sh --dev
-frooky -U -f <package> -e -vv hooks.yaml   # -e prints events, -vv adds agent debug logs
+uv run compile-agent --dev
+uv run frooky -U -f <package> -e -vv hooks.yaml   # -e prints events, -vv adds agent debug logs
 ```
 
 ## Troubleshooting
