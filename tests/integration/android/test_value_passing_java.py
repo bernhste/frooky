@@ -452,3 +452,27 @@ class TestValuePassingJava:
 
         assert count_matched_events({"method": "receiveInt", "argsIn": [{"name": "filtered"}]}) == 0
         assert count_matched_events({"method": "receiveInt", "argsIn": [{"name": "unfiltered", "value": 2147483647}]}) == 1
+
+    def test_removing_one_of_several_hooks_keeps_the_others(self, run_frooky_watch):
+        """Multiple hooks + `--watch`: removing a hook on a method from the hook file while frooky runs only
+        stops that hook's events, and adding it back hooks it again."""
+
+        def hook_file(*names):
+            hooks = "".join(f"      - method: receiveString\n        overloads:\n          - params:\n              - [java.lang.String, {name}]\n" for name in names)
+            return f"hookCollection:\n  - javaClass: {MASTG_CLASS}\n    hooks:\n{hooks}"
+
+        def recorded_by(frooky):
+            events = frooky.click_start_and_collect({"javaClassName": MASTG_CLASS, "method": "receiveString"})
+            return sorted(event["argsIn"][0]["name"] for event in events)
+
+        frooky = run_frooky_watch(hook_file("A", "B", "C"), TARGET_APP)
+        assert recorded_by(frooky) == ["A", "B", "C"]
+
+        frooky.update_hook_file(hook_file("A", "C"))
+        assert recorded_by(frooky) == ["A", "C"]
+
+        frooky.update_hook_file(hook_file("C"))
+        assert recorded_by(frooky) == ["C"]
+
+        frooky.update_hook_file(hook_file("A", "B", "C"))
+        assert recorded_by(frooky) == ["A", "B", "C"]

@@ -206,7 +206,32 @@ describe("AndroidHookManager", () => {
         expect(first[0].method.implementation).toBeNull();
       });
 
-      it("keeps recording with the remaining hooks when one is unregistered, whichever it is", async () => {
+      // hooks A, B and C are told apart by their stack trace limits 1, 2 and 3
+      for (const [removed, remaining] of [
+        ["A", [2, 3]],
+        ["B", [1, 3]],
+        ["C", [1, 2]],
+      ] as const) {
+        it(`keeps recording with the other hooks when hook ${removed} of A, B and C is unregistered`, async () => {
+          const { manager, resolve, reverse, calledLimits } = setup();
+          const hooks = { A: await resolve(1), B: await resolve(2), C: await resolve(3) };
+          manager.registerHooks(hooks.A);
+          manager.registerHooks(hooks.B);
+          manager.registerHooks(hooks.C);
+
+          try {
+            manager.unregisterHooks(hooks[removed]);
+            expect(reverse(1)).toBe(-2147483648);
+          } finally {
+            manager.unregisterHooks([...hooks.A, ...hooks.B, ...hooks.C]);
+          }
+
+          expect(calledLimits).toEqual([...remaining]);
+          expect(hooks.A[0].method.implementation).toBeNull();
+        });
+      }
+
+      it("keeps recording with the remaining hook until the last one is unregistered", async () => {
         const { manager, resolve, reverse, calledLimits } = setup();
         const first = await resolve(1);
         const second = await resolve(2);
@@ -224,6 +249,40 @@ describe("AndroidHookManager", () => {
 
         expect(calledLimits).toEqual([1, 3, 3]);
         expect(first[0].method.implementation).toBeNull();
+      });
+
+      it("hooks the overload again after every hook was unregistered", async () => {
+        const { manager, resolve, reverse, calledLimits } = setup();
+        const first = await resolve(1);
+        const second = await resolve(2);
+        manager.registerHooks(first);
+        manager.unregisterHooks(first);
+
+        try {
+          expect(manager.registerHooks(second)).toBe(1);
+          reverse(1);
+        } finally {
+          manager.unregisterHooks(second);
+        }
+
+        expect(calledLimits).toEqual([2]);
+      });
+
+      it("ignores unregistering a hook that is not registered", async () => {
+        const { manager, resolve, reverse, calledLimits } = setup();
+        const first = await resolve(1);
+        const second = await resolve(2);
+        manager.registerHooks(first);
+
+        try {
+          manager.unregisterHooks(second);
+          manager.unregisterHooks(second);
+          reverse(1);
+        } finally {
+          manager.unregisterHooks(first);
+        }
+
+        expect(calledLimits).toEqual([1]);
       });
 
       it("records nothing once every hook is unregistered", async () => {

@@ -652,3 +652,28 @@ class TestValuePassingNative:
 
         assert count_matched_events({"symbol": "receive_int", "argsIn": [{"name": "filtered"}]}) == 0
         assert count_matched_events({"symbol": "receive_int", "argsIn": [{"name": "unfiltered", "value": -2147483648}]}) == 1
+
+    def test_removing_one_of_several_hooks_keeps_the_others(self, run_frooky_watch):
+        """Multiple hooks + `--watch`: removing a hook on a function from the hook file while frooky runs only
+        stops that hook's events, and adding it back hooks it again. More than two hooks on one function
+        also checks that every hook's onLeave runs."""
+
+        def hook_file(*names):
+            hooks = "".join(f"      - symbol: receive_int\n        params:\n          - [int, {name}]\n" for name in names)
+            return f"hookCollection:\n  - module: {MODULE_VALUE}\n    hooks:\n{hooks}"
+
+        def recorded_by(frooky):
+            events = frooky.click_start_and_collect({"module": MODULE_VALUE, "symbol": "receive_int"})
+            return sorted(event["argsIn"][0]["name"] for event in events)
+
+        frooky = run_frooky_watch(hook_file("A", "B", "C"), TARGET_APP)
+        assert recorded_by(frooky) == ["A", "B", "C"]
+
+        frooky.update_hook_file(hook_file("A", "C"))
+        assert recorded_by(frooky) == ["A", "C"]
+
+        frooky.update_hook_file(hook_file("C"))
+        assert recorded_by(frooky) == ["C"]
+
+        frooky.update_hook_file(hook_file("A", "B", "C"))
+        assert recorded_by(frooky) == ["A", "B", "C"]

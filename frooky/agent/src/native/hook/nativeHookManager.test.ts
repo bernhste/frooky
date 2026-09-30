@@ -302,6 +302,54 @@ describe("NativeHookManager", () => {
         expect(first.listener).toBeUndefined();
       });
 
+      for (const [removed, remaining] of [
+        ["A", ["B", "C"]],
+        ["B", ["A", "C"]],
+        ["C", ["A", "B"]],
+      ] as const) {
+        it(`keeps recording with the other hooks when hook ${removed} of A, B and C is unregistered`, async () => {
+          const { manager, hooks, events, addOne, recordedBy } = await setup("A", "B", "C");
+          const byName = { A: hooks[0], B: hooks[1], C: hooks[2] };
+
+          manager.registerHooks(hooks);
+          try {
+            await untilHooked(
+              () => addOne(0),
+              () => new Set(recordedBy()).size === 3,
+            );
+            manager.unregisterHooks([byName[removed]]);
+            events.length = 0;
+            expect(addOne(1)).toBe(2);
+          } finally {
+            manager.unregisterHooks(hooks);
+          }
+
+          expect(recordedBy()).toEqual([...remaining]);
+          expect(byName[removed].listener).toBeUndefined();
+        });
+      }
+
+      it("hooks the function again after every hook was unregistered", async () => {
+        const { manager, hooks, events, addOne, recordedBy } = await setup("first", "second");
+        const [first, second] = hooks;
+        manager.registerHooks([first]);
+        manager.unregisterHooks([first]);
+
+        manager.registerHooks([second]);
+        try {
+          await untilHooked(
+            () => addOne(0),
+            () => events.length > 0,
+          );
+          events.length = 0;
+          addOne(1);
+        } finally {
+          manager.unregisterHooks([second]);
+        }
+
+        expect(recordedBy()).toEqual(["second"]);
+      });
+
       it("records nothing once every hook is unregistered", async () => {
         const { manager, hooks, events, addOne, recordedBy } = await setup("first", "second");
 

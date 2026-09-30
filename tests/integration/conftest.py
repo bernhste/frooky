@@ -117,6 +117,9 @@ def _build_options(platform, app_bundle_id):
         options = UiAutomator2Options()
         options.app_package = app_bundle_id
         options.app_activity = MAIN_ACTIVITY
+        # a fresh process per test: an app left stuck by a failed run (e.g. frooky killed while detaching)
+        # otherwise times out every following attach
+        options.set_capability("appium:forceAppLaunch", True)
     else:
         options = XCUITestOptions()
         options.bundle_id = app_bundle_id
@@ -346,3 +349,91 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, t
         return output_file_path
 
     return _run_frooky
+
+
+# frooky logs e.g. `Updated hooks.yaml: 1 removed, 2 unchanged` once a changed hook file is applied (-w)
+FROOKY_UPDATED_PATTERN = re.compile(r"Updated hooks\.yaml:")
+
+
+class WatchedFrooky:
+    """A frooky process started with `-w`, whose hook file can be changed while it runs."""
+
+    def __init__(self, process, chunks, driver, hook_path, output_file_path, click_start):
+        self._process = process
+        self._chunks = chunks
+        self._driver = driver
+        self._hook_path = hook_path
+        self._output_file_path = output_file_path
+        self._click_start = click_start
+
+    def _events(self):
+        return list(_iter_events(self._output_file_path)) if self._output_file_path.is_file() else []
+
+    def click_start_and_collect(self, expected_event):
+        """Press Start and return the events of this round only that match expected_event."""
+        offset = len(self._events())
+        self._click_start(self._driver)
+        deadline = time.monotonic() + FROOKY_EVENT_TIMEOUT
+        while len(self._events()) == offset:
+            if self._process.poll() is not None:
+                _fail(f"frooky exited with {self._process.returncode} before writing events", self._process, self._chunks)
+            if time.monotonic() > deadline:
+                _fail("no new events written after pressing Start", self._process, self._chunks)
+            time.sleep(0.5)
+        previous = -1
+        while (current := len(self._events())) != previous:
+            previous = current
+            time.sleep(FROOKY_EVENT_SETTLE)
+        return [event for event in self._events()[offset:] if _matches_subset_pattern_recursive(event, expected_event)]
+
+    def update_hook_file(self, hook_file_yaml):
+        """Rewrite the hook file and wait until frooky applied it."""
+        applied = len(FROOKY_UPDATED_PATTERN.findall("".join(self._chunks)))
+        self._hook_path.write_text(hook_file_yaml, encoding="utf8")
+        deadline = time.monotonic() + FROOKY_READY_TIMEOUT
+        while len(FROOKY_UPDATED_PATTERN.findall("".join(self._chunks))) == applied:
+            if self._process.poll() is not None:
+                _fail(f"frooky exited with {self._process.returncode} while reloading", self._process, self._chunks)
+            if time.monotonic() > deadline:
+                _fail("frooky never applied the changed hook file", self._process, self._chunks)
+            time.sleep(0.5)
+
+
+@pytest.fixture
+def run_frooky_watch(platform, output_file_path, app_session, mastg_app_click_start, tmp_path):
+    """Like run_frooky, but starts frooky with `-w` and hands out a WatchedFrooky for the test to drive.
+    frooky is stopped after the test."""
+    processes = []
+
+    def _run_frooky_watch(hook_file_yaml, target_app):
+        app_bundle_id = f"{target_app.replace('-', '_')}.frooky.target.app"
+        driver, target_app_pid = app_session(app_bundle_id)
+        hook_path = tmp_path / "hooks.yaml"
+        hook_path.write_text(hook_file_yaml, encoding="utf8")
+
+        process = subprocess.Popen(
+            [
+                "frooky",
+                *(["-U"] if platform == "android" else []),
+                "-w",
+                "-v",  # the agent's `Updated hooks.yaml: ...` summary is an info log
+                "-p",
+                str(target_app_pid),
+                "-o",
+                str(output_file_path),
+                str(hook_path),
+            ],
+            cwd=FROOKY_WORKING_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        processes.append(process)
+        chunks = _drain_output(process)
+        _wait_for_frooky(process, chunks)
+        return WatchedFrooky(process, chunks, driver, hook_path, output_file_path, mastg_app_click_start)
+
+    yield _run_frooky_watch
+
+    for process in processes:
+        _stop_frooky(process)
