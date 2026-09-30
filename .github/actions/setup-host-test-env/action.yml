@@ -18,8 +18,12 @@ runs:
     - name: Install frooky and dev dependencies
       shell: bash
       run: |
+        uv venv
+        echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
         echo "Installing frooky"
-        uv pip install --system --break-system-packages dist/*.whl
+        uv pip install dist/*.whl
 
         echo "Installing dev dependencies from pyproject.toml"
-        uv pip install --system --break-system-packages --group dev -r pyproject.toml
+        uv pip install --group dev -r pyproject.toml
