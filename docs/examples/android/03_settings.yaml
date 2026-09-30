@@ -1,17 +1,17 @@
 metadata:
   name: Android Settings Hierarchy Testing
   description: |
-    Demonstrates setting inheritance in frooky across global, hook group,
+    Demonstrates setting inheritance in frooky across the file, hook collection,
     hook, and parameter levels for Android Java hooks:
 
-    1. Global Settings (`settings:`):
+    1. File Settings (`settings:`):
        Apply to all hooks and decoders across the file unless overridden.
 
-    2. Hook Group Settings (`hookSettings` / `decoderSettings` under `javaClass`):
-       Override global settings for all hooks within that class.
+    2. Hook Collection Settings (`hookSettings` / `decoderSettings` under `javaClass`):
+       Override file settings for all hooks within that class.
 
     3. Hook-Level Settings:
-       Override group and global settings for a specific method hook.
+       Override hook collection and file settings for a specific method hook.
 
     4. Parameter Settings:
        Override decoder settings for individual parameters.
@@ -19,27 +19,27 @@ metadata:
   author: frooky dev
   platform: Android
 
-# Global settings for all hooks in this file.
+# File settings for all hooks in this file.
+# See docs/additional-features.md#settings-precedence and setting_tests/ for one example per level.
 settings:
   hookSettings:
     maxStackFrames: 10
-    stackTraceFilter: ['^(?!android).*']
   decoderSettings:
     maxDepth: 1
     maxItems: 11
 
 hookCollection:
-  # Simple method declaration (inherits global settings)
+  # Simple method declaration (inherits file settings)
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       - receiveBoolean
 
-  # Object with only method name provided (inherits global settings)
+  # Object with only method name provided (inherits file settings)
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       - method: receiveByte
 
-  # Partial local hook settings take priority over global settings
+  # Partial local hook settings take priority over file settings
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
       maxStackFrames: 2
@@ -49,7 +49,7 @@ hookCollection:
       - receiveShort
       - receiveInt
 
-  # Partial local hook settings take priority over global settings (method object form)
+  # Partial local hook settings take priority over file settings (method object form)
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
       maxStackFrames: 3
@@ -68,7 +68,7 @@ hookCollection:
       - receiveFloat
       - receiveDouble
 
-  # Partial local parameter settings take priority over global settings: [type, settings]
+  # Partial local parameter settings take priority over file settings: [type, settings]
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
       maxStackFrames: 0

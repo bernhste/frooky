@@ -84,7 +84,7 @@ metadata:                         # All metadata is optional
   author: <author>                # Your name or organization
   version: <version>              # Version number of the hook collection (e.g., 1)
 
-settings:                         # Optional. Default hookSettings/decoderSettings applied to every hook group
+settings:                         # Optional. Default hookSettings/decoderSettings applied to every hook collection
   hookSettings: { ... }
   decoderSettings: { ... }
 

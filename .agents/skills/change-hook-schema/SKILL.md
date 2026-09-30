@@ -44,7 +44,7 @@ npm run build:jsonSchema   # -> docs/schema/frooky-config.schema.json
 
 - The reference page for the area you changed: `docs/java-hook-declaration.md`, `docs/native-hook-declaration.md`, `docs/parameter-declaration.md`, `docs/return-type-declaration.md`, `docs/decoders.md`, or `docs/additional-features.md` (settings precedence and hook settings tables).
 - The README "Structure of a Hook File" section, if the top-level shape changed.
-- `docs/examples/`: add or adjust an example with a `# Docs:` link to the upstream API. For settings, also update `docs/examples/setting_tests_{android,native}/`.
+- `docs/examples/`: add or adjust an example with a `# Docs:` link to the upstream API. For settings, also update `docs/examples/{android,native}/setting_tests/` and the expectations in `test_settings_precedence_examples` (`tests/integration/android/`).
 - On a rename, grep for the old name across `docs/`, `README.md`, `tests/` and `frooky/`. Old names tend to survive in prose and example YAML.
 
 ## 5. Verify

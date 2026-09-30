@@ -20,11 +20,11 @@ describe("inputNativeHookCollection", () => {
       expect(isNativeHookCollection({ module: "libc.so" })).toBeTruthy();
     });
 
-    it("returns false for a java hook group (no module property)", () => {
+    it("returns false for a java hook collection (no module property)", () => {
       expect(isNativeHookCollection({ type: "java", javaClass: "com.example.Foo", hooks: [] })).toBeFalsy();
     });
 
-    it("returns false for an objc hook group (no module property)", () => {
+    it("returns false for an objc hook collection (no module property)", () => {
       expect(isNativeHookCollection({ type: "objc", objcClass: "NSString", hooks: [] })).toBeFalsy();
     });
 
@@ -70,7 +70,7 @@ describe("inputNativeHookCollection", () => {
         expect(result.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 });
       });
 
-      it("gives the hook group's own hookSettings/decoderSettings the highest precedence", () => {
+      it("gives the hook collection's own hookSettings/decoderSettings the highest precedence", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
@@ -91,7 +91,7 @@ describe("inputNativeHookCollection", () => {
     });
 
     describe("hook-level settings override", () => {
-      it("lets a hook's own hookSettings/decoderSettings override the hook group's settings", () => {
+      it("lets a hook's own hookSettings/decoderSettings override the hook collection's settings", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
@@ -113,12 +113,12 @@ describe("inputNativeHookCollection", () => {
         expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
       });
 
-      it("merges the hook's own settings on top of the group's, instead of replacing them wholesale", () => {
+      it("merges the hook's own settings on top of the collection's, instead of replacing them wholesale", () => {
         // hook files contain partial settings, e.g. `hookSettings: { maxStackFrames: 40 }`
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hookSettings: { maxStackFrames: 30, stackTraceFilter: ["^group"] },
+          hookSettings: { maxStackFrames: 30, stackTraceFilter: ["^collection"] },
           decoderSettings: { maxDepth: 30, maxItems: 30 },
           hooks: [
             {
@@ -136,7 +136,7 @@ describe("inputNativeHookCollection", () => {
         expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({
           ...DEFAULT_HOOK_SETTINGS,
           maxStackFrames: 40,
-          stackTraceFilter: ["^group"],
+          stackTraceFilter: ["^collection"],
         });
         expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
@@ -145,7 +145,7 @@ describe("inputNativeHookCollection", () => {
         });
       });
 
-      it("falls back to the hook group's settings when a hook does not declare its own", () => {
+      it("falls back to the hook collection's settings when a hook does not declare its own", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
@@ -158,7 +158,7 @@ describe("inputNativeHookCollection", () => {
         expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 30 });
       });
 
-      it("uses the hook's own (merged) decoderSettings, not just the group's, to normalize that hook's params and retType", () => {
+      it("uses the hook's own (merged) decoderSettings, not just the collection's, to normalize that hook's params and retType", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
@@ -193,7 +193,7 @@ describe("inputNativeHookCollection", () => {
         ]);
       });
 
-      it("normalizes an object-form hook, always using the hook group's module", () => {
+      it("normalizes an object-form hook, always using the hook collection's module", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
@@ -273,7 +273,7 @@ describe("inputNativeHookCollection", () => {
         expect(result.hooks.map((hook) => (hook as InputNativeHookNormalized).symbol)).toEqual(["malloc", "free"]);
       });
 
-      it("normalizes a [symbol, decoderSettings] tuple, merging its decoderSettings on top of the group's", () => {
+      it("normalizes a [symbol, decoderSettings] tuple, merging its decoderSettings on top of the collection's", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
@@ -356,7 +356,7 @@ describe("inputNativeHookCollection", () => {
       });
     });
 
-    it("preserves the type and module on the returned hook group", () => {
+    it("preserves the type and module on the returned hook collection", () => {
       const hookCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
 
       const result = normalizeNativeHookCollection(hookCollection, defaultSettings);

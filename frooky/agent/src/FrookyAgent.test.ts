@@ -114,7 +114,7 @@ describe("FrookyAgent", () => {
       expect(warnSpy).toHaveBeenCalled();
     });
 
-    it("registers exactly the hook groups that resolved successfully and reports their count", async () => {
+    it("registers exactly the hook collections that resolved successfully and reports their count", async () => {
       const hookA = fakeHook();
       const rawManager = fakePlatformHookManager();
       rawManager.resolveHooks.mockResolvedValue([Promise.resolve([hookA]), Promise.resolve(null)]);
@@ -142,7 +142,7 @@ describe("FrookyAgent", () => {
       expect(rawManager.registerHooks).not.toHaveBeenCalled();
     });
 
-    it("reports every hook as not resolved when every hook group failed to resolve", async () => {
+    it("reports every hook as not resolved when every hook collection failed to resolve", async () => {
       const rawManager = fakePlatformHookManager();
       rawManager.resolveHooks.mockResolvedValue([Promise.resolve(null)]);
       const { agent } = createAgent(fakePlatformHookValidator(["normalized-hook"]), rawManager as unknown as HookManager<any, any, any>);

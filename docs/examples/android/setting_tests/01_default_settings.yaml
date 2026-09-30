@@ -1,27 +1,25 @@
 metadata:
-  name: Android Hooks for Testing
+  name: "Settings Precedence (Android): Default"
+  description: |
+    No settings are declared, so the hard-coded defaults apply: no stack traces, and values are
+    decoded up to 100 items (here: characters).
   version: 1
   author: frooky dev
   platform: Android
 
-# default settings from DEFAULT_FROOKY_SETTINGS: FrookySettings 
-# settings:
-#   hookSettings:
-#     maxStackFrames: 10
-#     stackTraceFilter: []
-#     nativeStackTrace: false
-#     platformStackTrace: false
-#   decoderSettings:
-#     maxDepth: 10
-#     maxItems: 100
-#     decoder: undefined
-#     decoderArg: undefined
-#     argFilter: undefined
+# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# See docs/additional-features.md#settings-precedence.
+# Target: the value-passing-java test app, which calls MastgTest.receiveString("Welcome the first OWASP MASCon 📱❤️") once.
 
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
-    - receiveNestedObjectArray
+      - method: receiveString
+        overloads:
+          - params:
+              - [java.lang.String, arg]
 
-
-# expected: all hooks should inherite the settings from default
+# Expected event after pressing Start:
+#   stackTrace:        empty (default: stack traces are off)
+#   argsIn[0].value:   "Welcome the first OWASP MASCon 📱❤️"     (default)
+#   returnValue.value: "Welcome the first OWASP MASCon 📱❤️"     (default)

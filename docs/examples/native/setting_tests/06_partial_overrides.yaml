@@ -1,0 +1,35 @@
+metadata:
+  name: "Settings Precedence (Native): Partial Overrides"
+  description: |
+    Each level only overrides the fields it sets; everything else falls through to the next level
+    out. Here every setting comes from a different level.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# See docs/additional-features.md#settings-precedence.
+# Target: the value-passing-native test app, which calls receive_cstring("Welcome the first OWASP MASCon, CString!") once from JNI.
+
+settings:
+  hookSettings:
+    platformStackTrace: true
+    nativeStackTrace: true
+    maxStackFrames: 1
+
+hookCollection:
+  - module: libreceiveString.so
+    decoderSettings:
+      maxItems: 15
+    hooks:
+      - symbol: receive_cstring
+        hookSettings:
+          maxStackFrames: 3
+        params:
+          - ["char *", s]
+        retType: ["char *", { maxItems: 30 }]
+
+# Expected event after pressing Start:
+#   stackTrace:        3 frames in platformStackTrace and nativeStackTrace (hook: maxStackFrames 3); turning the stack traces on still comes from the file
+#   argsIn[0].value:   "Welcome the fir..."                     (hook collection: maxItems 15)
+#   returnValue.value: "Welcome the first OWASP MASCon..."      (return type: maxItems 30)

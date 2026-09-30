@@ -36,7 +36,7 @@ A decoder's behavior is controlled by `decoderSettings`:
 
 When settings are attached to a parameter or a return type, an additional `direction` field is available, see [`direction`](#direction-declare-the-time-of-decoding).
 
-`decoderSettings` can be declared at multiple levels of a hook file (file-level, hook group, individual hook, or per-parameter/return-type). See [Settings Precedence](./additional-features.md#settings-precedence) for how these levels combine. The following chapters explain the settings that need more context through practical examples.
+`decoderSettings` can be declared at multiple levels of a hook file (file-level, hook collection, individual hook, or per-parameter/return-type). See [Settings Precedence](./additional-features.md#settings-precedence) for how these levels combine. The following chapters explain the settings that need more context through practical examples.
 
 ### `direction`: Declare the Time of Decoding
 

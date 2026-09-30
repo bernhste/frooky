@@ -1,0 +1,42 @@
+metadata:
+  name: "Settings Precedence (Native): Hook"
+  description: |
+    Settings on a single hook (the `method`/`symbol` entry) override the hook collection and file-level
+    settings for that hook only.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# See docs/additional-features.md#settings-precedence.
+# Target: the value-passing-native test app, which calls receive_cstring("Welcome the first OWASP MASCon, CString!") once from JNI.
+
+settings:
+  hookSettings:
+    platformStackTrace: true
+    nativeStackTrace: true
+    maxStackFrames: 1
+    stackTraceFilter: ['^org\.owasp\.mastestapp']
+  decoderSettings:
+    maxItems: 10
+
+hookCollection:
+  - module: libreceiveString.so
+    hookSettings:
+      maxStackFrames: 2
+    decoderSettings:
+      maxItems: 15
+    hooks:
+      - symbol: receive_cstring
+        hookSettings:
+          maxStackFrames: 3
+        decoderSettings:
+          maxItems: 20
+        params:
+          - ["char *", s]
+        retType: "char *"
+
+# Expected event after pressing Start:
+#   stackTrace:        3 frames in platformStackTrace and nativeStackTrace (hook: maxStackFrames 3); the stackTraceFilter keeps the event, as the first platform frame is in org.owasp.mastestapp
+#   argsIn[0].value:   "Welcome the first OW..."                (hook: maxItems 20)
+#   returnValue.value: "Welcome the first OW..."                (hook: maxItems 20)

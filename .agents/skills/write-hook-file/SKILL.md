@@ -25,7 +25,7 @@ metadata:                       # optional
   author: <author>
   version: 1
 
-settings:                       # optional, applies to every group
+settings:                       # optional, applies to every hook collection
   hookSettings: { maxStackFrames: 5 }
   decoderSettings: { maxItems: 50 }
 
@@ -63,7 +63,7 @@ hookCollection:
 
 **Parameter forms** (both platforms): `type` · `[type, name]` · `[type, name, {settings}]` · `{ type: ..., name: ..., <settings> }`. Hook forms: `- name` · `- [name, {decoderSettings}]` · the expanded object form.
 
-**Decoder settings** (at file, group, hook or param level; lower levels override higher ones):
+**Decoder settings** (at file, hook collection, hook or param/return type level; lower levels override higher ones):
 
 - `direction: in | out | inout`: use `out` or `inout` for buffers the callee fills (e.g. `Cipher.doFinal(byte[] output, ...)`, `RAND_bytes`).
 - `decoder: <name>` (Java only), which must be one of the registered names: `string`, `hashCode`, `intentFlag`, `intentUriFlag`, `constant`. The schema does **not** check these names. If in doubt, check `CUSTOM_DECODER_REGISTRY` in `frooky/agent/src/android/decoders/javaDecoderResolver.ts`. Use `string` to show `byte[]` as text.

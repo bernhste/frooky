@@ -1,0 +1,42 @@
+metadata:
+  name: "Settings Precedence (Android): Parameter and Return Type"
+  description: |
+    Decoder settings on a parameter or the return type are the closest level. They override all
+    other levels for that one value. There are no hook settings at this level.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# See docs/additional-features.md#settings-precedence.
+# Target: the value-passing-java test app, which calls MastgTest.receiveString("Welcome the first OWASP MASCon 📱❤️") once.
+
+settings:
+  hookSettings:
+    platformStackTrace: true
+    maxStackFrames: 1
+    stackTraceFilter: ['^org\.owasp\.mastestapp']
+  decoderSettings:
+    maxItems: 10
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      maxStackFrames: 2
+    decoderSettings:
+      maxItems: 15
+    hooks:
+      - method: receiveString
+        hookSettings:
+          maxStackFrames: 3
+        decoderSettings:
+          maxItems: 20
+        overloads:
+          - params:
+              - [java.lang.String, arg, { maxItems: 25 }]
+            retType: { maxItems: 30 }
+
+# Expected event after pressing Start:
+#   stackTrace:        3 frames in platformStackTrace (hook: maxStackFrames 3); the stackTraceFilter keeps the event, as the first frame is in org.owasp.mastestapp
+#   argsIn[0].value:   "Welcome the first OWASP M..."           (parameter: maxItems 25)
+#   returnValue.value: "Welcome the first OWASP MASCon..."      (return type: maxItems 30)

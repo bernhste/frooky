@@ -20,18 +20,20 @@ describe("NativeHookValidator", () => {
       expect(validator.getPlatformHookCollections(config)).toEqual([]);
     });
 
-    it("returns only the native hook groups from a mixed hookCollection list, preserving order", () => {
-      const nativeGroupA: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
-      const javaGroup: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: [] };
-      const nativeGroupB: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: [] };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroupA, javaGroup, nativeGroupB] as unknown as InputNativeHookCollection[] };
+    it("returns only the native hook collections from a mixed hookCollection list, preserving order", () => {
+      const nativeCollectionA: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
+      const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: [] };
+      const nativeCollectionB: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: [] };
+      const config: InputFrookyConfig = {
+        hookCollection: [nativeCollectionA, javaCollection, nativeCollectionB] as unknown as InputNativeHookCollection[],
+      };
 
-      expect(validator.getPlatformHookCollections(config)).toEqual([nativeGroupA, nativeGroupB]);
+      expect(validator.getPlatformHookCollections(config)).toEqual([nativeCollectionA, nativeCollectionB]);
     });
 
-    it("returns an empty array when there are no native hook groups", () => {
-      const javaGroup: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: [] };
-      const config: InputFrookyConfig = { hookCollection: [javaGroup] as unknown as InputNativeHookCollection[] };
+    it("returns an empty array when there are no native hook collections", () => {
+      const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: [] };
+      const config: InputFrookyConfig = { hookCollection: [javaCollection] as unknown as InputNativeHookCollection[] };
 
       expect(validator.getPlatformHookCollections(config)).toEqual([]);
     });
@@ -48,14 +50,14 @@ describe("NativeHookValidator", () => {
       warnSpy.mockRestore();
     });
 
-    it("returns an empty array when the config has no native hook groups", () => {
+    it("returns an empty array when the config has no native hook collections", () => {
       const config: InputFrookyConfig = { hookCollection: [] };
       expect(validator.validateAndNormalizeHooks(config, defaultSettings)).toEqual([]);
     });
 
     it("normalizes a plain symbol-name hook into a full InputNativeHookNormalized", () => {
-      const nativeGroup: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["malloc"] };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["malloc"] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -65,24 +67,26 @@ describe("NativeHookValidator", () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
-    it("collects hooks from multiple native hook groups, ignoring non-native hook groups", () => {
-      const nativeGroupA: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["malloc"] };
-      const javaGroup: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: ["foo"] };
-      const nativeGroupB: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: ["SSL_write"] };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroupA, javaGroup, nativeGroupB] as unknown as InputNativeHookCollection[] };
+    it("collects hooks from multiple native hook collections, ignoring non-native hook collections", () => {
+      const nativeCollectionA: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["malloc"] };
+      const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: ["foo"] };
+      const nativeCollectionB: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: ["SSL_write"] };
+      const config: InputFrookyConfig = {
+        hookCollection: [nativeCollectionA, javaCollection, nativeCollectionB] as unknown as InputNativeHookCollection[],
+      };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["malloc", "SSL_write"]);
     });
 
-    it("always uses the hook group's module, ignoring a module set on the hook itself", () => {
-      const nativeGroup: InputNativeHookCollection = {
+    it("always uses the hook collection's module, ignoring a module set on the hook itself", () => {
+      const nativeCollection: InputNativeHookCollection = {
         type: "native",
         module: "libc.so",
         hooks: [{ symbol: "malloc", module: "libwrong.so" }],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -90,12 +94,12 @@ describe("NativeHookValidator", () => {
     });
 
     it("normalizes params and retType using the merged decoder settings", () => {
-      const nativeGroup: InputNativeHookCollection = {
+      const nativeCollection: InputNativeHookCollection = {
         type: "native",
         module: "libc.so",
         hooks: [{ symbol: "memcpy", module: "libc.so", params: ["void *", "void *", "size_t"], retType: "void *" }],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -110,12 +114,12 @@ describe("NativeHookValidator", () => {
 
     it("skips a hook that fails schema validation, warns about it, and still keeps the valid hooks", () => {
       const invalidHook = { symbol: 123 as unknown as string, module: "libc.so" };
-      const nativeGroup: InputNativeHookCollection = {
+      const nativeCollection: InputNativeHookCollection = {
         type: "native",
         module: "libc.so",
         hooks: ["validSymbol", invalidHook],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -126,8 +130,8 @@ describe("NativeHookValidator", () => {
     });
 
     it("normalizes a offset hook written as an unquoted YAML hex number", () => {
-      const nativeGroup: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: [{ offset: 0x1a2b4, module: "libfoo.so" }] };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: [{ offset: 0x1a2b4, module: "libfoo.so" }] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -136,12 +140,12 @@ describe("NativeHookValidator", () => {
     });
 
     it("skips a hook with an invalid offset and names the offset in the warning", () => {
-      const nativeGroup: InputNativeHookCollection = {
+      const nativeCollection: InputNativeHookCollection = {
         type: "native",
         module: "libfoo.so",
         hooks: ["validSymbol", { offset: "1a2b4", module: "libfoo.so" }],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -150,15 +154,15 @@ describe("NativeHookValidator", () => {
       expect(message).toContain("Skipping hook for native function at offset '1a2b4' from module 'libfoo.so'");
     });
 
-    it("skips a hook whose param declaration is in an unrecognized format, without aborting the rest of the group", () => {
+    it("skips a hook whose param declaration is in an unrecognized format, without aborting the rest of the collection", () => {
       // a number is no valid param and makes normalization throw a plain Error, not a ZodError
       const invalidParamHook = { symbol: "bad", module: "libc.so", params: [123 as unknown as string] };
-      const nativeGroup: InputNativeHookCollection = {
+      const nativeCollection: InputNativeHookCollection = {
         type: "native",
         module: "libc.so",
         hooks: ["free", invalidParamHook, "malloc"],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -174,9 +178,9 @@ describe("NativeHookValidator", () => {
         module: "libc.so",
         params: ["int", ["const void *", { decoderArg: "count", decoder: "string" }], "size_t"],
       };
-      const nativeGroup: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", writeHook] };
+      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", writeHook] };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeGroup] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
       const [message] = warnSpy.mock.calls[0] as [string];
@@ -184,14 +188,14 @@ describe("NativeHookValidator", () => {
       expect(message).toContain("decoderArg: no parameter named 'count' found.");
     });
 
-    it("skips a hook whose retType declaration is in an unrecognized format, without aborting the rest of the group", () => {
+    it("skips a hook whose retType declaration is in an unrecognized format, without aborting the rest of the collection", () => {
       const invalidRetTypeHook = { symbol: "bad", module: "libc.so", retType: 42 as unknown as string };
-      const nativeGroup: InputNativeHookCollection = {
+      const nativeCollection: InputNativeHookCollection = {
         type: "native",
         module: "libc.so",
         hooks: [invalidRetTypeHook, "malloc"],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -199,29 +203,29 @@ describe("NativeHookValidator", () => {
       expect(warnSpy).toHaveBeenCalled();
     });
 
-    it("still validates the remaining native hook groups after one group contained an unnormalizable hook", () => {
-      const brokenGroup: InputNativeHookCollection = {
+    it("still validates the remaining native hook collections after one collection contained an unnormalizable hook", () => {
+      const brokenCollection: InputNativeHookCollection = {
         type: "native",
         module: "libc.so",
         hooks: [{ symbol: "bad", module: "libc.so", params: [123 as unknown as string] }],
       };
-      const healthyGroup: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: ["SSL_write"] };
-      const config: InputFrookyConfig = { hookCollection: [brokenGroup, healthyGroup] };
+      const healthyCollection: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: ["SSL_write"] };
+      const config: InputFrookyConfig = { hookCollection: [brokenCollection, healthyCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["SSL_write"]);
     });
 
-    it("processes every hook independently, warning once per invalid hook without aborting the group", () => {
+    it("processes every hook independently, warning once per invalid hook without aborting the collection", () => {
       const invalidHookA = { symbol: 1 as unknown as string, module: "libc.so" };
       const invalidHookB = { symbol: 2 as unknown as string, module: "libc.so" };
-      const nativeGroup: InputNativeHookCollection = {
+      const nativeCollection: InputNativeHookCollection = {
         type: "native",
         module: "libc.so",
         hooks: [invalidHookA, "validSymbol", invalidHookB],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeGroup] };
+      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 

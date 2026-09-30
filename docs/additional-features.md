@@ -26,11 +26,11 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 
 Both `hookSettings` and [`decoderSettings`](./decoders.md#decoder-settings) can be declared at multiple levels of a hook file, from farthest to closest:
 
-1. **Hard-coded defaults** (the tables above)
-2. **File-level `settings`** — applies to every hook group in the file
-3. **Hook group** (the `javaClass`/`module` block) — applies to every hook in that group
-4. **Individual hook** (`method:`/`symbol:` block) — applies to that hook only
-5. **Parameter** (`decoderSettings` only, since a parameter has no `hookSettings`) — applies to that parameter only
+1. **Defaults**: the hard-coded values in the tables above
+2. **File**: the top-level `settings`, applies to every hook in the file
+3. **Hook collection**: the `javaClass`/`module` entry in `hookCollection`, applies to every hook in it
+4. **Hook**: the `method`/`symbol` entry, applies to that hook only
+5. **Parameter and return type**: `decoderSettings` only, applies to that one value
 
 Each level only needs to set the fields it wants to override; anything it leaves out falls through to the next level out. The closest level always wins for the fields it sets.
 
@@ -39,30 +39,32 @@ Each level only needs to set the fields it wants to override; anything it leaves
 ```yaml
 settings:
   hookSettings:
-    maxStackFrames: 5
+    platformStackTrace: true
+    maxStackFrames: 1
   decoderSettings:
-    maxRecursion: 1
+    maxItems: 10
 
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
-      maxStackFrames: 30
+      maxStackFrames: 2
     decoderSettings:
-      maxRecursion: 30
+      maxItems: 15
     hooks:
-      - method: receiveIntArray
+      - method: receiveString
         hookSettings:
-          maxStackFrames: 40
+          maxStackFrames: 3
         decoderSettings:
-          maxRecursion: 40
+          maxItems: 20
         overloads:
           - params:
-              - ["[I", arg, { maxRecursion: 50 }]
+              - [java.lang.String, arg, { maxItems: 25 }]
+            retType: { maxItems: 30 }
 ```
 
-For the `arg` parameter, `maxRecursion` resolves to `50` (level 5 wins). `maxStackFrames` for the `receiveIntArray` hook resolves to `40` (level 4 wins over the group's `30`), since `hookSettings` has no level closer than the hook itself.
+For `receiveString`, the event has 3 platform stack frames: the hook's `maxStackFrames` wins, and `platformStackTrace: true` still comes from the file. The argument is decoded up to 25 characters (parameter level), the return value up to 30 (return type level).
 
-See [`docs/examples/setting_tests_android/06_all_levels_combined.yaml`](./examples/setting_tests_android/06_all_levels_combined.yaml) and [`docs/examples/setting_tests_native/06_all_levels_combined.yaml`](./examples/setting_tests_native/06_all_levels_combined.yaml) for full worked examples.
+The examples in [`examples/android/setting_tests/`](./examples/android/setting_tests/) and [`examples/native/setting_tests/`](./examples/native/setting_tests/) add one level per file and document the resulting event. They run against the target apps in `tests/target-apps/android` as part of the integration tests.
 
 ## Event Filter Based on Stack Trace
 
