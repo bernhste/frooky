@@ -13,8 +13,13 @@ import { MapDecoder } from "../java/util/MapDecoder";
 import { DecoderConstructor } from "../javaDecoderResolver";
 import { StringDecoder } from "./StringDecoder";
 
-let classDecoderRegistry: Record<string, DecoderConstructor> | undefined;
-function getClassDecoderRegistry(): Record<string, DecoderConstructor> {
+export type ClassDecoderRegistry = Record<string, DecoderConstructor>;
+
+// Ordered: when a class implements several unrelated interfaces with a decoder, the earlier entry wins.
+export type InterfaceDecoderRegistry = [string, DecoderConstructor][];
+
+let classDecoderRegistry: ClassDecoderRegistry | undefined;
+function getClassDecoderRegistry(): ClassDecoderRegistry {
   return (classDecoderRegistry ??= {
     "android.content.ClipData": ClipDataDecoder,
     "android.content.ClipData$Item": ClipDataItemDecoder,
@@ -25,18 +30,23 @@ function getClassDecoderRegistry(): Record<string, DecoderConstructor> {
   });
 }
 
-let interfaceDecoderRegistry: Record<string, DecoderConstructor> | undefined;
-function getInterfaceDecoderRegistry(): Record<string, DecoderConstructor> {
-  return (interfaceDecoderRegistry ??= {
-    "java.util.Map": MapDecoder,
-    "java.lang.Iterable": IterableDecoder,
-  });
+let interfaceDecoderRegistry: InterfaceDecoderRegistry | undefined;
+function getInterfaceDecoderRegistry(): InterfaceDecoderRegistry {
+  return (interfaceDecoderRegistry ??= [
+    ["java.util.Map", MapDecoder],
+    ["java.lang.Iterable", IterableDecoder],
+  ]);
 }
 
-// the interface decoder of a runtime class, or null if none of its interfaces has one
-const decoderCache = new Map<string, DecoderConstructor | null>();
+export interface DecoderResolution {
+  decoderClass: DecoderConstructor;
+  // why the decoder was chosen, for the log
+  reason: string;
+  // the other most specific interfaces with a decoder, if the registry order had to decide
+  ambiguousWith?: string[];
+}
 
-// the decoder per `${declaredType}|${runtimeClass}`
+// the decoder per runtime class
 const resolvedDecoderCache = new Map<string, DecoderConstructor>();
 
 let javaObject: Java.Wrapper | undefined;
@@ -44,81 +54,75 @@ function getJavaObject(): Java.Wrapper {
   return (javaObject ??= Java.use("java.lang.Object"));
 }
 
-function collectInterfaces(javaClass: Java.Wrapper): Set<string> {
-  const result = new Set<string>();
-
-  while (javaClass !== null) {
+// java.lang.Class of each interface name, looked up once
+const interfaceClassCache = new Map<string, Java.Wrapper | null>();
+function getInterfaceClass(name: string): Java.Wrapper | null {
+  let javaClass = interfaceClassCache.get(name);
+  if (javaClass === undefined) {
     try {
-      const ifaces: Java.Wrapper[] = javaClass.getInterfaces();
-      for (const iface of ifaces) {
-        const name: string = iface.getName();
-        if (!result.has(name)) {
-          result.add(name);
-          for (const n of collectInterfaces(iface)) result.add(n);
-        }
-      }
-      javaClass = javaClass.getSuperclass();
+      javaClass = Java.use(name).class as Java.Wrapper;
     } catch (e) {
-      logger.warn(`Error when resolving interfaces for class ${javaClass.$className}: ${e}`);
-      break;
+      logger.warn(`Interface ${name} of the decoder registry is not available: ${e}`);
+      javaClass = null;
     }
+    interfaceClassCache.set(name, javaClass);
   }
-
-  return result;
+  return javaClass;
 }
 
-function resolveInterfaceDecoderClass(value: Java.Wrapper): DecoderConstructor | null {
-  const cachedDecoder = decoderCache.get(value.$className);
-  if (cachedDecoder !== undefined) {
-    logger.debug(`Interface decoder cache hit: ${value.$className}`);
-    return cachedDecoder;
-  }
-  logger.debug(`Interface decoder cache miss: ${value.$className}, collecting its interfaces`);
-
-  // getClass() is the runtime class, `.class` would be the wrapper's static type (e.g. java.lang.Object for
-  // an element of an Object[]). The cast is needed because a wrapper typed as an interface has no getClass().
-  const interfaces = collectInterfaces(Java.cast(value, getJavaObject()).getClass());
-  const registry = getInterfaceDecoderRegistry();
-  for (const iface of interfaces) {
-    const interfaceDecoder = registry[iface];
-    if (interfaceDecoder) {
-      decoderCache.set(value.$className, interfaceDecoder);
-      logger.debug(`${value.$className} implements ${iface}`);
-      return interfaceDecoder;
+// The class decoder of the runtime class or of its nearest superclass with one.
+function resolveClassDecoder(runtimeClass: Java.Wrapper, registry: ClassDecoderRegistry): DecoderResolution | null {
+  const runtimeClassName: string = runtimeClass.getName();
+  for (let javaClass: Java.Wrapper | null = runtimeClass; javaClass !== null; javaClass = javaClass.getSuperclass()) {
+    const className: string = javaClass.getName();
+    const decoderClass = registry[className];
+    if (decoderClass) {
+      const reason = className === runtimeClassName ? `class decoder for ${className}` : `class decoder for superclass ${className}`;
+      return { decoderClass, reason };
     }
   }
-
-  decoderCache.set(value.$className, null);
   return null;
 }
 
-// Resolves the decoder of a value of a declared reference type, and why it was chosen (for the log).
-function resolveDecoderClass(declaredType: string, value: Java.Wrapper): { decoderClass: DecoderConstructor; reason: string } {
-  const runtimeClass: string = value.$className;
+// The decoder of the most specific interface the runtime class implements: an interface that extends another one
+// wins, e.g. java.util.Collection over java.lang.Iterable. Among unrelated interfaces, the registry order decides.
+function resolveInterfaceDecoder(runtimeClass: Java.Wrapper, registry: InterfaceDecoderRegistry): DecoderResolution | null {
+  const implemented = registry
+    .map(([name, decoderClass]) => ({ name, decoderClass, javaClass: getInterfaceClass(name) }))
+    .filter(({ javaClass }) => javaClass !== null && javaClass.isAssignableFrom(runtimeClass));
 
-  // 1. class decoder for the runtime class exists
-  const classDecoder = getClassDecoderRegistry()[runtimeClass];
-  if (classDecoder) return { decoderClass: classDecoder, reason: `class decoder for ${runtimeClass}` };
+  const mostSpecific = implemented.filter(
+    (candidate) => !implemented.some((other) => other !== candidate && candidate.javaClass!.isAssignableFrom(other.javaClass)),
+  );
+  if (mostSpecific.length === 0) return null;
 
-  // 2. interface decoder for the declared type exists (skips the reflective walk of step 3)
-  const declaredInterfaceDecoder = getInterfaceDecoderRegistry()[declaredType];
-  if (declaredInterfaceDecoder) return { decoderClass: declaredInterfaceDecoder, reason: `interface decoder for ${declaredType}` };
+  const [chosen, ...others] = mostSpecific;
+  return {
+    decoderClass: chosen.decoderClass,
+    reason: `interface decoder for ${chosen.name}`,
+    ambiguousWith: others.length > 0 ? others.map(({ name }) => name) : undefined,
+  };
+}
 
-  // 3. resolve the interfaces and use a decoder if implemented
-  const interfaceDecoder = resolveInterfaceDecoderClass(value);
-  if (interfaceDecoder) {
-    const registry = getInterfaceDecoderRegistry();
-    const iface = Object.keys(registry).find((name) => registry[name] === interfaceDecoder);
-    return { decoderClass: interfaceDecoder, reason: `interface decoder for ${iface ?? "an implemented interface"}` };
-  }
-
-  // 4. toString(). Not GetterDecoder: the getters of e.g. Class/Method/Field reference each other endlessly.
-  return { decoderClass: StringDecoder, reason: "toString(), no decoder registered" };
+// Resolves the decoder of a runtime class: a class decoder of the class or a superclass, else the decoder of the most
+// specific implemented interface, else toString(). The registries are parameters for tests.
+export function resolveDecoderClass(
+  runtimeClass: Java.Wrapper,
+  classRegistry: ClassDecoderRegistry = getClassDecoderRegistry(),
+  interfaceRegistry: InterfaceDecoderRegistry = getInterfaceDecoderRegistry(),
+): DecoderResolution {
+  return (
+    resolveClassDecoder(runtimeClass, classRegistry) ??
+    resolveInterfaceDecoder(runtimeClass, interfaceRegistry) ??
+      // Not GetterDecoder: the getters of e.g. Class/Method/Field reference each other endlessly.
+      { decoderClass: StringDecoder, reason: "toString(), no decoder registered" }
+  );
 }
 
 export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "ReferenceTypeDecoder";
-  readonly description = "Picks the decoder for an object by its runtime class: a registered class or interface decoder, otherwise its `toString()`.";
+  readonly description =
+    "Picks the decoder for an object by its runtime class: a class decoder of the class or a superclass, the decoder of its most specific interface, otherwise its `toString()`.";
 
   decode(value: Java.Wrapper): DecodedValue {
     if (value == null) {
@@ -130,15 +134,17 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
     }
 
     const runtimeClass: string = value.$className;
-    const cacheKey = `${this.type}|${runtimeClass}`;
-    let decoderClass = resolvedDecoderCache.get(cacheKey);
-    let reason: string | undefined;
+    let decoderClass = resolvedDecoderCache.get(runtimeClass);
+    let resolution: DecoderResolution | undefined;
     if (decoderClass) {
-      logger.debug(`Decoder cache hit: ${this.type} (runtime class ${runtimeClass})`);
+      logger.debug(`Decoder cache hit: ${runtimeClass}`);
     } else {
-      logger.debug(`Decoder cache miss: ${this.type} (runtime class ${runtimeClass})`);
-      ({ decoderClass, reason } = resolveDecoderClass(this.type, value));
-      resolvedDecoderCache.set(cacheKey, decoderClass);
+      logger.debug(`Decoder cache miss: ${runtimeClass}`);
+      // getClass() is the runtime class, `.class` would be the wrapper's static type (e.g. java.lang.Object for
+      // an element of an Object[]). The cast is needed because a wrapper typed as an interface has no getClass().
+      resolution = resolveDecoderClass(Java.cast(value, getJavaObject()).getClass());
+      decoderClass = resolution.decoderClass;
+      resolvedDecoderCache.set(runtimeClass, decoderClass);
     }
 
     const decoder = new decoderClass({
@@ -147,10 +153,15 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       settings: this.settings,
     });
 
-    // logged at info level once per declared type and runtime class (on a cache miss)
-    if (reason) {
+    // logged once per runtime class (on a cache miss)
+    if (resolution) {
       const types = runtimeClass === this.type ? this.type : `${this.type} (runtime class ${runtimeClass})`;
-      logger.info(`Decoder for ${types}: ${decoder.decoderName} (${reason})`);
+      logger.info(`Decoder for ${types}: ${decoder.decoderName} (${resolution.reason})`);
+      if (resolution.ambiguousWith) {
+        logger.warn(
+          `${runtimeClass} also implements ${resolution.ambiguousWith.join(", ")}, using ${decoder.decoderName}. Set \`decoder:\` to choose another decoder.`,
+        );
+      }
     }
 
     return {

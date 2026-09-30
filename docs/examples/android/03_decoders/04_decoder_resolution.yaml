@@ -1,0 +1,37 @@
+metadata:
+  name: "Decoders (Android): Decoder Resolution"
+  description: |
+    frooky picks the decoder of an object by its runtime class, not its declared type: a decoder set
+    with `decoder` always wins, then a class decoder of the class or a superclass, then the decoder of
+    the most specific interface it implements, and otherwise its toString().
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/04_decoder_resolution.yaml
+# See:    docs/decoders.md#how-frooky-picks-a-decoder
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # Declared as Parcelable, receives a LabeledIntent: decoded by the class decoder of its superclass Intent.
+      # The return value shows that `decoder` wins over that class decoder.
+      # Docs: https://developer.android.com/reference/android/content/pm/LabeledIntent
+      - method: receiveParcelable
+        overloads:
+          - params: [android.os.Parcelable]
+            retType: { decoder: string }
+
+      # Declared as Object, receives a TreeMap: decoded by the interface decoder of java.util.Map.
+      - receiveAny
+
+      # Headers implements both Map and Iterable, which are unrelated and both have a decoder. The Map
+      # decoder wins, and frooky warns that `decoder` can choose another one.
+      - receiveHeaders
+
+# Expected values:
+#   receiveParcelable: argsIn[0].value   {type: android.content.Intent, value: [action "android.intent.action.SEND", ...]}
+#                      returnValue.value "Intent { act=android.intent.action.SEND }"
+#   receiveAny:        argsIn[0].value   {type: java.util.TreeMap, value: the entries a=1, b=2}
+#   receiveHeaders:    argsIn[0].value   {type: org.owasp.mastestapp.Headers, value: the entry Accept=application/json}

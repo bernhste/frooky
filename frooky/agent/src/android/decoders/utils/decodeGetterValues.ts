@@ -69,8 +69,14 @@ function getPublicNonArgumentMethodNames(className: string, prefixes: string[]):
 
 // Calls every matching getter of `instance` and decodes the results with `settings` (the child settings of
 // the calling decoder). A getter that throws (hidden API, missing on this API level, ...) is decoded as null.
-export function decodeGetterValues(instance: Java.Wrapper, prefixes: string[], settings: DecoderSettings): DecodedValue[] {
-  const className = instance.$className;
+// Reflects the getters declared by `className`, by default the runtime class. A decoder registered for a superclass
+// passes that class, whose getters a subclass (e.g. LabeledIntent for Intent) doesn't declare itself.
+export function decodeGetterValues(
+  instance: Java.Wrapper,
+  prefixes: string[],
+  settings: DecoderSettings,
+  className: string = instance.$className,
+): DecodedValue[] {
   const descriptors = getPublicNonArgumentMethodNames(className, prefixes);
   const values: DecodedValue[] = [];
 

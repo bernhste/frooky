@@ -10,10 +10,12 @@ export class IntentDecoder extends RecursiveDecoder<Java.Wrapper> {
   readonly description = "Decodes an `android.content.Intent`: its getters (action, data, component, extras, ...) and its flags as `FLAG_*` names.";
 
   protected decodeRecursive(value: Java.Wrapper): DecodedValue {
-    // the wrapper can be typed as a supertype (e.g. Object or Parcelable), so cast it to Intent first
+    // the wrapper can be typed as a supertype (e.g. Object or Parcelable), so cast it to Intent first. The getters are
+    // those of Intent, also for a subclass such as LabeledIntent.
     const intent = Java.cast(value, Java.use("android.content.Intent"));
 
-    const properties = new GetterDecoder({ type: "android.content.Intent", settings: this.settings }).decode(intent).value as DecodedValue[];
+    const properties = new GetterDecoder({ type: "android.content.Intent", settings: this.settings }, "android.content.Intent").decode(intent)
+      .value as DecodedValue[];
 
     const flags = properties.find((property) => property.name === "flags");
     if (flags) {

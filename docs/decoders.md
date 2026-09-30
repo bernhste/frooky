@@ -3,6 +3,7 @@
 <!-- TOC -->
 
 - [What Are Decoders?](#what-are-decoders)
+- [How frooky Picks a Decoder](#how-frooky-picks-a-decoder)
 - [Decoder Settings](#decoder-settings)
   - [`direction`: Declare the Time of Decoding](#direction-declare-the-time-of-decoding)
   - [`decoderArg`: Pass Arguments to Decoder](#decoderarg-pass-arguments-to-decoder)
@@ -21,6 +22,17 @@ frooky uses decoders to turn the raw arguments and return values captured at a h
 Depending on the type, this can be fairly simple. Primitives, such as Integers, Floats, or Shorts, can always be decoded by the frooky agent. However, some values require more complex decoders — for example when the time of decoding varies, or when more context information is needed to decode a value correctly.
 
 frooky comes with a set of decoders for various use cases. By default, frooky chosses the best fitting decoder for the type. But you can change what decoder is used or its settings.
+
+## How frooky Picks a Decoder
+
+For a Java object, frooky picks the decoder by the object's runtime class, not by the type declared in the hook file. A parameter declared as `java.lang.Object` that receives a `HashMap` is decoded as a map. frooky uses the first of these that applies:
+
+1. **`decoder` in the decoder settings.** A decoder you choose always wins. If it fails on a value, frooky logs a warning and decodes the value as if no `decoder` were set.
+2. **A class decoder** for the runtime class or, if there is none, for its nearest superclass. `Intent` has one, so a `LabeledIntent`, a subclass of `Intent`, is decoded like an `Intent`.
+3. **An interface decoder** for an interface the class implements, such as `java.util.Map` or `java.lang.Iterable`. If there are several, the most specific one wins: an interface that extends another one, e.g. `java.util.Collection` over `java.lang.Iterable`. If unrelated interfaces remain, e.g. a class that implements both `Map` and `Iterable`, the first one in frooky's list wins (`Map` before `Iterable`) and frooky logs a warning. Set `decoder` to choose another one.
+4. **`toString()`** of the object.
+
+Primitives, `java.lang.String` and arrays are decoded by their declared type. With `-v`, frooky logs which decoder it picked for each runtime class and why. See [`04_decoder_resolution.yaml`](examples/android/03_decoders/04_decoder_resolution.yaml).
 
 ## Decoder Settings
 
@@ -129,7 +141,7 @@ This function retrieves the digest data from `ctx` and moves it into `md`. So in
 
 ### `decoder`: Override the Default Decoder
 
-For some types, frooky's built-in decoders are not sufficient to give the captured value meaningful context (for example, a bitmask `int` where the individual flags matter more than the raw number). In these cases, you can select one of frooky's registered custom decoders by name using `decoder`.
+For some types, frooky's built-in decoders are not sufficient to give the captured value meaningful context (for example, a bitmask `int` where the individual flags matter more than the raw number). In these cases, you can select one of frooky's registered custom decoders by name using `decoder`. It wins over the decoder frooky would pick for the value (see [How frooky Picks a Decoder](#how-frooky-picks-a-decoder)).
 
 > [!NOTE]
 > The currently registered decoders for Java hooks are:

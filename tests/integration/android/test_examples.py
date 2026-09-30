@@ -159,6 +159,28 @@ class TestAndroidExamples:
         assert len(parse_uri) == 1
         assert parse_uri[0]["argsIn"][1]["value"] == ["URI_INTENT_SCHEME"]
 
+    def test_decoder_resolution(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/03_decoders/04_decoder_resolution.yaml"), JAVA_APP)
+
+        def map_entries(decoded):
+            keys, values = ([item["value"] for item in part["value"]] for part in decoded["value"])
+            return dict(zip(keys, values))
+
+        # LabeledIntent: the class decoder of its superclass Intent, `decoder: string` for the return value
+        [parcelable] = self._events(find_matched_events, "receiveParcelable")
+        intent = parcelable["argsIn"][0]["value"]
+        assert intent["type"] == "android.content.Intent"
+        assert {field["name"]: field["value"] for field in intent["value"]}["action"] == "android.intent.action.SEND"
+        assert parcelable["returnValue"]["value"] == "Intent { act=android.intent.action.SEND }"
+        # TreeMap declared as Object: the interface decoder of Map
+        [any_event] = self._events(find_matched_events, "receiveAny")
+        tree_map = any_event["argsIn"][0]["value"]
+        assert tree_map["type"] == "java.util.TreeMap"
+        assert map_entries(tree_map) == {"a": "1", "b": "2"}
+        # Headers implements Map and Iterable: Map comes first in the registry
+        [headers] = self._events(find_matched_events, "receiveHeaders")
+        assert map_entries(headers["argsIn"][0]["value"]) == {"Accept": "application/json"}
+
     def test_max_items(self, run_frooky, find_matched_events):
         run_frooky(_example("android/04_decoder_settings/01_max_items.yaml"), JAVA_APP)
 

@@ -1,8 +1,10 @@
+import Java from "frida-java-bridge";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
+import { OverrideDecoder } from "./builtin/OverrideDecoder";
 import { PrimitiveDecoder } from "./builtin/PrimitiveDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "./javaDecoderResolver";
@@ -15,18 +17,27 @@ describe("JavaDecoderResolver", () => {
   describe("resolveDecoder()", () => {
     it("resolves each registered custom decoder from settings.decoder", () => {
       const flagDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentFlag"));
-      expect(flagDecoder instanceof IntentFlagDecoder).toBeTruthy();
+      expect(flagDecoder instanceof OverrideDecoder).toBeTruthy();
+      expect(flagDecoder.decoderName).toBe(new IntentFlagDecoder(decodableOf("int")).decoderName);
 
       const uriFlagDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentUriFlag"));
-      expect(uriFlagDecoder instanceof IntentUriFlagDecoder).toBeTruthy();
+      expect(uriFlagDecoder.decoderName).toBe(new IntentUriFlagDecoder(decodableOf("int")).decoderName);
     });
 
     it("prioritizes settings.decoder over the declared type", () => {
       // type "int" would normally resolve to PrimitiveDecoder
       const decoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentFlag"));
 
-      expect(decoder instanceof IntentFlagDecoder).toBeTruthy();
-      expect(decoder instanceof PrimitiveDecoder).toBeFalsy();
+      expect(decoder.decode(0x10000000 as unknown as Java.Wrapper).value).toEqual(["FLAG_ACTIVITY_NEW_TASK"]);
+    });
+
+    it("prioritizes settings.decoder over a class decoder of the runtime class", () => {
+      const Intent = Java.use("android.content.Intent");
+      const intent = Intent.$new("android.intent.action.VIEW");
+
+      const decoder = JavaDecoderResolver.resolveDecoder(decodableOf("android.content.Intent", "string"));
+
+      expect(decoder.decode(intent).value).toBe(intent.toString());
     });
 
     it("throws a descriptive error when settings.decoder names an unregistered decoder", () => {

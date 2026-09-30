@@ -13,12 +13,14 @@ First decide which kind you need:
 
 | Kind | Chosen when | Register in |
 |---|---|---|
-| **Java class decoder** | The runtime class of a value equals a specific class | `classDecoderRegistry` in `frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts` |
-| **Java interface decoder** | The runtime class implements an interface (e.g. `java.util.Map`) | `interfaceDecoderRegistry` in the same file |
+| **Java class decoder** | The runtime class of a value, or its nearest superclass, is a specific class | `classDecoderRegistry` in `frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts` |
+| **Java interface decoder** | The runtime class implements an interface (e.g. `java.util.Map`) and has no class decoder | `interfaceDecoderRegistry` in the same file (ordered, see below) |
 | **Named custom decoder** | The user opts in with `decoder: <name>` in the hook file | `CUSTOM_DECODER_REGISTRY` in `frooky/agent/src/android/decoders/javaDecoderResolver.ts` |
 | **Native decoder** | Native parameter or return types | `frooky/agent/src/native/decoders/nativeDecoderResolver.ts` / `nativeFridaType.ts` |
 
 Primitives, `java.lang.String`, `void` and arrays are handled by `PrimitiveDecoder` and `ArrayDecoder` before the registries are consulted.
+
+The resolution order is documented in `docs/decoders.md` ("How frooky Picks a Decoder"): `decoder:` from the settings, then a class decoder of the runtime class or a superclass, then the most specific implemented interface, then `toString()`. The interface registry is an ordered list: among unrelated interfaces the earlier entry wins, so place a new interface decoder by how much its output tells about the value. An interface that extends a registered one (e.g. `java.util.Collection` under `java.lang.Iterable`) wins over it regardless of the order. A class decoder is also used for subclasses: if it reflects getters, pass the registered class to `GetterDecoder` or `decodeGetterValues()` (see `IntentDecoder`), otherwise only the subclass's own getters are called.
 
 ## Java class and interface decoders
 

@@ -4,8 +4,10 @@ import android.content.ClipData
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.LabeledIntent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Parcelable
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.math.BigDecimal
@@ -17,6 +19,11 @@ fun receiveStatic(arg: String): String = arg
 
 // Constructed in mastgTest(), so its class is only loaded after pressing Start.
 class Secret(val value: String)
+
+// Implements the unrelated interfaces Map and Iterable, both with a decoder, like OkHttp's Headers.
+class Headers : LinkedHashMap<String, String>(), Iterable<Map.Entry<String, String>> {
+        override fun iterator(): Iterator<Map.Entry<String, String>> = entries.iterator()
+}
 
 // Stands in for a third-party library that calls into the app, for stack trace filters.
 class ThirdPartySdk {
@@ -137,6 +144,9 @@ class MastgTest(private val context: Context) {
         fun receiveContentValues(arg: ContentValues): ContentValues = arg
         fun receiveClipData(arg: ClipData): ClipData = arg
         fun receiveIntent(arg: Intent): Intent = arg
+        fun receiveParcelable(arg: Parcelable): Parcelable = arg
+        fun receiveAny(arg: Any): Any = arg
+        fun receiveHeaders(arg: Headers): Headers = arg
         fun trackEvent(name: String): String = name
 
         fun mastgTest(): String {
@@ -295,6 +305,11 @@ class MastgTest(private val context: Context) {
                 receiveIntent(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.org")).putExtra("token", "abc123"))
                 Intent.parseUri("intent:#Intent;action=android.intent.action.VIEW;end", Intent.URI_INTENT_SCHEME)
                 r.add(Status.PASS, "android types")
+
+                receiveParcelable(LabeledIntent(Intent(Intent.ACTION_SEND), "org.owasp.mastestapp", "Share", 0))
+                receiveAny(sortedMapOf("b" to "2", "a" to "1"))
+                receiveHeaders(Headers().apply { put("Accept", "application/json") })
+                r.add(Status.PASS, "decoder resolution")
 
                 trackEvent("button_click")
                 ThirdPartySdk().flush(this)
