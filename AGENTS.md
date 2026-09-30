@@ -10,10 +10,10 @@ Two components, each with its own build and tests:
 ## Commands
 
 ```bash
-./compileAgent.sh --dev                 # build agent -> frooky/agent/dist/agent-android.js (runs npm ci)
-pip install -e '.[dev]'                 # host in editable mode (devcontainer venv: /opt/venv)
-pytest tests/unit                       # host unit tests, no device needed
-ruff check . && ruff format --check .   # Python lint/format (config in pyproject.toml)
+uv run compile-agent --dev                 # build agent -> frooky/agent/dist/agent-android.js (runs npm ci)
+uv sync                                 # sync dependencies and install host in editable mode (.venv)
+uv run pytest tests/unit                # host unit tests, no device needed
+uv run ruff check . && uv run ruff format --check .   # Python lint/format (config in pyproject.toml)
 
 cd frooky/agent
 npm run build:dev:android               # rebuild agent only
@@ -23,7 +23,7 @@ npm run test:android                    # agent tests, needs a device (see below
 npm run build:watch:android             # standalone agent with hook files embedded, for use with the plain `frida` CLI
 ```
 
-Adding dependencies: Python goes in `pyproject.toml` (`dependencies` or `optional-dependencies.dev`). Node: `cd frooky/agent && npm install --save-dev <pkg>`; use no `--save-dev` for runtime dependencies like `zod`, which get bundled into the agent.
+Adding dependencies: Python: `uv add <pkg>` or `uv add --dev <pkg>` (managed in `pyproject.toml` and `uv.lock`). Node: `cd frooky/agent && npm install --save-dev <pkg>`; use no `--save-dev` for runtime dependencies like `zod`, which get bundled into the agent.
 
 CI (`.github/workflows/`) runs on every push: `verify-host.yml` (wheel build, unit tests, checks the agent is in the wheel), `test-agent-android.yaml` (agent tests on an emulator), and `test-host-android.yml` (integration tests on an emulator with Appium).
 
@@ -31,7 +31,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 
 ## Rules
 
-- **Build order:** the agent must be compiled before `python -m build`; the wheel bundles `frooky/agent/dist/`. A stale `dist/` means the host runs old agent code, so rebuild after any agent change before testing through `frooky`.
+- **Build order:** the agent must be compiled before `uv build`; the wheel bundles `frooky/agent/dist/`. A stale `dist/` means the host runs old agent code, so rebuild after any agent change before testing through `frooky`.
 - **Generated files, never edit by hand:**
   - `frooky/agent/src/shared/inputParsing/zodSchemas/*.zod.ts`: edit the TS types, then `npm run build:zodSchema`.
   - `docs/schema/frooky-config.schema.json`: `npm run build:jsonSchema` (post-processed by `frooky/agent/scripts/generateJsonSchema.ts`). VS Code uses it for YAML autocompletion.
@@ -41,6 +41,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 - `.github/workflows/publish-host.yml` publishing is disabled. Don't re-enable it unless asked.
 - Use `npm ci`, not `npm install`, unless you are adding a dependency. CI uses Node 24 and Python 3.14; minimum Python is 3.10.
 - Use `git --no-pager` for git commands.
+- **No git commits/pushes:** Never run `git commit` or `git push`. Only inspect changes (`git status`, `git diff`). All staging, committing, and pushing is done by the user.
 
 ## Conventions
 

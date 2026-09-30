@@ -36,14 +36,15 @@ dependencies = [
   "rich>=15.0.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
   "pytest>=9.1.1",
   "pytest-reportlog>=1.0.0",
   "pytest-cov>=7.1.0",
   "pylint-pytest>=1.1.9.post1",
   "Appium-Python-Client>=6.0.7",
-  "selenium>=4.49.0"
+  "selenium>=4.49.0",
+  "ruff>=0.16.9",
 ]
 
 [project.urls]
@@ -53,6 +54,7 @@ Repository = "https://github.com/cpholguera/frooky"
 
 [project.scripts]
 frooky = "frooky.cli:main"
+compile-agent = "frooky.compile_agent:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -89,3 +91,6 @@ ignore = ["E501"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.uv]
+link-mode = "copy"

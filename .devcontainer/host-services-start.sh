@@ -23,14 +23,18 @@ EOF
 
 listening() { (exec 3<>"/dev/tcp/$1/$2") 2>/dev/null; }
 
-# echoes the pid if the recorded process is alive, else clears the stale file
+# echoes the pid if the recorded process is alive and matches the service, else clears the stale file
 running() {
-  local pidfile="$PID_DIR/$1.pid" pid
+  local name=$1 pidfile="$PID_DIR/$1.pid" pid
   [ -f "$pidfile" ] || return 1
   pid=$(cat "$pidfile")
   if kill -0 "$pid" 2>/dev/null; then
-    echo "$pid"
-    return 0
+    local cmd
+    cmd=$(ps -p "$pid" -o args= 2>/dev/null || true)
+    if [[ "$cmd" =~ ($name|appium|frida|socat) ]]; then
+      echo "$pid"
+      return 0
+    fi
   fi
   rm -f "$pidfile"
   return 1
@@ -47,7 +51,12 @@ spawn() {
   fi
 
   if listening "$host" "$port"; then
-    echo "$name already running on $endpoint (started outside this script)"
+    if pid=$(lsof -t -i :"$port" -sTCP:LISTEN 2>/dev/null | head -n1) && [ -n "$pid" ]; then
+      echo "$pid" >"$PID_DIR/$name.pid"
+      echo "$name (pid $pid) already running on $endpoint"
+    else
+      echo "$name already running on $endpoint (started outside this script)"
+    fi
     return 0
   fi
 

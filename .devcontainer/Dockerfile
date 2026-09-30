@@ -14,10 +14,7 @@ RUN apt-get update \
 
 ARG USERNAME=vscode
 
-RUN python3 -m venv /opt/venv \
-    && chown -R $USERNAME:$USERNAME /opt/venv
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 RUN mkdir -p /commandhistory \
     && touch /commandhistory/.bash_history /commandhistory/.zsh_history \

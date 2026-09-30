@@ -31,9 +31,11 @@ Use it, if you know what you want to hook but you don't want to write custom Fri
 
 ## Installation
 
-Simply install via pip to get the `frooky` CLI tool:
+Install the `frooky` CLI tool via uv or pip:
 
 ```bash
+uv tool install frooky
+# or
 pip install frooky
 ```
 
