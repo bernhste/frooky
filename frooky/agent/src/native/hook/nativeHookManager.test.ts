@@ -6,7 +6,7 @@ import { InputNativeOffsetHook, InputNativeSymbolHook } from "../../shared/input
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { sleepMilliseconds } from "../../shared/utils";
 import { NativeHook } from "./nativeHook";
-import { NativeHookEvent } from "./nativeHookEvent";
+import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
 import { NativeHookManager } from "./nativeHookManager";
 
 // resolveHooks() installs nothing, so it can run against always-loaded libc.so exports like malloc
@@ -363,6 +363,37 @@ describe("NativeHookManager", () => {
         expect(addOne(1)).toBe(2);
 
         expect(events.length).toBe(0);
+      });
+
+      it("records the same address and hashCode, the function's, from every hook", async () => {
+        const events: NativeHookEvent[] = [];
+        const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+        const manager = new NativeHookManager(stackTrace, agent);
+        const decoderSettings = { ...DEFAULT_DECODER_SETTINGS, hashCode: true };
+        const resolved = await Promise.all(
+          await manager.resolveHooks([nativeHook("libc.so", "atoi", { decoderSettings }), nativeHook("libc.so", "atoi")], 5),
+        );
+        const [withHashCode, withoutHashCode]: NativeHook[] = resolved.map((hooks) => ({
+          ...hooks![0],
+          symbolName: "add_one",
+          symbolAddress: cm.add_one,
+        }));
+        const addOne = new NativeFunction(cm.add_one, "int", ["int"]);
+
+        manager.registerHooks([withHashCode, withoutHashCode]);
+        try {
+          await untilHooked(
+            () => addOne(0),
+            () => events.length >= 2,
+          );
+          events.length = 0;
+          addOne(1);
+        } finally {
+          manager.unregisterHooks([withHashCode, withoutHashCode]);
+        }
+
+        expect(events.map((event) => event.address)).toEqual([cm.add_one.toString(), cm.add_one.toString()]);
+        expect(events.map((event) => event.hashCode).sort()).toEqual([addressHashCode(cm.add_one), undefined]);
       });
 
       it("records with the other hooks when one hook's filter does not match", async () => {

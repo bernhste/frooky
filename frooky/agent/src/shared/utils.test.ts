@@ -1,5 +1,6 @@
 import {
   FilterMismatchError,
+  formatHashCode,
   sleepMilliseconds,
   sleepSeconds,
   toAscii,
@@ -121,6 +122,14 @@ describe("Utils", () => {
     it("throws a RangeError for a negative length", () => {
       const bytes = Uint8Array.from([0x00]);
       expect(() => toHex(bytes, -1)).toThrow("Length cannot be negative");
+    });
+  });
+
+  describe("formatHashCode()", () => {
+    it("formats a hash code as unsigned hex like Java's Integer.toHexString()", () => {
+      expect(formatHashCode(0x1a2b)).toBe("1a2b");
+      expect(formatHashCode(-1)).toBe("ffffffff");
+      expect(formatHashCode(0)).toBe("0");
     });
   });
 

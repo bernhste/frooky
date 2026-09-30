@@ -10,14 +10,13 @@ import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTy
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
 import { HookStackTrace, PlatformStackTrace } from "../../shared/platformStackTrace";
-import { FilterMismatchError, fromSource, plural, wildcardPatternToRegExp } from "../../shared/utils";
+import { FilterMismatchError, formatHashCode, fromSource, plural, wildcardPatternToRegExp } from "../../shared/utils";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
 import { JavaHookEvent } from "./javaHookEvent";
 
 export type FieldType = {
   fieldType: "static" | "instance";
-  hashCode?: string;
 };
 
 // A registered hook with the decoders it uses on every call
@@ -226,8 +225,10 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       }
     }
 
-    const fieldType = this.buildFieldType(instance, hook.decoderSettings.hashCode);
-    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, decodedArgs, decodedRetValue, call.stackTrace));
+    const fieldType = this.buildFieldType(instance);
+    // only on request, hashCode() calls into Java
+    const hashCode = hook.decoderSettings.hashCode && fieldType.fieldType === "instance" ? formatHashCode(instance.hashCode()) : undefined;
+    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace));
   }
 
   private buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {
@@ -354,13 +355,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     return result;
   }
 
-  private buildFieldType(method: Java.Wrapper, computeHashCode: boolean): FieldType {
-    const isStatic =
-      method === null || method === undefined || method.$handle === null || method.$handle === undefined || method.$className === undefined;
-
-    const fieldType = isStatic ? "static" : "instance";
-    // only on request, hashCode() calls into Java
-    const hashCode = !isStatic && computeHashCode ? (method.hashCode() >>> 0).toString(16) : undefined;
-    return { fieldType, hashCode };
+  private buildFieldType(instance: Java.Wrapper): FieldType {
+    // `this` of a static method is the class wrapper, which has no object handle
+    return { fieldType: instance?.$h == null ? "static" : "instance" };
   }
 }

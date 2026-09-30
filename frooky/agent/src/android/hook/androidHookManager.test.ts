@@ -4,9 +4,10 @@ import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/de
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { HookSettings } from "../../shared/frookySettings";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
-import { FilterMismatchError } from "../../shared/utils";
+import { FilterMismatchError, formatHashCode } from "../../shared/utils";
 import { AndroidHookManager } from "./androidHookManager";
 import { JavaHook } from "./javaHook";
+import { JavaHookEvent } from "./javaHookEvent";
 
 // resolveHooks() installs nothing, so it can run against always-loaded classes like java.lang.String
 const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
@@ -345,6 +346,52 @@ describe("AndroidHookManager", () => {
 
         expect(counter.get()).toBe(1);
       });
+
+      it("records the same hashCode, the instance's, from every hook", async () => {
+        const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+        const manager = new AndroidHookManager(stackTrace, agent);
+        const declare = (): InputJavaHookNormalized => ({
+          ...javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet"),
+          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true },
+        });
+        const [first, second] = (await Promise.all(await manager.resolveHooks([declare(), declare()], 5))) as JavaHook[][];
+        const counter = Java.use("java.util.concurrent.atomic.AtomicInteger").$new(0);
+
+        try {
+          manager.registerHooks(first);
+          manager.registerHooks(second);
+          counter.incrementAndGet();
+        } finally {
+          manager.unregisterHooks(first);
+          manager.unregisterHooks(second);
+        }
+
+        const events = (agent.addEventToLog as unknown as Mock).mock.calls
+          .map((call) => call[0] as JavaHookEvent)
+          .filter((event) => event.hashCode === formatHashCode(counter.hashCode()));
+        expect(events.length).toBe(2);
+        expect(events.map((event) => event.fieldType)).toEqual([{ fieldType: "instance" }, { fieldType: "instance" }]);
+      });
+    });
+
+    it("records no hashCode for a static method", async () => {
+      const { manager, reverse, addEventToLog } = setup();
+      const hook: InputJavaHookNormalized = {
+        ...javaHook("java.lang.Integer", "reverse"),
+        decoderSettings: { ...DEFAULT_DECODER_SETTINGS, hashCode: true },
+      };
+      const [hooks] = (await Promise.all(await manager.resolveHooks([hook], 5))) as JavaHook[][];
+
+      try {
+        manager.registerHooks(hooks);
+        reverse(1);
+      } finally {
+        manager.unregisterHooks(hooks);
+      }
+
+      const event = addEventToLog.mock.calls[0][0] as JavaHookEvent;
+      expect(event.fieldType).toEqual({ fieldType: "static" });
+      expect(event.hashCode).toBeUndefined();
     });
   });
 });

@@ -25,12 +25,13 @@ Every event carries these fields:
 
 Hook events additionally carry:
 
-| Field         | Type             | Description                                                                                                                                                                    |
-| ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `stackTrace`  | `object`         | Captured stack trace leading to the hooked call (`{ platformStackTrace: string[], nativeStackTrace: string[] }`), enabled via `hookSettings.platformStackTrace`/`nativeStackTrace` and subject to `maxStackFrames`/`stackTraceFilter`. |
-| `argsIn`      | `DecodedValue[]` | Arguments decoded on entry (`direction: in`/`inout`).                                                                                                                          |
-| `argsOut`     | `DecodedValue[]` | Arguments decoded on exit (`direction: out`/`inout`).                                                                                                                          |
-| `returnValue` | `DecodedValue`   | The decoded return value.                                                                                                                                                      |
+| Field         | Type             | Description                                                                                                                                                                                                                                                                                                                   |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stackTrace`  | `object`         | Captured stack trace leading to the hooked call (`{ platformStackTrace: string[], nativeStackTrace: string[] }`), enabled via `hookSettings.platformStackTrace`/`nativeStackTrace` and subject to `maxStackFrames`/`stackTraceFilter`.                                                                                        |
+| `argsIn`      | `DecodedValue[]` | Arguments decoded on entry (`direction: in`/`inout`).                                                                                                                                                                                                                                                                         |
+| `argsOut`     | `DecodedValue[]` | Arguments decoded on exit (`direction: out`/`inout`).                                                                                                                                                                                                                                                                         |
+| `returnValue` | `DecodedValue`   | The decoded return value.                                                                                                                                                                                                                                                                                                     |
+| `hashCode`    | `string`         | Only with the [`hashCode`](./decoders.md#decoder-settings) decoder setting: a 32-bit hash code as hex, e.g. `c437358`. For Java hooks the instance's `Object.hashCode()` (none for static methods), for native hooks a hash of the function's address. Events with the same `hashCode` are about the same object or function. |
 
 A `DecodedValue` (used for each `argsIn`/`argsOut` entry and for `returnValue`) has the shape:
 
@@ -47,11 +48,11 @@ A `DecodedValue` (used for each `argsIn`/`argsOut` entry and for `returnValue`) 
 
 In addition to the [common fields](#common-event-fields), `hook-java` events carry:
 
-| Field           | Type     | Description                                                    |
-| --------------- | -------- | -------------------------------------------------------------- |
-| `javaClassName` | `string` | The hooked Java/Kotlin class.                                  |
-| `method`        | `string` | The hooked method name.                                        |
-| `fieldType`     | `object` | `{ "fieldType": "static" \| "instance", "hashcode?": string }` |
+| Field           | Type     | Description                                                                     |
+| --------------- | -------- | ------------------------------------------------------------------------------- |
+| `javaClassName` | `string` | The hooked Java/Kotlin class.                                                   |
+| `method`        | `string` | The hooked method name.                                                         |
+| `fieldType`     | `object` | `{ "fieldType": "static" \| "instance" }`, whether the hooked method is static. |
 
 **Example:**
 
@@ -62,7 +63,7 @@ In addition to the [common fields](#common-event-fields), `hook-java` events car
   "type": "hook-java",
   "javaClassName": "org.owasp.mastestapp.MastgTest",
   "method": "receiveString",
-  "fieldType": { "fieldType": "static" },
+  "fieldType": { "fieldType": "instance" },
   "stackTrace": {
     "platformStackTrace": [
       "org.owasp.mastestapp.MastgTest.receiveString (MastgTest.kt:-1)",
@@ -89,11 +90,12 @@ In addition to the [common fields](#common-event-fields), `hook-java` events car
 
 In addition to the [common fields](#common-event-fields), `hook-native` events carry:
 
-| Field    | Type     | Description                                                                                                                                                                            |
-| -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `module` | `string` | The hooked native module's name.                                                                                                                                                       |
-| `symbol` | `string` | The hooked native symbol's name. Only for hooks declared with `symbol`.                                                                                                                |
-| `offset` | `string` | The hooked function's offset from the module's base address, e.g. `0x1a2b4`. Only for hooks declared with [`offset`](./native-hook-declaration.md#hooking-functions-without-a-symbol). |
+| Field     | Type     | Description                                                                                                                                                                            |
+| --------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `module`  | `string` | The hooked native module's name.                                                                                                                                                       |
+| `symbol`  | `string` | The hooked native symbol's name. Only for hooks declared with `symbol`.                                                                                                                |
+| `offset`  | `string` | The hooked function's offset from the module's base address, e.g. `0x1a2b4`. Only for hooks declared with [`offset`](./native-hook-declaration.md#hooking-functions-without-a-symbol). |
+| `address` | `string` | The hooked function's address in the process, e.g. `0x763e4c3a2f10`.                                                                                                                   |
 
 **Example:**
 
@@ -104,6 +106,7 @@ In addition to the [common fields](#common-event-fields), `hook-native` events c
   "type": "hook-native",
   "module": "libreceiveFundamentalReference.so",
   "symbol": "reverse_byte_array",
+  "address": "0x763e4c3a2f10",
   "stackTrace": {
     "platformStackTrace": [
       "org.owasp.mastestapp.MastgTest.receiveFundamentalReferenceJNI (MastgTest.kt:-2)",

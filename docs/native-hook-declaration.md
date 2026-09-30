@@ -115,7 +115,7 @@ hooks:
   - [malloc, { hashCode: true }]
 ```
 
-This hooks `malloc` from `libc.so`, with `hashCode` enabled for that hook only, so its events carry the function's address.
+This hooks `malloc` from `libc.so`, with `hashCode` enabled for that hook only, so its events carry a hash code of the function's address. Every native event also carries the function's `address`.
 
 ## Hooking Functions Without a Symbol
 

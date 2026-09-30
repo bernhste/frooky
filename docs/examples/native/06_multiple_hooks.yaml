@@ -13,7 +13,11 @@ metadata:
 hookCollection:
   # Two hooks on receive_int: each call produces two events, one decoding
   # only the first argument and one decoding both arguments and the return value.
+  # Both events carry the same `address`, and with `hashCode` the same hashCode:
+  # they are about the same function.
   - module: libreceiveFundamentalValue.so
+    decoderSettings:
+      hashCode: true
     hooks:
       - symbol: receive_int
         params:

@@ -157,7 +157,7 @@ Example Output (pretty-printed for readability):
     "javaClassName": "javax.crypto.Cipher",
     "method": "doFinal",
     "fieldType": {
-        "fieldType": "static"
+        "fieldType": "instance"
     },
     "stackTrace": {
       "platformStackTrace": [

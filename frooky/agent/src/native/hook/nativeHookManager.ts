@@ -9,7 +9,7 @@ import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { NativeHook } from "./nativeHook";
-import { NativeHookEvent } from "./nativeHookEvent";
+import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
 
 // the most bytes the Interceptor overwrites at a hooked address (an absolute jump on x86_64 or arm64)
 const INTERCEPTOR_PATCH_BYTES = 16;
@@ -25,6 +25,8 @@ type InstalledNativeHook = {
   hasFloatArgs: boolean;
   floatRetSlot: ReturnType<typeof planFloatRetTypeSlot>;
   needsStackTrace: boolean | undefined;
+  // the same for every call
+  hashCode?: string;
 };
 
 type HookedFunction = { listener?: InvocationListener; hooks: InstalledNativeHook[] };
@@ -168,6 +170,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         hook.hookSettings.platformStackTrace ||
         hook.hookSettings.nativeStackTrace ||
         (hook.hookSettings.stackTraceFilter && hook.hookSettings.stackTraceFilter.length > 0),
+      hashCode: hook.decoderSettings.hashCode ? addressHashCode(hook.symbolAddress) : undefined,
     };
   }
 
@@ -283,7 +286,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         decodedRetValue = this.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
       }
 
-      this.frookyAgent.addEventToLog(new NativeHookEvent(hook, decodedArgs, decodedRetValue, call.stackTrace));
+      this.frookyAgent.addEventToLog(new NativeHookEvent(hook, call.installedHook.hashCode, decodedArgs, decodedRetValue, call.stackTrace));
     } catch (e) {
       if (!(e instanceof FilterMismatchError)) {
         logger.error(`Error during 'onLeave' of ${target}: ${e}`);

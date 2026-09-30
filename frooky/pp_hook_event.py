@@ -263,6 +263,12 @@ def _format_hook(out: _Lines, hook: dict, id_key: str, id_label: str, fn_key: st
     _add_field(out, id_label, hook.get(id_key, "?"))
     colors_in, colors_out = _param_colors(args_in, args_out)
     _add_field(out, fn_label, _signature_spans(hook.get(fn_key, "?"), args_in, colors_in))
+    # native events only
+    if "address" in hook:
+        _add_field(out, "address", hook["address"])
+    # only with the `hashCode` decoder setting, and never for static Java methods
+    if "hashCode" in hook:
+        _add_field(out, "hashCode", hook["hashCode"])
 
     if args_in:
         _add_arguments(out, _LABEL_ARGS_IN, args_in, colors_in)

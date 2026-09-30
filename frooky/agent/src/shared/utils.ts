@@ -208,6 +208,11 @@ export function trimIncompleteUtf8Tail(bytes: Uint8Array): Uint8Array {
   return bytes;
 }
 
+// A 32-bit hash code as unsigned hex, like Java's `Integer.toHexString()`, e.g. `-1` -> `ffffffff`
+export function formatHashCode(hashCode: number): string {
+  return (hashCode >>> 0).toString(16);
+}
+
 // The first `limit` UTF-16 code units of `text`, ending with "..." if cut off. A surrogate pair (e.g. an emoji)
 // cut in half at the end is dropped.
 export function truncateString(text: string, limit: number): string {

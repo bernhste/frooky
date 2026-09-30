@@ -10,11 +10,19 @@ export class JavaHookEvent extends HookEvent {
   readonly method: string;
   readonly fieldType: FieldType;
 
-  constructor(hook: JavaHook, fieldType: FieldType, decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: HookStackTrace) {
+  constructor(
+    hook: JavaHook,
+    fieldType: FieldType,
+    hashCode: string | undefined,
+    decodedArgs?: DecodedArgs,
+    returnValue?: DecodedValue,
+    stackTrace?: HookStackTrace,
+  ) {
     super(decodedArgs, returnValue, stackTrace);
     this.type += "-java";
     this.javaClassName = String(hook.method.holder.$className);
     this.method = hook.methodName;
     this.fieldType = fieldType;
+    this.hashCode = hashCode;
   }
 }

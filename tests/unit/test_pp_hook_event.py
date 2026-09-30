@@ -147,6 +147,44 @@ class TestPpHookEvent:
         assert "libfoo.so" in out
         assert "0x1a2b4()" in out
 
+    def test_native_hook_prints_address_and_hash_code_below_the_function(self):
+        hook = {
+            "type": "hook-native",
+            "timestamp": "t",
+            "module": "libc.so",
+            "symbol": "open",
+            "address": "0x7b3c2a1f40",
+            "hashCode": "3c2a1f3b",
+            "argsIn": [],
+        }
+
+        lines = _plain(format_hook_event(hook))
+
+        assert lines[3:6] == ["│ function:     open()", "│ address:      0x7b3c2a1f40", "│ hashCode:     3c2a1f3b"]
+
+    def test_java_hook_prints_hash_code_below_the_method(self):
+        hook = {
+            "type": "hook-java",
+            "timestamp": "t",
+            "javaClassName": "org.owasp.mastestapp.MastgTest",
+            "method": "receiveString",
+            "fieldType": {"fieldType": "instance"},
+            "hashCode": "c437358",
+            "argsIn": [],
+        }
+
+        lines = _plain(format_hook_event(hook))
+
+        assert lines[3:5] == ["│ method:       receiveString()", "│ hashCode:     c437358"]
+
+    def test_hook_without_address_and_hash_code_prints_neither(self):
+        hook = {"type": "hook-java", "timestamp": "t", "javaClassName": "C", "method": "m", "argsIn": []}
+
+        out = "\n".join(_plain(format_hook_event(hook)))
+
+        assert "address:" not in out
+        assert "hashCode:" not in out
+
     def test_return_value_with_data_is_printed(self, capsys):
         hook = {
             "type": "native-hook",

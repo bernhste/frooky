@@ -49,8 +49,8 @@ export interface DecoderSettings {
   maxItems: number;
 
   /**
-   * Adds an identifier to each event: `Object.hashCode()` of the instance for Java hooks, the function's
-   * address for native hooks. Default: `false`.
+   * Adds a `hashCode` to each event, as 32-bit hex: `Object.hashCode()` of the instance for Java hooks (none for
+   * static methods), a hash of the function's address for native hooks. Default: `false`.
    */
   hashCode: boolean;
 

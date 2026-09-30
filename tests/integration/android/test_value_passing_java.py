@@ -405,34 +405,46 @@ class TestValuePassingJava:
         run_frooky(non_matching_hook_file, TARGET_APP, expect_events=False)
         assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 0
 
-    def test_same_method_hooked_twice_records_one_event_per_declaration(self, run_frooky, count_matched_events):
+    def test_same_method_hooked_twice_records_one_event_per_declaration(self, run_frooky, find_matched_events):
         """Multiple hooks (see additional-features.md): two declarations of the same method each record their own
-        event per call, decoded with their own params."""
+        event per call, decoded with their own params. `hashCode` shows both events are about the same instance, the
+        MastgTest object that receiveInt is called on as well."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - javaClass: {MASTG_CLASS}
+                decoderSettings:
+                  hashCode: true
                 hooks:
                   - method: receiveString
                     overloads:
                       - params:
                           - [java.lang.String, first]
-              - javaClass: {MASTG_CLASS}
-                hooks:
                   - method: receiveString
                     overloads:
                       - params:
                           - [java.lang.String, second]
+                  - receiveInt
             """)
 
         run_frooky(hook_file, TARGET_APP)
 
+        events = []
         for name in ["first", "second"]:
             expected = {
                 "javaClassName": MASTG_CLASS,
                 "method": "receiveString",
+                "fieldType": {"fieldType": "instance"},
                 "argsIn": [{"type": "java.lang.String", "name": name, "value": "Welcome the first OWASP MASCon 📱❤️"}],
             }
-            assert count_matched_events(expected) == 1, f"the '{name}' declaration did not fire exactly once."
+            matched = find_matched_events(expected)
+            assert len(matched) == 1, f"the '{name}' declaration did not fire exactly once."
+            events += matched
+        events += find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"})
+
+        assert len(events) == 3
+        hash_codes = {event["hashCode"] for event in events}
+        assert len(hash_codes) == 1, f"expected the same instance in every event, got {hash_codes}"
+        assert re.fullmatch(r"[0-9a-f]{1,8}", hash_codes.pop())
 
     def test_identical_declarations_record_one_event(self, run_frooky, count_matched_events):
         """An identical declaration repeated in one hook file is hooked once."""
