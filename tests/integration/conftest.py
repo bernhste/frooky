@@ -15,6 +15,7 @@ from appium import webdriver
 from appium.options.android import UiAutomator2Options
 from appium.options.ios import XCUITestOptions
 from appium.webdriver.common.appiumby import AppiumBy
+from selenium.common.exceptions import StaleElementReferenceException, WebDriverException
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -33,13 +34,15 @@ NEW_COMMAND_TIMEOUT = 600
 
 FROOKY_READY_TIMEOUT = 60
 FROOKY_EVENT_TIMEOUT = 60
-FROOKY_EVENT_SETTLE = 5
+# the agent sends queued events every 100 ms (SEND_INTERVAL_MS), so 1 s covers the last batch
+FROOKY_EVENT_SETTLE = 1
 FROOKY_STOP_TIMEOUT = 60
-# grace period for tests that expect the click to produce NO events at all (e.g. a stackTraceFilter
-# that matches nothing), long enough for the app's test flow to run to completion either way.
-FROOKY_NO_EVENTS_GRACE = 10
+# how long to let the app's test flow run on platforms without a result locator
+MASTG_RESULT_FALLBACK_WAIT = 10
 
 MAIN_ACTIVITY = "org.owasp.mastestapp.MainActivity"
+# the result text view shows only this until mastgTest() has returned
+MASTG_DEFAULT_MESSAGE = 'Click "Start" to run the test.'
 
 # frooky always writes ./output.json relative to its working directory
 FROOKY_WORKING_DIR = Path(__file__).parent
@@ -117,8 +120,6 @@ def _build_options(platform, app_bundle_id):
         options = UiAutomator2Options()
         options.app_package = app_bundle_id
         options.app_activity = MAIN_ACTIVITY
-        # a fresh process per test: an app left stuck by a failed run (e.g. frooky killed while detaching)
-        # otherwise times out every following attach
         options.set_capability("appium:forceAppLaunch", True)
     else:
         options = XCUITestOptions()
@@ -136,7 +137,11 @@ def _wait_for_pid(driver, platform, app_bundle_id):
     deadline = time.monotonic() + APP_START_TIMEOUT
     while time.monotonic() < deadline:
         if platform == "android":
-            output = driver.execute_script("mobile: shell", {"command": "pidof", "args": [app_bundle_id]})
+            try:
+                output = driver.execute_script("mobile: shell", {"command": "pidof", "args": [app_bundle_id]})
+            except WebDriverException:
+                # pidof exits with 1 while the process doesn't exist yet
+                output = ""
             pid = (output or "").strip().split(" ")[0]
         else:
             info = driver.execute_script("mobile: activeAppInfo") or {}
@@ -160,20 +165,36 @@ def _new_session(options):
             time.sleep(NEW_SESSION_RETRY_DELAY)
 
 
+@pytest.fixture(scope="session")
+def appium_drivers():
+    """One Appium session per platform, shared by all tests: starting UiAutomator2 per test is slow."""
+    drivers = {}
+    yield drivers
+    for driver in drivers.values():
+        driver.quit()
+
+
 @pytest.fixture
-def app_session(platform):
-    """Launch the target app and hand out a driver bound to it."""
-    drivers = []
+def app_session(platform, appium_drivers):
+    """Launch a fresh process of the target app and hand out a driver bound to it."""
 
     def _launch(app_bundle_id):
-        driver = _new_session(_build_options(platform, app_bundle_id))
-        drivers.append(driver)
+        driver = appium_drivers.get(platform)
+        if driver is not None:
+            # a fresh process per test: an app left stuck by a failed run (e.g. frooky killed while
+            # detaching) otherwise times out every following attach
+            try:
+                driver.terminate_app(app_bundle_id)
+                driver.activate_app(app_bundle_id)
+            except WebDriverException:
+                appium_drivers.pop(platform)
+                driver = None
+        if driver is None:
+            driver = _new_session(_build_options(platform, app_bundle_id))
+            appium_drivers[platform] = driver
         return driver, _wait_for_pid(driver, platform, app_bundle_id)
 
-    yield _launch
-
-    for driver in drivers:
-        driver.quit()
+    return _launch
 
 
 @pytest.fixture
@@ -185,6 +206,20 @@ def mastg_app_click_start(platform):
         WebDriverWait(driver, UI_TIMEOUT).until(EC.element_to_be_clickable(locator)).click()
 
     return _flow
+
+
+@pytest.fixture
+def mastg_app_wait_for_result(platform):
+    """Wait until the app shows the result of mastgTest(), i.e. every hooked call has happened."""
+
+    def _wait(driver):
+        if platform != "android":
+            time.sleep(MASTG_RESULT_FALLBACK_WAIT)
+            return
+        locator = (AppiumBy.ANDROID_UIAUTOMATOR, 'new UiSelector().textStartsWith("Click ")')
+        WebDriverWait(driver, UI_TIMEOUT, ignored_exceptions=[StaleElementReferenceException]).until(lambda d: d.find_element(*locator).text.strip() != MASTG_DEFAULT_MESSAGE)
+
+    return _wait
 
 
 @pytest.fixture
@@ -272,13 +307,11 @@ def _wait_for_events(process, chunks, output_file_path):
 
 def _wait_after_click_with_no_events_expected(process, chunks):
     """For tests where the click should legitimately produce zero events (e.g. an event-level
-    stackTraceFilter that matches nothing): just give the app's test flow time to run to
-    completion, without treating an empty output.json as a failure."""
-    deadline = time.monotonic() + FROOKY_NO_EVENTS_GRACE
-    while time.monotonic() < deadline:
-        if process.poll() is not None:
-            _fail(f"frooky exited with {process.returncode} unexpectedly", process, chunks)
-        time.sleep(0.5)
+    stackTraceFilter that matches nothing): give the last batch time to arrive, without treating
+    an empty output.json as a failure."""
+    time.sleep(FROOKY_EVENT_SETTLE)
+    if process.poll() is not None:
+        _fail(f"frooky exited with {process.returncode} unexpectedly", process, chunks)
 
 
 def _stop_frooky(process):
@@ -293,7 +326,7 @@ def _stop_frooky(process):
 
 
 @pytest.fixture
-def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, tmp_path):
+def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, mastg_app_wait_for_result, tmp_path):
     def _run_frooky(hook_file_yaml, target_app, expect_events=True):
         """Launch target_app, attach frooky with hook_file_yaml, then click Start.
 
@@ -337,6 +370,7 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, t
 
             # 3. only now trigger the UI
             mastg_app_click_start(driver)
+            mastg_app_wait_for_result(driver)
 
             # 4. the events are produced by the click, so wait for them here
             if expect_events:
