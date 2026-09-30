@@ -41,6 +41,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 - `.github/workflows/publish-host.yml` publishing is disabled. Don't re-enable it unless asked.
 - Use `npm ci`, not `npm install`, unless you are adding a dependency. CI uses Node 24 and Python 3.14; minimum Python is 3.10.
 - Use `git --no-pager` for git commands.
+- **No git commits/pushes:** Never run `git commit` or `git push`. Only inspect changes (`git status`, `git diff`). All staging, committing, and pushing is done by the user.
 
 ## Conventions
 
