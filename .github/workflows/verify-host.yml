@@ -29,6 +29,7 @@ jobs:
         with:
           enable-cache: true
           python-version: "3.14"
+          activate-environment: true
 
       - name: Download host artifact
         uses: actions/download-artifact@v8
@@ -36,14 +37,9 @@ jobs:
           name: frooky-host
           path: dist
 
-      - name: Set up virtual environment
-        run: |
-          uv venv
-          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
-          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
-
+      # resolves dependencies from the wheel metadata, not uv.lock, like a user install
       - name: Install wheel
-        run: uv pip install --python "$GITHUB_WORKSPACE/.venv" dist/*.whl
+        run: uv pip install dist/*.whl
 
       - name: Verify frooky CLI
         run: frooky --help

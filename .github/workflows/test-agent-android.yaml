@@ -34,13 +34,11 @@ jobs:
         with:
           enable-cache: false
           python-version: "3.14"
+          activate-environment: true
 
+      # frida and frida-tools from uv.lock; install-frida-server.sh matches the server to `frida --version`
       - name: Install frida-tools
-        run: |
-          uv venv
-          echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
-          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
-          uv pip install --python "$GITHUB_WORKSPACE/.venv" "frida-tools>=14.10.4"
+        run: uv sync --locked --no-install-project --no-dev
 
       - name: Setup Android emulator environment
         uses: ./.github/actions/setup-android-emulator

@@ -8,6 +8,7 @@ runs:
       with:
         enable-cache: true
         python-version: "3.14"
+        activate-environment: true
 
     - name: Download host artifact
       uses: actions/download-artifact@v8
@@ -15,15 +16,9 @@ runs:
         name: frooky-host
         path: dist
 
+    # locked dependencies first, then the built wheel instead of an editable install of the source tree
     - name: Install frooky and dev dependencies
       shell: bash
       run: |
-        uv venv
-        echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> "$GITHUB_ENV"
-        echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
-
-        echo "Installing frooky"
-        uv pip install --python "$GITHUB_WORKSPACE/.venv" dist/*.whl
-
-        echo "Installing dev dependencies from pyproject.toml"
-        uv pip install --python "$GITHUB_WORKSPACE/.venv" --group dev -r pyproject.toml
+        uv sync --locked --no-install-project
+        uv pip install dist/*.whl
