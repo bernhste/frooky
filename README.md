@@ -9,19 +9,22 @@
                                      |___/
 ```
 
-`frooky` is a [Frida](https://www.frida.re/)-based dynamic analysis tool for Android and iOS apps based on YAML hook files.
-
 ![PyPI - Version](https://img.shields.io/pypi/v/frooky?color=fuchsia) [![Verify host](https://github.com/bernhste/frooky/actions/workflows/verify-host.yml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/verify-host.yml) [![Test host Android](https://github.com/bernhste/frooky/actions/workflows/test-host-android.yml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/test-host-android.yml) [![Test agent Android](https://github.com/bernhste/frooky/actions/workflows/test-agent-android.yaml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/test-agent-android.yaml)
 
-- Hook Java/Kotlin methods and native C/C++ functions
-- Simple YAML hook file format
+```mermaid
+flowchart LR
+    A["<b>hooks.yaml</b><br/>structured YAML:<br/>what to hook"] --> B["<b>frooky</b><br/>hooks the app<br/>via Frida"] --> C["<b>output.json</b><br/>structured JSON:<br/>decoded events"]
+```
+
+`frooky` is a [Frida](https://www.frida.re/)-based dynamic analysis tool for Android and iOS apps with the purpose of simplifying function hooking and runtime data decoding.
+
+- Hook Java/Kotlin methods and native C/C++ functions (Objective-C/Swift support for iOS is planned)
+- Structured YAML input for hook declarations
+- Structured NDJSON output for easy event processing
 - Support for method overloads and stack trace capture
 - Argument capture with various data types
 - Return value capture with various data types
 - Filter hooks by argument values or stack trace patterns
-- Output events in JSON Lines format for easy processing
-
-Use it, if you want to quickly hook functions or methods and access decoded runtime data withouth writing Frida scripts.
 
 ## Installation
 
@@ -37,37 +40,34 @@ pip install frooky
 
 Create a hook file (e.g., `hooks.yaml`) with the functions and/or methods you want to hook.
 
-If you are already familiar with Frida and function hooking, we recommend using the documented examples as a quick starting point. You find them in the folder [docs/examples/](./docs/examples/), one folder per topic (see its [README](./docs/examples/README.md)).
-
-For more information, read all about the structure in chapter [Structure of a Hook File](#structure-of-a-hook-file).
+Read all about the [Structure of a Hook File](#structure-of-a-hook-file) or use the [documented examples](./docs/examples/README.md) as a quick starting point.
 
 After you created the desired hook file, run `frooky`:
 
 ```bash
-# Attach by app name
-frooky -U -n org.owasp.mastestapp hooks.yaml
+# Attach by app name and show the events on the terminal
+frooky -U -n org.owasp.mastestapp resilience.yaml -e
 
-# Spawn and load multiple hook files (hooks are merged)
-frooky -U -f org.owasp.mastestapp storage.yaml crypto.yaml
+# Attach to the frontmost application and load an additional script
+frooky -U -F webview.yaml -l disable-flutter-tls.js
 
-# Spawn and load multiple hook files using globs (hooks are merged)
-frooky -U -f org.owasp.mastestapp hooks_*.yaml
+# Spawn and load multiple hook files (hooks are merged) and show very verbose output
+frooky -U -f org.owasp.mastestapp storage.yaml crypto.yaml -vv
+
+# Spawn and load multiple hook files using globs (hooks are merged) and use V8 JavaScript engine
+frooky -U -f org.owasp.mastestapp hooks_platform_*.yaml --runtime v8
 
 # Watch the hook files and apply changes while the app keeps running
-frooky -U -f org.owasp.mastestapp -w hooks.yaml
+frooky -U -f org.owasp.mastestapp biometry.yaml -w
 ```
 
-With `-w`/`--watch`, frooky applies a hook file whenever you save it. Only hooks whose declaration or effective settings changed are hooked again. Removed hooks are unhooked, and unchanged hooks keep running. Unchanged hooks that failed to resolve are not retried on save. If the file cannot be parsed, the previous version stays active.
-
-Press `R` while frooky runs, with or without `--watch`, to reload all hook files and retry the hooks that failed to resolve, e.g. once the app has loaded the class or library. Hooks that are already installed and unchanged keep running.
-
-See `frooky -h` for more options.
+See `frooky -h` for all options.
 
 ## Structure of a Hook File
 
 frooky uses _hook files_, which are structured YAML files including declarations of methods or functions to be hooked.
 
-A hook file consists of optional metadata and a list of _hook declarations_ called `hookCollection` . The following YAML file describes the basic structure:
+A hook file consists of optional metadata and a list of _hook declarations_ called `hookCollection`. The following YAML file describes the basic structure:
 
 ```yaml
 metadata:                         # All metadata is optional
@@ -78,7 +78,7 @@ metadata:                         # All metadata is optional
   author: <author>                # Your name or organization
   version: <version>              # Version number of the hook collection (e.g., 1)
 
-settings:                         # Optional. Default hookSettings/decoderSettings applied to every hook collection
+settings:                         # Optional. Default hookSettings/decoderSettings applied to all hook declarations
   hookSettings: { ... }
   decoderSettings: { ... }
 
@@ -90,7 +90,7 @@ hookCollection:                   # Collection of hook declarations
 
 Depending on the platform, the `<hook_declaration>` may look different. Please read the linked platform-specific documentation for more information.
 
-frooky supports these types of hooks:
+At the moment, frooky supports these types of hooks:
 
 | Hook Type    | Platform    | Description                                 | Documentation                                                 |
 | ------------ | ----------- | ------------------------------------------- | ------------------------------------------------------------- |
@@ -98,13 +98,13 @@ frooky supports these types of hooks:
 | `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
 
 > [!NOTE]
-> `hookCollection` may freely mix different hook declarations within the same hook file, as long as they are compatible to the platform. For example an Android hook file with `JavaHook` and `NativeHook` is valid.
+> iOS support is not yet complete. Hooks for Objective-C and Swift methods are [planned](https://github.com/bernhste/frooky/tree/feature/ios-agent-poc). Until then, you can use the `NativeHook` with iOS.
 
 ## Parameter- and Return-Type Declaration
 
 frooky can decode data passed to functions or methods via arguments, including their return values.
 
-Depending on the value types, this can be simple or more complex. frooky tries to decode arguments and return values by itself if possible. But in some cases, e.g. when the value is simply a pointer, it is necessary to provide information about the types used. Before writing a hook declaration, it is therefore recommended to read the following documentation:
+Depending on the value types, this can be simple or more complex. frooky tries to decode arguments and return values by itself if possible. But in some cases, e.g. when the value is simply a native pointer, it is necessary to provide information about the types used. Before writing a hook declaration, it is therefore recommended to read the following documentation:
 
 - [Parameter Declaration](docs/parameter-declaration.md)
 - [Return Type Declaration](docs/return-type-declaration.md)
@@ -116,7 +116,7 @@ Depending on the value types, this can be simple or more complex. frooky tries t
 
 We'll use the OWASP MAS [MASTG-DEMO-0106](https://mas.owasp.org/MASTG/demos/android/MASVS-RESILIENCE/MASTG-DEMO-0106/MASTG-DEMO-0106/) app to demonstrate hooking a cryptographic en-/decryption method.
 
-First you need to create a hook file, e.g., `cipher.yaml`:
+First you need to create a hook file, e.g., `cipher_dofinal.yaml`:
 
 ```yaml
 metadata:
@@ -138,12 +138,10 @@ hookCollection:
 Then run `frooky` with the hook file against your target app:
 
 ```bash
-frooky -U -f org.owasp.mastestapp cipher.yaml
+frooky -U -f org.owasp.mastestapp cipher_dofinal.yaml
 ```
 
-Events are written to the output file as newline-separated batches, each line a JSON array of the events captured in that batch (see [Understanding Output Format](./docs/output.md) for the full schema).
-
-Example Output (pretty-printed for readability):
+Events are written to the output file as newline-separated batches, each line a JSON array of the events captured in that batch (see [Understanding Output Format](./docs/output.md) for the full schema). A single event, pretty-printed:
 
 ```json
 {
@@ -183,6 +181,6 @@ Example Output (pretty-printed for readability):
 
 Please refer to the following documentation for more information about various topics:
 
+- [Understanding Output Format](./docs/output.md)
 - [Additional Settings and Best Practices](./docs/additional-features.md)
 - [Development / Local Testing](./docs/develop.md)
-- [Understanding Output Format](./docs/output.md)
