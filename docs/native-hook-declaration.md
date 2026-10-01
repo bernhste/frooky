@@ -194,11 +194,13 @@ int OSSL_CMP_validate_cert_path(const OSSL_CMP_CTX *ctx,
 
 When these types are declared, frooky can decode arguments and return values using its built in decoders.
 
-If a type is more complex, you may need further [decoder settings](./decoders.md#decoder-settings), such as `decoderArg` or `direction`, to decode it correctly.
+A pointer to one of these types is read as that type, e.g. `int *` as an `int` and `char **` as the string that `char *` points to. With a `decoderArg`, a pointer is an array, see [Native Pointers and Arrays](./decoders-native.md#pointers-and-arrays).
+
+If a type is more complex, you may need further [decoder settings](./decoders.md#decoder-settings) (see also [Decoders for Native Hooks](./decoders-native.md)), such as `decoderArg` or `direction`, to decode it correctly.
 
 ## Hook and Decoder Settings
 
-`hookSettings` (e.g. `nativeStackTrace`, `platformStackTrace`, `maxStackFrames`, `stackTraceFilter`) and `decoderSettings` (e.g. `maxDepth`, `maxItems`) can be declared on the hook collection (applying to every hook in it) or on an individual hook (overriding the hook collection for that hook only). See [Additional Features](./additional-features.md#settings-precedence) and [Decoders](./decoders.md) for the full list of options and how the file-level `settings`, the hook collection, an individual hook, and a parameter or return type are merged together.
+`hookSettings` (e.g. `nativeStackTrace`, `platformStackTrace`, `maxStackFrames`, `stackTraceFilter`) and `decoderSettings` (e.g. `maxDepth`, `maxItems`) can be declared on the hook collection (applying to every hook in it) or on an individual hook (overriding the hook collection for that hook only). See [Additional Features](./additional-features.md#settings-precedence), [Decoders](./decoders.md) and [Decoders for Native Hooks](./decoders-native.md) for the full list of options and how the file-level `settings`, the hook collection, an individual hook, and a parameter or return type are merged together.
 
 **Example:**
 

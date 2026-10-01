@@ -65,8 +65,8 @@ hookCollection:
       - ["const unsigned char *", in, { decoderArg: inl }]
       - [int, inl]
 
-  # Use `decoderArg` to pass a related parameter for decoding context.
-  # Here, `ctx` contains cipher algorithm info needed to decode `key` and `iv` correctly.
+  # `key` and `iv` have no length parameter: their lengths depend on the cipher (e.g. 32 and 12 bytes for
+  # AES-256-GCM), which no decoder reads from `type`. As `void *`, they are shown as their addresses.
   # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
   - module: libcrypto.so
     hookSettings:
@@ -78,10 +78,10 @@ hookCollection:
       - ["EVP_CIPHER_CTX *", ctx]
       - ["const EVP_CIPHER *", type]
       - ["ENGINE *", impl]
-      - ["const unsigned char *", key, { decoderArg: ctx }]
-      - ["const unsigned char *", iv, { decoderArg: ctx }]
+      - ["const void *", key]
+      - ["const void *", iv]
 
-  # Pass decoder parameters to decode buffer contents based on related parameters.
+  # `decoderArg` passes the length of `buf`, since it isn't NUL-terminated.
   # Docs: https://docs.openssl.org/master/man3/SSL_write/
   - module: libssl.so
     hooks:
@@ -93,9 +93,9 @@ hookCollection:
       - [int, num]
 
 
-  # Use `direction: out` to decode buffer contents after function execution.
-  # Since `buf` is a pointer, we need to decode it at exit using the `count` parameter for the length.
-  # Pass `decoderArg` with the length parameter name/index.
+  # `read` writes up to `count` bytes into `buf` and returns how many it wrote, so `buf` is decoded on return
+  # (`direction: out`) with the return value as its length (`decoderArg: $ret`). A return value of -1 (an
+  # error) decodes `buf` as null.
   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
   - module: libc.so
     hooks:
@@ -103,9 +103,19 @@ hookCollection:
       retType: ssize_t
       params:
       - [int, fd]
-      - [void *, buf, { direction: inout, decoderArg: count, decoder: string, maxItems: 100 }]
+      - [void *, buf, { direction: out, decoderArg: $ret, decoder: string, maxItems: 100 }]
       - [size_t, count]
 
+  # The same for TLS: the plaintext an app receives, before it's parsed.
+  # Docs: https://docs.openssl.org/master/man3/SSL_read/
+  - module: libssl.so
+    hooks:
+    - symbol: SSL_read
+      retType: int
+      params:
+      - ["SSL *", ssl]
+      - ["void *", buf, { direction: out, decoderArg: $ret, decoder: string }]
+      - [int, num]
 
   # Use `decoder: string` to decode a buffer as text instead of hex/ASCII.
   # `decoderArg` passes the buffer length, since `buf` is not NUL-terminated.

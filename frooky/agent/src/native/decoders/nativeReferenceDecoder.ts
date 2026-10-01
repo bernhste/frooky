@@ -26,7 +26,8 @@ const readHex = (input: NativePointer, length: number, maxItems: number): string
 
 const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
   void: (input, setting, arg) => {
-    // only decoded (as hex) with a decoderArg, the buffer length
+    // the pointee is unknown without a decoderArg (the buffer length), so only the address is shown
+    if (!arg) return input.toString();
     try {
       if (arg) {
         const length = parseLengthArgValue(arg.value);
@@ -79,13 +80,43 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
   double: (input) => input.readDouble(),
 };
 
+// Size in bytes of one element of a `T *` array, e.g. 4 for `int *`.
+const POINTEE_SIZES: Record<FridaFundamentalType, () => number> = {
+  void: () => 1,
+  bool: () => 1,
+  char: () => 1,
+  uchar: () => 1,
+  int8: () => 1,
+  uint8: () => 1,
+  int16: () => 2,
+  uint16: () => 2,
+  int: () => 4,
+  int32: () => 4,
+  uint: () => 4,
+  uint32: () => 4,
+  float: () => 4,
+  long: () => Process.pointerSize,
+  ulong: () => Process.pointerSize,
+  size_t: () => Process.pointerSize,
+  ssize_t: () => Process.pointerSize,
+  int64: () => 8,
+  uint64: () => 8,
+  double: () => 8,
+};
+
+// For these, a decoderArg is the length of a buffer in bytes, not a number of elements
+const BUFFER_POINTEES = new Set<FridaFundamentalType>(["void", "char", "uchar"]);
+
+// A `T *` is read as one T, a `T **` follows the pointer and reads the `T *` it points to, and so on. With a
+// decoderArg, the outermost pointer is an array of that many elements, e.g. `int *` with 3 is [1, 2, 3] and
+// `char **` with 2 is ["a", "b"]. For `void *`, `char *` and `unsigned char *` the decoderArg is a buffer
+// length instead (see referenceDecoders). A NULL pointer on any level is null.
 export class NativeReferenceDecoder extends Decoder<NativePointer> {
   readonly decoderName = "NativeReferenceDecoder";
   readonly description =
-    "Decodes a native pointer by reading what it points to as its declared type, e.g. `char *` as a string or `int *` as an int.";
+    "Decodes a native pointer by reading what it points to as its declared type, e.g. `char *` as a string, `int *` as an int, `char **` by following both pointers, or an array with the number of elements from `decoderArg`.";
 
   protected fridaReference: FridaReferenceType;
-  protected cachedDecoder: ReferenceDecoder | null = null;
 
   constructor(decodable: Decodable, fridaReference: FridaReferenceType) {
     super(decodable);
@@ -93,13 +124,51 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
   }
 
   public decode(value: NativePointer, arg?: DecodedValue): DecodedValue {
-    if (this.cachedDecoder === null) {
-      this.cachedDecoder = referenceDecoders[this.fridaReference.pointee];
+    let decoded: unknown;
+    try {
+      decoded = this.decodePointer(value, this.fridaReference.depth, arg);
+    } catch (e) {
+      logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} at ${value}: ${e}`);
+      decoded = null;
     }
     return {
       type: this.type,
       name: this.name,
-      value: this.cachedDecoder(value, this.settings, arg),
+      value: decoded,
     };
+  }
+
+  private decodePointer(pointer: NativePointer, depth: number, arg?: DecodedValue): unknown {
+    if (pointer.isNull()) return null;
+    const pointee = this.fridaReference.pointee;
+    if (arg && !(depth === 1 && BUFFER_POINTEES.has(pointee))) {
+      return this.decodeArray(pointer, depth, arg);
+    }
+    if (depth > 1) {
+      return this.decodePointer(pointer.readPointer(), depth - 1);
+    }
+    return referenceDecoders[pointee](pointer, this.settings, arg);
+  }
+
+  // The elements of a pointer to `count` elements, at most `maxItems` of them.
+  private decodeArray(pointer: NativePointer, depth: number, arg: DecodedValue): unknown[] {
+    const count = parseLengthArgValue(arg.value);
+    if (count === undefined || count < 0) {
+      throw Error(`decoderArg must be a non-negative number of elements, but it is: ${arg.value}`);
+    }
+    const maxItems = this.settings.maxItems;
+    const decodeLen = Math.min(count, maxItems);
+    const pointee = this.fridaReference.pointee;
+    const stride = depth > 1 ? Process.pointerSize : POINTEE_SIZES[pointee]();
+
+    const items: unknown[] = new Array(decodeLen);
+    for (let i = 0; i < decodeLen; i++) {
+      const element = pointer.add(i * stride);
+      items[i] = depth > 1 ? this.decodePointer(element.readPointer(), depth - 1) : referenceDecoders[pointee](element, this.settings);
+    }
+    if (count > decodeLen) {
+      items.push(`[truncated at ${maxItems}]`);
+    }
+    return items;
   }
 }

@@ -106,6 +106,16 @@ describe("inputDecodableTypes", () => {
         ]),
       ).toThrow("more than one parameter is named");
     });
+
+    it("accepts the return value as decoderArg of an out param", () => {
+      const params = normalizeInputParams(["int", ["void *", "buf", { direction: "out", decoderArg: "$ret" }], ["size_t", "count"]]);
+      expect(params[1].settings.decoderArg).toBe("$ret");
+    });
+
+    it("throws when the return value is the decoderArg of a param decoded on entry", () => {
+      expect(() => normalizeInputParams(["int", ["void *", "buf", { decoderArg: "$ret" }]])).toThrow("Set 'direction: out' on 'buf'");
+      expect(() => normalizeInputParams(["int", ["void *", "buf", { direction: "inout", decoderArg: "$ret" }]])).toThrow("Set 'direction: out'");
+    });
   });
 
   describe("normalizeInputRetType()", () => {

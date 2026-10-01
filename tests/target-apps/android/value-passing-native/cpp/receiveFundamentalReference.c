@@ -58,6 +58,44 @@ NOINLINE EXPORT int send_message(const void *buf, int len)
     return len;
 }
 
+// Like read(2): writes up to `len` bytes into `buf` and returns how many it wrote.
+NOINLINE EXPORT int read_message(char *buf, int len)
+{
+    const char message[] = "Hello frooky";
+    int n = (int)sizeof(message) - 1;
+    if (n > len)
+        n = len;
+    for (int i = 0; i < n; i++)
+        buf[i] = message[i];
+    return n;
+}
+
+// An array of `count` ints.
+NOINLINE EXPORT int sum_ints(const int *values, int count)
+{
+    int sum = 0;
+    for (int i = 0; i < count; i++)
+        sum += values[i];
+    return sum;
+}
+
+// An array of `count` strings, like the argv of main().
+NOINLINE EXPORT int count_chars(const char **strings, int count)
+{
+    int total = 0;
+    for (int i = 0; i < count; i++)
+        for (const char *c = strings[i]; *c; c++)
+            total++;
+    return total;
+}
+
+// Output parameter: points `*out` to a string, like getline(3) or asprintf(3) do.
+NOINLINE EXPORT int get_version(const char **out)
+{
+    *out = "1.2.3";
+    return 0;
+}
+
 JNIEXPORT jstring JNICALL
 Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI(JNIEnv *env, jobject thiz)
 {
@@ -103,6 +141,19 @@ Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI(JNIEnv *env, 
     get_secret(secret, (int)sizeof(secret));
     const char message[] = "Hello frooky";
     send_message(message, (int)(sizeof(message) - 1));
+
+    // the bytes after the message aren't written by read_message
+    char inbox[32];
+    for (int i = 0; i < (int)sizeof(inbox); i++)
+        inbox[i] = '-';
+    read_message(inbox, (int)sizeof(inbox));
+
+    int values[] = {3, 1, 4, 1, 5};
+    sum_ints(values, 5);
+    const char *names[] = {"alpha", "beta", "gamma"};
+    count_chars(names, 3);
+    const char *version = NULL;
+    get_version(&version);
 
     return (*env)->NewStringUTF(env, "Called functions with primitives received by reference (e.g. void receive_int(int *minValue, int *maxValue)).");
 }

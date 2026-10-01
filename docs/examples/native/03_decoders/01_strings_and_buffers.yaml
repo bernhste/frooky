@@ -2,14 +2,15 @@ metadata:
   name: "Decoders (Native): Strings and Buffers"
   description: |
     `char *` is read as a NUL-terminated string. A `void *` buffer without a terminator needs its length
-    (`decoderArg`) and is shown as hex, or as text with `decoder: string`.
+    (`decoderArg`) and is shown as hex, or as text with `decoder: string`. If the function returns the
+    length, as `read` does, `decoderArg: $ret` passes the return value.
   version: 1
   author: frooky dev
   platform: Android
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/01_strings_and_buffers.yaml
-# See:    docs/decoders.md#decoderarg-pass-arguments-to-decoder
+# See:    docs/decoders-native.md#decoderarg-lengths-and-counts
 
 hookCollection:
   # const char *receive_utf8(const char *s)
@@ -31,6 +32,15 @@ hookCollection:
           - ["void *", text, { decoderArg: len, decoder: string }]
           - [int, len]
 
+      # int read_message(char *buf, int len) writes the 12 bytes of "Hello frooky" into a 32-byte buffer and
+      # returns 12, like read(2). With `$ret` only those 12 bytes are decoded, with `len` all 32 would be.
+      - symbol: read_message
+        retType: int
+        params:
+          - ["void *", buf, { direction: out, decoderArg: $ret, decoder: string }]
+          - [int, len]
+
 # Expected values (argsIn[0].value):
 #   receive_utf8: "Welcome the first OWASP MASCon 📱❤️"
 #   send_message: "0x48656c6c6f2066726f6f6b79" (hex) and "Hello frooky" (decoder: string), one event per hook
+#   read_message: argsOut [{name: buf, value: "Hello frooky"}], returnValue 12

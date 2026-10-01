@@ -57,7 +57,11 @@ function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSetting
   throw new Error(`Unrecognized InputParam format: ${JSON.stringify(input)}`);
 }
 
-// Throws unless every `decoderArg` names exactly one other parameter of the list.
+// The `decoderArg` that passes the return value, e.g. the number of bytes `read` wrote into its buffer.
+export const RETURN_VALUE_DECODER_ARG = "$ret";
+
+// Throws unless every `decoderArg` names exactly one other parameter of the list, or is the return value of an
+// `out` parameter.
 export function normalizeInputParams(inputs: InputParam[], decoderSettings?: DecoderSettings): Param[] {
   if (!Array.isArray(inputs)) {
     throw new Error(`Expected 'params' to be an array, but received ${inputs === undefined ? "undefined" : typeof inputs}.`);
@@ -71,6 +75,14 @@ function validateDecoderArgs(params: Param[]): void {
   params.forEach((param, paramIndex) => {
     const decoderArg = param.settings.decoderArg;
     if (decoderArg === undefined) return;
+    if (decoderArg === RETURN_VALUE_DECODER_ARG) {
+      if (param.direction !== "out") {
+        throw new Error(
+          `decoderArg: '${RETURN_VALUE_DECODER_ARG}' is the return value, which only exists once the call returns. Set 'direction: out' on '${param.name ?? param.type}'.`,
+        );
+      }
+      return;
+    }
 
     const matches = params.map((p, i) => ({ p, i })).filter(({ p }) => p.name === decoderArg);
     if (matches.length === 0) {

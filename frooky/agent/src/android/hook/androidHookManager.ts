@@ -209,23 +209,24 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   private leaveHook(call: JavaHookCall, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any): void {
     const { hook, target, outArgDecoders, retTypeDecoder } = call.installedHook;
     const { decodedArgs } = call;
-    if (outArgDecoders.length > 0) {
-      try {
-        decodedArgs.out = this.decodeArgs(args, outArgDecoders, target);
-      } catch (e) {
-        if (!(e instanceof FilterMismatchError)) {
-          logger.error(`Decoder error during 'onLeave' argument decoding of ${target}: ${e}`);
-        }
-        return;
-      }
-    }
-
+    // first, as `out` parameters with `decoderArg: $ret` need it
     let decodedRetValue: DecodedValue | undefined;
     if (retTypeDecoder) {
       try {
         decodedRetValue = this.decodeValue(retTypeDecoder, returnValue, `${target} return value`);
       } catch (e) {
         logger.error(`Decoder error during return value decoding of ${target}: ${e}`);
+        return;
+      }
+    }
+
+    if (outArgDecoders.length > 0) {
+      try {
+        decodedArgs.out = this.decodeArgs(args, outArgDecoders, target, decodedRetValue);
+      } catch (e) {
+        if (!(e instanceof FilterMismatchError)) {
+          logger.error(`Decoder error during 'onLeave' argument decoding of ${target}: ${e}`);
+        }
         return;
       }
     }

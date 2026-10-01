@@ -10,7 +10,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/02_parameters_and_return_values/02_output_parameters.yaml
-# See:    docs/decoders.md#direction-declare-the-time-of-decoding
+# See:    docs/decoders-native.md#direction-output-parameters
 
 hookCollection:
   - module: libreceiveFundamentalReference.so

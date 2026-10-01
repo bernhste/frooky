@@ -3,6 +3,7 @@ import { Decoder } from "../decoders/baseDecoder";
 import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
+import { RETURN_VALUE_DECODER_ARG } from "../inputParsing/inputDecodableTypes";
 import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
@@ -17,6 +18,8 @@ export type ParamDecoder<TValue> = {
   decoderArg?: string;
   decoderArgIndex?: number;
   decoderArgDecoder?: Decoder<TValue>;
+  // `decoderArg: $ret`: the decoded return value is passed instead of another parameter
+  decoderArgIsReturnValue?: boolean;
   argFilter?: RegExp[];
 };
 
@@ -64,8 +67,10 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     const argDecoderSpecs: ParamDecoder<TValue>[] = [];
 
     params.forEach((param: Param, paramIndex: number) => {
-      const decoderArgResolution = param.settings.decoderArg ? this.resolveDecoderArg(param, paramIndex, params) : undefined;
-      if (param.settings.decoderArg && !decoderArgResolution) {
+      const decoderArgIsReturnValue = param.settings.decoderArg === RETURN_VALUE_DECODER_ARG;
+      const decoderArgResolution =
+        param.settings.decoderArg && !decoderArgIsReturnValue ? this.resolveDecoderArg(param, paramIndex, params) : undefined;
+      if (param.settings.decoderArg && !decoderArgIsReturnValue && !decoderArgResolution) {
         return; // invalid decoderArg, logged by resolveDecoderArg()
       }
 
@@ -78,6 +83,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         decoderArg: param.settings.decoderArg,
         decoderArgIndex: decoderArgResolution?.index,
         decoderArgDecoder: decoderArgResolution?.decoder,
+        decoderArgIsReturnValue,
         argFilter: param.settings.argFilter?.map((pattern) => new RegExp(pattern)),
       };
       logger.debug(
@@ -142,13 +148,16 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return decodedValue;
   }
 
-  // Throws FilterMismatchError if an argument doesn't match its argFilter. `target` is for debug logs.
-  protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[], target: string = "hook"): DecodedValue[] {
+  // Throws FilterMismatchError if an argument doesn't match its argFilter. `target` is for debug logs. `returnValue`
+  // is the decoded return value for `decoderArg: $ret`, only known when decoding `out` parameters.
+  protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[], target: string = "hook", returnValue?: DecodedValue): DecodedValue[] {
     const decodedArgs: DecodedValue[] = [];
     for (const paramDecoder of paramDecoders) {
       const param = `${target} param #${paramDecoder.argIndex}${paramDecoder.name ? ` '${paramDecoder.name}'` : ""}`;
       let decodedDecoderArg: any;
-      if (paramDecoder.decoderArg && paramDecoder.decoderArgIndex !== undefined && paramDecoder.decoderArgDecoder) {
+      if (paramDecoder.decoderArgIsReturnValue) {
+        decodedDecoderArg = returnValue;
+      } else if (paramDecoder.decoderArg && paramDecoder.decoderArgIndex !== undefined && paramDecoder.decoderArgDecoder) {
         decodedDecoderArg = this.decodeValue(
           paramDecoder.decoderArgDecoder,
           args[paramDecoder.decoderArgIndex],

@@ -115,6 +115,8 @@ Depending on the value types, this can be simple or more complex. frooky tries t
 - [Parameter Declaration](docs/parameter-declaration.md)
 - [Return Type Declaration](docs/return-type-declaration.md)
 - [Decoders](docs/decoders.md)
+  - [Decoders for Android Java Hooks](docs/decoders-java.md)
+  - [Decoders for Native Hooks](docs/decoders-native.md)
 
 ## Example
 

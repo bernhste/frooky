@@ -1,6 +1,6 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings } from "../frookySettings";
-import { normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
+import { InputParam, normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
 import {
   InputNativeHookCollection,
   InputNativeHookNormalized,
@@ -205,6 +205,23 @@ describe("inputNativeHookCollection", () => {
         expect(result.hooks).toEqual([
           { symbol: "malloc", module: "libc.so", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
         ]);
+      });
+
+      it("throws when a decoderArg is the return value of a hook without retType", () => {
+        const params: InputParam[] = ["int", ["void *", "buf", { direction: "out", decoderArg: "$ret" }], "size_t"];
+        const withoutRetType: InputNativeHookCollection = {
+          type: "native",
+          module: "libc.so",
+          hooks: [{ symbol: "read", module: "libc.so", params }],
+        };
+        const withRetType: InputNativeHookCollection = {
+          type: "native",
+          module: "libc.so",
+          hooks: [{ symbol: "read", module: "libc.so", params, retType: "ssize_t" }],
+        };
+
+        expect(() => normalizeNativeHookCollection(withoutRetType, defaultSettings)).toThrow("needs the hook to declare a 'retType'");
+        expect(normalizeNativeHookCollection(withRetType, defaultSettings).hooks.length).toBe(1);
       });
 
       it("normalizes params using the merged decoder settings", () => {

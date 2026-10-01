@@ -1,7 +1,7 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
-import { InputParam, InputRetType, normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
+import { InputParam, InputRetType, normalizeInputParams, normalizeInputRetType, RETURN_VALUE_DECODER_ARG } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
@@ -135,11 +135,18 @@ export function normalizeNativeHook(
   }
   const target = hasSymbol ? { symbol: inputHook.symbol! } : { offset: normalizeModuleOffset(inputHook.offset!) };
 
+  const params = inputHook.params ? normalizeInputParams(inputHook.params, mergedDecoderSettings) : undefined;
+  const retType = inputHook.retType ? normalizeInputRetType(inputHook.retType, mergedDecoderSettings) : undefined;
+  // Java hooks know their return type by reflection, a native hook only from its declaration
+  if (!retType && params?.some((param) => param.settings.decoderArg === RETURN_VALUE_DECODER_ARG)) {
+    throw new Error(`decoderArg: '${RETURN_VALUE_DECODER_ARG}' needs the hook to declare a 'retType', to decode the return value.`);
+  }
+
   return {
     ...target,
     module: moduleName,
-    params: inputHook.params ? normalizeInputParams(inputHook.params, mergedDecoderSettings) : undefined,
-    retType: inputHook.retType ? normalizeInputRetType(inputHook.retType, mergedDecoderSettings) : undefined,
+    params,
+    retType,
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
   };

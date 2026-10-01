@@ -131,4 +131,4 @@ int sqlite3_exec(
 
 When hooking a method, frooky tries to decode arguments as well as return values. This is done using decoders, which can be configured per parameter, for example to control the time of decoding or to pass additional context.
 
-See [Decoders](./decoders.md) for what decoders are, the full list of decoder settings, and how to configure them on a parameter.
+See [Decoders](./decoders.md) for what decoders are, the full list of decoder settings, and how to configure them on a parameter. Which decoders exist and how they use these settings is described per platform in [Decoders for Android Java Hooks](./decoders-java.md) and [Decoders for Native Hooks](./decoders-native.md).

@@ -48,8 +48,8 @@ int EVP_DigestFinal_ex(EVP_MD_CTX *ctx,
 
 The function returns an integer. It returns 1 on success and 0 on failure.
 
-If you also want to customize how the return value is decoded, see [Decoders for Return Types](./decoders.md#decoders-for-return-types).
+If you also want to customize how the return value is decoded, see [Return Values](./decoders-native.md#return-values) in the decoders for native hooks.
 
 ### Java Return Types
 
-In Java, the method signature can be retrieved at runtime, so you never declare the return type itself. To customize how the return value is decoded, `retType` accepts only decoder settings (e.g. `retType: { decoder: string }`). See [Decoders for Return Types](./decoders.md#decoders-for-return-types).
+In Java, the method signature can be retrieved at runtime, so you never declare the return type itself. To customize how the return value is decoded, `retType` accepts only decoder settings (e.g. `retType: { decoder: string }`). See [Return Values](./decoders-java.md#return-values) in the decoders for Java hooks.

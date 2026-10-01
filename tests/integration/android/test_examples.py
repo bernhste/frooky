@@ -399,6 +399,20 @@ class TestNativeExamples:
         assert _values(utf8["argsIn"]) == ["Welcome the first OWASP MASCon 📱❤️"]
         messages = sorted((event["argsIn"][0]["name"], event["argsIn"][0]["value"]) for event in self._events(find_matched_events, "send_message"))
         assert messages == [("buf", "0x48656c6c6f2066726f6f6b79"), ("text", "Hello frooky")]
+        [read_message] = self._events(find_matched_events, "read_message")
+        assert read_message["argsOut"] == [{"type": "void *", "name": "buf", "value": "Hello frooky"}]
+        assert read_message["returnValue"]["value"] == 12
+
+    def test_pointers_and_arrays(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/03_decoders/02_pointers_and_arrays.yaml"), NATIVE_APP)
+
+        [sum_ints] = self._events(find_matched_events, "sum_ints")
+        assert sum_ints["argsIn"] == [{"type": "const int *", "name": "values", "value": [3, 1, 4, 1, 5]}, {"type": "int", "name": "count", "value": 5}]
+        assert sum_ints["returnValue"]["value"] == 14
+        [count_chars] = self._events(find_matched_events, "count_chars")
+        assert count_chars["argsIn"][0] == {"type": "const char **", "name": "strings", "value": ["alpha", "beta", "gamma"]}
+        [get_version] = self._events(find_matched_events, "get_version")
+        assert get_version["argsOut"] == [{"type": "const char **", "name": "out", "value": "1.2.3"}]
 
     def test_max_items(self, run_frooky, find_matched_events):
         run_frooky(_example("native/04_decoder_settings/01_max_items.yaml"), NATIVE_APP)

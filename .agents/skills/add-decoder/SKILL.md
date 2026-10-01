@@ -20,7 +20,7 @@ First decide which kind you need:
 
 Primitives, `java.lang.String`, `void` and arrays are handled by `PrimitiveDecoder` and `ArrayDecoder` before the registries are consulted.
 
-The resolution order is documented in `docs/decoders.md` ("How frooky Picks a Decoder"): `decoder:` from the settings, then a class decoder of the runtime class or a superclass, then the most specific implemented interface, then `toString()`. The interface registry is an ordered list: among unrelated interfaces the earlier entry wins, so place a new interface decoder by how much its output tells about the value. An interface that extends a registered one (e.g. `java.util.Collection` under `java.lang.Iterable`) wins over it regardless of the order. A class decoder is also used for subclasses: if it reflects getters, pass the registered class to `GetterDecoder` or `decodeGetterValues()` (see `IntentDecoder`), otherwise only the subclass's own getters are called.
+The resolution order is documented in `docs/decoders-java.md` ("How frooky Picks a Decoder"): `decoder:` from the settings, then a class decoder of the runtime class or a superclass, then the most specific implemented interface, then `toString()`. The interface registry is an ordered list: among unrelated interfaces the earlier entry wins, so place a new interface decoder by how much its output tells about the value. An interface that extends a registered one (e.g. `java.util.Collection` under `java.lang.Iterable`) wins over it regardless of the order. A class decoder is also used for subclasses: if it reflects getters, pass the registered class to `GetterDecoder` or `decodeGetterValues()` (see `IntentDecoder`), otherwise only the subclass's own getters are called.
 
 ## Java class and interface decoders
 
@@ -41,7 +41,7 @@ The resolution order is documented in `docs/decoders.md` ("How frooky Picks a De
 
 ## Named custom decoders
 
-Same implementation rules as above. After adding the entry to `CUSTOM_DECODER_REGISTRY`, **update the list of registered decoders in `docs/decoders.md`** (the "`decoder`: Override the Default Decoder" note). Hook files reference decoders by these names, and the JSON schema does not check them.
+Same implementation rules as above. After adding the entry to `CUSTOM_DECODER_REGISTRY`, **update the list of registered decoders in `docs/decoders-java.md` or `docs/decoders-native.md`** (the "Named Decoders" section). Hook files reference decoders by these names, and the JSON schema does not check them.
 
 If the decoder needs context from another argument, it receives it via `decoderArg` (the `arg` parameter of `decode`).
 
@@ -53,4 +53,4 @@ Type parsing lives in `nativeFridaType.ts`. Values are handled by `NativeValueDe
 
 1. Build: `cd frooky/agent && npm run build:dev:android`.
 2. Test on a device: `npm run test:android` (see the `device-testing` skill). If no device is available, say that the new tests were not run.
-3. Update `docs/decoders.md` if user-visible output changed. If the new decoder is worth showing, add it to `docs/examples/android/03_decoders/` (running against a target app) with a test in `tests/integration/android/test_examples.py`.
+3. Update `docs/decoders-java.md` (the "Built-in Decoders" and "Limits" tables) or `docs/decoders-native.md` if user-visible output changed, and `docs/decoders.md` if a setting behaves differently. If the new decoder is worth showing, add it to `docs/examples/android/03_decoders/` (running against a target app) with a test in `tests/integration/android/test_examples.py`.

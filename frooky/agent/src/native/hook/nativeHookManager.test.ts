@@ -17,6 +17,13 @@ const cm = new CModule(`
   int countdown (int n) { return (n == 0) ? 0 : countdown (n - 1) + 1; }
   void write_val (int val, int *out) { *out = val * 2; }
   int add_one (int n) { return n + 1; }
+  // like read(2): writes 5 bytes into a larger buffer, returns how many, or -1 for an error
+  int fill_hello (char *buf, int len, int fail) {
+    if (fail) return -1;
+    const char hello[] = "hello";
+    for (int i = 0; i < 5; i++) buf[i] = hello[i];
+    return 5;
+  }
 `);
 
 // Interceptor changes are only committed once no thread runs a JS callback, which can take a moment
@@ -233,6 +240,46 @@ describe("NativeHookManager", () => {
       expect(events.length).toBe(1);
       expect(events[0].argsIn).toEqual([{ type: "int", name: "val", value: 21 }]);
       expect(events[0].argsOut).toEqual([{ type: "int *", name: "out", value: 42 }]);
+    });
+
+    it("passes the decoded return value to an out param with decoderArg $ret", async () => {
+      const events: NativeHookEvent[] = [];
+      const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+      const manager = new NativeHookManager(stackTrace, agent);
+      const params = normalizeInputParams(
+        [
+          ["void *", "buf", { direction: "out", decoderArg: "$ret", decoder: "string" }],
+          ["int", "len"],
+          ["int", "fail"],
+        ],
+        DEFAULT_DECODER_SETTINGS,
+      );
+      const retType = normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS);
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })], 5));
+      const hook: NativeHook = { ...hooks![0], symbolName: "fill_hello", symbolAddress: cm.fill_hello };
+
+      manager.registerHooks([hook]);
+      const fillHello = new NativeFunction(cm.fill_hello, "int", ["pointer", "int", "int"]);
+      // the rest of the buffer isn't written: decoded with `len`, it would show up
+      const buffer = Memory.allocUtf8String("xxxxxxxxxxxxxxx");
+
+      await untilHooked(
+        () => fillHello(buffer, 16, 0),
+        () => events.length > 0,
+      );
+      events.length = 0;
+      try {
+        fillHello(buffer, 16, 0);
+        fillHello(buffer, 16, 1);
+      } finally {
+        manager.unregisterHooks([hook]);
+      }
+
+      expect(events.map((event) => [event.argsOut, event.returnValue!.value])).toEqual([
+        [[{ type: "void *", name: "buf", value: "hello" }], 5],
+        // a negative length, e.g. -1 for an error, decodes as null
+        [[{ type: "void *", name: "buf", value: null }], -1],
+      ]);
     });
 
     describe("several hooks on the same function", () => {

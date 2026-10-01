@@ -274,16 +274,17 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   private leaveHook(call: NativeHookCall, returnValue: InvocationReturnValue, context: CpuContext): void {
     const { hook, target, outArgDecoders, retTypeDecoder, floatRetSlot } = call.installedHook;
     try {
-      const decodedArgs: DecodedArgs = { in: call.argsIn, out: [] };
-      if (outArgDecoders.length > 0) {
-        decodedArgs.out = this.decodeArgs(call.savedArgs!, outArgDecoders, target);
-      }
-
+      // first, as `out` parameters with `decoderArg: $ret` need it
       let decodedRetValue: DecodedValue | undefined;
       if (retTypeDecoder) {
         // returnValue is the general-purpose return register, a float/double is returned in an FP register
         const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile() ? readFloatArgBits(context, floatRetSlot) : null;
         decodedRetValue = this.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
+      }
+
+      const decodedArgs: DecodedArgs = { in: call.argsIn, out: [] };
+      if (outArgDecoders.length > 0) {
+        decodedArgs.out = this.decodeArgs(call.savedArgs!, outArgDecoders, target, decodedRetValue);
       }
 
       this.frookyAgent.addEventToLog(new NativeHookEvent(hook, call.installedHook.hashCode, decodedArgs, decodedRetValue, call.stackTrace));

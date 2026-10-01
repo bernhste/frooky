@@ -203,4 +203,120 @@ describe("NativeReferenceDecoder", () => {
       expect(decoder.decode(second)).toEqual({ type: "int32*", value: 99 });
     });
   });
+
+  describe("pointer depth and arrays", () => {
+    const makeDeepDecoder = (pointee: FridaFundamentalType, depth: number, settings: DecoderSettings = DEFAULT_DECODER_SETTINGS) =>
+      new NativeReferenceDecoder({ type: `${pointee}${"*".repeat(depth)}`, settings }, { pointee, depth });
+
+    // Memory.alloc() frees its memory once the JS object is garbage-collected, so the memory that only a
+    // native pointer points to has to be referenced from here
+    const keepAlive: NativePointer[] = [];
+    const string = (text: string): NativePointer => {
+      const allocated = Memory.allocUtf8String(text);
+      keepAlive.push(allocated);
+      return allocated;
+    };
+
+    // a pointer to `values`, each written as a pointer
+    const pointerArray = (values: NativePointer[]): NativePointer => {
+      const array = Memory.alloc(values.length * Process.pointerSize);
+      keepAlive.push(array);
+      values.forEach((value, i) => array.add(i * Process.pointerSize).writePointer(value));
+      return array;
+    };
+
+    const intArray = (values: number[]): NativePointer => {
+      const array = Memory.alloc(values.length * 4);
+      keepAlive.push(array);
+      values.forEach((value, i) => array.add(i * 4).writeS32(value));
+      return array;
+    };
+
+    it("follows a char ** to its string", () => {
+      const out = pointerArray([string("1.2.3")]);
+
+      expect(makeDeepDecoder("char", 2).decode(out)).toEqual({ type: "char**", value: "1.2.3" });
+    });
+
+    it("follows an int ** to its int", () => {
+      expect(makeDeepDecoder("int", 2).decode(pointerArray([intArray([42])]))).toEqual({ type: "int**", value: 42 });
+    });
+
+    it("follows a char *** through every level", () => {
+      const out = pointerArray([pointerArray([string("deep")])]);
+
+      expect(makeDeepDecoder("char", 3).decode(out).value).toBe("deep");
+    });
+
+    it("decodes a NULL pointer on any level as null", () => {
+      expect(makeDeepDecoder("char", 2).decode(ptr(0)).value).toBeNull();
+      expect(makeDeepDecoder("char", 2).decode(pointerArray([ptr(0)])).value).toBeNull();
+      expect(makeDeepDecoder("int", 1).decode(ptr(0)).value).toBeNull();
+    });
+
+    it("decodes unreadable memory as null", () => {
+      expect(makeDeepDecoder("int", 1).decode(ptr(0x10)).value).toBeNull();
+    });
+
+    it("decodes an int * with a decoderArg as an array of that many ints", () => {
+      expect(makeDeepDecoder("int", 1).decode(intArray([3, 1, 4]), decodedArg(3))).toEqual({ type: "int*", value: [3, 1, 4] });
+    });
+
+    it("accepts the count as a decimal string (64-bit size_t)", () => {
+      expect(makeDeepDecoder("int", 1).decode(intArray([3, 1, 4]), decodedArg("3")).value).toEqual([3, 1, 4]);
+    });
+
+    it("limits an array to maxItems elements", () => {
+      const decoder = makeDeepDecoder("int", 1, { ...DEFAULT_DECODER_SETTINGS, maxItems: 2 });
+
+      expect(decoder.decode(intArray([3, 1, 4]), decodedArg(3)).value).toEqual([3, 1, "[truncated at 2]"]);
+    });
+
+    it("steps by the size of the pointee", () => {
+      const doubles = Memory.alloc(16);
+      doubles.writeDouble(1.5);
+      doubles.add(8).writeDouble(-2.25);
+      const longs = Memory.alloc(16);
+      longs.writeS64(-1);
+      // not exactly representable as a JS number
+      longs.add(8).writeS64(int64("9007199254740993"));
+
+      expect(makeDeepDecoder("double", 1).decode(doubles, decodedArg(2)).value).toEqual([1.5, -2.25]);
+      expect(makeDeepDecoder("int64", 1).decode(longs, decodedArg(2)).value).toEqual(["-1", "9007199254740993"]);
+    });
+
+    it("decodes a char ** with a decoderArg as an array of strings", () => {
+      const strings = pointerArray([string("alpha"), ptr(0), string("gamma")]);
+
+      expect(makeDeepDecoder("char", 2).decode(strings, decodedArg(3))).toEqual({ type: "char**", value: ["alpha", null, "gamma"] });
+    });
+
+    it("decodes a void ** with a decoderArg as the addresses it holds", () => {
+      const pointers = pointerArray([ptr(0x1000), ptr(0)]);
+
+      expect(makeDeepDecoder("void", 2).decode(pointers, decodedArg(2)).value).toEqual(["0x1000", null]);
+    });
+
+    it("keeps the decoderArg of a char * a length in bytes", () => {
+      expect(makeDeepDecoder("char", 1).decode(Memory.allocUtf8String("abcdef"), decodedArg(3)).value).toBe("abc");
+    });
+
+    it("decodes a void * without a decoderArg as its address", () => {
+      expect(makeDeepDecoder("void", 1).decode(ptr(0x1234)).value).toBe("0x1234");
+    });
+
+    it("decodes a buffer with a negative length, e.g. -1 when read fails, as null", () => {
+      const buffer = Memory.allocUtf8String("abc");
+      keepAlive.push(buffer);
+
+      expect(makeDeepDecoder("void", 1).decode(buffer, decodedArg(-1)).value).toBeNull();
+      expect(makeDeepDecoder("uchar", 1).decode(buffer, decodedArg(-1)).value).toBeNull();
+      expect(makeDeepDecoder("char", 1).decode(buffer, decodedArg(-1)).value).toBeNull();
+    });
+
+    it("decodes an invalid count as null", () => {
+      expect(makeDeepDecoder("int", 1).decode(intArray([1]), decodedArg("many")).value).toBeNull();
+      expect(makeDeepDecoder("int", 1).decode(intArray([1]), decodedArg(-1)).value).toBeNull();
+    });
+  });
 });

@@ -1,0 +1,41 @@
+metadata:
+  name: "Decoders (Native): Pointers and Arrays"
+  description: |
+    A pointer is read as its declared type: `int *` as one int, `char **` by following both pointers to
+    the string. With `decoderArg`, a pointer is an array with that many elements.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/02_pointers_and_arrays.yaml
+# See:    docs/decoders-native.md#pointers-and-arrays
+#
+# For `void *`, `char *` and `unsigned char *`, the decoderArg is the length of the buffer in bytes instead
+# (see 01_strings_and_buffers.yaml).
+
+hookCollection:
+  - module: libreceiveFundamentalReference.so
+    hooks:
+      # int sum_ints(const int *values, int count): an array of `count` ints
+      - symbol: sum_ints
+        retType: int
+        params:
+          - ["const int *", values, { decoderArg: count }]
+          - [int, count]
+
+      # int count_chars(const char **strings, int count): an array of `count` strings, like argv
+      - symbol: count_chars
+        params:
+          - ["const char **", strings, { decoderArg: count }]
+          - [int, count]
+
+      # int get_version(const char **out) points `*out` to a string, so `out` is decoded on return
+      - symbol: get_version
+        params:
+          - ["const char **", out, { direction: out }]
+
+# Expected values:
+#   sum_ints:    argsIn [{name: values, value: [3, 1, 4, 1, 5]}, {name: count, value: 5}], returnValue 14
+#   count_chars: argsIn [{name: strings, value: ["alpha", "beta", "gamma"]}, {name: count, value: 3}]
+#   get_version: argsOut [{name: out, value: "1.2.3"}]

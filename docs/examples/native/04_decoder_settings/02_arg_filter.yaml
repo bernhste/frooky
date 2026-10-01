@@ -9,7 +9,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/04_decoder_settings/02_arg_filter.yaml
-# See:    docs/decoders.md#decoder-settings
+# See:    docs/decoders.md#argfilter-capture-only-matching-values
 
 hookCollection:
   # const char *track_event(const char *name) is called with "button_click" and "sdk_flush"

@@ -54,7 +54,9 @@ export interface DecoderSettings {
   decoder?: string;
 
   /**
-   * Name of function/method parameter whose value is passed to this decoder, e.g. a buffer length.
+   * Name of another parameter whose value is passed to this decoder, or `$ret` for the return value (only with
+   * `direction: out`). The decoder decides what the value means, e.g. a buffer length in bytes or the number of
+   * elements a native pointer points to. Decoders that need no argument ignore it.
    */
   decoderArg?: string;
 
