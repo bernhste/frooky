@@ -7,7 +7,7 @@ import frida
 
 from .options import RunnerOptions
 
-SUPPORTED_PLATFORMS = ("android", "ios")
+SUPPORTED_PLATFORMS = ("android", "ios", "debian")
 
 
 def get_device(options: RunnerOptions) -> frida.core.Device:
