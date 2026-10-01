@@ -224,7 +224,7 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 - **Spawn (`-f`):** frooky starts the app suspended, installs the hooks, and resumes execution. Startup calls and initial library loads are captured.
 - **Attach (`-n`, `-N`, `-p`):** Attaches to an already running app. Code executed during startup has already finished and is not captured.
 - **Loader hooks:** Hooking `android_dlopen_ext` in `libdl.so` can observe library loads, but intercepting the dynamic linker can break loads across Android linker namespaces.
-- **Late-loaded libraries:** frooky periodically retries resolving modules and classes for up to `-t` seconds (default: 5 seconds). For libraries loaded on demand later, increase the timeout (e.g. `-t 30`).
+- **Late-loaded libraries:** frooky hooks a native library as soon as it loads, before its constructors and `JNI_OnLoad` run, so calls made while it loads are captured. Java classes are looked up once per second. frooky waits up to `-t` seconds (default: 5 seconds) for both; for code loaded on demand later, increase the timeout (e.g. `-t 30`).
 
 **Recommendations for low-level and high-frequency hooks:**
 
@@ -232,7 +232,7 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 2. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
 3. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
 
-See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml) and [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml) for full examples.
+See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml), [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml) and [`examples/native/08_early_hooking/02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) for full examples.
 
 ## Custom User Scripts
 
@@ -286,7 +286,10 @@ Applications frequently load code dynamically:
 - **Java/Kotlin:** Plugins or feature modules loaded at runtime via `DexClassLoader` or `PathClassLoader`.
 - **Native:** Shared libraries loaded on demand via `dlopen` or `System.loadLibrary`.
 
-When frooky initializes, it does not immediately fail if a target class or native module cannot be found. Instead, the agent runs a background resolution poll (checking once per second) to wait for late-loaded classes and modules.
+When frooky initializes, it does not immediately fail if a target class or native module cannot be found. Instead, it waits for them to load:
+
+- **Native modules** are hooked as soon as the linker loads them, before their constructors and `JNI_OnLoad` run. See [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml).
+- **Java classes** are looked up once per second, so calls made right after a class loads can be missed.
 
 The `--resolver-timeout` (or `-t`) flag sets the maximum duration in seconds that frooky waits before reporting the hook target as unresolved:
 

@@ -1,0 +1,28 @@
+metadata:
+  name: "Early Hooking (Native): Calls While a Library Loads"
+  description: |
+    A library can call its own functions while it loads, from a constructor or from JNI_OnLoad.
+    frooky hooks a library as soon as the linker loads it, before this code runs, so these calls
+    are recorded too.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/loadTime.c), which loads libloadTime.so at startup.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/08_early_hooking/02_calls_while_loading.yaml
+# See:    docs/additional-features.md#dynamic-class-and-module-resolution
+#
+# The library loads at startup, so this needs spawn (-f). A library the app loads later, e.g. after
+# pressing "Start", is hooked the same way when it loads within -t seconds (default: 5).
+
+hookCollection:
+  - module: libloadTime.so
+    hooks:
+      # const char *on_library_load(const char *stage)
+      - symbol: on_library_load
+        params:
+          - ["char *", stage]
+
+# Expected events, in this order:
+#   on_library_load: argsIn [{type: "char *", name: stage, value: "constructor"}]
+#   on_library_load: argsIn [{type: "char *", name: stage, value: "JNI_OnLoad"}]

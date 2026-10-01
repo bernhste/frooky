@@ -142,6 +142,24 @@ describe("NativeHookManager", () => {
       expect(results.every((hooks) => hooks !== null && hooks.length === 1)).toBeTruthy();
     });
 
+    it("installs the hooks of a module that loads later while it loads", async () => {
+      // a system library the test app doesn't load by itself (checked on Android 15)
+      const moduleName = "libcrypto_utils.so";
+      const symbol = "android_pubkey_decode";
+      expect(Process.findModuleByName(moduleName)).toBeNull();
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+
+      const pending = await manager.resolveHooks([nativeHook(moduleName, symbol)], 5);
+      const module = Module.load(`/system/${Process.pointerSize === 8 ? "lib64" : "lib"}/${moduleName}`);
+
+      // no await since Module.load(): the hook was installed while the linker loaded the module
+      expect(manager.describeHooksInModulesOf([module.base])).toEqual([`${moduleName}!${symbol}`]);
+      const [hooks] = await Promise.all(pending);
+      expect(hooks![0].symbolAddress.toString()).toBe(module.getExportByName(symbol).toString());
+      expect(manager.registerHooks(hooks!)).toBe(1);
+      manager.unregisterHooks(hooks!);
+    });
+
     it("resolves one group as null without aborting the sibling group when only one module fails to resolve", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 

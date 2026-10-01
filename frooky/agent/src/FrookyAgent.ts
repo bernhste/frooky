@@ -307,7 +307,7 @@ export class FrookyAgent {
   }
 
   // Resolves and installs hooks and returns how many were installed. A hook whose entry was removed while it
-  // resolved (the config was reloaded) is not installed. `source` names the hook file in log messages.
+  // resolved (the config was reloaded) is not installed, or unhooked again. `source` names the hook file in log messages.
   private async resolveAndRegisterHooks(
     manager: HookManager<any, any, any>,
     pendingHooks: PendingHook[],
@@ -327,7 +327,11 @@ export class FrookyAgent {
         hookPromises.map((hookPromise, i) =>
           hookPromise.then((hooks) => {
             const entry = pendingHooks[i]?.entry;
-            if (!entry || entry.state === "removed") return;
+            if (!entry || entry.state === "removed") {
+              // native hooks are installed while their module loads, see NativeHookManager.resolveHooks()
+              if (hooks) manager.unregisterHooks(hooks);
+              return;
+            }
             this.scheduleProgressReport();
             if (!hooks) {
               entry.state = "failed";

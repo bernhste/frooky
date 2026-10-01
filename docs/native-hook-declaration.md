@@ -154,7 +154,7 @@ Keep in mind:
 - **Use the virtual address, not the file offset.** A hex editor or a raw file view shows positions in the file, which are often different from the virtual address of code.
 - **Thumb functions on 32-bit ARM (`armeabi-v7a`) need `+1`.** Most 32-bit ARM code on Android is Thumb code. Disassemblers show the function's even address, but it has to be hooked at the odd address, for example `0x1a2b5` for a Thumb function shown at `0x1a2b4`. Without it, the hook is installed as ARM code and the app crashes. 64-bit ARM (`arm64-v8a`) and x86 don't need this.
 - **An offset only fits one build of the module and one ABI.** After an app update, or for the 32-bit and 64-bit copies of the same library, the offsets are different. frooky skips a hook whose offset is outside the module or doesn't point to executable memory, but an offset that points to the wrong code in the same module can't be detected.
-- **Late-loaded modules:** If the shared library is loaded dynamically via `dlopen` after application startup, frooky polls for it up to `-t` seconds (see [Dynamic Class and Module Resolution](./additional-features.md#dynamic-class-and-module-resolution)).
+- **Late-loaded modules:** If the shared library is loaded dynamically via `dlopen` after application startup, frooky hooks it as soon as it loads, if that happens within `-t` seconds (see [Dynamic Class and Module Resolution](./additional-features.md#dynamic-class-and-module-resolution)).
 
 Events of these hooks contain `offset` instead of `symbol`, see [Output](./output.md#hook-native-events).
 

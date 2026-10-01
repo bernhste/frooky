@@ -550,3 +550,12 @@ class TestNativeExamples:
         run_frooky(_example("native/08_early_hooking/01_spawn_vs_attach.yaml"), NATIVE_APP, expect_events=False)
 
         assert self._events(find_matched_events, "android_dlopen_ext") == []
+
+    def test_calls_while_loading(self, run_frooky_spawn, find_matched_events):
+        run_frooky_spawn(_example("native/08_early_hooking/02_calls_while_loading.yaml"), NATIVE_APP)
+
+        events = self._events(find_matched_events, "on_library_load", "libloadTime.so")
+        assert [event["argsIn"] for event in events] == [
+            [{"type": "char *", "name": "stage", "value": "constructor"}],
+            [{"type": "char *", "name": "stage", "value": "JNI_OnLoad"}],
+        ]

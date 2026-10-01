@@ -9,6 +9,7 @@ class MastgTest(private val context: Context) {
             System.loadLibrary("receiveFundamentalValue")
             System.loadLibrary("receiveFundamentalReference")
             System.loadLibrary("receiveString")
+            System.loadLibrary("loadTime")
         }
     }
 

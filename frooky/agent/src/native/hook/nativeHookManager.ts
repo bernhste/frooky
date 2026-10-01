@@ -48,62 +48,137 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   private readonly hookedFunctions = new Map<string, HookedFunction>();
   // threads inside a hook callback, so calls made while decoding aren't captured
   private activeThreads = new Set<number>();
+  // called with a module once it loads, keyed by the name (or path) hooks declare it with
+  private readonly moduleWaiters = new Map<string, ((module: Module) => void)[]>();
+  private moduleObserver?: ModuleObserver;
 
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
   }
+
+  // A hook on a module that is not loaded yet is installed as soon as it loads: in the linker, before the module's
+  // constructors and JNI_OnLoad run. resolveHooks() resolves its promise afterwards, see registerHooks().
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number, source?: string): Promise<Promise<NativeHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "native hook")} in ${plural(new Set(inputHooks.map((h) => h.module)).size, "module")}${fromSource(source)}`,
     );
 
-    // each module is resolved once, no matter how many hooks target it
-    const modulePromises = new Map<string, Promise<Module | null>>();
-    return inputHooks.map(async (inputHook): Promise<NativeHook[] | null> => {
-      const target = describeNativeTarget(inputHook.module, inputHook);
-      let modulePromise = modulePromises.get(inputHook.module);
-      if (modulePromise) {
-        logger.debug(`Module lookup cache hit: ${inputHook.module} (for ${target})`);
-      } else {
-        logger.debug(`Module lookup cache miss: ${inputHook.module} (for ${target})`);
-        modulePromise = this.resolveModule(inputHook.module, timeout).catch((e) => {
-          logger.warn(e instanceof Error ? e.message : String(e));
-          return null;
+    // each module is looked up once, no matter how many hooks target it
+    const hookIndicesByModule = new Map<string, number[]>();
+    inputHooks.forEach((inputHook, i) => hookIndicesByModule.set(inputHook.module, [...(hookIndicesByModule.get(inputHook.module) ?? []), i]));
+
+    const results: Promise<NativeHook[] | null>[] = new Array(inputHooks.length);
+    for (const [moduleName, hookIndices] of hookIndicesByModule) {
+      const moduleHooks = this.whenModuleLoaded(moduleName, timeout, (module, isLoading) => {
+        // getExportByName() makes the linker abort the process while it loads `module`, reading the ELF doesn't
+        let exports: Map<string, NativePointer> | undefined;
+        const findExport = isLoading
+          ? (symbol: string) => (exports ??= new Map(module.enumerateExports().map((e) => [e.name, e.address]))).get(symbol)
+          : (symbol: string) => module.findExportByName(symbol) ?? undefined;
+        return hookIndices.map((i) => {
+          const hooks = this.resolveHook(inputHooks[i], module, findExport);
+          if (hooks && isLoading) this.registerHooks(hooks, source);
+          return hooks;
         });
-        modulePromises.set(inputHook.module, modulePromise);
-      }
-      const resolvedModule = await modulePromise;
-      if (!resolvedModule) return null;
-      try {
-        const symbolAddress =
-          inputHook.symbol !== undefined
-            ? this.resolveSymbol(inputHook.symbol, resolvedModule)
-            : this.resolveModuleOffset(String(inputHook.offset), resolvedModule);
-        logger.debug(`Address of function ${target} found: ${symbolAddress}.`);
-        return [
-          {
-            module: resolvedModule,
-            moduleName: resolvedModule.name,
-            symbolName: inputHook.symbol,
-            offset: inputHook.offset === undefined ? undefined : String(inputHook.offset),
-            symbolAddress,
-            params: inputHook.params,
-            retType: inputHook.retType,
-            hookSettings: inputHook.hookSettings,
-            decoderSettings: inputHook.decoderSettings,
-          },
-        ] as NativeHook[];
-      } catch (e) {
-        logger.warn(e instanceof Error ? e.message : String(e));
-        return null;
-      }
+      });
+      hookIndices.forEach((hookIndex, j) => (results[hookIndex] = moduleHooks.then((hooks) => hooks?.[j] ?? null)));
+    }
+    return results;
+  }
+
+  // null if the symbol or offset doesn't resolve
+  private resolveHook(
+    inputHook: InputNativeHookNormalized,
+    module: Module,
+    findExport: (symbol: string) => NativePointer | undefined,
+  ): NativeHook[] | null {
+    const target = describeNativeTarget(inputHook.module, inputHook);
+    try {
+      const symbolAddress =
+        inputHook.symbol !== undefined
+          ? this.resolveSymbol(inputHook.symbol, module, findExport)
+          : this.resolveModuleOffset(String(inputHook.offset), module);
+      logger.debug(`Address of function ${target} found: ${symbolAddress}.`);
+      return [
+        {
+          module,
+          moduleName: module.name,
+          symbolName: inputHook.symbol,
+          offset: inputHook.offset === undefined ? undefined : String(inputHook.offset),
+          symbolAddress,
+          params: inputHook.params,
+          retType: inputHook.retType,
+          hookSettings: inputHook.hookSettings,
+          decoderSettings: inputHook.decoderSettings,
+        },
+      ] as NativeHook[];
+    } catch (e) {
+      logger.warn(e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  }
+
+  // Calls `onLoaded` with the module once it is loaded, or right away if it already is, and resolves with its result.
+  // `isLoading` is set while the linker loads the module. Resolves with null if the module doesn't load within
+  // `timeoutSeconds`, which, as in pollUntilResolved(), start once FrookyAgent.targetReady resolves.
+  private whenModuleLoaded<T>(moduleName: string, timeoutSeconds: number, onLoaded: (module: Module, isLoading: boolean) => T): Promise<T | null> {
+    const loadedModule = Process.findModuleByName(moduleName);
+    if (loadedModule) {
+      logger.debug(`Module '${moduleName}' already loaded.`);
+      return Promise.resolve(onLoaded(loadedModule, false));
+    }
+    logger.debug(`Waiting for native module ${moduleName} to load, with a timeout of ${timeoutSeconds} seconds.`);
+    return new Promise((resolve) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const waiter = (module: Module) => {
+        clearTimeout(timer);
+        logger.debug(`Module '${moduleName}' loaded.`);
+        resolve(onLoaded(module, true));
+      };
+      this.moduleWaiters.set(moduleName, [...(this.moduleWaiters.get(moduleName) ?? []), waiter]);
+      this.observeModules();
+      Promise.resolve(this.frookyAgent.targetReady).then(() => {
+        if (!this.moduleWaiters.get(moduleName)?.includes(waiter)) return;
+        timer = setTimeout(() => {
+          const waiters = this.moduleWaiters.get(moduleName)?.filter((w) => w !== waiter) ?? [];
+          if (waiters.length > 0) this.moduleWaiters.set(moduleName, waiters);
+          else this.moduleWaiters.delete(moduleName);
+          logger.warn(`Module '${moduleName}' not found within ${timeoutSeconds} seconds. Skipping the hooks declared for it.`);
+          resolve(null);
+        }, timeoutSeconds * 1000);
+      });
     });
   }
 
+  // Attached once and kept: attaching calls onAdded() for every loaded module.
+  private observeModules(): void {
+    this.moduleObserver ??= Process.attachModuleObserver({
+      // runs on the thread that loads the module, inside the linker
+      onAdded: (module) => {
+        const waiters = this.moduleWaiters.get(module.name) ?? this.moduleWaiters.get(module.path);
+        if (!waiters) return;
+        this.moduleWaiters.delete(module.name);
+        this.moduleWaiters.delete(module.path);
+        for (const waiter of waiters) {
+          try {
+            waiter(module);
+          } catch (e) {
+            logger.error(`Error while hooking module '${module.name}': ${e}`);
+          }
+        }
+      },
+    });
+  }
+
+  // Hooks that are already installed, e.g. by resolveHooks() while their module loaded, count as installed.
   public registerHooks(hooks: NativeHook[], source?: string): number {
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
+      if (this.installedHooks.has(hook)) {
+        countSuccessfulHooks++;
+        continue;
+      }
       const target = describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset });
       const installedHook = this.prepareHook(hook, target);
 
@@ -325,12 +400,10 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     return hook ? describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset }) : undefined;
   }
 
-  private resolveSymbol(symbol: string, module: Module): NativePointer {
-    try {
-      return module.getExportByName(symbol);
-    } catch (e) {
-      throw Error(`Skipping hook for '${symbol}'. This symbol does not exist in module '${module.name}'.`);
-    }
+  private resolveSymbol(symbol: string, module: Module, findExport: (symbol: string) => NativePointer | undefined): NativePointer {
+    const address = findExport(symbol);
+    if (!address) throw Error(`Skipping hook for '${symbol}'. This symbol does not exist in module '${module.name}'.`);
+    return address;
   }
 
   // `module.base + offset`. Throws unless the address is inside the module and in a code section: patching
@@ -356,22 +429,5 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       );
     }
     return address;
-  }
-
-  private async resolveModule(moduleName: string, timeoutSeconds: number): Promise<Module> {
-    logger.debug(`Resolving native module ${moduleName} with a timeout of ${timeoutSeconds} seconds.`);
-    return this.pollUntilResolved(
-      () => {
-        try {
-          const module = Process.getModuleByName(moduleName);
-          logger.debug(`Module '${moduleName}' successfully loaded.`);
-          return module;
-        } catch (_) {
-          return null;
-        }
-      },
-      `Module '${moduleName}'`,
-      timeoutSeconds,
-    );
   }
 }

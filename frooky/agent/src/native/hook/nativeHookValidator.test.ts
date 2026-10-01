@@ -41,6 +41,8 @@ describe("NativeHookValidator", () => {
 
   describe("validateAndNormalizeHooks()", () => {
     let warnSpy: Mock;
+    // the warning for a skipped hook; hooks such as `free` also warn about high-frequency functions
+    const skipWarning = () => warnSpy.mock.calls.map((call) => String(call[0])).find((message) => message.startsWith("Skipping hook")) ?? "";
 
     beforeEach(() => {
       warnSpy = spyOn(logger, "warn");
@@ -125,7 +127,7 @@ describe("NativeHookValidator", () => {
 
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [message] = warnSpy.mock.calls[0] as [string];
+      const message = skipWarning();
       expect(message).toContain("Skipping hook for native function '123' from module 'libc.so' due to an invalid declaration:");
     });
 
@@ -150,7 +152,7 @@ describe("NativeHookValidator", () => {
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
-      const [message] = warnSpy.mock.calls[0] as [string];
+      const message = skipWarning();
       expect(message).toContain("Skipping hook for native function at offset '1a2b4' from module 'libfoo.so'");
     });
 
@@ -168,7 +170,7 @@ describe("NativeHookValidator", () => {
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free", "malloc"]);
       expect(warnSpy).toHaveBeenCalled();
-      const [message] = warnSpy.mock.calls[0] as [string];
+      const message = skipWarning();
       expect(message).toContain("Skipping hook for native function 'bad' from module 'libc.so' due to an invalid declaration:");
     });
 
@@ -183,7 +185,7 @@ describe("NativeHookValidator", () => {
       const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
-      const [message] = warnSpy.mock.calls[0] as [string];
+      const message = skipWarning();
       expect(message).toContain("Skipping hook for native function 'write'");
       expect(message).toContain("'length: count' names no parameter");
     });
@@ -199,7 +201,7 @@ describe("NativeHookValidator", () => {
       const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
-      const [message] = warnSpy.mock.calls[0] as [string];
+      const message = skipWarning();
       expect(message).toContain("decoder: errno on 'path' is only supported on the return value");
     });
 
@@ -210,7 +212,7 @@ describe("NativeHookValidator", () => {
       const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
-      const [message] = warnSpy.mock.calls[0] as [string];
+      const message = skipWarning();
       expect(message).toContain("decoder 'hashCode' is no native decoder. The native decoders are: string, utf16,");
     });
 
@@ -225,7 +227,7 @@ describe("NativeHookValidator", () => {
       const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
-      const [message] = warnSpy.mock.calls[0] as [string];
+      const message = skipWarning();
       expect(message).toContain("decoder 'fd' doesn't accept the role 'length'. It accepts no decoderArgs.");
     });
 
@@ -290,7 +292,7 @@ describe("NativeHookValidator", () => {
         validator.validateAndNormalizeHooks(config, defaultSettings);
 
         expect(warnSpy).toHaveBeenCalled();
-        const messages = warnSpy.mock.calls.map((call) => call[0]);
+        const messages = warnSpy.mock.calls.map((call) => String(call[0]));
         expect(messages.some((msg) => msg.includes("Capturing stack traces on high-frequency libc function 'open' in 'libc.so'"))).toBe(true);
       });
 
@@ -309,7 +311,7 @@ describe("NativeHookValidator", () => {
         validator.validateAndNormalizeHooks(config, defaultSettings);
 
         expect(warnSpy).toHaveBeenCalled();
-        const messages = warnSpy.mock.calls.map((call) => call[0]);
+        const messages = warnSpy.mock.calls.map((call) => String(call[0]));
         expect(messages.some((msg) => msg.includes("Capturing stack traces on high-frequency libc function 'read' in 'libc.so'"))).toBe(true);
       });
 
@@ -327,11 +329,9 @@ describe("NativeHookValidator", () => {
         validator.validateAndNormalizeHooks(config, defaultSettings);
 
         expect(warnSpy).toHaveBeenCalled();
-        const messages = warnSpy.mock.calls.map((call) => call[0]);
+        const messages = warnSpy.mock.calls.map((call) => String(call[0]));
         expect(
-          messages.some((msg) =>
-            msg.includes("Hooking high-frequency libc function 'open' in 'libc.so' under QuickJS without an 'argFilter'"),
-          ),
+          messages.some((msg) => msg.includes("Hooking high-frequency libc function 'open' in 'libc.so' under QuickJS without an 'argFilter'")),
         ).toBe(true);
         expect(messages.some((msg) => msg.includes("switching to the V8 runtime (--runtime v8)"))).toBe(true);
       });
@@ -345,6 +345,7 @@ describe("NativeHookValidator", () => {
               hooks: [
                 {
                   symbol: "open",
+                  module: "libc.so",
                   params: [["char *", "path", { argFilter: ["^/proc/self/status$"] }], "int"],
                 },
               ],
@@ -432,4 +433,3 @@ describe("NativeHookValidator", () => {
 });
 
 export {};
-

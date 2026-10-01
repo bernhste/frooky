@@ -238,18 +238,20 @@ describe("FrookyAgent", () => {
       expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
     });
 
-    it("never installs a hook that was removed while it was still resolving", async () => {
+    it("never keeps a hook that was removed while it was still resolving", async () => {
       const { agent, rawManager } = setup(["slow"], []);
       let resolveSlow: (hooks: Hook[]) => void = () => {};
       rawManager.resolveHooks.mockImplementationOnce(async () => [new Promise<Hook[]>((resolve) => (resolveSlow = resolve))]);
 
       const firstLoad = agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
-      resolveSlow([fakeHook()]);
+      const hooks = [fakeHook()];
+      resolveSlow(hooks);
       await firstLoad;
 
       expect(rawManager.registerHooks).not.toHaveBeenCalled();
-      expect(rawManager.unregisterHooks).not.toHaveBeenCalled();
+      // native hooks are installed while their module loads, before resolveHooks() resolves
+      expect(rawManager.unregisterHooks).toHaveBeenCalledWith(hooks);
     });
 
     it("does not retry unchanged hooks that failed to resolve in the previous version", async () => {

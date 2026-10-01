@@ -4,6 +4,7 @@ project(value-passing-native C)
 add_library(receiveFundamentalValue SHARED receiveFundamentalValue.c)
 add_library(receiveFundamentalReference SHARED receiveFundamentalReference.c)
 add_library(receiveString SHARED receiveString.c)
+add_library(loadTime SHARED loadTime.c)
 
 find_library(log-lib log)
 target_link_libraries(receiveFundamentalValue ${log-lib})
