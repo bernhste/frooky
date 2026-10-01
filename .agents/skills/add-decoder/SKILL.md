@@ -47,7 +47,7 @@ If the decoder needs context from another argument, it receives it via `decoderA
 
 ## Native decoders
 
-Type parsing lives in `nativeFridaType.ts`. Values are handled by `NativeValueDecoder` (fundamental types) or `NativeReferenceDecoder` (pointers), with `NativeFallbackDecoder` for anything else. Extend the parser or the reference decoder there, and add cases to the matching `*.test.ts`. For behavior visible in the target app, also add a function to `tests/target-apps/android/value-passing-native` and a test in `tests/integration/android/test_value_passing_native.py`.
+Type parsing lives in `nativeFridaType.ts`. Named native decoders (`decoder: fd`, `flags`, ...) are factories in `CUSTOM_DECODER_REGISTRY` in `nativeDecoderResolver.ts`; presets of Linux constants live in `nativeConstantPresets.ts`. Values are handled by `NativeValueDecoder` (fundamental types) or `NativeReferenceDecoder` (pointers), with `NativeFallbackDecoder` for anything else. Extend the parser or the reference decoder there, and add cases to the matching `*.test.ts`. For behavior visible in the target app, also add a function to `tests/target-apps/android/value-passing-native` and a test in `tests/integration/android/test_value_passing_native.py`.
 
 ## Finish
 

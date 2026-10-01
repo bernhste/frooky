@@ -2,6 +2,7 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { FridaFundamentalType } from "./nativeFridaType";
+import { NativeDecoderResolver } from "./nativeDecoderResolver";
 import { NativeReferenceDecoder } from "./nativeReferenceDecoder";
 
 const makeDecoder = (pointee: FridaFundamentalType, settings: DecoderSettings = DEFAULT_DECODER_SETTINGS): NativeReferenceDecoder =>
@@ -317,6 +318,37 @@ describe("NativeReferenceDecoder", () => {
     it("decodes an invalid count as null", () => {
       expect(makeDeepDecoder("int", 1).decode(intArray([1]), decodedArg("many")).value).toBeNull();
       expect(makeDeepDecoder("int", 1).decode(intArray([1]), decodedArg(-1)).value).toBeNull();
+    });
+
+    describe("decoder: nullTerminated", () => {
+      const makeNullTerminatedDecoder = (type: string, maxItems = DEFAULT_DECODER_SETTINGS.maxItems) =>
+        NativeDecoderResolver.resolveDecoder({ type, settings: { ...DEFAULT_DECODER_SETTINGS, maxItems, decoder: "nullTerminated" } });
+
+      it("decodes a char ** up to its NULL pointer, like argv", () => {
+        const argv = pointerArray([string("ls"), string("-l"), ptr(0), string("not read")]);
+
+        expect(makeNullTerminatedDecoder("char *const *").decode(argv)).toEqual({ type: "char *const *", value: ["ls", "-l"] });
+      });
+
+      it("decodes an array declared with []", () => {
+        expect(makeNullTerminatedDecoder("char *[]").decode(pointerArray([string("PATH=/bin"), ptr(0)])).value).toEqual(["PATH=/bin"]);
+      });
+
+      it("decodes an empty array and a NULL pointer", () => {
+        expect(makeNullTerminatedDecoder("char **").decode(pointerArray([ptr(0)])).value).toEqual([]);
+        expect(makeNullTerminatedDecoder("char **").decode(ptr(0)).value).toBeNull();
+      });
+
+      it("limits the array to maxItems elements", () => {
+        const argv = pointerArray([string("a"), string("b"), string("c"), ptr(0)]);
+
+        expect(makeNullTerminatedDecoder("char **", 2).decode(argv).value).toEqual(["a", "b", "[truncated at 2]"]);
+        expect(makeNullTerminatedDecoder("char **", 3).decode(argv).value).toEqual(["a", "b", "c"]);
+      });
+
+      it("decodes the elements of an unknown pointer type as addresses", () => {
+        expect(makeNullTerminatedDecoder("FILE **").decode(pointerArray([ptr(0x1000), ptr(0)])).value).toEqual(["0x1000"]);
+      });
     });
   });
 });

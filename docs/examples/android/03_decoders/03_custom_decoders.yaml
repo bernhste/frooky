@@ -45,6 +45,13 @@ hookCollection:
           - params:
               - [int, mode, { decoder: constant }]
 
+      # `constant` with `constants`: the names you declare instead of the constants of the hooked class, e.g. for
+      # constants declared on another class, or an obfuscated app whose fields have no meaningful names
+      - method: receiveMode
+        overloads:
+          - params:
+              - [int, opmode, { decoder: constant, constants: { ENCRYPT: 1, DECRYPT: 2 } }]
+
   # `intentFlag`: the Intent.FLAG_* constants set in a bitmask
   # Docs: https://developer.android.com/reference/android/content/Intent#setFlags(int)
   - javaClass: android.content.Intent
@@ -67,6 +74,6 @@ hookCollection:
 #   receivePassword:   "s3cr3t"
 #   receiveProfile:    [{name: age, value: 42}, {name: name, value: "alice"}, {name: admin, value: true}] (in the order of reflection)
 #   receiveBigInteger: "java.math.BigInteger@<hashCode>"
-#   receiveMode:       "MODE_DECRYPT"
+#   receiveMode:       mode "MODE_DECRYPT", and opmode "DECRYPT" (a second event)
 #   setFlags:          {type: android.content.IntentFlag, value: [FLAG_GRANT_READ_URI_PERMISSION, ..., FLAG_ACTIVITY_NEW_TASK, FLAG_ACTIVITY_CLEAR_TASK]}
 #   parseUri:          flags {type: android.content.IntentUriFlag, value: [URI_INTENT_SCHEME]}

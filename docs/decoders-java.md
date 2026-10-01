@@ -75,7 +75,7 @@ With `decoder`, a parameter or return value is decoded with one of these registe
 - `hashCode`: renders a reference type as `<class>@<hashCode>`, without invoking a custom `toString()` override
 - `intentFlag`: decodes an `int` bitmask into the matching `Intent.FLAG_*` constant names
 - `intentUriFlag`: decodes an `int` bitmask into the matching `Intent.URI_*` constant names
-- `constant`: decodes a value into the name of the matching `static final` constant declared on the hooked method's own class (e.g. `1` -> `"ENCRYPT_MODE"` for `javax.crypto.Cipher`'s `opmode`)
+- `constant`: decodes a value into the name of the matching `static final` constant declared on the hooked method's own class (e.g. `1` -> `"ENCRYPT_MODE"` for `javax.crypto.Cipher`'s `opmode`), or of the `constants` you declare
 
 ```yaml
 javaClass: android.content.Intent
@@ -101,6 +101,20 @@ hooks:
 ```
 
 This decodes the `opmode` argument of [`Cipher.init(int, Key)`](<https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key)>) to `"ENCRYPT_MODE"`, `"DECRYPT_MODE"`, etc. instead of the raw `int`, by matching it against `Cipher`'s own declared constants.
+
+With `constants`, the `constant` decoder uses the names you declare instead of the constants of the hooked class. This helps when the constants are declared on another class than the one you hook, e.g. an app's own wrapper around `Cipher`, or when the app is obfuscated and its fields have no meaningful names:
+
+```yaml
+javaClass: org.example.CryptoHelper
+hooks:
+  - method: process
+    overloads:
+      - params:
+        - [int, mode, { decoder: constant, constants: { ENCRYPT_MODE: 1, DECRYPT_MODE: 2 } }]
+        - ["[B", data]
+```
+
+The value is compared as a number, so `constants` only matches numeric values (`int`, `long`, `short`, `byte`, `float`, `double`). An `int` is compared as 32 bits, so a constant can be written in hex, e.g. `0x80000000` for `-2147483648`. A value without a constant is decoded as the value itself; frooky doesn't fall back to the constants of the hooked class.
 
 See [`03_custom_decoders.yaml`](examples/android/03_decoders/03_custom_decoders.yaml).
 

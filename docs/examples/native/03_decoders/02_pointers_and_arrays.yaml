@@ -2,7 +2,8 @@ metadata:
   name: "Decoders (Native): Pointers and Arrays"
   description: |
     A pointer is read as its declared type: `int *` as one int, `char **` by following both pointers to
-    the string. With `decoderArg`, a pointer is an array with that many elements.
+    the string. With `decoderArg`, a pointer is an array with that many elements, and with
+    `decoder: nullTerminated` an array that ends at a NULL pointer, like argv.
   version: 1
   author: frooky dev
   platform: Android
@@ -30,6 +31,14 @@ hookCollection:
           - ["const char **", strings, { decoderArg: count }]
           - [int, count]
 
+      # int count_args(char *const argv[]) of the target app takes a NULL-terminated array of strings, in the
+      # same format as the argv of execve(2)
+      # Docs: https://www.man7.org/linux/man-pages/man2/execve.2.html
+      - symbol: count_args
+        retType: int
+        params:
+          - ["char *const []", argv, { decoder: nullTerminated }]
+
       # int get_version(const char **out) points `*out` to a string, so `out` is decoded on return
       - symbol: get_version
         params:
@@ -38,4 +47,5 @@ hookCollection:
 # Expected values:
 #   sum_ints:    argsIn [{name: values, value: [3, 1, 4, 1, 5]}, {name: count, value: 5}], returnValue 14
 #   count_chars: argsIn [{name: strings, value: ["alpha", "beta", "gamma"]}, {name: count, value: 3}]
+#   count_args:  argsIn [{name: argv, value: ["ls", "-l", "/sdcard"]}], returnValue 3
 #   get_version: argsOut [{name: out, value: "1.2.3"}]

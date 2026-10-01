@@ -93,6 +93,12 @@ describe("parseNativeFridaType", () => {
       expect(parseNativeFridaType("char* const")).toEqual({ pointee: "char", depth: 1 });
     });
 
+    it("should read an array as a pointer", () => {
+      expect(parseNativeFridaType("char *[]")).toEqual({ pointee: "char", depth: 2 });
+      expect(parseNativeFridaType("char *const []")).toEqual({ pointee: "char", depth: 2 });
+      expect(parseNativeFridaType("int[4]")).toEqual({ pointee: "int", depth: 1 });
+    });
+
     it("should strip const qualifiers on both the pointee and the pointer", () => {
       expect(parseNativeFridaType("const char * const")).toEqual({ pointee: "char", depth: 1 });
     });

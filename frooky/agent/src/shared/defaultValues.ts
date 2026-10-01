@@ -8,6 +8,7 @@ export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
   maxItems: 100,
   decoder: undefined,
   decoderArg: undefined,
+  constants: undefined,
   argFilter: undefined,
 };
 

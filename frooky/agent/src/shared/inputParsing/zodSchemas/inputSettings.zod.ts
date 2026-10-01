@@ -10,12 +10,10 @@ export const inputDecoderSettingsSchema = decoderSettingsSchema.partial();
 const directionSchema = z.any();
 
 export const inputFrookySettingsSchema = z.object({
-  hookSettings: inputHookSettingsSchema.optional(),
-  decoderSettings: inputDecoderSettingsSchema.optional(),
+    hookSettings: inputHookSettingsSchema.optional(),
+    decoderSettings: inputDecoderSettingsSchema.optional()
 });
 
-export const inputParamSettingsSchema = decoderSettingsSchema.partial().and(
-  z.object({
-    direction: directionSchema.optional(),
-  }),
-);
+export const inputParamSettingsSchema = decoderSettingsSchema.partial().and(z.object({
+    direction: directionSchema.optional()
+}));

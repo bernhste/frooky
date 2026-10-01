@@ -181,8 +181,8 @@ class TestAndroidExamples:
         assert password["argsIn"] == [{"type": "[C", "name": "password", "value": "s3cr3t"}]
         [profile] = self._events(find_matched_events, "receiveProfile")
         assert {prop["name"]: prop["value"] for prop in profile["argsIn"][0]["value"]} == {"name": "alice", "age": 42, "admin": True}
-        [mode] = self._events(find_matched_events, "receiveMode")
-        assert mode["argsIn"] == [{"type": "int", "name": "mode", "value": "MODE_DECRYPT"}]
+        modes = sorted(event["argsIn"][0]["name"] + "=" + event["argsIn"][0]["value"] for event in self._events(find_matched_events, "receiveMode"))
+        assert modes == ["mode=MODE_DECRYPT", "opmode=DECRYPT"]
         # setFlags is a framework method, so the app process may call it more than once
         flags = [event["argsIn"][0] for event in self._events(find_matched_events, "setFlags", "android.content.Intent")]
         expected_flags = {
@@ -411,8 +411,40 @@ class TestNativeExamples:
         assert sum_ints["returnValue"]["value"] == 14
         [count_chars] = self._events(find_matched_events, "count_chars")
         assert count_chars["argsIn"][0] == {"type": "const char **", "name": "strings", "value": ["alpha", "beta", "gamma"]}
+        [count_args] = self._events(find_matched_events, "count_args")
+        assert count_args["argsIn"] == [{"type": "char *const []", "name": "argv", "value": ["ls", "-l", "/sdcard"]}]
+        assert count_args["returnValue"]["value"] == 3
         [get_version] = self._events(find_matched_events, "get_version")
         assert get_version["argsOut"] == [{"type": "const char **", "name": "out", "value": "1.2.3"}]
+
+    def test_file_descriptors(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/03_decoders/03_file_descriptors.yaml"), NATIVE_APP)
+
+        writes = {event["argsIn"][1]["value"]: event["argsIn"][0]["value"] for event in self._events(find_matched_events, "write_log")}
+        assert set(writes) == {"started", "ping"}
+        assert writes["started"] == {"fd": writes["started"]["fd"], "path": "/dev/null"}
+        socket = writes["ping"]
+        assert re.fullmatch(r"socket:\[\d+\]", socket["path"])
+        assert socket["family"] == "AF_INET"
+        assert socket["socketType"] == "SOCK_DGRAM"
+        assert re.fullmatch(r"127\.0\.0\.1:\d+", socket["local"])
+        assert socket["peer"] == "127.0.0.1:9"
+        [open_log] = self._events(find_matched_events, "open_log")
+        assert open_log["returnValue"]["value"] == {"fd": writes["started"]["fd"], "path": "/dev/null"}
+
+    def test_flags_and_enums(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/03_decoders/04_flags_and_enums.yaml"), NATIVE_APP)
+
+        [log_level] = self._events(find_matched_events, "set_log_level")
+        assert _values(log_level["argsIn"]) == ["LOG_LEVEL_WARN"]
+        [permissions] = self._events(find_matched_events, "set_permissions")
+        assert _values(permissions["argsIn"]) == [["PERMISSION_READ", "PERMISSION_SHARE", "0x100"]]
+        [open_log] = self._events(find_matched_events, "open_log")
+        assert open_log["argsIn"][1] == {"type": "int", "name": "flags", "value": ["O_WRONLY", "O_CREAT", "O_TRUNC", "O_CLOEXEC"]}
+        [open_socket] = self._events(find_matched_events, "open_socket")
+        assert _values(open_socket["argsIn"]) == ["AF_INET", ["SOCK_DGRAM", "SOCK_CLOEXEC"]]
+        [map_page] = self._events(find_matched_events, "map_page")
+        assert _values(map_page["argsIn"]) == [["PROT_READ", "PROT_WRITE"], ["MAP_PRIVATE", "MAP_ANONYMOUS"]]
 
     def test_max_items(self, run_frooky, find_matched_events):
         run_frooky(_example("native/04_decoder_settings/01_max_items.yaml"), NATIVE_APP)

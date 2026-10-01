@@ -72,6 +72,8 @@ export function parseNativeFridaType(type: string): FridaFundamentalType | Frida
     .trim()
     .toLowerCase()
     .replace(/\b(const|volatile)\b\s*/g, "")
+    // an array parameter is a pointer, e.g. `char *[]` is `char **`
+    .replace(/\s*\[\s*\d*\s*\]/g, "*")
     .replace(/\s*\*\s*/g, "*")
     .replace(/\s+/g, " ")
     .trim();

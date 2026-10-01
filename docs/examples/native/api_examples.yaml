@@ -95,14 +95,14 @@ hookCollection:
 
   # `read` writes up to `count` bytes into `buf` and returns how many it wrote, so `buf` is decoded on return
   # (`direction: out`) with the return value as its length (`decoderArg: $ret`). A return value of -1 (an
-  # error) decodes `buf` as null.
+  # error) decodes `buf` as null. `decoder: fd` shows the file, socket or pipe that `fd` refers to.
   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
   - module: libc.so
     hooks:
     - symbol: read
       retType: ssize_t
       params:
-      - [int, fd]
+      - [int, fd, { decoder: fd }]
       - [void *, buf, { direction: out, decoderArg: $ret, decoder: string, maxItems: 100 }]
       - [size_t, count]
 
@@ -127,7 +127,62 @@ hookCollection:
       params:
       - int
       - [const void *, buf , { decoderArg: count, decoder: string, maxItems: 200 }]
-      - [size_t, count] 
+      - [size_t, count]
+
+  # Flags and enums of system calls with the built-in presets, e.g. `open` flags as ["O_WRONLY", "O_CREAT"].
+  # The presets have the values of Android and iOS.
+  # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/mmap.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/socket.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man3/dlopen.3.html
+  - module: libc.so
+    hooks:
+    - symbol: openat
+      retType: [int, { decoder: fd }]
+      params:
+      - [int, dirfd]
+      - [const char *, path]
+      - [int, flags, { decoder: openFlags }]
+      - [mode_t, mode]
+    - symbol: mmap
+      retType: void *
+      params:
+      - [void *, addr]
+      - [size_t, length]
+      - [int, prot, { decoder: mmapProt }]
+      - [int, flags, { decoder: mmapFlags }]
+      - [int, fd, { decoder: fd }]
+      - [off_t, offset]
+    - symbol: mprotect
+      retType: int
+      params:
+      - [void *, addr]
+      - [size_t, length]
+      - [int, prot, { decoder: mmapProt }]
+    - symbol: socket
+      retType: [int, { decoder: fd }]
+      params:
+      - [int, domain, { decoder: socketDomain }]
+      - [int, type, { decoder: socketType }]
+      - [int, protocol]
+  - module: libdl.so
+    hooks:
+    - symbol: dlopen
+      retType: void *
+      params:
+      - [const char *, filename]
+      - [int, flags, { decoder: dlopenFlags }]
+
+  # The command lines of programs the app starts: `argv` and `envp` end at a NULL pointer.
+  # Docs: https://www.man7.org/linux/man-pages/man2/execve.2.html
+  - module: libc.so
+    hooks:
+    - symbol: execve
+      retType: int
+      params:
+      - [const char *, path]
+      - ["char *const []", argv, { decoder: nullTerminated }]
+      - ["char *const []", envp, { decoder: nullTerminated, maxItems: 20 }]
 
 # demos/ios/MASVS-AUTH/MASTG-DEMO-0043/hooks.js
   - module: Security

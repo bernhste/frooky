@@ -194,7 +194,7 @@ int OSSL_CMP_validate_cert_path(const OSSL_CMP_CTX *ctx,
 
 When these types are declared, frooky can decode arguments and return values using its built in decoders.
 
-A pointer to one of these types is read as that type, e.g. `int *` as an `int` and `char **` as the string that `char *` points to. With a `decoderArg`, a pointer is an array, see [Native Pointers and Arrays](./decoders-native.md#pointers-and-arrays).
+A pointer to one of these types is read as that type, e.g. `int *` as an `int` and `char **` as the string that `char *` points to. With a `decoderArg`, a pointer is an array, see [Native Pointers and Arrays](./decoders-native.md#pointers-and-arrays). An array type is a pointer, e.g. `char *[]` is `char **`.
 
 If a type is more complex, you may need further [decoder settings](./decoders.md#decoder-settings) (see also [Decoders for Native Hooks](./decoders-native.md)), such as `decoderArg` or `direction`, to decode it correctly.
 

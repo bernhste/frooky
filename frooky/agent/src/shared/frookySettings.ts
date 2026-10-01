@@ -61,6 +61,12 @@ export interface DecoderSettings {
   decoderArg?: string;
 
   /**
+   * Names of the values of an integer, e.g. `{ O_CREAT: 0x40 }`. Used by `decoder: enum` and `decoder: flags` for native
+   * hooks, and by `decoder: constant` for Java hooks instead of the constants of the hooked class.
+   */
+  constants?: Record<string, number>;
+
+  /**
    * Regular expressions matched against the decoded value. The event is only captured if at least one
    * matches. Only string and number values are filtered; other values always pass.
    */

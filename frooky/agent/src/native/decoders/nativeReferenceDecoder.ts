@@ -112,8 +112,8 @@ const BUFFER_POINTEES = new Set<FridaFundamentalType>(["void", "char", "uchar"])
 // `char **` with 2 is ["a", "b"]. For `void *`, `char *` and `unsigned char *` the decoderArg is a buffer
 // length instead (see referenceDecoders). A NULL pointer on any level is null.
 export class NativeReferenceDecoder extends Decoder<NativePointer> {
-  readonly decoderName = "NativeReferenceDecoder";
-  readonly description =
+  readonly decoderName: string = "NativeReferenceDecoder";
+  readonly description: string =
     "Decodes a native pointer by reading what it points to as its declared type, e.g. `char *` as a string, `int *` as an int, `char **` by following both pointers, or an array with the number of elements from `decoderArg`.";
 
   protected fridaReference: FridaReferenceType;
@@ -138,7 +138,7 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
     };
   }
 
-  private decodePointer(pointer: NativePointer, depth: number, arg?: DecodedValue): unknown {
+  protected decodePointer(pointer: NativePointer, depth: number, arg?: DecodedValue): unknown {
     if (pointer.isNull()) return null;
     const pointee = this.fridaReference.pointee;
     if (arg && !(depth === 1 && BUFFER_POINTEES.has(pointee))) {
@@ -168,6 +168,40 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
     }
     if (count > decodeLen) {
       items.push(`[truncated at ${maxItems}]`);
+    }
+    return items;
+  }
+}
+
+// `decoder: nullTerminated`: a `T **` read as an array that ends at a NULL pointer, like `argv` and `envp` of
+// execve(2), e.g. `char **` as ["ls", "-l"]. At most `maxItems` elements are decoded.
+export class NativeNullTerminatedArrayDecoder extends NativeReferenceDecoder {
+  readonly decoderName = "NativeNullTerminatedArrayDecoder";
+  readonly description = "Decodes a pointer to pointers, e.g. `char **`, as an array that ends at a NULL pointer, like the `argv` of execve.";
+
+  public decode(value: NativePointer): DecodedValue {
+    let decoded: unknown;
+    try {
+      decoded = this.fridaReference.depth < 2 ? this.decodePointer(value, this.fridaReference.depth) : this.decodeElements(value);
+    } catch (e) {
+      logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} at ${value}: ${e}`);
+      decoded = null;
+    }
+    return { type: this.type, name: this.name, value: decoded };
+  }
+
+  private decodeElements(pointer: NativePointer): unknown[] | null {
+    if (pointer.isNull()) return null;
+    const maxItems = this.settings.maxItems;
+    const items: unknown[] = [];
+    for (let i = 0; ; i++) {
+      const element = pointer.add(i * Process.pointerSize).readPointer();
+      if (element.isNull()) break;
+      if (i === maxItems) {
+        items.push(`[truncated at ${maxItems}]`);
+        break;
+      }
+      items.push(this.decodePointer(element, this.fridaReference.depth - 1));
     }
     return items;
   }

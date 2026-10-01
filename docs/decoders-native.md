@@ -7,6 +7,8 @@ How frooky decodes the parameters and return values of native (C/C++) functions.
 - [How frooky Picks a Decoder](#how-frooky-picks-a-decoder)
 - [Pointers and Arrays](#pointers-and-arrays)
 - [`decoderArg`: Lengths and Counts](#decoderarg-lengths-and-counts)
+- [File Descriptors](#file-descriptors)
+- [Flags and Enums](#flags-and-enums)
 - [Named Decoders](#named-decoders)
 - [`direction`: Output Parameters](#direction-output-parameters)
 - [Limits](#limits)
@@ -39,6 +41,23 @@ hooks:
       - [ "const char **", strings, { decoderArg: count } ]
       - [ int, count ]
 ```
+
+An array parameter is a pointer, so `char *[]` is the same as `char **`. In YAML, quote a type that contains `[]` inside a `[ ... ]` list.
+
+With `decoder: nullTerminated`, a pointer to pointers is an array that ends at a NULL pointer, without a count. [`execve`](https://www.man7.org/linux/man-pages/man2/execve.2.html) passes `argv` and `envp` this way:
+
+```yaml
+module: libc.so
+hooks:
+  - symbol: execve
+    retType: int
+    params:
+      - [ "const char *", path ]
+      - [ "char *const []", argv, { decoder: nullTerminated } ]
+      - [ "char *const []", envp, { decoder: nullTerminated, maxItems: 20 } ]
+```
+
+`argv` is decoded as e.g. `["ls", "-l", "/sdcard"]`. The elements are decoded as the type one `*` less, here `char *`. For a pointee frooky doesn't know, e.g. `FILE **`, they are shown as addresses.
 
 See [`02_pointers_and_arrays.yaml`](examples/native/03_decoders/02_pointers_and_arrays.yaml).
 
@@ -109,10 +128,98 @@ hooks:
 
 See [`01_strings_and_buffers.yaml`](examples/native/03_decoders/01_strings_and_buffers.yaml).
 
+## File Descriptors
+
+With `decoder: fd`, an `int` file descriptor is decoded to what it refers to:
+
+```json
+{ "fd": 42, "path": "/data/user/0/org.example.app/files/token.txt" }
+```
+
+For a socket, frooky also reads its address family, socket type and addresses:
+
+```json
+{ "fd": 57, "path": "socket:[123456]", "family": "AF_INET", "socketType": "SOCK_STREAM", "local": "10.0.2.16:41234", "peer": "142.250.74.78:443" }
+```
+
+- `local` and `peer` are `IP:port` (`[IPv6]:port` for IPv6) or, for `AF_UNIX`, a path. On Android, a name in the abstract namespace starts with `@`. They are `null` if the socket has no address, e.g. `peer` before `connect`.
+- Pipes and other kinds of fds only have a `path`, e.g. `pipe:[678]` or `anon_inode:[eventfd]`.
+- On Android, the `path` is read from `/proc/self/fd`. On iOS, it is read with `fcntl(F_GETPATH)`, which only has a path for files, so it is `null` for sockets and pipes.
+- A negative fd, e.g. `-1` when `open` fails, and an fd that isn't open have `path: null`. For an fd that `close` closes, decode it at the call (the default), not with `direction: out`.
+
+The decoder only reads the state of the fd. It works on the return value too, e.g. `retType: [int, { decoder: fd }]` for `open` and `socket`.
+
+```yaml
+module: libc.so
+hooks:
+  - symbol: read
+    retType: ssize_t
+    params:
+      - [ int, fd, { decoder: fd } ]
+      - [ "void *", buf, { direction: out, decoderArg: $ret, decoder: string } ]
+      - [ size_t, count ]
+```
+
+See [`03_file_descriptors.yaml`](examples/native/03_decoders/03_file_descriptors.yaml).
+
+## Flags and Enums
+
+An integer that stands for a named constant is decoded to that name:
+
+- `decoder: enum`: the name of the constant with exactly this value, e.g. `"LOG_LEVEL_WARN"`. A value without a constant is decoded as the number.
+- `decoder: flags`: the names of the constants whose bits are set, as a list, e.g. `["PERMISSION_READ", "PERMISSION_SHARE"]`. Bits that no constant has are added as one hex string, e.g. `"0x100"`. A constant with the value `0` is only shown if no bit is set, and a constant with several bits wins over the constants it includes.
+
+The `constants` setting maps the names to their values. YAML reads `0x40` as a number, so hex values can be written as they are in C headers:
+
+```yaml
+module: libfoo.so
+hooks:
+  - symbol: set_permissions
+    params:
+      - [ unsigned int, permissions, { decoder: flags, constants: { PERMISSION_READ: 0x1, PERMISSION_WRITE: 0x2, PERMISSION_SHARE: 0x4 } } ]
+```
+
+The value is read with the size of its declared type, e.g. 32 bits for `int` and `unsigned int`. A type frooky doesn't know, e.g. `mode_t`, is read as 32 bits, the size of a C enum.
+
+For the flags and enums of system calls, frooky has presets. They don't need `constants`:
+
+| Decoder        | For                                       | Example                              |
+| -------------- | ----------------------------------------- | ------------------------------------ |
+| `openFlags`    | `flags` of `open`, `openat`               | `["O_WRONLY", "O_CREAT", "O_TRUNC"]` |
+| `mmapProt`     | `prot` of `mmap`, `mprotect`              | `["PROT_READ", "PROT_EXEC"]`         |
+| `mmapFlags`    | `flags` of `mmap`                         | `["MAP_PRIVATE", "MAP_ANONYMOUS"]`   |
+| `dlopenFlags`  | `flags` of `dlopen`, `android_dlopen_ext` | `["RTLD_NOW", "RTLD_GLOBAL"]`        |
+| `socketDomain` | `domain` of `socket` (an enum)            | `"AF_INET6"`                         |
+| `socketType`   | `type` of `socket`                        | `["SOCK_STREAM", "SOCK_CLOEXEC"]`    |
+
+Each preset has two tables, and frooky picks the one for the platform of the app:
+
+- **Android** (and Linux), arm64 and x86_64: the values of the Linux kernel and Bionic. The kernel keeps them stable, but a few `O_*` flags differ between arm64 and x86_64, e.g. `O_DIRECTORY`.
+- **iOS** (and macOS): the values of the XNU kernel and libSystem, which are the same on every architecture. They differ from Android's, e.g. `O_CREAT` is `0x200` instead of `0x40`, and some constants only exist on one platform, e.g. `SOCK_CLOEXEC` only on Android and `MAP_JIT` only on iOS. frooky doesn't hook iOS apps yet, so the iOS values aren't tested against an app.
+
+For 32-bit apps and other platforms, a preset logs a warning and the value is decoded as a number.
+
+```yaml
+module: libc.so
+hooks:
+  - symbol: openat
+    retType: [ int, { decoder: fd } ]
+    params:
+      - [ int, dirfd ]
+      - [ "const char *", path ]
+      - [ int, flags, { decoder: openFlags } ]
+      - [ mode_t, mode ]
+```
+
+See [`04_flags_and_enums.yaml`](examples/native/03_decoders/04_flags_and_enums.yaml).
+
 ## Named Decoders
 
-Native hooks have one registered decoder:
+Native hooks have these registered decoders:
 
+- `fd`: decodes an `int` file descriptor to the file, socket or pipe it refers to, see [File Descriptors](#file-descriptors).
+- `enum` and `flags`: decode an integer to the names in `constants`, see [Flags and Enums](#flags-and-enums). The presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain` and `socketType` have the constants built in.
+- `nullTerminated`: decodes a pointer to pointers, e.g. `char **`, as an array that ends at a NULL pointer, see [Pointers and Arrays](#pointers-and-arrays).
 - `string`: decodes a pointer (`void *`, ...) as a UTF-8 string, or as ASCII if the bytes aren't valid UTF-8. Without a `decoderArg`, the string ends at its NUL terminator. With a `decoderArg`, that parameter's value is the buffer length and exactly that many bytes are decoded, so buffers that aren't NUL-terminated can be decoded too. NUL bytes inside the buffer don't end the string; they are decoded like any other byte (as `.` when decoded as ASCII). At most `maxItems` bytes are decoded, and a longer string ends with `...`.
 
 `char *` is always decoded this way, and so is `unsigned char *` without a `decoderArg`, so they don't need `decoder: string`.
@@ -152,6 +259,7 @@ What `maxItems` limits for each decoder (see [`maxItems` and `maxDepth`](./decod
 | ------------------------------------- | -------------------------- |
 | `char *`, `unsigned char *`, `void *` | Bytes read from the buffer |
 | Other pointers with a `decoderArg`    | Elements of the array      |
+| `nullTerminated`                      | Elements of the array      |
 
 Strings and buffers decoded as hex end with `...` when they're cut, arrays end with a `"[truncated at N]"` marker.
 

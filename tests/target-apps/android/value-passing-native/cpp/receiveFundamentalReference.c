@@ -89,6 +89,15 @@ NOINLINE EXPORT int count_chars(const char **strings, int count)
     return total;
 }
 
+// A NULL-terminated array of strings, like the argv of execve(2).
+NOINLINE EXPORT int count_args(char *const argv[])
+{
+    int count = 0;
+    while (argv[count])
+        count++;
+    return count;
+}
+
 // Output parameter: points `*out` to a string, like getline(3) or asprintf(3) do.
 NOINLINE EXPORT int get_version(const char **out)
 {
@@ -152,6 +161,8 @@ Java_org_owasp_mastestapp_MastgTest_receiveFundamentalReferenceJNI(JNIEnv *env, 
     sum_ints(values, 5);
     const char *names[] = {"alpha", "beta", "gamma"};
     count_chars(names, 3);
+    char *const argv[] = {"ls", "-l", "/sdcard", NULL};
+    count_args(argv);
     const char *version = NULL;
     get_version(&version);
 

@@ -75,6 +75,15 @@
             "decoderArg": {
               "type": "string"
             },
+            "constants": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number"
+              }
+            },
             "argFilter": {
               "type": "array",
               "items": {
@@ -128,6 +137,15 @@
                             },
                             "decoderArg": {
                               "type": "string"
+                            },
+                            "constants": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "number"
+                              }
                             },
                             "argFilter": {
                               "type": "array",
@@ -200,6 +218,15 @@
                                             "decoderArg": {
                                               "type": "string"
                                             },
+                                            "constants": {
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "number"
+                                              }
+                                            },
                                             "argFilter": {
                                               "type": "array",
                                               "items": {
@@ -240,6 +267,15 @@
                                             "decoderArg": {
                                               "type": "string"
                                             },
+                                            "constants": {
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "number"
+                                              }
+                                            },
                                             "argFilter": {
                                               "type": "array",
                                               "items": {
@@ -274,6 +310,15 @@
                                   },
                                   "decoderArg": {
                                     "type": "string"
+                                  },
+                                  "constants": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string"
+                                    },
+                                    "additionalProperties": {
+                                      "type": "number"
+                                    }
                                   },
                                   "argFilter": {
                                     "type": "array",
@@ -326,6 +371,15 @@
                             },
                             "decoderArg": {
                               "type": "string"
+                            },
+                            "constants": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "number"
+                              }
                             },
                             "argFilter": {
                               "type": "array",
@@ -381,6 +435,15 @@
                   "decoderArg": {
                     "type": "string"
                   },
+                  "constants": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
                   "argFilter": {
                     "type": "array",
                     "items": {
@@ -434,6 +497,15 @@
                             },
                             "decoderArg": {
                               "type": "string"
+                            },
+                            "constants": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "number"
+                              }
                             },
                             "argFilter": {
                               "type": "array",
@@ -498,6 +570,15 @@
                                       "decoderArg": {
                                         "type": "string"
                                       },
+                                      "constants": {
+                                        "type": "object",
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "additionalProperties": {
+                                          "type": "number"
+                                        }
+                                      },
                                       "argFilter": {
                                         "type": "array",
                                         "items": {
@@ -537,6 +618,15 @@
                                       },
                                       "decoderArg": {
                                         "type": "string"
+                                      },
+                                      "constants": {
+                                        "type": "object",
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "additionalProperties": {
+                                          "type": "number"
+                                        }
                                       },
                                       "argFilter": {
                                         "type": "array",
@@ -583,6 +673,15 @@
                                     },
                                     "decoderArg": {
                                       "type": "string"
+                                    },
+                                    "constants": {
+                                      "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "additionalProperties": {
+                                        "type": "number"
+                                      }
                                     },
                                     "argFilter": {
                                       "type": "array",
@@ -637,6 +736,15 @@
                             },
                             "decoderArg": {
                               "type": "string"
+                            },
+                            "constants": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "number"
+                              }
                             },
                             "argFilter": {
                               "type": "array",
@@ -707,6 +815,15 @@
                                       "decoderArg": {
                                         "type": "string"
                                       },
+                                      "constants": {
+                                        "type": "object",
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "additionalProperties": {
+                                          "type": "number"
+                                        }
+                                      },
                                       "argFilter": {
                                         "type": "array",
                                         "items": {
@@ -746,6 +863,15 @@
                                       },
                                       "decoderArg": {
                                         "type": "string"
+                                      },
+                                      "constants": {
+                                        "type": "object",
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "additionalProperties": {
+                                          "type": "number"
+                                        }
                                       },
                                       "argFilter": {
                                         "type": "array",
@@ -792,6 +918,15 @@
                                     },
                                     "decoderArg": {
                                       "type": "string"
+                                    },
+                                    "constants": {
+                                      "type": "object",
+                                      "propertyNames": {
+                                        "type": "string"
+                                      },
+                                      "additionalProperties": {
+                                        "type": "number"
+                                      }
                                     },
                                     "argFilter": {
                                       "type": "array",
@@ -846,6 +981,15 @@
                             },
                             "decoderArg": {
                               "type": "string"
+                            },
+                            "constants": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string"
+                              },
+                              "additionalProperties": {
+                                "type": "number"
+                              }
                             },
                             "argFilter": {
                               "type": "array",
@@ -909,6 +1053,15 @@
                   },
                   "decoderArg": {
                     "type": "string"
+                  },
+                  "constants": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "number"
+                    }
                   },
                   "argFilter": {
                     "type": "array",

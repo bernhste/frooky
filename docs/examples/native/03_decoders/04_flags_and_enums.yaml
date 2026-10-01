@@ -1,0 +1,55 @@
+metadata:
+  name: "Decoders (Native): Flags and Enums"
+  description: |
+    `decoder: enum` decodes an integer to the name of its constant, `decoder: flags` decodes a bitmask to
+    the names of the bits that are set. The names come from `constants`, or from a built-in preset for
+    flags and enums of system calls on Android and iOS, such as `openFlags` or `socketDomain`.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/04_flags_and_enums.yaml
+# See:    docs/decoders-native.md#flags-and-enums
+
+hookCollection:
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      # int set_log_level(enum log_level level) with LOG_LEVEL_WARN, which is 5
+      - symbol: set_log_level
+        params:
+          - [int, level, { decoder: enum, constants: { LOG_LEVEL_DEBUG: 3, LOG_LEVEL_INFO: 4, LOG_LEVEL_WARN: 5 } }]
+
+      # unsigned int set_permissions(unsigned int permissions) with PERMISSION_READ | PERMISSION_SHARE | 0x100.
+      # 0x100 has no constant, so it is shown as hex.
+      - symbol: set_permissions
+        params:
+          - [unsigned int, permissions, { decoder: flags, constants: { PERMISSION_READ: 0x1, PERMISSION_WRITE: 0x2, PERMISSION_SHARE: 0x4 } }]
+
+      # int open_log(const char *path, int flags) passes `flags` to open(2)
+      # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+      - symbol: open_log
+        params:
+          - ["const char *", path]
+          - [int, flags, { decoder: openFlags }]
+
+      # int open_socket(int domain, int type) passes both to socket(2)
+      # Docs: https://www.man7.org/linux/man-pages/man2/socket.2.html
+      - symbol: open_socket
+        params:
+          - [int, domain, { decoder: socketDomain }]
+          - [int, type, { decoder: socketType }]
+
+      # int map_page(int prot, int flags) passes both to mmap(2)
+      # Docs: https://www.man7.org/linux/man-pages/man2/mmap.2.html
+      - symbol: map_page
+        params:
+          - [int, prot, { decoder: mmapProt }]
+          - [int, flags, { decoder: mmapFlags }]
+
+# Expected values:
+#   set_log_level:   argsIn[0].value "LOG_LEVEL_WARN"
+#   set_permissions: argsIn[0].value ["PERMISSION_READ", "PERMISSION_SHARE", "0x100"]
+#   open_log:        argsIn[1].value ["O_WRONLY", "O_CREAT", "O_TRUNC", "O_CLOEXEC"]
+#   open_socket:     argsIn[0].value "AF_INET", argsIn[1].value ["SOCK_DGRAM", "SOCK_CLOEXEC"]
+#   map_page:        argsIn[0].value ["PROT_READ", "PROT_WRITE"], argsIn[1].value ["MAP_PRIVATE", "MAP_ANONYMOUS"]

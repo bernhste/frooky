@@ -2,21 +2,22 @@
 import { z } from "zod";
 
 export const hookSettingsSchema = z.object({
-  maxStackFrames: z.number().min(0),
-  stackTraceFilter: z.array(z.string()),
-  nativeStackTrace: z.boolean(),
-  platformStackTrace: z.boolean(),
+    maxStackFrames: z.number().min(0),
+    stackTraceFilter: z.array(z.string()),
+    nativeStackTrace: z.boolean(),
+    platformStackTrace: z.boolean()
 });
 
 export const decoderSettingsSchema = z.object({
-  maxDepth: z.number().min(1),
-  maxItems: z.number().min(1),
-  decoder: z.string().optional(),
-  decoderArg: z.string().optional(),
-  argFilter: z.array(z.string()).optional(),
+    maxDepth: z.number().min(1),
+    maxItems: z.number().min(1),
+    decoder: z.string().optional(),
+    decoderArg: z.string().optional(),
+    constants: z.record(z.string(), z.number()).optional(),
+    argFilter: z.array(z.string()).optional()
 });
 
 export const frookySettingsSchema = z.object({
-  hookSettings: hookSettingsSchema,
-  decoderSettings: decoderSettingsSchema,
+    hookSettings: hookSettingsSchema,
+    decoderSettings: decoderSettingsSchema
 });

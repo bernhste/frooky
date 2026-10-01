@@ -1,0 +1,37 @@
+metadata:
+  name: "Decoders (Native): File Descriptors"
+  description: |
+    `decoder: fd` decodes an `int` file descriptor to the file, socket or pipe it refers to. For a socket,
+    it also shows the address family, the socket type, and the local and peer address.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/03_file_descriptors.yaml
+# See:    docs/decoders-native.md#file-descriptors
+
+hookCollection:
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      # int write_log(int fd, const void *buf, int len) writes like write(2), once to /dev/null and once to a
+      # UDP socket connected to 127.0.0.1:9
+      # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
+      - symbol: write_log
+        params:
+          - [int, fd, { decoder: fd }]
+          - ["const void *", buf, { decoderArg: len, decoder: string }]
+          - [int, len]
+
+      # int open_log(const char *path, int flags) returns the fd it opened, like open(2)
+      - symbol: open_log
+        retType: [int, { decoder: fd }]
+        params:
+          - ["const char *", path]
+          - [int, flags]
+
+# Expected values:
+#   write_log (file):   argsIn[0].value {fd: <n>, path: "/dev/null"}, argsIn[1].value "started"
+#   write_log (socket): argsIn[0].value {fd: <n>, path: "socket:[<inode>]", family: AF_INET, socketType: SOCK_DGRAM,
+#                                        local: "127.0.0.1:<port>", peer: "127.0.0.1:9"}, argsIn[1].value "ping"
+#   open_log:           returnValue.value {fd: <n>, path: "/dev/null"}
