@@ -17,24 +17,29 @@ type Lookup = {
   found: (classes: Java.Wrapper[], installNow: boolean) => void;
 };
 
-// New class loaders often come in bursts (e.g. WebView's two), so wildcards look into them once the burst is over
-const LOADER_BURST_MS = 200;
+// Watched for new class loaders. In spawn mode, the constructors are hooked before the app runs, and then
+// `new PathClassLoader(...)` doesn't reach the hook on its BaseDexClassLoader super constructor, only the
+// framework's own calls do. So the framework's subclasses are watched too. Not every Android version has all of them.
+const LOADER_CLASSES = [
+  "dalvik.system.BaseDexClassLoader",
+  "dalvik.system.PathClassLoader",
+  "dalvik.system.DexClassLoader",
+  "dalvik.system.InMemoryDexClassLoader",
+  "dalvik.system.DelegateLastClassLoader",
+];
 
 // Finds Java classes in every class loader of the app, including the ones it creates later (e.g. WebView's or a
 // plugin's), without polling:
 // - a class name is looked up in the default class loader, then in every class loader once the app runs, then in
 //   every new BaseDexClassLoader (Path-, Dex-, InMemoryDex- and DelegateLastClassLoader) while it is created
-// - a wildcard pattern is matched against the loaded classes and the dex files of every class loader, and of every
-//   new one
+// - a wildcard pattern is matched against the loaded classes and the dex files of every class loader once the app
+//   runs, then against the dex files of every new class loader while it is created
 // - with `classLoader`, a class (or pattern) is only looked up in instances of that ClassLoader subclass, also when
 //   one of them loads it later, for custom class loaders that define classes themselves
 export class JavaClassResolver {
   private readonly lookups = new Set<Lookup>();
-  // identityHashCode() of the class loaders seen so far: the BaseDexClassLoader constructors call each other
+  // identityHashCode() of the class loaders seen so far: the watched constructors call each other
   private readonly seenLoaders = new Set<number>();
-  // new class loaders whose dex files the wildcards haven't been matched against yet
-  private unscannedLoaders: Java.Wrapper[] = [];
-  private scanTimer: ReturnType<typeof setTimeout> | undefined;
   private watchingNewLoaders = false;
   private readonly watchedLoaderClasses = new Map<string, Java.Wrapper | null>();
   // set while this resolver loads classes itself, which runs the observed methods again
@@ -130,20 +135,30 @@ export class JavaClassResolver {
     }
   }
 
-  // Watches the constructors of BaseDexClassLoader, which every class loader that reads dex files extends.
+  // Watches the constructors of BaseDexClassLoader, which every class loader that reads dex files extends, and of
+  // its subclasses in LOADER_CLASSES.
   private watchNewLoaders(): void {
     if (this.watchingNewLoaders) return;
     this.watchingNewLoaders = true;
-    try {
-      for (const constructor of Java.use("dalvik.system.BaseDexClassLoader").$init.overloads) {
-        this.observe(constructor, (loader) => this.onNewLoader(loader));
+    for (const loaderClass of LOADER_CLASSES) {
+      const wrapper = this.use(loaderClass);
+      if (!wrapper) {
+        logger.debug(`Class loader class '${loaderClass}' not found, not watched.`);
+        continue;
       }
-    } catch (e) {
-      logger.warn(`Failed to watch new class loaders, classes in class loaders created later are not found: ${e}`);
+      try {
+        for (const constructor of wrapper.$init.overloads) {
+          this.observe(constructor, (loader) => this.onNewLoader(loader));
+        }
+      } catch (e) {
+        logger.warn(`Failed to watch new instances of ${loaderClass}, classes in them are not found: ${e}`);
+      }
     }
   }
 
-  // Runs on the app's thread that creates the class loader, before any class of it is used
+  // Runs on the app's thread that creates the class loader, before any class of it is used. Wildcards are matched
+  // here too, so their hooks are in place before the app uses the class loader, at the cost of reading the names of
+  // the classes in its dex files on that thread (about 0.1 s for a large APK).
   private onNewLoader(loader: Java.Wrapper): void {
     if (this.resolving || this.lookups.size === 0) return;
     this.javaSystem ??= Java.use("java.lang.System");
@@ -157,14 +172,7 @@ export class JavaClassResolver {
       if (lookup.pattern) hasPattern = true;
       else this.findInLoaders(lookup, [loader]);
     }
-    if (!hasPattern) return;
-    this.unscannedLoaders.push(Java.retain(loader));
-    clearTimeout(this.scanTimer);
-    this.scanTimer = setTimeout(() => {
-      const loaders = this.unscannedLoaders;
-      this.unscannedLoaders = [];
-      this.matchPatterns(loaders, false);
-    }, LOADER_BURST_MS);
+    if (hasPattern) this.matchPatterns([loader], false);
   }
 
   // Matches the wildcard lookups against the classes in the dex files of `loaders`, and with `includeLoaded`

@@ -79,6 +79,26 @@ describe("AndroidHookManager", () => {
       registerHooks.mockRestore();
     });
 
+    it("installs the hooks of a wildcard match in a class loader created later while the class loader is created", async () => {
+      const manager = new AndroidHookManager(stackTrace, frookyAgent);
+      const registerHooks = spyOn(manager, "registerHooks");
+      const javaPackage = `com.frooky.test.late${Date.now()}`;
+
+      const [result] = await manager.resolveHooks([javaHook(`${javaPackage}.*`, "greet")]);
+      expect(registerHooks).not.toHaveBeenCalled();
+      registerTestClass({
+        name: `${javaPackage}.LateClass`,
+        methods: { greet: { returnType: "java.lang.String", argumentTypes: [], implementation: () => "hi" } },
+      });
+
+      // no await since registerTestClass(): the hook was installed while its class loader was created
+      expect(registerHooks).toHaveBeenCalledTimes(1);
+      const hooks = (await result)!;
+      expect(hooks.map((hook) => hook.method.holder.$className)).toEqual([`${javaPackage}.LateClass`]);
+      manager.unregisterHooks(hooks);
+      registerHooks.mockRestore();
+    });
+
     it("finds a class with `classLoader` only in instances of that class loader, when one of them loads it", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
       const registerHooks = spyOn(manager, "registerHooks");

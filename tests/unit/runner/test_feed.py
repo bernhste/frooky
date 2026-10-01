@@ -60,6 +60,19 @@ class TestLog:
         # the 256-color red (167) for both the level tag and the message
         assert buffer.getvalue().count("38;5;167m") >= 2
 
+    def test_colors_decoder_messages_per_decoded_value(self):
+        feed, buffer = make_feed(width=200, color=True)
+
+        feed.log("debug", "Decoded com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): \"a\"")
+        feed.log("debug", "Decoded com.example.Foo.bar param #1 'value' (java.lang.String, PrimitiveDecoder): \"b\"")
+        feed.log("debug", "Decoded com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): \"c\"")
+
+        lines = buffer.getvalue().splitlines()
+        message_colors = [re.findall(r"38;5;(\d+)m", line)[-1] for line in lines]
+        assert message_colors[0] == message_colors[2]
+        assert message_colors[0] != message_colors[1]
+        assert message_colors[0] != "64"
+
     def test_strips_trailing_newline(self):
         feed, buffer = make_feed()
 
