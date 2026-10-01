@@ -46,6 +46,10 @@ rpc.exports = {
       .loadFrookyConfigs(frookyConfigs, configIds)
       .catch((e) => console.error(`Error loading frooky configs: ${String(e)}`));
   },
+  // every hook declaration with its state and event count, for the host's `i` key
+  hookStatistics() {
+    return initializedFrookyAgent().hookStatistics();
+  },
   // replaces the config loaded under configId, re-hooking only what changed
   updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig, retryFailed?: boolean) {
     initializedFrookyAgent()

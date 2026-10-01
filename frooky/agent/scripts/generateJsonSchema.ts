@@ -33,7 +33,8 @@ const jsonSchema = z.toJSONSchema(inputFrookyConfigSchema, {
 // - a per-hook object entry's `javaClass`/`module` is always inherited from its parent
 //   collection (see normalizeJavaHook/normalizeNativeHook, which overwrite it unconditionally),
 //   so individual hooks only ever specify their own `method`/`symbol`/`offset`.
-// Leaving these required would make the schema flag every real hook file as invalid.
+// Leaving these required would make the schema flag every real hook file as invalid. `classLoader` is inherited the
+// same way, so it is left out of individual hooks entirely.
 for (const hookCollectionVariant of jsonSchema.properties.hookCollection.items.anyOf) {
   const inheritedKey = hookCollectionVariant.required?.find((key) => key === "javaClass" || key === "module");
   hookCollectionVariant.required = hookCollectionVariant.required?.filter((key) => key !== "type");
@@ -48,6 +49,7 @@ for (const hookCollectionVariant of jsonSchema.properties.hookCollection.items.a
   for (const hookVariant of hookVariants) {
     if (hookVariant.type === "object" && inheritedKey) {
       hookVariant.required = hookVariant.required?.filter((key) => key !== inheritedKey);
+      delete hookVariant.properties?.classLoader;
     }
   }
 }

@@ -3,8 +3,7 @@ import { RecursiveDecoder } from "../../../shared/decoders/recursiveDecoder";
 import { Decodable } from "../../../shared/decoders/decodable";
 import { DecoderSettings } from "../../../shared/frookySettings";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
-import { DecoderArgValues, sliceBounds } from "../../../shared/decoders/decoderArgs";
-import { logger } from "../../../shared/logger";
+import { DecoderArgValues, logDecodeFailure, sliceBounds } from "../../../shared/decoders/decoderArgs";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "../javaDecoderResolver";
 
 // JNI array element signature to a declared type:
@@ -172,7 +171,7 @@ export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
     try {
       ({ start, end } = sliceBounds(args, arrayLike.length));
     } catch (e) {
-      logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""}: ${e}`);
+      logDecodeFailure(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""}`, e);
       return { type: this.type, name: this.name, value: null };
     }
     const total = end - start;

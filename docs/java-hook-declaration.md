@@ -18,6 +18,7 @@ A `JavaHook` declaration is a YAML object with these top-level fields:
 
 ```yaml
 javaClass: <fully qualified Java class name>
+classLoader: <fully qualified ClassLoader class name>   # Optional. See Classes of Custom Class Loaders
 hookSettings:                       # Optional. Overrides the file-level `settings.hookSettings` for this hook collection
   <hook settings>
 decoderSettings:                    # Optional. Overrides the file-level `settings.decoderSettings` for this hook collection
@@ -120,8 +121,31 @@ WebView.loadUrl(url: String, additionalHttpHeaders: MutableMap<String!, String!>
 > Use the following syntax for dynamic class lookup at runtime.
 >
 > - **Exact match:** `org.owasp.mastestapp.MainActivity`
-> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level - `*` matches exactly one segment between dots, and every class matching the pattern that is loaded when frooky resolves it gets hooked
+> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level - `*` matches exactly one segment between dots. frooky hooks every matching class of the app and of its class loaders when it resolves the pattern, also classes the app hasn't used yet. If no class matches, it hooks the matching classes of the first class loader the app creates that has any. Reading the class names of a large app takes up to about a second.
 > - **Nested classes:** use the `$` separator, for example `Outer$Inner`
+
+## Class Loaders
+
+frooky looks a class up in every class loader of the app, not only in the app's own:
+
+- **Classes of the app and of Android** are found right away.
+- **Classes in a class loader the app creates later**, such as a plugin, code the app downloads and loads with `DexClassLoader`, or the WebView implementation, are hooked while that class loader is created, before any of its code runs.
+- **A class that no class loader has yet** keeps waiting: frooky reports it as waiting after `-t` seconds and hooks it as soon as a class loader has it. See [Dynamic Class and Module Resolution](./additional-features.md#dynamic-class-and-module-resolution).
+
+### Classes of Custom Class Loaders
+
+Some apps load classes with a class loader of their own that extends `ClassLoader` directly and defines classes itself, for example with `DexFile.loadClass()`. frooky doesn't see these classes on its own. The same goes for a class that exists in several class loaders: frooky hooks the first one it finds, usually the app's.
+
+Name the class loader in `classLoader`, and frooky hooks the class only as instances of that class loader load it, before `loadClass()` returns it:
+
+```yaml
+javaClass: org.owasp.mastestapp.PluginGreeter
+classLoader: org.owasp.mastestapp.PluginClassLoader
+hooks:
+  - greet
+```
+
+frooky hooks `loadClass(String)` of that class loader, or the one it inherits, which runs for every class it loads. See [`04_custom_class_loaders.yaml`](./examples/android/01_basic_hooking/04_custom_class_loaders.yaml).
 
 To hook all overloads of a method while also overriding its `decoderSettings`, write the hook as a `[<method name>, {<decoder settings>}]` tuple instead of a plain string.
 

@@ -107,20 +107,14 @@ class TestHookStatus:
         now[0] = 102.5
 
         assert status.busy
-        assert status.describe() == "Resolving hooks: 38 hooked, 4 modules pending (gives up in 3s)"
+        assert status.describe() == "Resolving hooks: 38 hooked, 4 pending (3s)"
 
-    def test_uses_the_singular_for_one_pending_module(self):
-        status, _now = self.make()
-        status.update(14, 1)
-
-        assert status.describe().startswith("Resolving hooks: 14 hooked, 1 module pending ")
-
-    def test_leaves_out_the_countdown_once_the_timeout_passed(self):
+    def test_leaves_out_the_countdown_once_the_report_delay_passed(self):
         status, now = self.make()
         status.update(38, 4)
         now[0] = 106.0
 
-        assert status.describe() == "Resolving hooks: 38 hooked, 4 modules pending"
+        assert status.describe() == "Resolving hooks: 38 hooked, 4 pending"
 
     def test_describes_the_hook_count_when_nothing_is_pending(self):
         status, _now = self.make()
@@ -135,6 +129,13 @@ class TestHookStatus:
 
         assert status.describe() == "Hooks ready: 14 hooked, 1 not resolved"
 
+    def test_is_ready_while_hooks_wait_for_their_class_or_module(self):
+        status, _now = self.make()
+        status.update(14, 0, 1, 2)
+
+        assert not status.busy
+        assert status.describe() == "Hooks ready: 14 hooked, 2 waiting, 1 not resolved"
+
     def test_restarts_the_countdown_when_resolving_starts_again(self):
         status, now = self.make()
         status.update(38, 0)
@@ -142,14 +143,41 @@ class TestHookStatus:
         status.update(38, 1)
         now[0] = 201.0
 
-        assert status.describe().endswith("(gives up in 4s)")
+        assert status.describe().endswith("(4s)")
+
+
+class TestHookStatistics:
+    STATISTICS = [
+        {"config": "hooks.yaml", "target": "com.example.Late.run", "state": "waiting", "waitsFor": "Java class 'com.example.Late'", "hooked": 0, "events": 0},
+        {"config": "hooks.yaml", "target": "libc.so!nope", "state": "failed", "waitsFor": "Module 'libc.so'", "hooked": 0, "events": 0},
+        {"config": "hooks.yaml", "target": "libc.so!open", "state": "installed", "waitsFor": "Module 'libc.so'", "hooked": 1, "events": 1234},
+    ]
+
+    def test_lists_hooked_declarations_first_with_their_events(self):
+        feed, buffer = make_feed(width=140)
+
+        feed.hook_statistics(self.STATISTICS)
+
+        lines = [line.rstrip() for line in buffer.getvalue().splitlines()]
+        assert lines[0] == "Hook statistics"
+        assert re.match(r"^State\s+Hooks\s+Events\s+Target\s+File\s+Waits for$", lines[1])
+        assert re.match(r"^hooked\s+1\s+1,234\s+libc\.so!open\s+hooks\.yaml$", lines[2])
+        assert re.match(r"^waiting\s+-\s+-\s+com\.example\.Late\.run\s+hooks\.yaml\s+Java class 'com\.example\.Late'$", lines[3])
+        assert re.match(r"^not resolved\s+-\s+-\s+libc\.so!nope\s+hooks\.yaml$", lines[4])
+
+    def test_says_so_when_no_hooks_are_loaded(self):
+        feed, buffer = make_feed()
+
+        feed.hook_statistics([])
+
+        assert "no hooks loaded" in buffer.getvalue()
 
 
 class TestStatusBar:
-    def make(self, width=100, hooked=38, pending=0, failed=0):
+    def make(self, width=100, hooked=38, pending=0, failed=0, waiting=0):
         feed, _buffer = make_feed(width=width)
         hook_status = HookStatus(5)
-        hook_status.update(hooked, pending, failed)
+        hook_status.update(hooked, pending, failed, waiting)
         feed.hook_status(hook_status)
         feed.status(2264, "libc.so: read")
         return feed
@@ -164,7 +192,7 @@ class TestStatusBar:
 
         bar = feed.render_status_bar().plain
 
-        assert re.match(r"^ \S Resolving hooks: 38 hooked, 4 modules pending .*  │  Last Event libc\.so: read ", bar)
+        assert re.match(r"^ \S Resolving hooks: 38 hooked, 4 pending .*  │  Last Event libc\.so: read ", bar)
         assert bar.endswith("  # Events   2,264  │  Event Rate     0/s ")
 
     def test_shows_the_hook_count_without_a_spinner_when_done(self):
@@ -179,6 +207,11 @@ class TestStatusBar:
         feed = self.make(failed=2)
 
         assert feed.render_status_bar().plain.startswith(" # Hooks  38 (2 not resolved)  │  Last Event libc.so: read ")
+
+    def test_shows_hooks_that_wait_for_their_class_or_module(self):
+        feed = self.make(width=120, failed=2, waiting=1)
+
+        assert feed.render_status_bar().plain.startswith(" # Hooks  38 (1 waiting, 2 not resolved)  │  Last Event libc.so: read ")
 
     def test_spans_the_console_width_with_events_rate_and_elapsed_time_on_the_right(self):
         feed = self.make(width=120)

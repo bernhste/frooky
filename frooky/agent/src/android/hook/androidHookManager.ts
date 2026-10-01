@@ -3,16 +3,17 @@ import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS, HOOK_LOOKUP_INTERVAL_MS } from "../../shared/defaultValues";
+import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
 import { HookStackTrace, PlatformStackTrace } from "../../shared/platformStackTrace";
-import { FilterMismatchError, formatHashCode, fromSource, plural, wildcardPatternToRegExp } from "../../shared/utils";
+import { FilterMismatchError, formatHashCode, fromSource, plural } from "../../shared/utils";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
+import { JavaClassResolver, MethodObserver } from "./javaClassResolver";
 import { JavaHookEvent } from "./javaHookEvent";
 
 let javaSystem: Java.Wrapper | undefined;
@@ -33,15 +34,22 @@ type InstalledJavaHook = {
   retTypeDecoder?: Decoder<Java.Wrapper>;
 };
 
-type HookedOverload = { method: Java.Method; hooks: InstalledJavaHook[] };
+// `observers` run after the original method, e.g. JavaClassResolver's on new class loaders
+type HookedOverload = { method: Java.Method; hooks: InstalledJavaHook[]; observers: MethodObserver[] };
 
 // what a hook captured before the original method ran
 type JavaHookCall = { installedHook: InstalledJavaHook; stackTrace: HookStackTrace; decodedArgs: DecodedArgs };
 
 // Resolves and installs hooks on Java methods.
 export class AndroidHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
+  private readonly classResolver: JavaClassResolver;
+
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(JavaDecoderResolver, platformStackTrace, frookyAgent);
+    this.classResolver = new JavaClassResolver(
+      (method, observer) => this.observe(method, observer),
+      () => Promise.resolve(this.frookyAgent.targetReady),
+    );
   }
   // the hooks installed on an overload, keyed by its ArtMethod handle. Several configs can hook the same overload and
   // each records its own event per call, like several Interceptor listeners on a native function. frida-java-bridge
@@ -49,60 +57,85 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   // its hooks, and the install and the revert go through the same wrapper.
   private readonly hookedOverloads = new Map<string, HookedOverload>();
 
-  async resolveHooks(inputHooks: InputJavaHookNormalized[], timeout: number, source?: string): Promise<Promise<JavaHook[] | null>[]> {
+  // A hook on a class that isn't found yet is installed as soon as a class loader has it, before its code runs,
+  // see JavaClassResolver. resolveHooks() resolves its promise afterwards, see registerHooks().
+  async resolveHooks(inputHooks: InputJavaHookNormalized[], source?: string): Promise<Promise<JavaHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "Java hook")} in ${plural(new Set(inputHooks.map((h) => h.javaClass)).size, "class", "classes")}${fromSource(source)}`,
     );
 
-    // each class is resolved once, no matter how many hooks target it
-    const javaClassPromises = new Map<string, Promise<Java.Wrapper[]>>();
-    return inputHooks.map(async (inputHook): Promise<JavaHook[] | null> => {
-      let javaClassesPromise = javaClassPromises.get(inputHook.javaClass);
-      if (javaClassesPromise) {
-        logger.debug(`Class lookup cache hit: ${inputHook.javaClass} (for ${inputHook.javaClass}.${inputHook.method})`);
-      } else {
-        logger.debug(`Class lookup cache miss: ${inputHook.javaClass} (for ${inputHook.javaClass}.${inputHook.method})`);
-        javaClassesPromise = this.resolveJavaClass(inputHook.javaClass, timeout).catch((e) => {
-          logger.warn(e instanceof Error ? e.message : String(e));
-          return [] as Java.Wrapper[];
-        });
-        javaClassPromises.set(inputHook.javaClass, javaClassesPromise);
-      }
-      const resolvedJavaClasses = await javaClassesPromise;
-      if (resolvedJavaClasses.length === 0) return null;
-
-      const hooks: JavaHook[] = [];
-      for (const resolvedJavaClass of resolvedJavaClasses) {
-        try {
-          const method = this.resolveMethod(resolvedJavaClass, inputHook);
-          hooks.push(...this.resolveOverloads(method, inputHook));
-        } catch (e) {
-          logger.warn(e instanceof Error ? e.message : String(e));
-        }
-      }
-      return hooks.length > 0 ? hooks : null;
+    // each class is looked up once, no matter how many hooks target it
+    const hookIndicesByClass = new Map<string, number[]>();
+    inputHooks.forEach((inputHook, i) => {
+      const key = `${inputHook.javaClass} ${inputHook.classLoader ?? ""}`;
+      hookIndicesByClass.set(key, [...(hookIndicesByClass.get(key) ?? []), i]);
     });
+
+    const results: Promise<JavaHook[] | null>[] = new Array(inputHooks.length);
+    for (const hookIndices of hookIndicesByClass.values()) {
+      const { javaClass, classLoader } = inputHooks[hookIndices[0]];
+      const classHooks = this.classResolver.find(javaClass, classLoader, (javaClasses, installNow) =>
+        hookIndices.map((i) => {
+          const hooks = this.resolveMethodHooks(javaClasses, inputHooks[i]);
+          if (hooks && installNow) this.registerHooks(hooks, source);
+          return hooks;
+        }),
+      );
+      hookIndices.forEach((hookIndex, j) => (results[hookIndex] = classHooks.then((hooks) => hooks[j])));
+    }
+    return results;
+  }
+
+  // null if the method or none of its declared overloads exists in any of `javaClasses`
+  private resolveMethodHooks(javaClasses: Java.Wrapper[], inputHook: InputJavaHookNormalized): JavaHook[] | null {
+    const hooks: JavaHook[] = [];
+    for (const javaClass of javaClasses) {
+      try {
+        const method = this.resolveMethod(javaClass, inputHook);
+        hooks.push(...this.resolveOverloads(method, inputHook));
+      } catch (e) {
+        logger.warn(e instanceof Error ? e.message : String(e));
+      }
+    }
+    return hooks.length > 0 ? hooks : null;
+  }
+
+  // Runs `observer` after every call of `method`, next to the hooks installed on it
+  observe(method: Java.Method, observer: MethodObserver): void {
+    const overload = this.hookedOverload(method);
+    overload.observers = [...overload.observers, observer];
+  }
+
+  // The HookedOverload of `method`, created and installed on first use. Throws if the method can't be hooked.
+  private hookedOverload(method: Java.Method): HookedOverload {
+    const key = method.handle.toString();
+    let overload = this.hookedOverloads.get(key);
+    if (!overload) {
+      const newOverload: HookedOverload = { method, hooks: [], observers: [] };
+      newOverload.method.implementation = this.createDispatcher(newOverload);
+      overload = newOverload;
+      this.hookedOverloads.set(key, overload);
+    }
+    return overload;
   }
 
   registerHooks(hooks: JavaHook[], source?: string): number {
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
+      if (this.hookedOverloads.get(hook.method.handle.toString())?.hooks.some((installedHook) => installedHook.hook === hook)) {
+        countSuccessfulHooks++;
+        continue;
+      }
       const target = `${hook.method.holder.$className}.${hook.methodName}`;
       const installedHook = this.prepareHook(hook, target);
 
-      const key = hook.method.handle.toString();
-      let overload = this.hookedOverloads.get(key);
-      if (!overload) {
-        const newOverload: HookedOverload = { method: hook.method, hooks: [] };
-        try {
-          newOverload.method.implementation = this.createDispatcher(newOverload);
-        } catch (e) {
-          logger.warn(`Failed to hook ${target}: ${e}`);
-          continue;
-        }
-        overload = newOverload;
-        this.hookedOverloads.set(key, overload);
+      let overload: HookedOverload;
+      try {
+        overload = this.hookedOverload(hook.method);
+      } catch (e) {
+        logger.warn(`Failed to hook ${target}: ${e}`);
+        continue;
       }
       // copied on write: a call in progress keeps running the hooks it started with
       overload.hooks = [...overload.hooks, installedHook];
@@ -121,7 +154,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       if (!overload || index < 0) continue;
 
       overload.hooks = overload.hooks.filter((_, i) => i !== index);
-      if (overload.hooks.length > 0) continue;
+      if (overload.hooks.length > 0 || overload.observers.length > 0) continue;
 
       this.hookedOverloads.delete(key);
       try {
@@ -168,10 +201,18 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       try {
         returnValue = overload.method.apply(this, args);
       } catch (e) {
-        logger.error(`Error during execution of hooked method: ${e}`);
+        // observed methods such as ClassLoader.loadClass() throw as part of their normal work
+        if (overload.hooks.length > 0) logger.error(`Error during execution of hooked method: ${e}`);
         throw e; // the app handles its own exception
       }
 
+      for (const observer of overload.observers) {
+        try {
+          observer(this, args, returnValue);
+        } catch (e) {
+          logger.error(`Error in an observer of ${overload.method.holder.$className}.${overload.method.methodName}: ${e}`);
+        }
+      }
       for (const call of calls) {
         hookManager.leaveHook(call, this, args, returnValue);
       }
@@ -234,7 +275,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     const fieldType = this.buildFieldType(instance);
     // identityHashCode() runs no app code, unlike an overridden hashCode(), and stays the same while the object mutates
     const hashCode = fieldType.fieldType === "instance" ? formatHashCode(getJavaSystem().identityHashCode(instance)) : undefined;
-    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace));
+    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook);
   }
 
   private buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {
@@ -252,68 +293,6 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       return params;
     }, []);
   }
-
-  // Polls until the class is loaded, or for a wildcard pattern (e.g. `org.owasp.*.HttpClient`, `*` matching
-  // one package or class segment) until at least one loaded class matches. Throws on timeout.
-  private async resolveJavaClass(javaClassName: string, timeoutSeconds: number): Promise<Java.Wrapper[]> {
-    logger.debug(`Resolving java class ${javaClassName} with a timeout of ${timeoutSeconds} seconds.`);
-
-    if (javaClassName.includes("*")) {
-      const pattern = wildcardPatternToRegExp(javaClassName);
-      return this.pollUntilResolved(
-        () => {
-          const resolvedClasses = this.resolveMatchingJavaClasses(pattern);
-          if (resolvedClasses.length === 0) return null;
-          logger.debug(`${resolvedClasses.length} Java class(es) matching wildcard pattern '${javaClassName}' resolved.`);
-          return resolvedClasses;
-        },
-        `Java class matching '${javaClassName}'`,
-        timeoutSeconds,
-      );
-    }
-
-    return this.pollUntilResolved(
-      () => {
-        try {
-          const resolvedJavaClass = Java.use(javaClassName);
-          logger.debug(`Java class '${javaClassName}' resolved.`);
-          return [resolvedJavaClass];
-        } catch (_) {
-          return null;
-        }
-      },
-      `Java class '${javaClassName}'`,
-      timeoutSeconds,
-    );
-  }
-
-  private resolveMatchingJavaClasses(pattern: RegExp): Java.Wrapper[] {
-    const resolvedClasses: Java.Wrapper[] = [];
-    for (const className of AndroidHookManager.getLoadedClassNames()) {
-      if (!pattern.test(className)) continue;
-      try {
-        resolvedClasses.push(Java.use(className));
-      } catch (e) {
-        logger.debug(`Failed to resolve matched Java class '${className}': ${e}`);
-      }
-    }
-    return resolvedClasses;
-  }
-
-  // Java.enumerateLoadedClassesSync() can take hundreds of ms, so all wildcard lookups of one poll interval
-  // share its result.
-  private static getLoadedClassNames(): string[] {
-    const now = Date.now();
-    if (!this.loadedClassNamesCache || now >= this.loadedClassNamesCache.expiresAt) {
-      this.loadedClassNamesCache = { names: Java.enumerateLoadedClassesSync(), expiresAt: now + HOOK_LOOKUP_INTERVAL_MS };
-      logger.debug(`Loaded class list cache miss: enumerated ${this.loadedClassNamesCache.names.length} loaded classes`);
-    } else {
-      logger.debug(`Loaded class list cache hit: ${this.loadedClassNamesCache.names.length} loaded classes`);
-    }
-    return this.loadedClassNamesCache.names;
-  }
-
-  private static loadedClassNamesCache: { names: string[]; expiresAt: number } | null = null;
 
   private resolveMethod(javaClass: Java.Wrapper, inputHook: InputJavaHookNormalized): Java.MethodDispatcher {
     const resolvedMethod = javaClass[inputHook.method];

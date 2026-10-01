@@ -1,6 +1,7 @@
 import { DecoderArgValues } from "../../shared/decoders/decoderArgs";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
+import { logger } from "../../shared/logger";
 import { NativeStringDecoder } from "./nativeStringDecoder";
 
 const makeDecoder = (settings: DecoderSettings = DEFAULT_DECODER_SETTINGS): NativeStringDecoder =>
@@ -85,7 +86,24 @@ describe("NativeStringDecoder", () => {
     });
 
     it("should decode as null and warn when the length isn't a number", () => {
-      expect(makeDecoder().decode(Memory.allocUtf8String("abc"), lengthArg("abc")).value).toBe(null);
+      const warnSpy = spyOn(logger, "warn");
+      try {
+        expect(makeDecoder().decode(Memory.allocUtf8String("abc"), lengthArg("abc")).value).toBe(null);
+        expect(warnSpy).toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("should decode as null without a warning when the length is negative, e.g. -1 when read fails", () => {
+      const warnSpy = spyOn(logger, "warn");
+      try {
+        expect(makeDecoder().decode(Memory.allocUtf8String("abc"), lengthArg(-1)).value).toBe(null);
+        expect(makeDecoder().decode(Memory.allocUtf8String("abc"), lengthArg("-1")).value).toBe(null);
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("should decode an empty C string without truncation", () => {

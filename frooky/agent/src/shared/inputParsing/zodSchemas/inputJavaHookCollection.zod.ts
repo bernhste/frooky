@@ -12,6 +12,7 @@ export const inputOverloadSchema = z.object({
 
 export const inputJavaHookNormalizedSchema = z.object({
     javaClass: z.string(),
+    classLoader: z.string().optional(),
     method: z.string(),
     overloads: z.array(inputOverloadSchema).optional(),
     hookSettings: hookSettingsSchema.optional(),
@@ -23,6 +24,7 @@ export const inputJavaHookSchema = z.union([z.string(), z.tuple([z.string(), dec
 export const inputJavaHookCollectionSchema = z.object({
     type: z.literal("java"),
     javaClass: z.string(),
+    classLoader: z.string().optional(),
     hooks: z.array(inputJavaHookSchema),
     hookSettings: inputHookSettingsSchema.optional(),
     decoderSettings: inputDecoderSettingsSchema.optional()

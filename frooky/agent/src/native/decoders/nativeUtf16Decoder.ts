@@ -1,8 +1,7 @@
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { countArg, DecoderArgValues } from "../../shared/decoders/decoderArgs";
+import { countArg, DecoderArgValues, logDecodeFailure } from "../../shared/decoders/decoderArgs";
 import { DecoderSettings } from "../../shared/frookySettings";
-import { logger } from "../../shared/logger";
 
 // Code unit types that are UTF-16 by definition: C11/C++ `char16_t`, JNI `jchar`, Foundation `unichar`,
 // CoreFoundation `UniChar` and ICU `UChar`. Case-sensitive, since `uchar` is `unsigned char`. `wchar_t` is UTF-32
@@ -67,7 +66,7 @@ export class NativeUtf16Decoder extends Decoder<NativePointer> {
     try {
       decoded = decodeUtf16String(value, this.settings, args);
     } catch (e) {
-      logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} as UTF-16: ${e}`);
+      logDecodeFailure(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} as UTF-16`, e);
       decoded = null;
     }
     return { type: this.type, name: this.name, value: decoded };

@@ -58,7 +58,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
   // A hook on a module that is not loaded yet is installed as soon as it loads: in the linker, before the module's
   // constructors and JNI_OnLoad run. resolveHooks() resolves its promise afterwards, see registerHooks().
-  public async resolveHooks(inputHooks: InputNativeHookNormalized[], timeout: number, source?: string): Promise<Promise<NativeHook[] | null>[]> {
+  public async resolveHooks(inputHooks: InputNativeHookNormalized[], source?: string): Promise<Promise<NativeHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "native hook")} in ${plural(new Set(inputHooks.map((h) => h.module)).size, "module")}${fromSource(source)}`,
     );
@@ -69,7 +69,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
     const results: Promise<NativeHook[] | null>[] = new Array(inputHooks.length);
     for (const [moduleName, hookIndices] of hookIndicesByModule) {
-      const moduleHooks = this.whenModuleLoaded(moduleName, timeout, (module, isLoading) => {
+      const moduleHooks = this.whenModuleLoaded(moduleName, (module, isLoading) => {
         // getExportByName() makes the linker abort the process while it loads `module`, reading the ELF doesn't
         let exports: Map<string, NativePointer> | undefined;
         const findExport = isLoading
@@ -81,7 +81,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           return hooks;
         });
       });
-      hookIndices.forEach((hookIndex, j) => (results[hookIndex] = moduleHooks.then((hooks) => hooks?.[j] ?? null)));
+      hookIndices.forEach((hookIndex, j) => (results[hookIndex] = moduleHooks.then((hooks) => hooks[j])));
     }
     return results;
   }
@@ -119,34 +119,25 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   }
 
   // Calls `onLoaded` with the module once it is loaded, or right away if it already is, and resolves with its result.
-  // `isLoading` is set while the linker loads the module. Resolves with null if the module doesn't load within
-  // `timeoutSeconds`, which, as in pollUntilResolved(), start once FrookyAgent.targetReady resolves.
-  private whenModuleLoaded<T>(moduleName: string, timeoutSeconds: number, onLoaded: (module: Module, isLoading: boolean) => T): Promise<T | null> {
+  // `isLoading` is set while the linker loads the module.
+  private whenModuleLoaded<T>(moduleName: string, onLoaded: (module: Module, isLoading: boolean) => T): Promise<T> {
     const loadedModule = Process.findModuleByName(moduleName);
     if (loadedModule) {
       logger.debug(`Module '${moduleName}' already loaded.`);
       return Promise.resolve(onLoaded(loadedModule, false));
     }
-    logger.debug(`Waiting for native module ${moduleName} to load, with a timeout of ${timeoutSeconds} seconds.`);
-    return new Promise((resolve) => {
-      let timer: ReturnType<typeof setTimeout> | undefined;
+    logger.debug(`Waiting for native module ${moduleName} to load.`);
+    return new Promise((resolve, reject) => {
       const waiter = (module: Module) => {
-        clearTimeout(timer);
         logger.debug(`Module '${moduleName}' loaded.`);
-        resolve(onLoaded(module, true));
+        try {
+          resolve(onLoaded(module, true));
+        } catch (e) {
+          reject(e);
+        }
       };
       this.moduleWaiters.set(moduleName, [...(this.moduleWaiters.get(moduleName) ?? []), waiter]);
       this.observeModules();
-      Promise.resolve(this.frookyAgent.targetReady).then(() => {
-        if (!this.moduleWaiters.get(moduleName)?.includes(waiter)) return;
-        timer = setTimeout(() => {
-          const waiters = this.moduleWaiters.get(moduleName)?.filter((w) => w !== waiter) ?? [];
-          if (waiters.length > 0) this.moduleWaiters.set(moduleName, waiters);
-          else this.moduleWaiters.delete(moduleName);
-          logger.warn(`Module '${moduleName}' not found within ${timeoutSeconds} seconds. Skipping the hooks declared for it.`);
-          resolve(null);
-        }, timeoutSeconds * 1000);
-      });
     });
   }
 
@@ -159,13 +150,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         if (!waiters) return;
         this.moduleWaiters.delete(module.name);
         this.moduleWaiters.delete(module.path);
-        for (const waiter of waiters) {
-          try {
-            waiter(module);
-          } catch (e) {
-            logger.error(`Error while hooking module '${module.name}': ${e}`);
-          }
-        }
+        for (const waiter of waiters) waiter(module);
       },
     });
   }
@@ -369,7 +354,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         decodedArgs.out = this.decodeArgs(call.savedArgs!, outArgDecoders, target, decodedRetValue);
       }
 
-      this.frookyAgent.addEventToLog(new NativeHookEvent(hook, call.installedHook.hashCode, decodedArgs, decodedRetValue, call.stackTrace));
+      this.frookyAgent.addEventToLog(new NativeHookEvent(hook, call.installedHook.hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook);
     } catch (e) {
       if (!(e instanceof FilterMismatchError)) {
         logger.error(`Error during 'onLeave' of ${target}: ${e}`);

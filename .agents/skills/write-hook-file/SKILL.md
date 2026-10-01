@@ -79,7 +79,7 @@ From the repo root (needs `npm ci` in `frooky/agent` once):
 node .agents/skills/write-hook-file/validate.cjs hooks.yaml
 ```
 
-This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf` mismatches, the deepest path in the error output usually points at the actual mistake. The validator catches structural errors, but not wrong class or method names, nor decoder names inside param tuples; those only show up at runtime as `(N not resolved)` in the status bar, per-file `not resolved` counts, agent warnings, and debug logs (`frooky -vv`).
+This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf` mismatches, the deepest path in the error output usually points at the actual mistake. The validator catches structural errors, but not wrong class or method names, nor decoder names inside param tuples; those only show up at runtime as `(N waiting)` (class or module not found) or `(N not resolved)` (method or symbol not found) in the status bar, per-file `not resolved` counts, agent warnings, and debug logs (`frooky -vv`).
 
 ## Review checklist
 

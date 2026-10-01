@@ -142,6 +142,9 @@
               "javaClass": {
                 "type": "string"
               },
+              "classLoader": {
+                "type": "string"
+              },
               "hooks": {
                 "type": "array",
                 "items": {

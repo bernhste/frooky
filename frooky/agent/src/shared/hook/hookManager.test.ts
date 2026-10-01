@@ -63,10 +63,6 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
 
   public unregisterHooks(): void {}
 
-  public exposedPollUntilResolved<T>(fn: () => T | null, label: string, timeoutSeconds: number): Promise<T> {
-    return this.pollUntilResolved(fn, label, timeoutSeconds);
-  }
-
   public exposedResolveParamDecoders(params: Param[]): ParamDecoder<TestValue>[] {
     return this.resolveParamDecoders(params);
   }
@@ -103,68 +99,6 @@ function makeParam(overrides: Partial<Param> = {}): Param {
 }
 
 describe("HookManager", () => {
-  describe("pollUntilResolved()", () => {
-    it("throws when timeoutSeconds is negative", async () => {
-      const manager = createManager();
-      await expect(manager.exposedPollUntilResolved(() => null, "thing", -1)).rejects.toThrow("Timeout must not be less than 0.");
-    });
-
-    it("resolves immediately when fn() returns a non-null result on the first call", async () => {
-      const manager = createManager();
-      const result = await manager.exposedPollUntilResolved(() => "resolved-value", "thing", 5);
-      expect(result).toBe("resolved-value");
-    });
-
-    it("throws a timeout error naming the label once the deadline passes without a result", async () => {
-      const manager = createManager();
-      await expect(manager.exposedPollUntilResolved(() => null, "my-label", 0)).rejects.toThrow(
-        "my-label not found within 0 seconds. Skipping the hooks declared for it.",
-      );
-    });
-
-    it("retries fn() until it returns a non-null result", async () => {
-      const manager = createManager();
-      let callCount = 0;
-
-      const result = await manager.exposedPollUntilResolved(
-        () => {
-          callCount++;
-          return callCount < 2 ? null : "resolved-on-retry";
-        },
-        "thing",
-        5,
-      );
-
-      expect(result).toBe("resolved-on-retry");
-      expect(callCount).toBe(2);
-    });
-
-    it("retries once the target is ready and only then starts the timeout", async () => {
-      let markTargetReady!: () => void;
-      const manager = createManager(undefined, undefined, createFakeFrookyAgent(new Promise<void>((resolve) => (markTargetReady = resolve))));
-      let targetReady = false;
-      let callCount = 0;
-
-      // a timeout of 0 would fail right away if it started before the target was ready
-      const resultPromise = manager.exposedPollUntilResolved(
-        () => {
-          callCount++;
-          return targetReady ? "resolved-when-ready" : null;
-        },
-        "thing",
-        0,
-      );
-      await new Promise((r) => setTimeout(r, 50));
-      expect(callCount).toBe(1);
-
-      targetReady = true;
-      markTargetReady();
-
-      expect(await resultPromise).toBe("resolved-when-ready");
-      expect(callCount).toBe(2);
-    });
-  });
-
   describe("resolveParamDecoders()", () => {
     let warnSpy: Mock;
 

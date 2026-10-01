@@ -48,6 +48,11 @@ async function untilHooked(call: () => void, fired: () => boolean): Promise<void
   }
 }
 
+// true if `promise` hasn't settled within 100 ms
+async function isPending(promise: Promise<unknown>): Promise<boolean> {
+  return Promise.race([promise.then(() => false), sleepMilliseconds(100).then(() => true)]);
+}
+
 function nativeHook(module: string, symbol: string, overrides: Partial<InputNativeSymbolHook> = {}): InputNativeSymbolHook {
   return { module, symbol, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };
 }
@@ -61,7 +66,7 @@ describe("NativeHookManager", () => {
     it("resolves an exported symbol to its real address in the module", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
-      const results = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "malloc")], 5));
+      const results = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "malloc")]));
 
       expect(results.length).toBe(1);
       const hooks = results[0] as NativeHook[];
@@ -77,7 +82,7 @@ describe("NativeHookManager", () => {
       const libc = Process.getModuleByName("libc.so");
       const mallocOffset = "0x" + libc.getExportByName("malloc").sub(libc.base).toString(16);
 
-      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", mallocOffset)], 5));
+      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", mallocOffset)]));
 
       const hooks = results[0] as NativeHook[];
       expect(hooks).not.toBeNull();
@@ -90,7 +95,7 @@ describe("NativeHookManager", () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
       const libc = Process.getModuleByName("libc.so");
 
-      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", "0x" + libc.size.toString(16))], 5));
+      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", "0x" + libc.size.toString(16))]));
 
       expect(results).toEqual([null]);
     });
@@ -99,24 +104,23 @@ describe("NativeHookManager", () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
       // offset 0 is the ELF header, mapped read-only in libraries linked with separate code segments (lld, Android 10+)
-      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", "0x0")], 5));
+      const results = await Promise.all(await manager.resolveHooks([nativeOffsetHook("libc.so", "0x0")]));
 
       expect(results).toEqual([null]);
     });
 
-    it("returns null when the module does not exist", async () => {
+    it("keeps waiting for a module that isn't loaded", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
-      // timeout 0: fail after the first lookup instead of polling
-      const results = await Promise.all(await manager.resolveHooks([nativeHook("libDoesNotExist.so", "foo")], 0));
+      const [result] = await manager.resolveHooks([nativeHook("libDoesNotExist.so", "foo")]);
 
-      expect(results).toEqual([null]);
+      expect(await isPending(result)).toBe(true);
     });
 
     it("returns null when the symbol does not exist in an otherwise resolved module", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
-      const results = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "thisSymbolDoesNotExist")], 2));
+      const results = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "thisSymbolDoesNotExist")]));
 
       expect(results).toEqual([null]);
     });
@@ -125,7 +129,7 @@ describe("NativeHookManager", () => {
       // Process.getModuleByName can't be spied on, so this checks that both hooks get the same Module instance
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
-      const results = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "malloc"), nativeHook("libc.so", "free")], 5));
+      const results = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "malloc"), nativeHook("libc.so", "free")]));
 
       const [mallocHooks, freeHooks] = results as NativeHook[][];
       expect(mallocHooks[0].module).toBe(freeHooks[0].module);
@@ -135,7 +139,7 @@ describe("NativeHookManager", () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
       const results = await Promise.all(
-        await manager.resolveHooks([nativeHook("libc.so", "malloc"), nativeHook("liblog.so", "__android_log_print")], 5),
+        await manager.resolveHooks([nativeHook("libc.so", "malloc"), nativeHook("liblog.so", "__android_log_print")]),
       );
 
       expect(results.length).toBe(2);
@@ -149,7 +153,7 @@ describe("NativeHookManager", () => {
       expect(Process.findModuleByName(moduleName)).toBeNull();
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
-      const pending = await manager.resolveHooks([nativeHook(moduleName, symbol)], 5);
+      const pending = await manager.resolveHooks([nativeHook(moduleName, symbol)]);
       const module = Module.load(`/system/${Process.pointerSize === 8 ? "lib64" : "lib"}/${moduleName}`);
 
       // no await since Module.load(): the hook was installed while the linker loaded the module
@@ -160,16 +164,16 @@ describe("NativeHookManager", () => {
       manager.unregisterHooks(hooks!);
     });
 
-    it("resolves one group as null without aborting the sibling group when only one module fails to resolve", async () => {
+    it("resolves the hooks of a loaded module while another module of the batch is still waited for", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
-      // the timeout applies to all modules of the batch, so it isn't 0 like above
-      const results = await Promise.all(await manager.resolveHooks([nativeHook("libDoesNotExist.so", "foo"), nativeHook("libc.so", "malloc")], 1));
+      const [missingModuleResult, resolvedResult] = await manager.resolveHooks([
+        nativeHook("libDoesNotExist.so", "foo"),
+        nativeHook("libc.so", "malloc"),
+      ]);
 
-      expect(results.length).toBe(2);
-      const [missingModuleResult, resolvedResult] = results;
-      expect(missingModuleResult).toBeNull();
-      expect((resolvedResult as NativeHook[])[0].symbolName).toBe("malloc");
+      expect((await resolvedResult)![0].symbolName).toBe("malloc");
+      expect(await isPending(missingModuleResult)).toBe(true);
     });
   });
 
@@ -179,7 +183,7 @@ describe("NativeHookManager", () => {
     it("detaches the Interceptor listener", async () => {
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
       const manager = new NativeHookManager(stackTrace, agent);
-      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi")], 5));
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi")]));
       const atoi = new NativeFunction(hooks![0].symbolAddress, "int", ["pointer"]);
       const input = Memory.allocUtf8String("42");
 
@@ -209,10 +213,9 @@ describe("NativeHookManager", () => {
       const params = normalizeInputParams([["int", "n"]], DEFAULT_DECODER_SETTINGS);
       const retType = normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS);
       const [hooks] = await Promise.all(
-        await manager.resolveHooks(
-          [nativeHook("libc.so", "atoi", { params, retType, hookSettings: { ...DEFAULT_HOOK_SETTINGS, platformStackTrace: true } })],
-          5,
-        ),
+        await manager.resolveHooks([
+          nativeHook("libc.so", "atoi", { params, retType, hookSettings: { ...DEFAULT_HOOK_SETTINGS, platformStackTrace: true } }),
+        ]),
       );
       const hook: NativeHook = { ...hooks![0], symbolName: "countdown", symbolAddress: cm.countdown };
 
@@ -249,7 +252,7 @@ describe("NativeHookManager", () => {
         ],
         DEFAULT_DECODER_SETTINGS,
       );
-      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params })], 5));
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params })]));
       const hook: NativeHook = { ...hooks![0], symbolName: "write_val", symbolAddress: cm.write_val };
 
       manager.registerHooks([hook]);
@@ -279,7 +282,7 @@ describe("NativeHookManager", () => {
       const manager = new NativeHookManager(stackTrace, agent);
       const params = normalizeInputParams([["int", "fail"]], DEFAULT_DECODER_SETTINGS);
       const retType = normalizeInputRetType(["int", { decoder: "errno" }], DEFAULT_DECODER_SETTINGS);
-      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })], 5));
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })]));
       const hook: NativeHook = { ...hooks![0], symbolName: "unlink_missing", symbolAddress: cmErrno.unlink_missing };
 
       manager.registerHooks([hook]);
@@ -315,7 +318,7 @@ describe("NativeHookManager", () => {
         DEFAULT_DECODER_SETTINGS,
       );
       const retType = normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS);
-      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })], 5));
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })]));
       const hook: NativeHook = { ...hooks![0], symbolName: "fill_hello", symbolAddress: cm.fill_hello };
 
       manager.registerHooks([hook]);
@@ -356,7 +359,6 @@ describe("NativeHookManager", () => {
               const params = normalizeInputParams([["int", name, settings]], DEFAULT_DECODER_SETTINGS);
               return nativeHook("libc.so", "atoi", { params, retType });
             }),
-            5,
           ),
         );
         const hooks: NativeHook[] = resolved.map((hooks) => ({ ...hooks![0], symbolName: "add_one", symbolAddress: cm.add_one }));
@@ -476,7 +478,7 @@ describe("NativeHookManager", () => {
         const events: NativeHookEvent[] = [];
         const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
         const manager = new NativeHookManager(stackTrace, agent);
-        const resolved = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi"), nativeHook("libc.so", "atoi")], 5));
+        const resolved = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi"), nativeHook("libc.so", "atoi")]));
         const [first, second]: NativeHook[] = resolved.map((hooks) => ({
           ...hooks![0],
           symbolName: "add_one",

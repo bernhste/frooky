@@ -61,7 +61,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 - **Agent changes have no effect:** `frooky/agent/dist/agent-android.js` is stale. Rebuild it.
 - **Import errors or the wrong `frooky`:** `which frooky` must point into the venv, not a global install.
 - **Hook file rejected:** validate it against `docs/schema/frooky-config.schema.json` (see the `write-hook-file` skill). Runtime validation happens in `frooky/agent/src/shared/configValidator.ts` and the platform `*HookValidator.ts` files.
-- **Hooks not firing:** run `frooky -vv` for agent debug logs, and increase `-t` if classes or modules load late.
+- **Hooks not firing:** run `frooky -vv` for agent debug logs. Hooks whose class or module hasn't loaded show up as `waiting` in the status bar; they are installed when it loads, so a waiting hook usually means a misspelled name or code the app hasn't run yet.
 - **Cannot connect or cannot hook:** check each layer in order:
 
   ```bash

@@ -30,6 +30,9 @@ export type InputJavaHookNormalized = {
   /** Fully qualified class name. Inherited from the hook collection. */
   javaClass: string;
 
+  /** Custom class loader to look the class up in. Inherited from the hook collection. */
+  classLoader?: string;
+
   /** Method name. Use `$init` for constructors. */
   method: string;
 
@@ -63,6 +66,14 @@ export interface InputJavaHookCollection {
   /** Fully qualified name of the class to hook, e.g. `android.content.Intent`. */
   javaClass: string;
 
+  /**
+   * Fully qualified name of a custom `ClassLoader` subclass, e.g. `com.example.PluginLoader`. The class is then only
+   * hooked as loaded by instances of this class loader, also when one of them loads it later. Only needed for a class
+   * loader that doesn't extend `BaseDexClassLoader` (e.g. one that defines classes with `DexFile.loadClass()`), or to
+   * hook a class that also exists in another class loader.
+   */
+  classLoader?: string;
+
   /** Methods to hook. */
   hooks: InputJavaHook[];
 
@@ -92,15 +103,17 @@ export function normalizeJavaHook(
   method: InputJavaHook,
   hookSettings: HookSettings,
   decoderSettings: DecoderSettings,
+  classLoader?: string,
 ): InputJavaHookNormalized {
+  const inherited = classLoader === undefined ? { javaClass } : { javaClass, classLoader };
   if (typeof method === "string") {
-    return { javaClass: javaClass, method: method, hookSettings: hookSettings, decoderSettings: decoderSettings };
+    return { ...inherited, method: method, hookSettings: hookSettings, decoderSettings: decoderSettings };
   }
 
   if (Array.isArray(method)) {
     const [methodName, methodDecoderSettings] = method;
     return {
-      javaClass: javaClass,
+      ...inherited,
       method: methodName,
       hookSettings: hookSettings,
       decoderSettings: validateAndRepairDecoderSettings({ ...decoderSettings, ...methodDecoderSettings }),
@@ -114,7 +127,7 @@ export function normalizeJavaHook(
 
   return {
     ...method,
-    javaClass: javaClass,
+    ...inherited,
     overloads: method.overloads?.map((overload: InputOverload) => normalizeOverload(overload, mergedDecoderSettings)),
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
@@ -144,7 +157,9 @@ export function normalizeJavaHookCollection(hookCollection: InputJavaHookCollect
 
   return {
     ...hookCollection,
-    hooks: hookCollection.hooks.map((hook: InputJavaHook) => normalizeJavaHook(hookCollection.javaClass, hook, hookSettings, decoderSettings)),
+    hooks: hookCollection.hooks.map((hook: InputJavaHook) =>
+      normalizeJavaHook(hookCollection.javaClass, hook, hookSettings, decoderSettings, hookCollection.classLoader),
+    ),
     hookSettings: hookSettings,
     decoderSettings: decoderSettings,
   };

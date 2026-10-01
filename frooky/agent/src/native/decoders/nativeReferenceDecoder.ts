@@ -2,9 +2,8 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../shared/frookySettings";
-import { logger } from "../../shared/logger";
 import { toHex } from "../../shared/utils";
-import { countArg, DecoderArgValues } from "../../shared/decoders/decoderArgs";
+import { countArg, DecoderArgValues, logDecodeFailure } from "../../shared/decoders/decoderArgs";
 import { FridaFundamentalType, FridaReferenceType } from "./nativeFridaType";
 import { decodeNativeString } from "./nativeStringDecoder";
 
@@ -103,7 +102,7 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
       const start = value.isNull() ? value : value.add(offset * this.elementSize(depth));
       decoded = this.decodePointer(start, depth, countArg(args, "length"));
     } catch (e) {
-      logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} at ${value}: ${e}`);
+      logDecodeFailure(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} at ${value}`, e);
       decoded = null;
     }
     return {
@@ -163,7 +162,7 @@ export class NativeNullTerminatedArrayDecoder extends NativeReferenceDecoder {
       const start = value.isNull() ? value : value.add(offset * this.elementSize(depth));
       decoded = depth < 2 ? this.decodePointer(start, depth) : this.decodeElements(start);
     } catch (e) {
-      logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} at ${value}: ${e}`);
+      logDecodeFailure(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} at ${value}`, e);
       decoded = null;
     }
     return { type: this.type, name: this.name, value: decoded };

@@ -40,6 +40,23 @@ fun receiveStatic(arg: String): String = arg
 // Constructed in mastgTest(), so its class is only loaded after pressing Start.
 class Secret(val value: String)
 
+// Called once on the app's own copy of the class and once on the copy PluginClassLoader defines.
+class PluginGreeter {
+        fun greet(name: String): String = "Hello $name"
+}
+
+// A custom class loader like those of plugin frameworks: it doesn't extend BaseDexClassLoader, and defines its
+// own copy of PluginGreeter from the app's dex files with DexFile.loadClass(). Other classes come from the app.
+@Suppress("DEPRECATION")
+class PluginClassLoader(context: Context) : ClassLoader(context.classLoader) {
+        private val dexFile = dalvik.system.DexFile(context.applicationInfo.sourceDir)
+
+        override fun loadClass(name: String, resolve: Boolean): Class<*> {
+                if (name != PluginGreeter::class.java.name) return super.loadClass(name, resolve)
+                return findLoadedClass(name) ?: dexFile.loadClass(name, this) ?: throw ClassNotFoundException(name)
+        }
+}
+
 // Implements the unrelated interfaces Map and Iterable, both with a decoder, like OkHttp's Headers.
 class Headers : LinkedHashMap<String, String>(), Iterable<Map.Entry<String, String>> {
         override fun iterator(): Iterator<Map.Entry<String, String>> = entries.iterator()
@@ -376,6 +393,10 @@ class MastgTest(private val context: Context) {
 
                 receiveStatic("static")
                 r.add(Status.PASS, Secret("s3cr3t").value)
+
+                PluginGreeter().greet("app")
+                val pluginGreeter = PluginClassLoader(context).loadClass(PluginGreeter::class.java.name)
+                r.add(Status.PASS, pluginGreeter.getMethod("greet", String::class.java).invoke(pluginGreeter.getDeclaredConstructor().newInstance(), "plugin") as String)
 
                 val secretBuffer = ByteArray(6)
                 fillSecret(secretBuffer)

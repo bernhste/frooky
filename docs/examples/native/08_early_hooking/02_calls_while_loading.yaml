@@ -13,7 +13,7 @@ metadata:
 # See:    docs/additional-features.md#dynamic-class-and-module-resolution
 #
 # The library loads at startup, so this needs spawn (-f). A library the app loads later, e.g. after
-# pressing "Start", is hooked the same way when it loads within -t seconds (default: 5).
+# pressing "Start", is hooked the same way when it loads.
 
 hookCollection:
   - module: libloadTime.so

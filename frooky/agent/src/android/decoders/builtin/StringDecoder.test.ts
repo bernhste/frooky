@@ -167,6 +167,11 @@ describe("StringDecoder", () => {
         expect(decode("[C", chars, { offset: 2, length: 8 })).toBe("password");
         expect(decode("[C", chars, { offset: 10 })).toBe("xx");
       });
+
+      it("decodes a negative length, e.g. -1 from InputStream.read at the end of the stream, as null", () => {
+        expect(decode("[B", Java.array("byte", [0x61]), { length: -1 })).toBeNull();
+        expect(decode("[C", Java.array("char", ["a"]), { length: -1 })).toBeNull();
+      });
     });
   });
 });

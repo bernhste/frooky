@@ -4,7 +4,8 @@ import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/de
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { HookSettings } from "../../shared/frookySettings";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
-import { FilterMismatchError, formatHashCode } from "../../shared/utils";
+import { FilterMismatchError, formatHashCode, sleepMilliseconds } from "../../shared/utils";
+import { registerTestClass } from "../decoders/utils/registerTestClass";
 import { AndroidHookManager } from "./androidHookManager";
 import { JavaHook } from "./javaHook";
 import { JavaHookEvent } from "./javaHookEvent";
@@ -12,6 +13,11 @@ import { JavaHookEvent } from "./javaHookEvent";
 // resolveHooks() installs nothing, so it can run against always-loaded classes like java.lang.String
 const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
+
+// true if `promise` hasn't settled within 100 ms
+async function isPending(promise: Promise<unknown>): Promise<boolean> {
+  return Promise.race([promise.then(() => false), sleepMilliseconds(100).then(() => true)]);
+}
 
 function identityHashCode(object: Java.Wrapper): number {
   return Java.use("java.lang.System").identityHashCode(object);
@@ -26,7 +32,7 @@ describe("AndroidHookManager", () => {
     it("resolves an exact javaClass and hooks all overloads of the method", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
-      const results = await Promise.all(await manager.resolveHooks([javaHook("java.lang.String", "length")], 5));
+      const results = await Promise.all(await manager.resolveHooks([javaHook("java.lang.String", "length")]));
 
       expect(results.length).toBe(1);
       const hooks = results[0] as JavaHook[];
@@ -38,7 +44,7 @@ describe("AndroidHookManager", () => {
     it("hooks every overload of a method that has more than one", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
-      const results = await Promise.all(await manager.resolveHooks([javaHook("java.lang.String", "indexOf")], 5));
+      const results = await Promise.all(await manager.resolveHooks([javaHook("java.lang.String", "indexOf")]));
 
       const hooks = results[0] as JavaHook[];
       expect(hooks).not.toBeNull();
@@ -46,50 +52,106 @@ describe("AndroidHookManager", () => {
       expect(hooks.every((hook) => hook.methodName === "indexOf")).toBeTruthy();
     });
 
-    it("returns null when the javaClass does not exist", async () => {
+    it("keeps waiting for a javaClass that no class loader has", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
-      // timeout 0: fail after the first lookup instead of polling
-      const results = await Promise.all(await manager.resolveHooks([javaHook("com.frooky.test.DoesNotExist", "foo")], 0));
+      const [result] = await manager.resolveHooks([javaHook("com.frooky.test.DoesNotExist", "foo")]);
 
-      expect(results).toEqual([null]);
+      expect(await isPending(result)).toBe(true);
+    });
+
+    it("installs the hooks of a class in a class loader created later while the class loader is created", async () => {
+      const manager = new AndroidHookManager(stackTrace, frookyAgent);
+      const registerHooks = spyOn(manager, "registerHooks");
+      const javaClass = `com.frooky.test.LateClass${Date.now()}`;
+
+      const [result] = await manager.resolveHooks([javaHook(javaClass, "greet")]);
+      expect(registerHooks).not.toHaveBeenCalled();
+      // in a new DexClassLoader, which Java.use() doesn't search
+      registerTestClass({ name: javaClass, methods: { greet: { returnType: "java.lang.String", argumentTypes: [], implementation: () => "hi" } } });
+
+      // no await since registerTestClass(): the hook was installed while its class loader was created
+      expect(registerHooks).toHaveBeenCalledTimes(1);
+      const hooks = (await result)!;
+      expect(hooks[0].method.holder.$className).toBe(javaClass);
+      expect(manager.registerHooks(hooks)).toBe(1);
+      manager.unregisterHooks(hooks);
+      registerHooks.mockRestore();
+    });
+
+    it("finds a class with `classLoader` only in instances of that class loader, when one of them loads it", async () => {
+      const manager = new AndroidHookManager(stackTrace, frookyAgent);
+      const registerHooks = spyOn(manager, "registerHooks");
+      const suffix = Date.now();
+      const target = registerTestClass({
+        name: `com.frooky.test.PluginClass${suffix}`,
+        methods: { greet: { returnType: "java.lang.String", argumentTypes: [], implementation: () => "hi" } },
+      });
+      // a custom class loader that doesn't extend BaseDexClassLoader and returns the plugin class
+      const pluginLoader = registerTestClass({
+        name: `com.frooky.test.PluginLoader${suffix}`,
+        superClass: Java.use("java.lang.ClassLoader"),
+        methods: {
+          loadClass: [
+            {
+              returnType: "java.lang.Class",
+              argumentTypes: ["java.lang.String"],
+              implementation: (name: string) => (name === target.$className ? target.class : null),
+            },
+          ],
+        },
+      });
+
+      const [result] = await manager.resolveHooks([{ ...javaHook(target.$className, "greet"), classLoader: pluginLoader.$className }]);
+      // the class exists in its own class loader, but no instance of the custom class loader loaded it yet
+      expect(await isPending(result)).toBe(true);
+      expect(registerHooks).not.toHaveBeenCalled();
+      pluginLoader.$new().loadClass(target.$className);
+
+      // no await since loadClass(): the hook was installed before loadClass() returned the class
+      expect(registerHooks).toHaveBeenCalledTimes(1);
+      const hooks = (await result)!;
+      expect(hooks[0].method.holder.$className).toBe(target.$className);
+      manager.unregisterHooks(hooks);
+      registerHooks.mockRestore();
     });
 
     it("returns null when the method does not exist on an otherwise resolved class", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
-      const results = await Promise.all(await manager.resolveHooks([javaHook("java.lang.String", "thisMethodDoesNotExist")], 2));
+      const results = await Promise.all(await manager.resolveHooks([javaHook("java.lang.String", "thisMethodDoesNotExist")]));
 
       expect(results).toEqual([null]);
     });
 
-    it("resolves a wildcard javaClass to every currently loaded matching class", async () => {
+    it("resolves a wildcard javaClass to every matching class", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
-      // java.lang.Object and java.lang.String are always loaded, both declare toString(), and
-      // '*' must match the single 'lang' segment without crossing into e.g. 'java.lang.reflect'.
-      const results = await Promise.all(await manager.resolveHooks([javaHook("java.lang.*", "toString")], 5));
+      // CRC32 and Adler32 both declare getValue(), and '*' matches one segment only: it doesn't reach
+      // classes in subpackages. Matches are installed right away, so not on methods the app calls all the time.
+      const results = await Promise.all(await manager.resolveHooks([javaHook("java.util.zip.*", "getValue")]));
 
       const hooks = results[0] as JavaHook[];
       expect(hooks).not.toBeNull();
-      expect(hooks.length).toBeGreaterThan(0);
-      expect(hooks.every((hook) => hook.methodName === "toString")).toBeTruthy();
+      const classes = hooks.map((hook) => hook.method.holder.$className);
+      expect(classes.length).toBeGreaterThan(0);
+      expect(classes.every((name) => /^java\.util\.zip\.[^.]+$/.test(name))).toBe(true);
+      manager.unregisterHooks(hooks);
     });
 
-    it("returns null for a wildcard javaClass that matches no loaded class", async () => {
+    it("keeps waiting for a wildcard javaClass that matches no class", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
-      // timeout 0: fail after the first lookup instead of polling
-      const results = await Promise.all(await manager.resolveHooks([javaHook("com.frooky.test.*.DoesNotExist", "foo")], 0));
+      const [result] = await manager.resolveHooks([javaHook("com.frooky.test.*.DoesNotExist", "foo")]);
 
-      expect(results).toEqual([null]);
+      expect(await isPending(result)).toBe(true);
     });
 
     it("processes hooks for different classes independently", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
 
       const results = await Promise.all(
-        await manager.resolveHooks([javaHook("java.lang.String", "length"), javaHook("java.lang.Object", "hashCode")], 5),
+        await manager.resolveHooks([javaHook("java.lang.String", "length"), javaHook("java.lang.Object", "hashCode")]),
       );
 
       expect(results.length).toBe(2);
@@ -107,7 +169,7 @@ describe("AndroidHookManager", () => {
         overloads: [{ params: ["int"], retType: retTypeSettings }],
       };
 
-      const results = await Promise.all(await manager.resolveHooks([hook], 5));
+      const results = await Promise.all(await manager.resolveHooks([hook]));
       const hooks = results[0] as JavaHook[];
 
       expect(hooks.length).toBe(1);
@@ -124,7 +186,7 @@ describe("AndroidHookManager", () => {
         overloads: [{ params: ["int"] }],
       };
 
-      const results = await Promise.all(await manager.resolveHooks([hook], 5));
+      const results = await Promise.all(await manager.resolveHooks([hook]));
       const hooks = results[0] as JavaHook[];
 
       expect(hooks.length).toBe(1);
@@ -151,7 +213,7 @@ describe("AndroidHookManager", () => {
         hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames, ...hookSettings },
       });
       const resolve = async (maxStackFrames: number, hookSettings: Partial<HookSettings> = {}) => {
-        const [hooks] = await Promise.all(await manager.resolveHooks([declare(maxStackFrames, hookSettings)], 5));
+        const [hooks] = await Promise.all(await manager.resolveHooks([declare(maxStackFrames, hookSettings)]));
         return hooks as JavaHook[];
       };
       const reverse = (value: number): number => Java.use("java.lang.Integer").reverse(value);
@@ -195,7 +257,7 @@ describe("AndroidHookManager", () => {
 
       it("hooks the same overload twice when one resolveHooks() call declares it twice", async () => {
         const { manager, declare, reverse, calledLimits } = setup();
-        const [first, second] = (await Promise.all(await manager.resolveHooks([declare(1), declare(2)], 5))) as JavaHook[][];
+        const [first, second] = (await Promise.all(await manager.resolveHooks([declare(1), declare(2)]))) as JavaHook[][];
 
         expect(first[0].method.handle.toString()).toBe(second[0].method.handle.toString());
         try {
@@ -329,13 +391,10 @@ describe("AndroidHookManager", () => {
         const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
         const manager = new AndroidHookManager(stackTrace, agent);
         const [first, second] = (await Promise.all(
-          await manager.resolveHooks(
-            [
-              javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet"),
-              javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet"),
-            ],
-            5,
-          ),
+          await manager.resolveHooks([
+            javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet"),
+            javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet"),
+          ]),
         )) as JavaHook[][];
         const counter = Java.use("java.util.concurrent.atomic.AtomicInteger").$new(0);
 
@@ -355,7 +414,7 @@ describe("AndroidHookManager", () => {
         const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
         const manager = new AndroidHookManager(stackTrace, agent);
         const declare = (): InputJavaHookNormalized => javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet");
-        const [first, second] = (await Promise.all(await manager.resolveHooks([declare(), declare()], 5))) as JavaHook[][];
+        const [first, second] = (await Promise.all(await manager.resolveHooks([declare(), declare()]))) as JavaHook[][];
         const counter = Java.use("java.util.concurrent.atomic.AtomicInteger").$new(0);
 
         try {
@@ -378,7 +437,7 @@ describe("AndroidHookManager", () => {
     it("records the instance's identity hash code, which stays the same while a content-based hashCode() changes", async () => {
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
       const manager = new AndroidHookManager(stackTrace, agent);
-      const [hooks] = (await Promise.all(await manager.resolveHooks([javaHook("java.util.BitSet", "set")], 5))) as JavaHook[][];
+      const [hooks] = (await Promise.all(await manager.resolveHooks([javaHook("java.util.BitSet", "set")]))) as JavaHook[][];
       const bits = Java.use("java.util.BitSet").$new();
       const expected = formatHashCode(identityHashCode(bits));
 
@@ -399,7 +458,7 @@ describe("AndroidHookManager", () => {
 
     it("records no hashCode for a static method", async () => {
       const { manager, reverse, addEventToLog } = setup();
-      const [hooks] = (await Promise.all(await manager.resolveHooks([javaHook("java.lang.Integer", "reverse")], 5))) as JavaHook[][];
+      const [hooks] = (await Promise.all(await manager.resolveHooks([javaHook("java.lang.Integer", "reverse")]))) as JavaHook[][];
 
       try {
         manager.registerHooks(hooks);

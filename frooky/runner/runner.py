@@ -47,6 +47,7 @@ class FrookyRunner:
         # the agent's report of a native exception that likely killed the process; Frida's crash is empty on Android
         self._agent_crash: Optional[dict] = None
         self._reload_requested = threading.Event()
+        self._statistics_requested = threading.Event()
         self._key_listener = KeyListener(self._on_key)
 
     def _stop_live_terminal(self):
@@ -64,11 +65,21 @@ class FrookyRunner:
         """Called on the key listener thread for every key press."""
         if key in ("r", "R"):
             self._reload_requested.set()
+        elif key in ("i", "I"):
+            self._statistics_requested.set()
+
+    def _print_hook_statistics(self) -> None:
+        try:
+            statistics = self.script.exports_sync.hook_statistics()
+        except Exception as e:
+            self.feed.log("error", f"Failed to read the hook statistics: {e}")
+            return
+        self.feed.hook_statistics(statistics)
 
     def _on_progress(self, progress: dict) -> None:
         """Called on Frida's thread with the agent's hook resolving progress, shown in the status bar."""
         was_busy = self._hook_status.busy
-        self._hook_status.update(int(progress.get("hooked", 0)), int(progress.get("pending", 0)), int(progress.get("failed", 0)))
+        self._hook_status.update(int(progress.get("hooked", 0)), int(progress.get("pending", 0)), int(progress.get("failed", 0)), int(progress.get("waiting", 0)))
         # without a terminal there is no status bar, so say it once in the feed; the integration tests wait for it
         if was_busy and not self._hook_status.busy and not self.feed.console.is_terminal:
             self.feed.log("info", self._hook_status.describe())
@@ -199,7 +210,7 @@ class FrookyRunner:
 
         lines.append("")
         if self._key_listener.active:
-            lines.append("  Press R to reload the hook files and retry failed hooks, Ctrl+C to stop...")
+            lines.append("  Press R to reload the hook files and retry failed hooks, I for hook statistics, Ctrl+C to stop...")
         else:
             lines.append("  Press Ctrl+C to stop...")
         lines.append("")
@@ -282,6 +293,9 @@ class FrookyRunner:
             # firing because we lost the connection to the target/agent.
             while not self._stop_event.is_set():
                 time.sleep(0.5)
+                if self._statistics_requested.is_set():
+                    self._statistics_requested.clear()
+                    self._print_hook_statistics()
                 if self._reload_requested.is_set():
                     self._reload_requested.clear()
                     self._reload_hook_files(watcher)

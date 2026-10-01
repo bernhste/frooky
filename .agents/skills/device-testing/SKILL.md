@@ -70,6 +70,6 @@ uv run frooky -U -f <package> -e -vv hooks.yaml   # -e prints events, -vv adds a
 
 ## Troubleshooting
 
-- `# Hooks 0` or `(N not resolved)` in the status bar (`Hooks ready: …` when output is piped): the class or module isn't loaded yet or the name is wrong. Try `-t 15`, and check the name with `frida -U <app>` → `Java.use("...")`.
+- `(N waiting)` in the status bar (`Hooks ready: …` when output is piped): the class or module isn't loaded yet, or its name is wrong. Waiting hooks are installed when it loads, e.g. after pressing "Start". Check the name with `frida -U <app>` → `Java.use("...")`. `(N not resolved)` means the class or module was found but the method or symbol wasn't.
 - `unable to connect to remote frida-server` or a version-mismatch error: restart frida-server on the device with the matching version.
 - Appium session errors in integration tests: the host relay can drop connections, and the tests retry a few times. Check that Appium is running on the host (`curl $APPIUM_URL/status`).

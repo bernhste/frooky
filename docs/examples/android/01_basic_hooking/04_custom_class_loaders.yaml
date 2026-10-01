@@ -1,0 +1,29 @@
+metadata:
+  name: "Basic Hooking (Android): Classes of Custom Class Loaders"
+  description: |
+    frooky finds a class in every class loader that reads dex files (PathClassLoader, DexClassLoader, ...),
+    also in one the app creates later. A custom class loader that defines classes itself is different:
+    `classLoader` names it, and frooky hooks the class as that class loader loads it.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/04_custom_class_loaders.yaml
+# See:    docs/java-hook-declaration.md#classes-of-custom-class-loaders
+#
+# The app calls greet() on its own PluginGreeter, and on the copy that PluginClassLoader defines from the app's dex
+# file. Without `classLoader`, frooky hooks the app's copy, and the call on the plugin's copy isn't recorded.
+
+hookCollection:
+  # class PluginClassLoader(context: Context) : ClassLoader(context.classLoader)
+  # Docs: https://developer.android.com/reference/java/lang/ClassLoader
+  - javaClass: org.owasp.mastestapp.PluginGreeter
+    classLoader: org.owasp.mastestapp.PluginClassLoader
+    hooks:
+      # fun greet(name: String): String
+      - greet
+
+# Expected events:
+#   greet: argsIn [{type: java.lang.String, value: "plugin"}], returnValue "Hello plugin"
+#   (no event for the app's own copy, greet("app"))

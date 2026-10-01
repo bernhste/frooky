@@ -24,7 +24,13 @@ export class AndroidHookValidator implements HookValidator<InputJavaHookNormaliz
       const { hookSettings, decoderSettings } = mergeJavaHookCollectionSettings(javaHookCollection, settings);
       for (const inputJavaHook of javaHookCollection.hooks) {
         try {
-          const normalizedJavaHook = normalizeJavaHook(javaHookCollection.javaClass, inputJavaHook, hookSettings, decoderSettings);
+          const normalizedJavaHook = normalizeJavaHook(
+            javaHookCollection.javaClass,
+            inputJavaHook,
+            hookSettings,
+            decoderSettings,
+            javaHookCollection.classLoader,
+          );
           normalizedJavaHook.overloads?.forEach((overload) => validateDecoderArgRoles(overload.params as Param[], acceptedJavaDecoderArgs));
           validateDecoderNames(
             [

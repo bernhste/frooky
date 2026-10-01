@@ -1,9 +1,8 @@
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../shared/frookySettings";
-import { logger } from "../../shared/logger";
 import { bytesToString, trimIncompleteUtf8Tail } from "../../shared/utils";
-import { countArg, DecoderArgValues } from "../../shared/decoders/decoderArgs";
+import { countArg, DecoderArgValues, logDecodeFailure } from "../../shared/decoders/decoderArgs";
 
 // Reads byte chunks up to the NUL terminator, bounded by memory page boundaries so it never reads
 // into unmapped memory. Reads at most `limit` bytes plus one to tell whether the string continues.
@@ -97,7 +96,7 @@ export function decodeNativeString(input: NativePointer, settings: DecoderSettin
     // a cut multi-byte character would make the whole string decode as ASCII
     return truncated ? bytesToString(trimIncompleteUtf8Tail(bytes)) + "..." : bytesToString(bytes);
   } catch (e) {
-    logger.warn(`Unable to decode ${type} as a string: ${e}`);
+    logDecodeFailure(`Unable to decode ${type} as a string`, e);
     return null;
   }
 }

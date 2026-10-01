@@ -16,6 +16,7 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
   - [Watch Mode (`-w` / `--watch`)](#watch-mode--w----watch)
   - [Interactive Manual Reload (`r` / `R` Key)](#interactive-manual-reload-r--r-key)
 - [Dynamic Class and Module Resolution](#dynamic-class-and-module-resolution)
+  - [Hook Statistics (`i` / `I` Key)](#hook-statistics-i--i-key)
 - [JavaScript Runtime: QuickJS vs. V8](#javascript-runtime-quickjs-vs-v8)
 - [Native Crash Reporter](#native-crash-reporter)
 
@@ -224,7 +225,7 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 - **Spawn (`-f`):** frooky starts the app suspended, installs the hooks, and resumes execution. Startup calls and initial library loads are captured.
 - **Attach (`-n`, `-N`, `-p`):** Attaches to an already running app. Code executed during startup has already finished and is not captured.
 - **Loader hooks:** Hooking `android_dlopen_ext` in `libdl.so` can observe library loads, but intercepting the dynamic linker can break loads across Android linker namespaces.
-- **Late-loaded libraries:** frooky hooks a native library as soon as it loads, before its constructors and `JNI_OnLoad` run, so calls made while it loads are captured. Java classes are looked up once per second. frooky waits up to `-t` seconds (default: 5 seconds) for both; for code loaded on demand later, increase the timeout (e.g. `-t 30`).
+- **Late-loaded code:** frooky hooks a native library as soon as it loads, before its constructors and `JNI_OnLoad` run, and a Java class as soon as a class loader has it, so calls made while they load are captured. This also works for code the app loads long after it starts. See [Dynamic Class and Module Resolution](#dynamic-class-and-module-resolution).
 
 **Recommendations for low-level and high-frequency hooks:**
 
@@ -277,27 +278,38 @@ If a syntax error or schema violation is introduced in the hook file, frooky dis
 While frooky is running in the terminal, pressing `r` or `R` triggers an immediate reload:
 
 - Re-reads and applies the current hook YAML files.
-- **Retries unresolved hooks:** Any hooks that previously failed to resolve (for instance, because a class or native library had not yet been loaded by the app) are retried immediately.
+- **Retries unresolved hooks:** Any hooks that previously failed to resolve (for instance, because a method or symbol was misspelled) are retried immediately. Hooks that wait for their class or native library keep waiting.
 
 ## Dynamic Class and Module Resolution
 
 Applications frequently load code dynamically:
 
-- **Java/Kotlin:** Plugins or feature modules loaded at runtime via `DexClassLoader` or `PathClassLoader`.
+- **Java/Kotlin:** Plugins or feature modules loaded at runtime via `DexClassLoader` or `PathClassLoader`, and the WebView implementation.
 - **Native:** Shared libraries loaded on demand via `dlopen` or `System.loadLibrary`.
 
-When frooky initializes, it does not immediately fail if a target class or native module cannot be found. Instead, it waits for them to load:
+frooky waits for a class or native module that isn't loaded yet for as long as it runs, and hooks it when it loads. It doesn't check for it periodically, but is notified when the app loads code:
 
-- **Native modules** are hooked as soon as the linker loads them, before their constructors and `JNI_OnLoad` run. See [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml).
-- **Java classes** are looked up once per second, so calls made right after a class loads can be missed.
+- **Native modules** are hooked while the linker loads them, before their constructors and `JNI_OnLoad` run. See [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml).
+- **Java classes** are hooked while the class loader that has them is created, before any of its code runs. See [Class Loaders](./java-hook-declaration.md#class-loaders), also for custom class loaders.
 
-The `--resolver-timeout` (or `-t`) flag sets the maximum duration in seconds that frooky waits before reporting the hook target as unresolved:
+Classes and modules that haven't loaded `-t` seconds (`--resolver-timeout`, default: `5`) after the app starts are reported as waiting, in a warning and in the status bar, e.g. `# Hooks 38 (1 waiting)`. A misspelled class or module name shows up there too. Their hooks are still installed when they load:
 
 ```bash
 frooky -U -f com.example.app -t 30 hooks.yaml
 ```
 
-The default timeout is `5` seconds. For modules that load only after user interaction (such as navigating to a specific payment or media screen), increase `-t` to give the app time to load the library.
+### Hook Statistics (`i` / `I` Key)
+
+While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not resolved, how many overloads or functions it hooks, and how many events these recorded so far.
+
+```text
+Hook statistics
+State         Hooks  Events  Target                       File        Waits for
+hooked            3      41  javax.crypto.Cipher.init     hooks.yaml
+hooked            1   1,234  libc.so!open                 hooks.yaml
+waiting           -       -  com.example.Plugin.run       hooks.yaml  Java class 'com.example.Plugin'
+not resolved      -       -  libc.so!nope                 hooks.yaml
+```
 
 ## JavaScript Runtime: QuickJS vs. V8
 

@@ -26,7 +26,7 @@ export const DEFAULT_FROOKY_SETTINGS: FrookySettings = {
 
 export const DEFAULT_SETTING_LOG_LEVEL = "info";
 export const DEFAULT_SETTING_LOG_TO = "console";
-// how long a class or module is looked up before its hooks fail
+// how long after the app starts a class or module may load before its hooks are reported as waiting
 export const DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS = 5;
 
 // interval for sending cached events to the host
@@ -34,6 +34,3 @@ export const SEND_INTERVAL_MS = 100;
 
 // minimum interval between two progress reports to the host
 export const PROGRESS_INTERVAL_MS = 250;
-
-// interval between two lookups of a class or module that isn't loaded yet
-export const HOOK_LOOKUP_INTERVAL_MS = 1000;

@@ -34,27 +34,30 @@ def normalize_level(level: str) -> str:
 
 class HookStatus:
     """The hooks segment of the status bar, e.g.
-    `Resolving hooks: 38 hooked, 4 modules pending (gives up in 3s)`, then `# Hooks 38 (2 not resolved)`.
+    `Resolving hooks: 38 hooked, 4 pending (3s)`, then `# Hooks 38 (1 waiting, 2 not resolved)`.
 
     It is busy (the bar shows a spinner) until the agent's first progress report and while anything
-    is pending. The countdown restarts whenever resolving starts again, e.g. on a reload, and is
-    recomputed on every redraw.
+    is pending. After the report delay (-t), the agent reports classes and modules that haven't loaded
+    as waiting: their hooks are installed whenever they load. The countdown restarts whenever resolving
+    starts again, e.g. on a reload, and is recomputed on every redraw.
     """
 
     def __init__(self, timeout_seconds: float, clock: Callable[[], float] = time.monotonic):
         self.hooked = 0
         self.pending = 0
+        self.waiting = 0
         self.failed = 0
         self._reported = False
         self._timeout_seconds = timeout_seconds
         self._clock = clock
         self._deadline = clock() + timeout_seconds
 
-    def update(self, hooked: int, pending: int, failed: int = 0) -> None:
+    def update(self, hooked: int, pending: int, failed: int = 0, waiting: int = 0) -> None:
         if pending > 0 and self._reported and self.pending == 0:
             self._deadline = self._clock() + self._timeout_seconds
         self.hooked = hooked
         self.pending = pending
+        self.waiting = waiting
         self.failed = failed
         self._reported = True
 
@@ -66,11 +69,51 @@ class HookStatus:
         if not self._reported:
             return "Loading hooks..."
         if self.pending == 0:
-            text = f"Hooks ready: {self.hooked:,} hooked"
-            return f"{text}, {self.failed:,} not resolved" if self.failed else text
-        text = f"Resolving hooks: {self.hooked:,} hooked, {self.pending} {'module' if self.pending == 1 else 'modules'} pending"
+            return ", ".join([f"Hooks ready: {self.hooked:,} hooked", *self.describe_unhooked()])
+        text = f"Resolving hooks: {self.hooked:,} hooked, {self.pending:,} pending"
         seconds_left = math.ceil(self._deadline - self._clock())
-        return f"{text} (gives up in {seconds_left}s)" if seconds_left > 0 else text
+        return f"{text} ({seconds_left}s)" if seconds_left > 0 else text
+
+    def describe_unhooked(self) -> list[str]:
+        """e.g. `["1 waiting", "2 not resolved"]`"""
+        parts = []
+        if self.waiting:
+            parts.append(f"{self.waiting:,} waiting")
+        if self.failed:
+            parts.append(f"{self.failed:,} not resolved")
+        return parts
+
+
+# the agent's HookStatistic states, in the order the hook statistics list them
+_STATISTIC_STATES = {"installed": "hooked", "waiting": "waiting", "pending": "pending", "failed": "not resolved"}
+
+
+def format_hook_statistics(statistics: list[dict]) -> Table:
+    """The table the `i` key prints: one row per hook declaration (see HookStatistic in FrookyAgent.ts), hooked ones
+    first, with the overloads or functions it hooks and their events, or the class or module it waits for."""
+    table = Table(box=None, padding=(0, 2), pad_edge=False, header_style="bold", title="Hook statistics", title_justify="left", title_style="bold")
+    table.add_column("State", no_wrap=True)
+    table.add_column("Hooks", justify="right")
+    table.add_column("Events", justify="right")
+    table.add_column("Target", overflow="fold")
+    table.add_column("File", no_wrap=True)
+    table.add_column("Waits for", overflow="fold")
+    order = list(_STATISTIC_STATES)
+    rows = sorted(statistics, key=lambda row: (order.index(row["state"]) if row["state"] in order else len(order), row["config"], row["target"]))
+    for row in rows:
+        installed = row["state"] == "installed"
+        waiting = row["state"] in ("waiting", "pending")
+        table.add_row(
+            Text(_STATISTIC_STATES.get(row["state"], row["state"]), style="" if installed else "bold gold1"),
+            f"{row['hooked']:,}" if installed else "-",
+            f"{row['events']:,}" if installed else "-",
+            row["target"],
+            row["config"],
+            row["waitsFor"] if waiting else "",
+        )
+    if not rows:
+        table.add_row("-", "-", "-", "no hooks loaded", "", "")
+    return table
 
 
 def _format_duration(seconds: float) -> str:
@@ -137,8 +180,9 @@ class _StatusBar:
                 left.append(Text.assemble(self._spinner.render(now), " ", (hook_status.describe(), "bold gold1 on grey23")))
             else:
                 hooks = self._field("# Hooks", f"{hook_status.hooked:,}".rjust(self.HOOKS_WIDTH))
-                if hook_status.failed:
-                    hooks.append(f" ({hook_status.failed:,} not resolved)", style="bold gold1 on grey23")
+                unhooked = hook_status.describe_unhooked()
+                if unhooked:
+                    hooks.append(f" ({', '.join(unhooked)})", style="bold gold1 on grey23")
                 left.append(hooks)
         right: list[Text] = []
         if feed._event_count is not None:
@@ -212,6 +256,10 @@ class Feed:
         line.add_column(overflow="fold")
         line.add_row(Text(datetime.now().strftime("%H:%M:%S"), style="dim"), Text(level.upper(), style=f"bold {style}"), text)
         self.console.print(line)
+
+    def hook_statistics(self, statistics: list[dict]) -> None:
+        """Print the hook statistics table, see format_hook_statistics()."""
+        self.console.print(format_hook_statistics(statistics))
 
     def event(self, event: dict) -> None:
         """Print a hook event as a box as wide as the terminal."""

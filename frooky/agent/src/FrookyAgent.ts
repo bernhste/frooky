@@ -24,11 +24,14 @@ import { PlatformStackTrace } from "./shared/platformStackTrace";
 import { plural, stableStringify } from "./shared/utils";
 
 // State of one normalized hook declaration. `target` is the hooked method or symbol, `lookup` the class
-// or module it waits for, `hooks` the resolved hooks (one per overload or function).
+// or module it waits for, `hooks` the resolved hooks (one per overload or function). A declaration whose class or
+// module isn't loaded after the report delay is `waiting`: it is installed as soon as that loads.
 type LoadedHookEntry = {
-  state: "pending" | "installed" | "failed" | "removed";
+  state: "pending" | "waiting" | "installed" | "failed" | "removed";
   target?: string;
   lookup?: string;
+  // e.g. `Java class 'com.example.Foo'`, for HookStatistics
+  waitsFor: string;
   hooks?: Hook[];
   hookedCount?: number;
 };
@@ -48,9 +51,21 @@ function describeConfig(inputFrookyConfig: InputFrookyConfig, configId?: string)
 // The class or module a hook declaration waits for, e.g. `platform:com.example.Foo`.
 function lookupOf(kind: string, inputHook: unknown): string | undefined {
   if (typeof inputHook !== "object" || inputHook === null) return undefined;
-  const hook = inputHook as { javaClass?: string; module?: string };
+  const hook = inputHook as { javaClass?: string; classLoader?: string; module?: string };
   const lookup = hook.javaClass ?? hook.module;
-  return lookup ? `${kind}:${lookup}` : undefined;
+  if (!lookup) return undefined;
+  return hook.classLoader ? `${kind}:${lookup}@${hook.classLoader}` : `${kind}:${lookup}`;
+}
+
+// e.g. `Java class 'com.example.Foo'` or `Module 'libfoo.so'`
+function describeLookup(inputHook: unknown): string {
+  const hook = (typeof inputHook === "object" && inputHook !== null ? inputHook : {}) as {
+    javaClass?: string;
+    classLoader?: string;
+    module?: string;
+  };
+  if (hook.javaClass) return `Java class '${hook.javaClass}'${hook.classLoader ? ` from class loader '${hook.classLoader}'` : ""}`;
+  return `Module '${hook.module}'`;
 }
 
 // e.g. `com.example.Foo.bar` or `libfoo.so!open`
@@ -70,13 +85,27 @@ function targetOf(kind: string, inputHook: unknown): string | undefined {
 }
 
 // Reported to the host while hooks resolve: installed hooks (one per overload or function), classes and
-// modules still being looked up, and declarations that failed to resolve.
-export type HookProgress = { hooked: number; pending: number; failed: number };
+// modules still being looked up or waited for after the report delay, and declarations that failed to resolve.
+export type HookProgress = { hooked: number; pending: number; waiting: number; failed: number };
 
-// Installed hooks (one per overload or function) and declarations that failed to resolve.
+// One hook declaration for the host's hook statistics (`i` key). `target` is e.g. `com.example.Foo.bar` or
+// `libfoo.so!open`, `waitsFor` the class or module it waits for, `hooked` how many overloads or functions it hooks,
+// and `events` how many events these recorded.
+export type HookStatistic = {
+  config: string;
+  target: string;
+  state: "pending" | "waiting" | "installed" | "failed";
+  waitsFor: string;
+  hooked: number;
+  events: number;
+};
+
+// Installed hooks (one per overload or function), declarations waiting for their class or module, and
+// declarations that failed to resolve.
 type HookedSummary = {
   hookedMethods: number;
   hookedFunctions: number;
+  waiting: number;
   failed: number;
 };
 
@@ -89,13 +118,15 @@ type LoadSummary = HookedSummary & {
   unchanged: number;
 };
 
-// e.g. `hooked 2 methods and 1 function, 3 not resolved`
-export function describeHooked({ hookedMethods, hookedFunctions, failed }: HookedSummary): string {
+// e.g. `hooked 2 methods and 1 function, 1 waiting, 3 not resolved`
+export function describeHooked({ hookedMethods, hookedFunctions, waiting, failed }: HookedSummary): string {
   const hooked: string[] = [];
   if (hookedMethods > 0) hooked.push(plural(hookedMethods, "method"));
   if (hookedFunctions > 0) hooked.push(plural(hookedFunctions, "function"));
-  const text = hooked.length > 0 ? `hooked ${hooked.join(" and ")}` : "hooked nothing";
-  return failed > 0 ? `${text}, ${failed} not resolved` : text;
+  const parts = [hooked.length > 0 ? `hooked ${hooked.join(" and ")}` : "hooked nothing"];
+  if (waiting > 0) parts.push(`${waiting} waiting`);
+  if (failed > 0) parts.push(`${failed} not resolved`);
+  return parts.join(", ");
 }
 
 // e.g. `1 new, 1 updated, 1 removed, 3 unchanged; hooked 2 methods`. The part after the semicolon
@@ -124,6 +155,7 @@ export class FrookyAgent {
   private resolverTimeoutSeconds: number;
   // hooks of every loaded config, keyed by config id and then by the fingerprint of the normalized hook
   private loadedConfigs = new Map<string, Map<string, LoadedHookEntry>>();
+  private readonly eventCounts = new WeakMap<Hook, number>();
   private anonymousConfigCount = 0;
   private reportProgress?: (progress: HookProgress) => void;
   public readonly targetReady: Promise<void>; // resolves once the target's own code can be looked up (e.g. Java.perform())
@@ -244,7 +276,12 @@ export class FrookyAgent {
           continue;
         }
         // a retried hook keeps its entry, so it is not counted as removed below
-        const entry: LoadedHookEntry = previousEntry ?? { state: "pending", target: targetOf(kind, inputHook), lookup: lookupOf(kind, inputHook) };
+        const entry: LoadedHookEntry = previousEntry ?? {
+          state: "pending",
+          target: targetOf(kind, inputHook),
+          lookup: lookupOf(kind, inputHook),
+          waitsFor: describeLookup(inputHook),
+        };
         if (previousEntry) {
           previousEntry.state = "pending";
           countRetried++;
@@ -302,12 +339,15 @@ export class FrookyAgent {
       unchanged: countUnchanged,
       hookedMethods: countSuccessfulPlatformHooks,
       hookedFunctions: countSuccessfulNativeHooks,
+      waiting: toResolve.filter(({ entry }) => entry.state === "waiting").length,
       failed: toResolve.filter(({ entry }) => entry.state === "failed").length,
     };
   }
 
-  // Resolves and installs hooks and returns how many were installed. A hook whose entry was removed while it
-  // resolved (the config was reloaded) is not installed, or unhooked again. `source` names the hook file in log messages.
+  // Resolves and installs hooks and returns how many were installed once each hook is installed, failed, or waiting
+  // for its class or module after the report delay. A waiting hook is installed whenever that loads. A hook whose
+  // entry was removed while it resolved (the config was reloaded) is not installed, or unhooked again. `source`
+  // names the hook file in log messages.
   private async resolveAndRegisterHooks(
     manager: HookManager<any, any, any>,
     pendingHooks: PendingHook[],
@@ -316,69 +356,91 @@ export class FrookyAgent {
   ): Promise<number> {
     if (pendingHooks.length === 0) return 0;
 
-    let countSuccessfulHooks = 0;
+    let hookPromises: Promise<Hook[] | null>[];
     try {
-      const hookPromises = await manager.resolveHooks(
+      hookPromises = await manager.resolveHooks(
         pendingHooks.map((pendingHook) => pendingHook.inputHook),
-        this.resolverTimeoutSeconds,
         source,
       );
-      const settled = await Promise.allSettled(
-        hookPromises.map((hookPromise, i) =>
-          hookPromise.then((hooks) => {
-            const entry = pendingHooks[i]?.entry;
-            if (!entry || entry.state === "removed") {
-              // native hooks are installed while their module loads, see NativeHookManager.resolveHooks()
-              if (hooks) manager.unregisterHooks(hooks);
-              return;
-            }
-            this.scheduleProgressReport();
-            if (!hooks) {
-              entry.state = "failed";
-              return;
-            }
-            const hookedCount = manager.registerHooks(hooks, source);
-            countSuccessfulHooks += hookedCount;
-            entry.hooks = hooks;
-            entry.hookedCount = hookedCount;
-            entry.state = "installed";
-          }),
-        ),
-      );
-      // a hook whose resolving or registering threw is neither installed nor pending anymore
-      settled.forEach((result, i) => {
-        const entry = pendingHooks[i]?.entry;
-        if (result.status !== "rejected" || !entry || entry.state !== "pending") return;
-        entry.state = "failed";
-        logger.warn(
-          `Failed to hook ${describeInputHook(pendingHooks[i]?.inputHook)} (${source}): ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
-        );
-        this.scheduleProgressReport();
-      });
     } catch (e) {
       for (const { entry } of pendingHooks) {
         if (entry.state === "pending") entry.state = "failed";
       }
       this.scheduleProgressReport();
       logger.error(`Error while resolving ${kind} hooks of ${source}: ${String(e)}`);
+      return 0;
     }
+
+    let countSuccessfulHooks = 0;
+    const settled = hookPromises.map((hookPromise, i) => {
+      const { inputHook, entry } = pendingHooks[i];
+      return hookPromise.then(
+        (hooks) => {
+          if (entry.state === "removed") {
+            // hooks are installed while their class or module loads, see HookManager.resolveHooks()
+            if (hooks) manager.unregisterHooks(hooks);
+            return;
+          }
+          this.scheduleProgressReport();
+          if (!hooks) {
+            entry.state = "failed";
+            return;
+          }
+          const hookedCount = manager.registerHooks(hooks, source);
+          countSuccessfulHooks += hookedCount;
+          entry.hooks = hooks;
+          entry.hookedCount = hookedCount;
+          entry.state = "installed";
+        },
+        (reason) => {
+          if (entry.state !== "pending" && entry.state !== "waiting") return;
+          entry.state = "failed";
+          logger.warn(`Failed to hook ${describeInputHook(inputHook)} (${source}): ${reason instanceof Error ? reason.message : String(reason)}`);
+          this.scheduleProgressReport();
+        },
+      );
+    });
+    await Promise.race([Promise.all(settled), this.afterReportDelay().then(() => this.reportWaiting(pendingHooks))]);
     return countSuccessfulHooks;
+  }
+
+  // Resolves `resolverTimeoutSeconds` after the target is ready, e.g. the app's code can be looked up
+  private async afterReportDelay(): Promise<void> {
+    await this.targetReady;
+    await new Promise((resolve) => setTimeout(resolve, this.resolverTimeoutSeconds * 1000));
+  }
+
+  // Marks the hooks that are still pending as waiting, and warns once per class or module they wait for
+  private reportWaiting(pendingHooks: PendingHook[]): void {
+    const waiting = pendingHooks.filter(({ entry }) => entry.state === "pending");
+    if (waiting.length === 0) return;
+    const lookups = new Set<string>();
+    for (const { inputHook, entry } of waiting) {
+      entry.state = "waiting";
+      lookups.add(describeLookup(inputHook));
+    }
+    for (const lookup of lookups) {
+      logger.warn(`${lookup} not loaded within ${plural(this.resolverTimeoutSeconds, "second")}. Its hooks are installed when it loads.`);
+    }
+    this.scheduleProgressReport();
   }
 
   // HookProgress across all loaded configs
   public hookProgress(): HookProgress {
     let hooked = 0;
     let failed = 0;
+    // a declaration without a known class or module counts on its own
     const pendingLookups = new Set<unknown>();
+    const waitingLookups = new Set<unknown>();
     for (const entries of this.loadedConfigs.values()) {
       for (const entry of entries.values()) {
         if (entry.state === "installed") hooked += entry.hookedCount ?? 0;
-        // a declaration without a known class or module counts on its own
         else if (entry.state === "pending") pendingLookups.add(entry.lookup ?? entry);
+        else if (entry.state === "waiting") waitingLookups.add(entry.lookup ?? entry);
         else if (entry.state === "failed") failed++;
       }
     }
-    return { hooked, pending: pendingLookups.size, failed };
+    return { hooked, pending: pendingLookups.size, waiting: waitingLookups.size, failed };
   }
 
   // Reports HookProgress to the host at most once per PROGRESS_INTERVAL_MS. The progress is read when the
@@ -392,7 +454,28 @@ export class FrookyAgent {
     }, PROGRESS_INTERVAL_MS);
   }
 
-  public addEventToLog(event: LogEvent | HookEvent): void {
+  // `hook` is the hook that recorded `event`, counted for hookStatistics()
+  public addEventToLog(event: LogEvent | HookEvent, hook?: Hook): void {
     this.eventCache.push(event);
+    if (hook) this.eventCounts.set(hook, (this.eventCounts.get(hook) ?? 0) + 1);
+  }
+
+  // Every hook declaration of the loaded configs, see HookStatistic
+  public hookStatistics(): HookStatistic[] {
+    const statistics: HookStatistic[] = [];
+    for (const [configId, entries] of this.loadedConfigs) {
+      for (const [fingerprint, entry] of entries) {
+        if (entry.state === "removed") continue;
+        statistics.push({
+          config: configLabel(configId),
+          target: entry.target ? entry.target.slice(entry.target.indexOf(":") + 1) : fingerprint,
+          state: entry.state,
+          waitsFor: entry.waitsFor,
+          hooked: entry.hookedCount ?? 0,
+          events: (entry.hooks ?? []).reduce((count, hook) => count + (this.eventCounts.get(hook) ?? 0), 0),
+        });
+      }
+    }
+    return statistics;
   }
 }

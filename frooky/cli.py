@@ -30,7 +30,7 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
     agent_options = parser.add_argument_group("frooky agent options")
     agent_options.add_argument("-v", action="store_true", help="also show info logs from the frooky agent: target, hook file parsing and hook resolving (warnings and errors are always shown).")
     agent_options.add_argument("-vv", action="store_true", help="also show info and debug logs from the frooky agent, e.g. hook file contents and resolved decoders.")
-    agent_options.add_argument("-t", "--resolver-timeout", metavar="SECONDS", type=int, default=5, help="Timeout in seconds for module/class lookup (default: 5)")
+    agent_options.add_argument("-t", "--resolver-timeout", metavar="SECONDS", type=int, default=5, help="Seconds after the app starts until classes and modules that haven't loaded are reported as waiting; their hooks are still installed when they load (default: 5)")
     agent_options.add_argument(
         "--runtime",
         choices=["qjs", "v8"],

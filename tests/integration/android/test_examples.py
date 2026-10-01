@@ -62,6 +62,13 @@ class TestAndroidExamples:
         assert _values(static["argsIn"]) == ["static"]
         assert static["fieldType"] == {"fieldType": "static"}
 
+    def test_custom_class_loaders(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/01_basic_hooking/04_custom_class_loaders.yaml"), JAVA_APP)
+
+        [event] = self._events(find_matched_events, "greet", "org.owasp.mastestapp.PluginGreeter")
+        assert event["argsIn"] == [{"type": "java.lang.String", "value": "plugin"}]
+        assert event["returnValue"]["value"] == "Hello plugin"
+
     def test_named_parameters(self, run_frooky, find_matched_events):
         run_frooky(_example("android/02_parameters_and_return_values/01_named_parameters.yaml"), JAVA_APP)
 

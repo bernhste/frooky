@@ -8,6 +8,11 @@ function formatJavaFrame(frame: Java.Frame): string {
   return `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`;
 }
 
+// frida-java-bridge builds its backtrace module on the first Java.backtrace() without a lock, and gives up the JS lock
+// while doing so. A second thread entering then builds another module, and the first one's code is freed while still
+// in use, which crashes the app. Other threads skip the Java frames until the first call returned.
+let javaBacktraceState: "uninitialized" | "initializing" | "ready" = "uninitialized";
+
 let sigaltstackFn: NativeFunction<number, [NativePointer, NativePointer]> | null = null;
 let sigaltstackResolved = false;
 let ossBuffer: NativePointer | null = null;
@@ -95,11 +100,18 @@ export const AndroidStackTrace: PlatformStackTrace = {
 
     // not Java.perform(), which queues the callback until the app's class loader is set (early hooks in
     // spawn mode). The thread is already attached (env above).
-    Java.vm.perform(() => {
+    if (javaBacktraceState !== "initializing") {
+      const isFirstCall = javaBacktraceState === "uninitialized";
+      if (isFirstCall) javaBacktraceState = "initializing";
       try {
-        javaStack = Java.backtrace().frames;
-      } catch (_) {}
-    });
+        Java.vm.perform(() => {
+          javaStack = Java.backtrace().frames;
+        });
+        javaBacktraceState = "ready";
+      } catch (_) {
+        if (isFirstCall) javaBacktraceState = "uninitialized";
+      }
+    }
 
     const javaFrames = javaStack.slice(0, limit).map(formatJavaFrame);
 

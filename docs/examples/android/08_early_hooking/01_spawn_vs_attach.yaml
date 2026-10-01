@@ -16,8 +16,8 @@ metadata:
 # Attach (-n, -N, -p): the app already runs, so onCreate has already happened and is not recorded:
 #   frooky -U -N value_passing_java.frooky.target.app docs/examples/android/08_early_hooking/01_spawn_vs_attach.yaml
 #
-# frooky retries a hook until its class or native library is found, for up to 5 seconds. If the app loads
-# a library later, raise the timeout, e.g. `-t 30`; the hook is reported as not resolved otherwise.
+# A hook whose class or native library isn't loaded yet is installed as soon as it loads, also much later.
+# After 5 seconds (-t), frooky reports it as waiting.
 
 hookCollection:
   # Docs: https://developer.android.com/reference/android/app/Activity#onCreate(android.os.Bundle)

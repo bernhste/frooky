@@ -4,7 +4,6 @@ import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
 import { DecoderArgRole, DecoderArgValues, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
-import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError, previewValue } from "../utils";
@@ -36,33 +35,15 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     protected readonly frookyAgent: FrookyAgent,
   ) {}
 
-  // Returns one promise per input hook (index-aligned), resolving to its hooks or null if it failed.
-  // `source` names the hook file in log messages.
-  public abstract resolveHooks(inputHooks: TInputHook[], timeout: number, source?: string): Promise<Promise<THooks[] | null>[]>;
-  // Returns how many hooks were installed, failures are logged and skipped.
+  // Returns one promise per input hook (index-aligned), resolving to its hooks or null if it failed. A hook on a
+  // class or module that isn't loaded yet stays pending until it loads, and is installed while it loads, before
+  // its code runs (see registerHooks()). `source` names the hook file in log messages.
+  public abstract resolveHooks(inputHooks: TInputHook[], source?: string): Promise<Promise<THooks[] | null>[]>;
+  // Returns how many hooks are installed: hooks that resolveHooks() already installed count as installed,
+  // failures are logged and skipped.
   public abstract registerHooks(hooks: THooks[], source?: string): number;
   // Hooks that aren't installed are ignored.
   public abstract unregisterHooks(hooks: THooks[]): void;
-
-  // Polls `fn` until it returns a value, e.g. `label` `Module 'libfoo.so'` for the timeout error. If the first call
-  // finds nothing, it retries once FrookyAgent.targetReady resolves (in spawn mode: on the app's main thread before
-  // app code runs), and only then starts the timeout.
-  protected async pollUntilResolved<T>(fn: () => T | null, label: string, timeoutSeconds: number): Promise<T> {
-    if (timeoutSeconds < 0) throw Error(`Timeout must not be less than 0.`);
-    let deadline: number | undefined;
-    for (;;) {
-      const result = fn();
-      if (result !== null) return result;
-      if (deadline === undefined) {
-        await this.frookyAgent.targetReady;
-        deadline = Date.now() + timeoutSeconds * 1000;
-        continue;
-      }
-      if (Date.now() >= deadline) break;
-      await new Promise((r) => setTimeout(r, HOOK_LOOKUP_INTERVAL_MS));
-    }
-    throw Error(`${label} not found within ${timeoutSeconds} seconds. Skipping the hooks declared for it.`);
-  }
 
   // `decoderArgs` were checked when the hook file was validated (see validateDecoderArgs())
   protected resolveParamDecoders(params: Param[]): ParamDecoder<TValue>[] {
