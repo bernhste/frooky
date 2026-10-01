@@ -17,7 +17,7 @@
 
 frooky uses decoders to turn the raw arguments and return values captured at a hook into structured output. Decoders are used to decode both parameters and return values.
 
-Depending on the type, this can be fairly simple. Primitives, such as Integers, Floats, or Shorts, can always be decoded by the frooky agent. However, some values require more complex decoders — for example when the time of decoding varies, or when more context information is needed to decode a value correctly.
+Depending on the type, this can be fairly simple. Primitives, such as Integers, Floats, or Shorts, can always be decoded by the frooky agent. However, some values require more complex decoders - for example when the time of decoding varies, or when more context information is needed to decode a value correctly.
 
 frooky comes with a set of decoders for various use cases. By default, frooky chooses the best fitting decoder for the type. But you can change what decoder is used or its settings.
 

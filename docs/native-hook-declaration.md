@@ -15,7 +15,7 @@ This documentation explains how to write native hook declarations.
 
 ## Structure
 
-A `NativeHook` declaration is a YAML object with these top level fields:
+A `NativeHook` declaration is a YAML object with these top-level fields:
 
 ```yaml
 module: <module name>
@@ -47,7 +47,7 @@ hooks:
   - <symbol name>
 ```
 
-Use the **short form with settings** — a `[<symbol name>, {<decoder settings>}]` tuple — to hook a symbol while overriding its `decoderSettings`, without switching to the expanded form.
+Use the **short form with settings** - a `[<symbol name>, {<decoder settings>}]` tuple - to hook a symbol while overriding its `decoderSettings`, without switching to the expanded form.
 
 ```yaml
 module: <module name>
@@ -55,7 +55,7 @@ hooks:
   - [<symbol name>, { <decoder settings> }]
 ```
 
-Use the **expanded form** when you want frooky to decode arguments and or the return value.
+Use the **expanded form** when you want frooky to decode arguments and/or the return value.
 
 ```yaml
 module: <module name>
@@ -111,12 +111,12 @@ To hook a symbol while also overriding its `decoderSettings`, write the hook as 
 **Example:**
 
 ```yaml
-module: libc.so
+module: libssl.so
 hooks:
-  - [malloc, { maxItems: 16 }]
+  - [SSL_write, { maxItems: 16 }]
 ```
 
-This hooks `malloc` from `libc.so`, with `maxItems` set to `16` for that hook only. Every native event carries the function's `address` and a `hashCode` of it.
+This hooks `SSL_write` from `libssl.so`, with `maxItems` set to `16` for that hook only. Every native event carries the function's `address` and a `hashCode` of it.
 
 ## Hooking Functions Without a Symbol
 
@@ -194,7 +194,7 @@ int OSSL_CMP_validate_cert_path(const OSSL_CMP_CTX *ctx,
                                 X509 *cert);
 ```
 
-When these types are declared, frooky can decode arguments and return values using its built in decoders.
+When these types are declared, frooky can decode arguments and return values using its built-in decoders.
 
 A pointer to one of these types is read as that type, e.g. `int *` as an `int` and `char **` as the string that `char *` points to. With the role `length` in `decoderArgs`, a pointer is an array, see [Native Pointers and Arrays](./decoders-native.md#pointers-and-arrays). An array type is a pointer, e.g. `char *[]` is `char **`.
 
@@ -207,17 +207,20 @@ If a type is more complex, you may need further [decoder settings](./decoders.md
 **Example:**
 
 ```yaml
-module: libc.so
+module: libssl.so
 hookSettings:
   platformStackTrace: true
   nativeStackTrace: true
   maxStackFrames: 10
   stackTraceFilter: ['^org\.owasp\.mastestapp']
 hooks:
-  - symbol: open
+  - symbol: SSL_write
     retType: int
     params:
-      - [const char *, path]
-      - [int, flags]
-      - [mode_t, mode]
+      - ["SSL *", ssl]
+      - [const void *, buf, { decoderArgs: { length: num } }]
+      - [int, num]
 ```
+
+> [!WARNING]
+> Don't capture stack traces on high-frequency libc functions such as `open`, `read` or `malloc`. See [Dangerous Low-Level, Early, and High-Frequency Hooks](./additional-features.md#dangerous-low-level-early-and-high-frequency-hooks).

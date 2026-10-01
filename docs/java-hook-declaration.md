@@ -14,7 +14,7 @@ This documentation explains how to write Java hooks.
 
 ## Structure
 
-A `JavaHook` declaration is a YAML object with these top level fields:
+A `JavaHook` declaration is a YAML object with these top-level fields:
 
 ```yaml
 javaClass: <fully qualified Java class name>
@@ -28,6 +28,7 @@ hooks:
     overloads:                        # Optional
       - params:
           - <parameter declaration>
+        retType: <decoder settings>   # Optional
     hookSettings:                     # Optional. Overrides the hook collection's hookSettings for this hook only
       <hook settings>
     decoderSettings:                  # Optional. Overrides the hook collection's decoderSettings for this hook only
@@ -44,7 +45,7 @@ hooks:
   - <method name>
 ```
 
-Use the **short form with settings** — a `[<method name>, {<decoder settings>}]` tuple — to hook all overloads of a method while overriding its `decoderSettings`, without switching to the expanded form.
+Use the **short form with settings** - a `[<method name>, {<decoder settings>}]` tuple - to hook all overloads of a method while overriding its `decoderSettings`, without switching to the expanded form.
 
 ```yaml
 javaClass: <fully qualified Java class name>
@@ -119,7 +120,7 @@ WebView.loadUrl(url: String, additionalHttpHeaders: MutableMap<String!, String!>
 > Use the following syntax for dynamic class lookup at runtime.
 >
 > - **Exact match:** `org.owasp.mastestapp.MainActivity`
-> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level — `*` matches exactly one segment between dots, and every currently loaded class matching the pattern gets hooked
+> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level - `*` matches exactly one segment between dots, and every class matching the pattern that is loaded when frooky resolves it gets hooked
 > - **Nested classes:** use the `$` separator, for example `Outer$Inner`
 
 To hook all overloads of a method while also overriding its `decoderSettings`, write the hook as a `[<method name>, {<decoder settings>}]` tuple instead of a plain string.
@@ -183,8 +184,7 @@ hookSettings:
   platformStackTrace: true
   maxStackFrames: 5
   stackTraceFilter:
-    - "^java\\."
-    - "^android\\."
+    - "^org\\.owasp\\.mastestapp\\."
 hooks:
   - method: query
     overloads:
