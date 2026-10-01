@@ -134,7 +134,6 @@ hookCollection:
   # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/mmap.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/socket.2.html
-  # Docs: https://www.man7.org/linux/man-pages/man3/dlopen.3.html
   - module: libc.so
     hooks:
     - symbol: openat
@@ -165,13 +164,6 @@ hookCollection:
       - [int, domain, { decoder: socketDomain }]
       - [int, type, { decoder: socketType }]
       - [int, protocol]
-  - module: libdl.so
-    hooks:
-    - symbol: dlopen
-      retType: void *
-      params:
-      - [const char *, filename]
-      - [int, flags, { decoder: dlopenFlags }]
 
   # Connections and why they fail: `decoder: errno` adds the errno of a call that returns -1, e.g. ECONNREFUSED.
   # Docs: https://www.man7.org/linux/man-pages/man2/connect.2.html

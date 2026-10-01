@@ -20,6 +20,7 @@ metadata:
 # loaded. frooky retries for up to 5 seconds; for a library the app loads later, raise it, e.g. `-t 30`.
 # frooky looks for the library periodically, so a function called right when the library loads (e.g. from
 # JNI_OnLoad) can run before the hook is installed. Hook the loader, as below, to see such libraries.
+# Hooking the loader breaks loads from other linker namespaces, see docs/native-hook-declaration.md.
 
 hookCollection:
   # void *android_dlopen_ext(const char *filename, int flags, const android_dlextinfo *extinfo)
@@ -30,9 +31,9 @@ hookCollection:
         params:
           # the path is longer than the default maxItems: 100, and argFilter matches the cut value
           - ["char *", filename, { maxItems: 500, argFilter: ['/libreceive\w+\.so$'] }]
-          - [int, flags]
+          - [int, flags, { decoder: dlopenFlags }]
 
 # Expected events:
 #   spawn:  3 events, filename ".../base.apk!/lib/<abi>/libreceiveFundamentalValue.so",
-#           ".../libreceiveFundamentalReference.so" and ".../libreceiveString.so"
+#           ".../libreceiveFundamentalReference.so" and ".../libreceiveString.so", each with flags ["RTLD_NOW"]
 #   attach: none
