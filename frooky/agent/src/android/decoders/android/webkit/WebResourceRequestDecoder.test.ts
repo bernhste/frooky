@@ -2,38 +2,27 @@ import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS } from "../../../../shared/defaultValues";
 import { ReferenceTypeDecoder } from "../../builtin/ReferenceTypeDecoder";
+import { registerTestClass } from "../../utils/registerTestClass";
 
 let fakeRequestClass: Java.Wrapper | undefined;
 // WebView creates the real implementation, so the test implements the interface itself
 function fakeRequest(): Java.Wrapper {
-  if (!fakeRequestClass) {
-    // registerClass() writes a dex file (the default /data/local/tmp isn't writable for the app) and switches the
-    // class loader of Java.use() to it, which the other tests don't expect
-    const { loader, cacheDir } = Java.classFactory;
-    const packageName: string = Java.use("android.app.ActivityThread").currentPackageName();
-    Java.classFactory.cacheDir = `/data/data/${packageName}/cache`;
-    try {
-      fakeRequestClass = Java.registerClass({
-        name: "frooky.test.FakeWebResourceRequest",
-        implements: [Java.use("android.webkit.WebResourceRequest")],
-        methods: {
-          getUrl: () => Java.use("android.net.Uri").parse("https://example.org/api"),
-          isForMainFrame: () => true,
-          isRedirect: () => false,
-          hasGesture: () => false,
-          getMethod: () => "POST",
-          getRequestHeaders: () => {
-            const headers = Java.use("java.util.HashMap").$new();
-            headers.put("Authorization", "Bearer abc");
-            return headers;
-          },
-        },
-      });
-    } finally {
-      (Java.classFactory as { loader: Java.Wrapper | null }).loader = loader;
-      Java.classFactory.cacheDir = cacheDir;
-    }
-  }
+  fakeRequestClass ??= registerTestClass({
+    name: "frooky.test.FakeWebResourceRequest",
+    implements: [Java.use("android.webkit.WebResourceRequest")],
+    methods: {
+      getUrl: () => Java.use("android.net.Uri").parse("https://example.org/api"),
+      isForMainFrame: () => true,
+      isRedirect: () => false,
+      hasGesture: () => false,
+      getMethod: () => "POST",
+      getRequestHeaders: () => {
+        const headers = Java.use("java.util.HashMap").$new();
+        headers.put("Authorization", "Bearer abc");
+        return headers;
+      },
+    },
+  });
   return fakeRequestClass.$new();
 }
 

@@ -17,6 +17,7 @@ import android.security.keystore.KeyProperties
 import java.math.BigDecimal
 import java.math.BigInteger
 import android.webkit.WebResourceRequest
+import androidx.biometric.BiometricPrompt as AndroidXBiometricPrompt
 import java.io.ByteArrayInputStream
 import java.nio.ByteBuffer
 import java.security.Key
@@ -206,6 +207,7 @@ class MastgTest(private val context: Context) {
         fun receiveCertificate(arg: X509Certificate): X509Certificate = arg
         fun receiveAppSignature(arg: android.content.pm.Signature): android.content.pm.Signature = arg
         fun receiveCryptoObject(arg: BiometricPrompt.CryptoObject): BiometricPrompt.CryptoObject = arg
+        fun receiveAndroidXCryptoObject(arg: AndroidXBiometricPrompt.CryptoObject): AndroidXBiometricPrompt.CryptoObject = arg
         fun trackEvent(name: String): String = name
 
         // Passes the objects of a typical encryption, signing and signature check to the receive* methods.
@@ -237,6 +239,8 @@ class MastgTest(private val context: Context) {
                                 .generateCertificate(ByteArrayInputStream(appSignature.toByteArray())) as X509Certificate
                 receiveCertificate(certificate)
                 receiveCryptoObject(BiometricPrompt.CryptoObject(cipher))
+                // most apps use the AndroidX Biometric library, whose CryptoObject is an app class
+                receiveAndroidXCryptoObject(AndroidXBiometricPrompt.CryptoObject(cipher))
                 return "crypto types"
         }
 

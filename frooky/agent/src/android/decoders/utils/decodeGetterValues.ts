@@ -5,7 +5,7 @@ import { DecoderSettings } from "../../../shared/frookySettings";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "../javaDecoderResolver";
 import { logger } from "../../../shared/logger";
 import { StringDecoder } from "../builtin/StringDecoder";
-import { javaBytesToHex } from "./javaValues";
+import { javaBytesToHex, useClassOf } from "./javaValues";
 
 // java.lang.reflect.Modifier bits
 const MODIFIER_PUBLIC = 0x1;
@@ -35,17 +35,6 @@ const DEFAULT_PREFIXES = ["get"];
 
 // getters per `${className}#${prefixes}#${inherited}`
 const methodDescriptorCache = new Map<string, JavaMethodDescriptor[]>();
-const classWrapperCache = new Map<string, Java.Wrapper>();
-
-function getJavaClass(className: string): Java.Wrapper {
-  let cls = classWrapperCache.get(className);
-  if (!cls) {
-    cls = Java.use(className);
-    classWrapperCache.set(className, cls);
-  }
-  return cls;
-}
-
 // Like java.beans.Introspector.decapitalize(): `KeySize` -> `keySize`, but `IV` and `URL` stay as they are.
 function toPropertyName(name: string): string {
   if (name.length > 1 && name[0] === name[0].toUpperCase() && name[1] === name[1].toUpperCase() && name[1] !== name[1].toLowerCase()) {
@@ -56,7 +45,7 @@ function toPropertyName(name: string): string {
 
 // The public, non-static, zero-argument methods of `className` (and its superclasses if `inherited`) starting with
 // one of `prefixes`, with their property name. A getter declared in a subclass overrides the one of a superclass.
-function getPublicNonArgumentMethodNames(className: string, prefixes: string[], inherited: boolean): JavaMethodDescriptor[] {
+function getPublicNonArgumentMethodNames(JavaClass: Java.Wrapper, className: string, prefixes: string[], inherited: boolean): JavaMethodDescriptor[] {
   const cacheKey = `${className}#${prefixes.join(",")}#${inherited}`;
   const cached = methodDescriptorCache.get(cacheKey);
   if (cached) {
@@ -67,11 +56,7 @@ function getPublicNonArgumentMethodNames(className: string, prefixes: string[], 
   const descriptors: JavaMethodDescriptor[] = [];
   const seen = new Set<string>();
 
-  for (
-    let javaClass: Java.Wrapper | null = getJavaClass(className).class;
-    javaClass !== null;
-    javaClass = inherited ? javaClass.getSuperclass() : null
-  ) {
+  for (let javaClass: Java.Wrapper | null = JavaClass.class; javaClass !== null; javaClass = inherited ? javaClass.getSuperclass() : null) {
     // Object's only getter is getClass(), which every class would repeat
     if (javaClass.getName() === "java.lang.Object" && className !== "java.lang.Object") break;
 
@@ -106,11 +91,11 @@ function getPublicNonArgumentMethodNames(className: string, prefixes: string[], 
 // the calling decoder). A getter that throws (hidden API, missing on this API level, ...) is decoded as null.
 export function decodeGetterValues(instance: Java.Wrapper, settings: DecoderSettings, options: GetterOptions = {}): DecodedValue[] {
   const className = options.className ?? instance.$className;
-  const descriptors = getPublicNonArgumentMethodNames(className, options.prefixes ?? DEFAULT_PREFIXES, options.inherited ?? false);
+  const JavaClass = useClassOf(instance, className);
+  const descriptors = getPublicNonArgumentMethodNames(JavaClass, className, options.prefixes ?? DEFAULT_PREFIXES, options.inherited ?? false);
   const values: DecodedValue[] = [];
 
   // the wrapper can be typed as a supertype without these getters
-  const JavaClass = getJavaClass(className);
   const typedInstance = Java.cast(instance, JavaClass);
 
   for (const { methodName, propertyName, returnType, isPrimitive, needsUnwrap } of descriptors) {

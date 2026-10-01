@@ -17,6 +17,23 @@ export function useJavaClass(className: string): Java.Wrapper {
   return javaClass;
 }
 
+// Java.use() of a class that `instance` can see, e.g. its own class or a superclass. Java.use() only knows the
+// classes of its default class loader, so the class of an app (or of a dex the app loads itself) is looked up
+// through the class loader of `instance` instead.
+export function useClassOf(instance: Java.Wrapper, className: string): Java.Wrapper {
+  let javaClass = classCache.get(className);
+  if (!javaClass) {
+    try {
+      javaClass = Java.use(className);
+    } catch {
+      const loader = Java.cast(instance, useJavaClass("java.lang.Object")).getClass().getClassLoader();
+      javaClass = Java.ClassFactory.get(loader).use(className);
+    }
+    classCache.set(className, javaClass);
+  }
+  return javaClass;
+}
+
 // Reads each field with its function. A read that throws (hidden API, missing on this API level, ...) is null,
 // so one field doesn't cost the others. `what` names the object in the debug log.
 export function decodeFields(what: string, fields: Record<string, () => unknown>): Record<string, unknown> {

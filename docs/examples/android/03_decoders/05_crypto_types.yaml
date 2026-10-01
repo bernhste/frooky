@@ -42,6 +42,9 @@ hookCollection:
       # the Cipher, Signature or Mac a biometric prompt unlocks
       # Docs: https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject
       - receiveCryptoObject
+      # the same from the AndroidX Biometric library, which most apps use (not found by name if the app is minified)
+      # Docs: https://developer.android.com/reference/androidx/biometric/BiometricPrompt.CryptoObject
+      - receiveAndroidXCryptoObject
 
 # Expected values (argsIn[0].value):
 #   receiveKey:           {type: javax.crypto.spec.SecretKeySpec, value: {algorithm: "AES", format: "RAW", encoded: "0x000102030405060708090a0b0c0d0e0f"}}
@@ -55,3 +58,4 @@ hookCollection:
 #                          signatureAlgorithm: "SHA256withRSA", publicKeyAlgorithm: "RSA", subjectAlternativeNames: null, sha256: "<fingerprint>"}
 #   receiveAppSignature:  the same fields as receiveCertificate, it is the same certificate
 #   receiveCryptoObject:  [{name: cipher, value: <the Cipher as above>}, {name: mac, value: null}, {name: signature, value: null}, ...]
+#   receiveAndroidXCryptoObject: [{name: cipher, value: <the Cipher as above>}, {name: signature, value: null}, ...]

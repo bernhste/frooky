@@ -12,9 +12,11 @@ import { PackageSignatureDecoder } from "../android/content/pm/PackageSignatureD
 import { CryptoObjectDecoder } from "../android/hardware/biometrics/CryptoObjectDecoder";
 import { LocationDecoder } from "../android/location/LocationDecoder";
 import { WebResourceRequestDecoder } from "../android/webkit/WebResourceRequestDecoder";
+import { AndroidXCryptoObjectDecoder } from "../androidx/biometric/AndroidXCryptoObjectDecoder";
 import { EnumDecoder } from "../java/lang/EnumDecoder";
 import { IterableDecoder } from "../java/lang/IterableDecoder";
 import { ByteBufferDecoder } from "../java/nio/ByteBufferDecoder";
+import { CertificateDecoder } from "../java/security/cert/CertificateDecoder";
 import { X509CertificateDecoder } from "../java/security/cert/X509CertificateDecoder";
 import { KeyDecoder } from "../java/security/KeyDecoder";
 import { MessageDigestDecoder } from "../java/security/MessageDigestDecoder";
@@ -45,9 +47,12 @@ function getClassDecoderRegistry(): ClassDecoderRegistry {
     "android.content.pm.Signature": PackageSignatureDecoder,
     "android.hardware.biometrics.BiometricPrompt$CryptoObject": CryptoObjectDecoder,
     "android.location.Location": LocationDecoder,
+    "androidx.biometric.BiometricPrompt$CryptoObject": AndroidXCryptoObjectDecoder,
     // every enum, also a constant with a body, which is a subclass of its enum
     "java.lang.Enum": EnumDecoder,
     "java.nio.ByteBuffer": ByteBufferDecoder,
+    // X509Certificate is the nearer superclass of an X.509 certificate, so its decoder wins
+    "java.security.cert.Certificate": CertificateDecoder,
     "java.security.cert.X509Certificate": X509CertificateDecoder,
     "java.security.MessageDigest": MessageDigestDecoder,
     "java.security.Signature": SignatureDecoder,

@@ -261,6 +261,7 @@ class TestAndroidExamples:
         # the app signature is the DER encoding of the same certificate
         assert decoded("receiveAppSignature")["value"] == certificate
         assert properties(decoded("receiveCryptoObject"))["cipher"]["value"] == cipher
+        assert properties(decoded("receiveAndroidXCryptoObject"))["cipher"]["value"] == cipher
 
     def test_max_items(self, run_frooky, find_matched_events):
         run_frooky(_example("android/04_decoder_settings/01_max_items.yaml"), JAVA_APP)
