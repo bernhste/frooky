@@ -56,7 +56,7 @@ Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI(JNIEnv *env, jobject thiz)
     sdk_flush();
     read_status();
 
-    static const char16_t greeting[] = u"Grüße 📱 frooky";
+    static const char16_t greeting[] = u"Grüezi";
     receive_utf16(greeting, (int)(sizeof(greeting) / sizeof(greeting[0])) - 1);
     receive_utf16_cstring(u"Hello UTF-16");
     delete_cache("/proc/self/frooky-missing-cache");

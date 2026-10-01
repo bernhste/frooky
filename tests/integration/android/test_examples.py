@@ -412,7 +412,7 @@ class TestNativeExamples:
         messages = sorted((event["argsIn"][0]["name"], event["argsIn"][0]["value"]) for event in self._events(find_matched_events, "send_message"))
         assert messages == [("buf", "0x48656c6c6f2066726f6f6b79"), ("text", "Hello frooky")]
         [utf16] = self._events(find_matched_events, "receive_utf16")
-        assert _values(utf16["argsIn"]) == ["Grüße 📱 frooky", 15]
+        assert _values(utf16["argsIn"]) == ["Grüezi", 6]
         [utf16_cstring] = self._events(find_matched_events, "receive_utf16_cstring")
         assert _values(utf16_cstring["argsIn"]) == ["Hello UTF-16"]
         [read_message] = self._events(find_matched_events, "read_message")

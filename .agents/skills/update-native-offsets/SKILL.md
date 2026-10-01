@@ -22,7 +22,7 @@ Each offset hook names its function in a comment next to it. Keep that so the ne
 
 ## Workflow
 
-1. Rebuild and install the app: `cd tests/target-apps/android && make install TARGET_APP=<app>`.
+1. Rebuild and install the app: `cd tests/target-apps/android && make build TARGET_APP=<app> && make install TARGET_APP=<app>`. `make install` alone only reinstalls the last APK.
 2. Read the symbol offsets and section ranges from the build:
 
    ```bash
