@@ -1,0 +1,88 @@
+metadata:
+  name: "Torture (Android) Level 5: The Runtime Itself"
+  description: |
+    Hooks the methods that frooky's own decoders and the Frida Java bridge call while handling a hook:
+    reflection, class loading, `Object.toString`/`hashCode`, `String.valueOf`. Hot arguments are decoded
+    through their getters, as deep as they go. This level is expected to break something.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/99_torture/05_level_5.yaml
+#
+# Guardrails exercised:
+# - Re-entrancy through the decoders: `decoder: getters` calls `Class.getDeclaredMethods()` and the getters,
+#   decoding an object without a decoder calls its `toString()`. Both are hooked here.
+# - frooky watches `ClassLoader.loadClass()` itself to resolve classes that load late; here a hook file
+#   hooks it too, so frooky's own hook and the declared one share the method.
+# - `Method.invoke()` and `Class.forName()` are the reflection hot paths of the framework and of libraries.
+# - `maxDepth`/`maxItems` are the only bound on how much an argument decoded through its getters expands.
+# - `ArrayList.add()`, `StringBuilder.append()` and `StringBuilder.toString()` are called by the agent itself
+#   while it handles a Java hook, so hooking them recurses until the thread's stack overflows (SIGSEGV,
+#   "likely due to stack overflow" in the crash report).
+# - The host: how many events/s it can receive, print and write to output.json before it falls behind.
+#
+# Expected: the app freezes, ANRs or crashes. What counts is how: a clean exit, a crash report and a
+# usable output.json are a pass; a hung frooky or a lost output.json are findings.
+
+settings:
+  hookSettings:
+    platformStackTrace: true
+    maxStackFrames: 16
+  decoderSettings:
+    maxItems: 1000
+    maxDepth: 10
+
+hookCollection:
+  # Docs: https://developer.android.com/reference/java/lang/Object#toString()
+  # Docs: https://developer.android.com/reference/java/lang/Object#hashCode()
+  - javaClass: java.lang.Object
+    hooks:
+      - toString
+      - hashCode
+
+  # Docs: https://developer.android.com/reference/java/lang/String#valueOf(java.lang.Object)
+  - javaClass: java.lang.String
+    hooks:
+      - valueOf
+
+  # Docs: https://developer.android.com/reference/java/lang/reflect/Method#invoke(java.lang.Object,%20java.lang.Object...)
+  - javaClass: java.lang.reflect.Method
+    hooks:
+      - invoke
+
+  # Docs: https://developer.android.com/reference/java/lang/Class#getDeclaredMethods()
+  # Docs: https://developer.android.com/reference/java/lang/Class#forName(java.lang.String)
+  - javaClass: java.lang.Class
+    hooks:
+      - getDeclaredMethods
+      - forName
+
+  # Docs: https://developer.android.com/reference/java/lang/ClassLoader#loadClass(java.lang.String)
+  - javaClass: java.lang.ClassLoader
+    hooks:
+      - loadClass
+
+  # every value put into a map, decoded through its getters
+  # Docs: https://developer.android.com/reference/java/util/HashMap#put(K,%20V)
+  - javaClass: java.util.HashMap
+    hooks:
+      - method: put
+        overloads:
+          - params:
+              - [java.lang.Object, key, { decoder: getters }]
+              - [java.lang.Object, value, { decoder: getters }]
+
+  # Docs: https://developer.android.com/reference/java/util/ArrayList
+  - javaClass: java.util.ArrayList
+    hooks:
+      - add
+      - get
+      - iterator
+
+  # Docs: https://developer.android.com/reference/java/lang/StringBuilder
+  - javaClass: java.lang.StringBuilder
+    hooks:
+      - append
+      - toString

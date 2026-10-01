@@ -1,0 +1,53 @@
+metadata:
+  name: "Torture (Android) Level 1: UI Loop"
+  description: |
+    Hooks the methods that run on the main thread for every message and every frame. They run tens to
+    hundreds of times per second while the app animates or scrolls, so every millisecond spent in a hook
+    is a millisecond missing from the frame budget.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Torture levels: each one adds load on top of the previous one. They have no fixed expected events and are
+# not run by the integration tests. Run them by hand and watch:
+# - Event Rate in the status bar (events/s, averaged over 5 s)
+# - whether the app stays responsive (scroll, tap Start several times, no ANR dialog);
+#   `adb shell dumpsys gfxinfo <package>` shows the share of janky frames
+# - whether the app or frooky crashes (crash report, "Process terminated")
+# Repeat with `--runtime v8` to compare it with the default QuickJS runtime.
+#
+# Target: any app; value-passing-java keeps runs comparable. Press Start, use the app for ~30 s.
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/99_torture/01_level_1.yaml
+#
+# Guardrails exercised:
+# - Java hooks on framework classes that load before the app: hooked right after spawn.
+# - Decoding `Message` and `Runnable` arguments calls their `toString()` on the main thread.
+#
+# Expected: some hundred events/s while the UI moves, close to 0 when idle; the app stays usable.
+
+hookCollection:
+  # Docs: https://developer.android.com/reference/android/os/Handler#dispatchMessage(android.os.Message)
+  # Docs: https://developer.android.com/reference/android/os/Handler#sendMessageAtTime(android.os.Message,%20long)
+  - javaClass: android.os.Handler
+    hooks:
+      - dispatchMessage
+      - sendMessageAtTime
+
+  # Docs: https://developer.android.com/reference/android/view/Choreographer#postFrameCallback(android.view.Choreographer.FrameCallback)
+  - javaClass: android.view.Choreographer
+    hooks:
+      - postFrameCallback
+      # hidden API, runs once per frame
+      - doFrame
+
+  # Docs: https://developer.android.com/reference/android/view/View#invalidate()
+  # Docs: https://developer.android.com/reference/android/view/View#requestLayout()
+  - javaClass: android.view.View
+    hooks:
+      - invalidate
+      - requestLayout
+
+  # Docs: https://developer.android.com/reference/android/os/SystemClock#uptimeMillis()
+  - javaClass: android.os.SystemClock
+    hooks:
+      - uptimeMillis

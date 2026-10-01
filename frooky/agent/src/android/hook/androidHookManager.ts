@@ -5,12 +5,14 @@ import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
+import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
-import { HookStackTrace, PlatformStackTrace } from "../../shared/platformStackTrace";
+import { HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
 import { FilterMismatchError, formatHashCode, fromSource, plural } from "../../shared/utils";
+import { detectUnsafeContext } from "../../native/unsafeContext";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
 import { JavaClassResolver, MethodObserver } from "./javaClassResolver";
@@ -19,6 +21,16 @@ import { JavaHookEvent } from "./javaHookEvent";
 let javaSystem: Java.Wrapper | undefined;
 function getJavaSystem(): Java.Wrapper {
   return (javaSystem ??= Java.use("java.lang.System"));
+}
+
+// frida-java-bridge looks up Class.isAssignableFrom() and Class.isInstance() of a ClassFactory when it first converts
+// a value of an object type, e.g. the return value of an original method. The lookup calls
+// Method.getGenericReturnType(), which ART builds with StringBuilder: with StringBuilder hooked, the conversion runs
+// the hook again before the lookup finishes, until the stack overflows. Done before the factory's first hook instead.
+function resolveClassMembers(factory: Java.ClassFactory): void {
+  const stringClass = factory.use("java.lang.String").class;
+  stringClass.isAssignableFrom(stringClass);
+  stringClass.isInstance(null);
 }
 
 export type FieldType = {
@@ -32,6 +44,7 @@ type InstalledJavaHook = {
   inArgDecoders: ParamDecoder<Java.Wrapper>[];
   outArgDecoders: ParamDecoder<Java.Wrapper>[];
   retTypeDecoder?: Decoder<Java.Wrapper>;
+  needsStackTrace: boolean;
 };
 
 // `observers` run after the original method, e.g. JavaClassResolver's on new class loaders
@@ -56,6 +69,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   // allows one replacement per method and keeps it on the Method wrapper, so one dispatcher per overload runs all of
   // its hooks, and the install and the revert go through the same wrapper.
   private readonly hookedOverloads = new Map<string, HookedOverload>();
+  // the ClassFactory of every hooked class, see resolveClassMembers()
+  private readonly preparedFactories = new Set<Java.ClassFactory>();
 
   // A hook on a class that isn't found yet is installed as soon as a class loader has it, before its code runs,
   // see JavaClassResolver. resolveHooks() resolves its promise afterwards, see registerHooks().
@@ -111,6 +126,11 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     const key = method.handle.toString();
     let overload = this.hookedOverloads.get(key);
     if (!overload) {
+      const factory: Java.ClassFactory = method.holder.$f;
+      if (!this.preparedFactories.has(factory)) {
+        resolveClassMembers(factory);
+        this.preparedFactories.add(factory);
+      }
       const newOverload: HookedOverload = { method, hooks: [], observers: [] };
       newOverload.method.implementation = this.createDispatcher(newOverload);
       overload = newOverload;
@@ -183,18 +203,31 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         settings: hook.retTypeSettings ?? hook.decoderSettings,
       });
     }
-    return { hook, target, inArgDecoders, outArgDecoders, retTypeDecoder };
+    return { hook, target, inArgDecoders, outArgDecoders, retTypeDecoder, needsStackTrace: needsStackTrace(hook.hookSettings) };
   }
 
   // Replaces the overload: every hook decodes its `in` args, the original method runs once, then every hook that
-  // passed its filters decodes its `out` args and return value and logs its event.
+  // passed its filters decodes its `out` args and return value and logs its event. A call made by hook code
+  // (see hookCodeGuard.ts) only runs the original method and the observers.
   private createDispatcher(overload: HookedOverload): Java.MethodImplementation {
     const hookManager = this;
     return function (this: Java.Wrapper, ...args: Java.Wrapper[]) {
+      const enterTid = enterHookCode();
+      if (enterTid === undefined) {
+        const returnValue = overload.method.apply(this, args);
+        hookManager.runObservers(overload, this, args, returnValue);
+        return returnValue;
+      }
       const calls: JavaHookCall[] = [];
-      for (const installedHook of overload.hooks) {
-        const call = hookManager.enterHook(installedHook, args);
-        if (call) calls.push(call);
+      try {
+        const hooks = overload.hooks;
+        const unsafeContext = hooks.some((installedHook) => installedHook.needsStackTrace) ? detectUnsafeContext() : undefined;
+        for (const installedHook of hooks) {
+          const call = hookManager.enterHook(installedHook, args, unsafeContext);
+          if (call) calls.push(call);
+        }
+      } finally {
+        leaveHookCode(enterTid);
       }
 
       let returnValue;
@@ -206,26 +239,36 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         throw e; // the app handles its own exception
       }
 
-      for (const observer of overload.observers) {
-        try {
-          observer(this, args, returnValue);
-        } catch (e) {
-          logger.error(`Error in an observer of ${overload.method.holder.$className}.${overload.method.methodName}: ${e}`);
+      const leaveTid = enterHookCode();
+      if (leaveTid === undefined) return returnValue;
+      try {
+        hookManager.runObservers(overload, this, args, returnValue);
+        for (const call of calls) {
+          hookManager.leaveHook(call, this, args, returnValue);
         }
-      }
-      for (const call of calls) {
-        hookManager.leaveHook(call, this, args, returnValue);
+      } finally {
+        leaveHookCode(leaveTid);
       }
       return returnValue;
     };
   }
 
+  private runObservers(overload: HookedOverload, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any): void {
+    for (const observer of overload.observers) {
+      try {
+        observer(instance, args, returnValue);
+      } catch (e) {
+        logger.error(`Error in an observer of ${overload.method.holder.$className}.${overload.method.methodName}: ${e}`);
+      }
+    }
+  }
+
   // null if the stackTraceFilter or an argFilter doesn't match, or decoding fails
-  private enterHook(installedHook: InstalledJavaHook, args: Java.Wrapper[]): JavaHookCall | null {
+  private enterHook(installedHook: InstalledJavaHook, args: Java.Wrapper[], unsafeContext?: UnsafeContext): JavaHookCall | null {
     const { hook, target, inArgDecoders } = installedHook;
     let stackTrace: HookStackTrace;
     try {
-      stackTrace = this.stackTrace.build(hook.hookSettings);
+      stackTrace = this.stackTrace.build(hook.hookSettings, undefined, unsafeContext);
     } catch (e) {
       if (!(e instanceof FilterMismatchError)) {
         logger.error(`Failed to build the stack trace of ${target}: ${e}`);

@@ -1,0 +1,146 @@
+metadata:
+  name: "Torture (Native) Level 3: Recursion Bait and Duplicate Hooks"
+  description: |
+    Level 2 plus the functions frooky itself calls while decoding (`readlink`/`readlinkat` for
+    `decoder: fd`, `getsockname`/`getpeername`/`getsockopt` for sockets, `strerror` for `decoder: errno`),
+    and three hooks on `read` that all
+    decode its buffer. Each `read` call now produces three events, and decoding one event calls hooked
+    functions again.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/99_torture/03_level_3.yaml
+#
+# Guardrails exercised:
+# - Re-entrancy: decoding an fd inside the `read` hook calls `readlink` (bionic: `readlinkat`), which is
+#   hooked too. Frida's Interceptor must not call a listener again from within a listener on the same
+#   thread; if it does, the app hangs or crashes with a stack overflow.
+# - Several hooks on one function: every hook records its own event, the function still runs once.
+# - Per-call state lives on Frida's invocation context, so interleaved calls on many threads must not mix up
+#   argsIn and returnValue (check that `read` events have a `buf` matching their `fd`).
+#
+# Expected: roughly 3x the Event Rate of level 2 for `read`, stutter, no crash.
+
+hookCollection:
+  # Docs: https://www.man7.org/linux/man-pages/man2/readlink.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/getsockname.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/getpeername.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/getsockopt.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/fstat.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/lseek.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man3/strerror.3.html
+  - module: libc.so
+    decoderSettings:
+      maxItems: 256
+    hooks:
+      - symbol: readlink
+        retType: ssize_t
+        params:
+          - ["const char *", path]
+          - ["char *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
+          - [size_t, bufsiz]
+      - symbol: readlinkat
+        retType: ssize_t
+        params:
+          - [int, dirfd]
+          - ["const char *", path]
+          - ["char *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
+          - [size_t, bufsiz]
+      - symbol: getsockname
+        retType: int
+        params:
+          - [int, sockfd, { decoder: fd }]
+      - symbol: getpeername
+        retType: int
+        params:
+          - [int, sockfd, { decoder: fd }]
+      - symbol: getsockopt
+        retType: int
+        params:
+          - [int, sockfd, { decoder: fd }]
+          - [int, level]
+          - [int, optname]
+      - symbol: fstat
+        retType: [int, { decoder: errno }]
+        params:
+          - [int, fd, { decoder: fd }]
+      - symbol: lseek
+        retType: off_t
+        params:
+          - [int, fd, { decoder: fd }]
+          - [off_t, offset]
+          - [int, whence, { decoder: enum, constants: { SEEK_SET: 0, SEEK_CUR: 1, SEEK_END: 2 } }]
+      - symbol: strerror
+        retType: "char *"
+        params:
+          - [int, errnum]
+
+  # the same function hooked three times with different decoders
+  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
+  - module: libc.so
+    hooks:
+      - symbol: read
+        retType: ssize_t
+        params:
+          - [int, fd, { decoder: fd }]
+          - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string, maxItems: 4096 }]
+          - [size_t, count]
+      - symbol: read
+        retType: ssize_t
+        params:
+          - [int, fd]
+          - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, maxItems: 4096 }]
+          - [size_t, count]
+      - symbol: read
+        params:
+          - [int, fd, { decoder: fd }]
+
+  # level 2, unchanged
+  # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/mmap.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/mprotect.2.html
+  - module: libc.so
+    decoderSettings:
+      maxItems: 256
+    hooks:
+      - symbol: open
+        retType: [int, { decoder: fd }]
+        params:
+          - ["const char *", path]
+          - [int, flags, { decoder: openFlags }]
+      - symbol: openat
+        retType: [int, { decoder: fd }]
+        params:
+          - [int, dirfd]
+          - ["const char *", path]
+          - [int, flags, { decoder: openFlags }]
+          - [mode_t, mode]
+      - symbol: close
+        retType: int
+        params:
+          - [int, fd, { decoder: fd }]
+      - symbol: write
+        retType: ssize_t
+        params:
+          - [int, fd, { decoder: fd }]
+          - ["const void *", buf, { decoderArgs: { length: count }, decoder: string }]
+          - [size_t, count]
+      - symbol: mmap
+        retType: "void *"
+        params:
+          - ["void *", addr]
+          - [size_t, length]
+          - [int, prot, { decoder: mmapProt }]
+          - [int, flags, { decoder: mmapFlags }]
+          - [int, fd, { decoder: fd }]
+          - [off_t, offset]
+      - symbol: mprotect
+        retType: int
+        params:
+          - ["void *", addr]
+          - [size_t, len]
+          - [int, prot, { decoder: mmapProt }]

@@ -8,6 +8,7 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 - [Multiple Hooks on the Same Method or Function](#multiple-hooks-on-the-same-method-or-function)
 - [Stack Traces](#stack-traces)
   - [General Settings](#general-settings)
+  - [Skipped Stack Traces](#skipped-stack-traces)
   - [Platform vs. Native Stack Traces](#platform-vs-native-stack-traces)
   - [Stack Trace Filtering](#stack-trace-filtering)
   - [Dangerous Low-Level, Early, and High-Frequency Hooks](#dangerous-low-level-early-and-high-frequency-hooks)
@@ -123,6 +124,27 @@ In the output events, captured stack traces appear in the `stackTrace` object wi
 
 Stack traces are disabled by default (`nativeStackTrace: false`, `platformStackTrace: false`) because capturing them introduces runtime overhead and unwinding can cause instability on low-level functions.
 
+### Skipped Stack Traces
+
+Some calls happen where walking the stack can crash or hang the app. frooky detects these per call and captures no stack trace for them. The `stackTrace` object then has a `skipped` field with the reason:
+
+| `skipped`      | Situation                                                                                     | Frames captured    |
+| -------------- | --------------------------------------------------------------------------------------------- | ------------------ |
+| `signal-stack` | The call runs in a signal handler on an alternate signal stack, which is usually only 32KB.   | none               |
+| `in-linker`    | The call happens inside `dlopen()`/`dlclose()` on this thread, e.g. in a library constructor. | none               |
+| `low-stack`    | Less than 64KB are left on the thread's stack. Native hooks only.                             | none               |
+| `before-ready` | The app's own code hasn't started yet (spawn mode, before `Java.perform()`).                  | native frames only |
+
+```json
+"stackTrace": {
+  "platformStackTrace": [],
+  "nativeStackTrace": [],
+  "skipped": "signal-stack"
+}
+```
+
+A hook with a `stackTraceFilter` drops these calls, as the filter can't be checked. With `before-ready`, the filter is checked against the native frames.
+
 ### Platform vs. Native Stack Traces
 
 frooky distinguishes between managed runtime frames and native C/C++ frames:
@@ -216,6 +238,7 @@ Capturing stack traces and hooking low-level primitives carries stability and re
 
 - **Recursion loops:** A native stack walk or JNI call can call the hooked function again. For example, resolving symbols during a stack walk reads `/proc/self/maps` using libc's `open` and `read`. If `open` or `read` is hooked with stack traces enabled, the hook recurses indefinitely and crashes the process.
 - **Thread and signal stack exhaustion:** Low-level functions often run on Android background threads with small default stack sizes (typically 512 KB–1 MB) or on signal stacks (32 KB–64 KB); because QuickJS executes entirely on the calling thread's native C-stack, recursive callbacks and deep hook chains can quickly exhaust the remaining stack and trigger a stack overflow (`SIGSEGV` / `SEGV_ACCERR`). While frooky detects alternate signal stacks (`sigaltstack`) and skips backtracing on them, thread stack exhaustion remains a danger on high-frequency hooks.
+- **Hangs:** A platform stack trace enters the Java VM from inside the hooked call. If the caller holds a lock the VM then waits for, the app hangs; `platformStackTrace` on libc's `write` does this during startup (ANR).
 - **Performance degradation:** Resolving symbols for native frames takes ~35 µs per frame. On functions invoked thousands of times per second, capturing stack traces causes noticeable application stutter or ANR timeouts.
 
 **Early Hooking (Spawn vs. Attach):**

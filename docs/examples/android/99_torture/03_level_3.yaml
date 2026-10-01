@@ -1,0 +1,43 @@
+metadata:
+  name: "Torture (Android) Level 3: Unfiltered Hot Collections"
+  description: |
+    Every overload of the hot collection and string methods, without filters and with large decoder
+    limits. Collections passed as arguments are decoded in full, which iterates them through hooked methods.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/99_torture/03_level_3.yaml
+#
+# Guardrails exercised:
+# - Short-form hooks resolve every overload by reflection (`String.format` has 2, `HashMap.remove` 2).
+# - Re-entrancy: decoding the `Map` argument of `putAll` calls its `entrySet()`, which is hooked too, so one
+#   call produces nested events.
+# - `maxItems`/`maxDepth` cap the size of each decoded collection.
+# - Events are batched and sent every 100 ms; the host must keep up with the batch size.
+#
+# Expected: thousands of events/s, the app becomes sluggish; an ANR is possible during startup.
+
+settings:
+  decoderSettings:
+    maxItems: 500
+    maxDepth: 5
+
+hookCollection:
+  # Docs: https://developer.android.com/reference/java/util/HashMap
+  - javaClass: java.util.HashMap
+    hooks:
+      - put
+      - putAll
+      - get
+      - containsKey
+      - remove
+      - entrySet
+
+  # Docs: https://developer.android.com/reference/java/lang/String#equals(java.lang.Object)
+  # Docs: https://developer.android.com/reference/java/lang/String#format(java.lang.String,%20java.lang.Object...)
+  - javaClass: java.lang.String
+    hooks:
+      - equals
+      - format

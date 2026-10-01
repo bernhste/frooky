@@ -184,3 +184,4 @@ Please refer to the following documentation for more information about various t
 - [Understanding Output Format](./docs/output.md)
 - [Additional Settings and Best Practices](./docs/additional-features.md)
 - [Development / Local Testing](./docs/develop.md)
+- [Under the Hood: Agent Start and Hook Loading](./docs/under-the-hood.md)

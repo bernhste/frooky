@@ -1,0 +1,76 @@
+metadata:
+  name: "Torture (Native) Level 2: Unfiltered Hot libc"
+  description: |
+    The functions of level 1 and the memory mapping calls, without any filter. Every file, socket, pipe and
+    binder access of the app becomes an event, with decoded buffers, flags and file descriptors.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/99_torture/02_level_2.yaml
+#
+# Guardrails exercised:
+# - Under QuickJS, one warning per hook: "Hooking high-frequency libc function ... without an 'argFilter'".
+#   With `--runtime v8` these warnings are gone.
+# - Agent log messages from app threads are queued and written from the JS thread, so hooking `write`
+#   doesn't deadlock the app (frooky -vv makes this visible: lots of debug logs while `write` is hooked).
+# - Events are batched and sent every 100 ms; the host must keep up with the batch size.
+#
+# Expected: thousands of events/s during startup and while the app is busy, stutter but no crash.
+# Compare the Event Rate between QuickJS and V8.
+
+hookCollection:
+  # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/mmap.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/mprotect.2.html
+  - module: libc.so
+    decoderSettings:
+      maxItems: 256
+    hooks:
+      - symbol: open
+        retType: [int, { decoder: fd }]
+        params:
+          - ["const char *", path]
+          - [int, flags, { decoder: openFlags }]
+      - symbol: openat
+        retType: [int, { decoder: fd }]
+        params:
+          - [int, dirfd]
+          - ["const char *", path]
+          - [int, flags, { decoder: openFlags }]
+          - [mode_t, mode]
+      - symbol: close
+        retType: int
+        params:
+          - [int, fd, { decoder: fd }]
+      - symbol: read
+        retType: ssize_t
+        params:
+          - [int, fd, { decoder: fd }]
+          - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
+          - [size_t, count]
+      - symbol: write
+        retType: ssize_t
+        params:
+          - [int, fd, { decoder: fd }]
+          - ["const void *", buf, { decoderArgs: { length: count }, decoder: string }]
+          - [size_t, count]
+      - symbol: mmap
+        retType: "void *"
+        params:
+          - ["void *", addr]
+          - [size_t, length]
+          - [int, prot, { decoder: mmapProt }]
+          - [int, flags, { decoder: mmapFlags }]
+          - [int, fd, { decoder: fd }]
+          - [off_t, offset]
+      - symbol: mprotect
+        retType: int
+        params:
+          - ["void *", addr]
+          - [size_t, len]
+          - [int, prot, { decoder: mmapProt }]

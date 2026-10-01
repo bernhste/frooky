@@ -1,0 +1,99 @@
+metadata:
+  name: "Torture (Native) Level 5: Allocator, Memory and Locks"
+  description: |
+    Hooks the functions that run millions of times per second and that frooky's own decoding, Frida's
+    runtime and ART call all the time: the allocator, memcpy/memset/strlen and pthread mutexes. Stack traces
+    on malloc. This level is expected to break something.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/99_torture/05_level_5.yaml
+#
+# Guardrails exercised:
+# - High-frequency warnings for malloc, free, memcpy and memset (with and without stack traces).
+# - The native crash reporter: an access violation in a hooked module is reported with its context.
+# - Re-entrancy under maximum pressure: decoding a value allocates and copies memory, the stack walk takes
+#   locks, sending an event allocates.
+# - The host: how many events/s it can receive, print and write to output.json before it falls behind.
+#
+# Expected: the app freezes, ANRs or crashes. What counts is how: a clean crash report and a usable
+# output.json are a pass; a hung frooky, a lost output.json or a device reboot are findings.
+
+settings:
+  decoderSettings:
+    maxItems: 1024
+
+hookCollection:
+  # Docs: https://www.man7.org/linux/man-pages/man3/malloc.3.html
+  - module: libc.so
+    hooks:
+      - symbol: malloc
+        hookSettings:
+          nativeStackTrace: true
+          platformStackTrace: true
+          maxStackFrames: 16
+        retType: "void *"
+        params:
+          - [size_t, size]
+      - symbol: calloc
+        retType: "void *"
+        params:
+          - [size_t, nmemb]
+          - [size_t, size]
+      - symbol: realloc
+        retType: "void *"
+        params:
+          - ["void *", ptr]
+          - [size_t, size]
+      - symbol: free
+        params:
+          - ["void *", ptr]
+
+  # Docs: https://www.man7.org/linux/man-pages/man3/memcpy.3.html
+  # Docs: https://www.man7.org/linux/man-pages/man3/memmove.3.html
+  # Docs: https://www.man7.org/linux/man-pages/man3/memset.3.html
+  # Docs: https://www.man7.org/linux/man-pages/man3/strlen.3.html
+  # Docs: https://www.man7.org/linux/man-pages/man3/strcmp.3.html
+  - module: libc.so
+    hooks:
+      - symbol: memcpy
+        retType: "void *"
+        params:
+          - ["void *", dest]
+          - ["const void *", src, { decoderArgs: { length: n } }]
+          - [size_t, n]
+      - symbol: memmove
+        retType: "void *"
+        params:
+          - ["void *", dest]
+          - ["const void *", src, { decoderArgs: { length: n } }]
+          - [size_t, n]
+      - symbol: memset
+        retType: "void *"
+        params:
+          - ["void *", s]
+          - [int, c]
+          - [size_t, n]
+      - symbol: strlen
+        retType: size_t
+        params:
+          - ["const char *", s]
+      - symbol: strcmp
+        retType: int
+        params:
+          - ["const char *", s1]
+          - ["const char *", s2]
+
+  # Docs: https://www.man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html
+  - module: libc.so
+    hooks:
+      - symbol: pthread_mutex_lock
+        retType: int
+        params:
+          - ["pthread_mutex_t *", mutex]
+      - symbol: pthread_mutex_unlock
+        retType: int
+        params:
+          - ["pthread_mutex_t *", mutex]

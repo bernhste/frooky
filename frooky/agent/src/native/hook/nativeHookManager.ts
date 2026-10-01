@@ -1,12 +1,14 @@
 import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
+import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { describeNativeTarget, InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
-import { EMPTY_STACK_TRACE, HookStackTrace, PlatformStackTrace } from "../../shared/platformStackTrace";
+import { EMPTY_STACK_TRACE, HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
 import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
+import { detectUnsafeContext } from "../unsafeContext";
 import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { NativeHook } from "./nativeHook";
@@ -25,7 +27,7 @@ type InstalledNativeHook = {
   argSlots: ReturnType<typeof planArgSlots>;
   hasFloatArgs: boolean;
   floatRetSlot: ReturnType<typeof planFloatRetTypeSlot>;
-  needsStackTrace: boolean | undefined;
+  needsStackTrace: boolean;
   // the same for every call
   hashCode: string;
 };
@@ -46,8 +48,6 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   // the hooks installed on a function, keyed by its address. Several configs can hook the same function and each
   // records its own event per call.
   private readonly hookedFunctions = new Map<string, HookedFunction>();
-  // threads inside a hook callback, so calls made while decoding aren't captured
-  private activeThreads = new Set<number>();
   // called with a module once it loads, keyed by the name (or path) hooks declare it with
   private readonly moduleWaiters = new Map<string, ((module: Module) => void)[]>();
   private moduleObserver?: ModuleObserver;
@@ -227,10 +227,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       argSlots,
       hasFloatArgs: argSlots.some((slot) => slot.kind === "float"),
       floatRetSlot: planFloatRetTypeSlot(hook.retType),
-      needsStackTrace:
-        hook.hookSettings.platformStackTrace ||
-        hook.hookSettings.nativeStackTrace ||
-        (hook.hookSettings.stackTraceFilter && hook.hookSettings.stackTraceFilter.length > 0),
+      needsStackTrace: needsStackTrace(hook.hookSettings),
       hashCode: addressHashCode(hook.symbolAddress),
     };
   }
@@ -244,18 +241,19 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     return {
       onEnter: function (args: NativePointer[]) {
         this.calls = undefined;
-        const tid = Process.getCurrentThreadId();
-        if (hookManager.activeThreads.has(tid)) return;
-        hookManager.activeThreads.add(tid);
+        const tid = enterHookCode();
+        if (tid === undefined) return;
         try {
           const calls: NativeHookCall[] = [];
-          for (const installedHook of hookedFunction.hooks) {
-            const call = hookManager.enterHook(installedHook, args, this.context);
+          const hooks = hookedFunction.hooks;
+          const unsafeContext = hooks.some((installedHook) => installedHook.needsStackTrace) ? detectUnsafeContext(this.context) : undefined;
+          for (const installedHook of hooks) {
+            const call = hookManager.enterHook(installedHook, args, this.context, unsafeContext);
             if (call) calls.push(call);
           }
           if (calls.length > 0) this.calls = calls;
         } finally {
-          hookManager.activeThreads.delete(tid);
+          leaveHookCode(tid);
         }
       },
       onLeave: function (returnValue: InvocationReturnValue) {
@@ -263,22 +261,26 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         const errno = this.errno;
         const calls: NativeHookCall[] | undefined = this.calls;
         if (!calls) return;
-        const tid = Process.getCurrentThreadId();
-        if (hookManager.activeThreads.has(tid)) return;
-        hookManager.activeThreads.add(tid);
+        const tid = enterHookCode();
+        if (tid === undefined) return;
         try {
           for (const call of calls) {
             hookManager.leaveHook(call, returnValue, this.context, errno);
           }
         } finally {
-          hookManager.activeThreads.delete(tid);
+          leaveHookCode(tid);
         }
       },
     };
   }
 
   // null if the stackTraceFilter or an argFilter doesn't match, or decoding fails
-  private enterHook(installedHook: InstalledNativeHook, args: InvocationArguments, context: CpuContext): NativeHookCall | null {
+  private enterHook(
+    installedHook: InstalledNativeHook,
+    args: InvocationArguments,
+    context: CpuContext,
+    unsafeContext?: UnsafeContext,
+  ): NativeHookCall | null {
     const { hook, target, inArgDecoders, outArgDecoders, argSlots, hasFloatArgs } = installedHook;
     try {
       const call: NativeHookCall = { installedHook, argsIn: [], stackTrace: EMPTY_STACK_TRACE };
@@ -323,7 +325,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       }
 
       if (installedHook.needsStackTrace) {
-        call.stackTrace = this.stackTrace.build(hook.hookSettings, hook.hookSettings.nativeStackTrace ? context : undefined);
+        call.stackTrace = this.stackTrace.build(hook.hookSettings, hook.hookSettings.nativeStackTrace ? context : undefined, unsafeContext);
       }
       return call;
     } catch (e) {

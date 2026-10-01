@@ -218,11 +218,30 @@ describe("HookManager", () => {
       expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, [])).toBeTruthy();
     });
 
-    it("returns true for non-string/non-number values regardless of the filter", () => {
+    it("returns true for lists, booleans and null regardless of the filter", () => {
       const manager = createManager();
-      expect(manager.exposedMatchesFilter({ type: "object", value: { nested: true } }, [/^won't match$/])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "list", value: ["a", "b"] }, [/^won't match$/])).toBeTruthy();
       expect(manager.exposedMatchesFilter({ type: "bool", value: true }, [/^won't match$/])).toBeTruthy();
       expect(manager.exposedMatchesFilter({ type: "null", value: null }, [/^won't match$/])).toBeTruthy();
+    });
+
+    it("matches the inner value of a value decoded with its runtime type", () => {
+      const manager = createManager();
+      // a java.lang.Object parameter that holds a String
+      const decoded = { type: "java.lang.Object", value: { type: "java.lang.String", name: "key", value: "token" } };
+      expect(manager.exposedMatchesFilter(decoded, [/^token$/])).toBeTruthy();
+      expect(manager.exposedMatchesFilter(decoded, [/^never$/])).toBeFalsy();
+      // not the runtime type's name
+      expect(manager.exposedMatchesFilter(decoded, [/String/])).toBeFalsy();
+    });
+
+    it("matches an object if one of its string or number fields matches", () => {
+      const manager = createManager();
+      const fd = { type: "int", value: { fd: 42, path: "/data/user/0/app/files/token.txt" } };
+      expect(manager.exposedMatchesFilter(fd, [/^\/data\//])).toBeTruthy();
+      expect(manager.exposedMatchesFilter(fd, [/^42$/])).toBeTruthy();
+      expect(manager.exposedMatchesFilter(fd, [/^never$/])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: { fd: -1, path: null } }, [/^\/data\//])).toBeFalsy();
     });
 
     it("returns true when the string value matches one of the filter patterns", () => {

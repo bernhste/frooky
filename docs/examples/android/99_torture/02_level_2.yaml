@@ -1,0 +1,56 @@
+metadata:
+  name: "Torture (Android) Level 2: Filtered Hot Collections"
+  description: |
+    Hooks the collection and string methods that every Java and Kotlin line of code uses, with an
+    `argFilter` that never matches. Every call is decoded to evaluate the filter, but no event is sent:
+    this is the bare cost of a Java hook on a hot method.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/99_torture/02_level_2.yaml
+#
+# Guardrails exercised:
+# - `argFilter` drops events before a stack trace is built.
+# - `argFilter` on a `java.lang.Object` parameter: the value is decoded with its runtime type
+#   (`{ type, name, value }`), and the filter has to match that inner value.
+# - Decoding a key or element calls its `toString()`, which can call hooked methods again
+#   (e.g. `HashMap.toString()` calls `StringBuilder.append`).
+# - A Java hook makes ART leave the compiled code (and intrinsics) of the hooked method: the app slows
+#   down even when no event is sent.
+#
+# Expected: only events with a null argument, which passes every filter; anything else is a filter that let a
+# value through. Startup and UI are noticeably slower. Compare with level 1.
+
+
+hookCollection:
+  # Docs: https://developer.android.com/reference/java/util/HashMap#put(K,%20V)
+  # Docs: https://developer.android.com/reference/java/util/HashMap#get(java.lang.Object)
+  - javaClass: java.util.HashMap
+    hooks:
+      - method: put
+        overloads:
+          - params:
+              - [java.lang.Object, key, { argFilter: ['frooky-never-matches'] }]
+              - [java.lang.Object, value]
+      - method: get
+        overloads:
+          - params:
+              - [java.lang.Object, key, { argFilter: ['frooky-never-matches'] }]
+
+  # Docs: https://developer.android.com/reference/java/lang/StringBuilder#append(java.lang.String)
+  - javaClass: java.lang.StringBuilder
+    hooks:
+      - method: append
+        overloads:
+          - params:
+              - [java.lang.String, str, { argFilter: ['frooky-never-matches'] }]
+
+  # Docs: https://developer.android.com/reference/java/lang/String#equals(java.lang.Object)
+  - javaClass: java.lang.String
+    hooks:
+      - method: equals
+        overloads:
+          - params:
+              - [java.lang.Object, anObject, { argFilter: ['frooky-never-matches'] }]

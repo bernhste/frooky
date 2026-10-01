@@ -1,5 +1,6 @@
 import { NativeHookManager } from "./native/hook/nativeHookManager";
 import { NativeHookValidator } from "./native/hook/nativeHookValidator";
+import { markTargetReady, watchLinker } from "./native/unsafeContext";
 import { validateAndRepairFrookyConfig } from "./shared/configValidator";
 import { CrashReport, installCrashReporter } from "./shared/crashReporter";
 import {
@@ -179,6 +180,8 @@ export class FrookyAgent {
     this.resolverTimeoutSeconds = resolverTimeoutSeconds;
     this.reportProgress = reportProgress;
     this.targetReady = targetReady;
+    void targetReady.then(markTargetReady);
+    watchLinker();
     this.nativeHookManager = new NativeHookManager(platformStackTrace, this);
     this.platformHookManger = createPlatformHookManager(this);
 

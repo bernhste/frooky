@@ -1,0 +1,52 @@
+metadata:
+  name: "Torture (Android) Level 4: Stack Traces on Hot Methods"
+  description: |
+    Level 3 with deep platform stack traces on every call. A Java backtrace walks the whole stack, even
+    with a limit, so this costs the same on every call no matter how many frames are kept.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/99_torture/04_level_4.yaml
+#
+# Guardrails exercised:
+# - The first Java backtrace initializes the Java bridge; hooks that fire meanwhile skip the Java frames
+#   instead of recursing.
+# - `stackTraceFilter` on app frames (`^org\.owasp\.`): every call pays for the backtrace, but only calls
+#   with an app frame within the first 64 frames are sent.
+# - `nativeStackTrace` is ignored for Java hooks (always []).
+#
+# Expected: the app crawls; startup may hit an ANR. Compare the Event Rate with level 3: a much lower rate
+# at the same load shows the cost of the stack traces.
+
+settings:
+  hookSettings:
+    platformStackTrace: true
+    nativeStackTrace: true
+    maxStackFrames: 64
+  decoderSettings:
+    maxItems: 500
+    maxDepth: 5
+
+hookCollection:
+  # all calls, with stack traces
+  # Docs: https://developer.android.com/reference/java/util/HashMap
+  - javaClass: java.util.HashMap
+    hooks:
+      - put
+      - putAll
+      - get
+      - containsKey
+      - remove
+      - entrySet
+
+  # only calls from the app's own code
+  # Docs: https://developer.android.com/reference/java/lang/String#equals(java.lang.Object)
+  # Docs: https://developer.android.com/reference/java/lang/String#format(java.lang.String,%20java.lang.Object...)
+  - javaClass: java.lang.String
+    hookSettings:
+      stackTraceFilter: ['^org\.owasp\.']
+    hooks:
+      - equals
+      - format

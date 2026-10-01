@@ -333,6 +333,23 @@ class TestPpHookEvent:
         assert "│ stack trace:  frame1" in lines
         assert not any("native stack" in line for line in lines)
 
+    def test_dict_stack_trace_skipped_prints_reason(self):
+        hook = {
+            "type": "native-hook",
+            "timestamp": "t",
+            "module": "libc.so",
+            "symbol": "open",
+            "stackTrace": {
+                "platformStackTrace": [],
+                "nativeStackTrace": ["native_frame1"],
+                "skipped": "before-ready",
+            },
+        }
+
+        lines = _plain(format_hook_event(hook))
+        assert "│ native stack: native_frame1" in lines
+        assert any(line.startswith("│ stack skipped:") and line.endswith("before-ready") for line in lines)
+
     def test_dict_stack_trace_empty_does_not_print_stack(self):
         hook = {
             "type": "native-hook",

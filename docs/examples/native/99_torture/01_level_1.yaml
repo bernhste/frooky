@@ -1,0 +1,62 @@
+metadata:
+  name: "Torture (Native) Level 1: Filtered Hot libc"
+  description: |
+    Hooks the busiest libc file functions with an `argFilter` that almost never matches. Every call pays
+    for the trampoline and the decoding of the filtered value, but hardly any events are sent. This is the
+    baseline cost of a hook that stays silent.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Torture levels: each one adds load on top of the previous one. They have no fixed expected events and are
+# not run by the integration tests. Run them by hand and watch:
+# - Event Rate in the status bar (events/s, averaged over 5 s)
+# - whether the app stays responsive (scroll, tap Start several times, no ANR dialog)
+# - whether the app or frooky crashes (crash report, "Process terminated")
+# Repeat with `--runtime v8` to compare it with the default QuickJS runtime.
+#
+# Target: any app; value-passing-native keeps runs comparable. Press Start, use the app for ~30 s.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/99_torture/01_level_1.yaml
+#
+# Guardrails exercised:
+# - `argFilter` is checked before any stack trace is built, so non-matching calls stay cheap.
+# - The high-frequency libc warning is not printed: every hook has an `argFilter`.
+#
+# Expected: app as smooth as without frooky, Event Rate near 0/s (one `open` of /proc/self/status per Start).
+
+hookCollection:
+  # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
+  - module: libc.so
+    hooks:
+      - symbol: open
+        retType: [int, { decoder: fd }]
+        params:
+          - ["const char *", path, { argFilter: ['^/proc/self/status$'] }]
+          - [int, flags, { decoder: openFlags }]
+      - symbol: openat
+        retType: [int, { decoder: fd }]
+        params:
+          - [int, dirfd]
+          - ["const char *", path, { argFilter: ['^/proc/self/status$'] }]
+          - [int, flags, { decoder: openFlags }]
+          - [mode_t, mode]
+      # the filter is on the plain int: `decoder: fd` would read /proc/self/fd on every call
+      - symbol: close
+        retType: int
+        params:
+          - [int, fd, { argFilter: ['frooky-never-matches'] }]
+      - symbol: read
+        retType: ssize_t
+        params:
+          - [int, fd, { argFilter: ['frooky-never-matches'] }]
+          - ["void *", buf, { direction: out, decoderArgs: { length: $ret } }]
+          - [size_t, count]
+      - symbol: write
+        retType: ssize_t
+        params:
+          - [int, fd, { argFilter: ['frooky-never-matches'] }]
+          - ["const void *", buf, { decoderArgs: { length: count } }]
+          - [size_t, count]

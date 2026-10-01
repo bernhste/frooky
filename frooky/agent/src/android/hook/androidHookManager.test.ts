@@ -472,6 +472,129 @@ describe("AndroidHookManager", () => {
       expect(event.hashCode).toBeUndefined();
     });
   });
+
+  describe("calls made by hook code", () => {
+    function eventsOf(agent: FrookyAgent, method: string, instance?: Java.Wrapper): JavaHookEvent[] {
+      const hashCode = instance ? formatHashCode(identityHashCode(instance)) : undefined;
+      return (agent.addEventToLog as unknown as Mock).mock.calls
+        .map((call) => call[0] as JavaHookEvent)
+        .filter((event) => event.method === method && (hashCode === undefined || event.hashCode === hashCode));
+    }
+
+    it("runs a hooked method that the hook's own code calls without its hooks", async () => {
+      const reverse = (value: number): number => Java.use("java.lang.Integer").reverse(value);
+      const innerResults: number[] = [];
+      // stands in for a decoder or a stack trace that calls the hooked method
+      const reentrantStackTrace: PlatformStackTrace = {
+        build: () => {
+          innerResults.push(reverse(5));
+          return { platformStackTrace: [], nativeStackTrace: [] };
+        },
+      };
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(reentrantStackTrace, agent);
+      const [hooks] = (await Promise.all(await manager.resolveHooks([javaHook("java.lang.Integer", "reverse")]))) as JavaHook[][];
+
+      try {
+        manager.registerHooks(hooks);
+        expect(reverse(1)).toBe(-2147483648);
+      } finally {
+        manager.unregisterHooks(hooks);
+      }
+
+      expect(innerResults).toEqual([-1610612736]);
+      expect(eventsOf(agent, "reverse").length).toBe(1);
+    });
+
+    it("records the hooked methods that the original method calls", async () => {
+      const Nested = registerTestClass({
+        name: `frooky.test.NestedCalls${Date.now()}`,
+        methods: {
+          inner: { returnType: "int", argumentTypes: ["int"], implementation: (n: number) => n + 1 },
+          outer: {
+            returnType: "int",
+            argumentTypes: ["int"],
+            implementation: function (this: Java.Wrapper, n: number) {
+              return this.inner(n) * 2;
+            },
+          },
+        },
+      });
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(stackTrace, agent);
+      const hooks = (await Promise.all(
+        await manager.resolveHooks([javaHook(Nested.$className, "outer"), javaHook(Nested.$className, "inner")]),
+      )) as JavaHook[][];
+      const nested = Nested.$new();
+
+      try {
+        hooks.forEach((h) => manager.registerHooks(h));
+        expect(nested.outer(1)).toBe(4);
+      } finally {
+        hooks.forEach((h) => manager.unregisterHooks(h));
+      }
+
+      expect(eventsOf(agent, "outer", nested).length).toBe(1);
+      expect(eventsOf(agent, "inner", nested).length).toBe(1);
+    });
+
+    // frida-java-bridge and the decoders call these methods while they handle a hook
+    it("hooks ArrayList.add(), StringBuilder.append() and StringBuilder.toString() without recursing", async () => {
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(stackTrace, agent);
+      const hooks = (await Promise.all(
+        await manager.resolveHooks([
+          javaHook("java.util.ArrayList", "add"),
+          javaHook("java.lang.StringBuilder", "append"),
+          javaHook("java.lang.StringBuilder", "toString"),
+        ]),
+      )) as JavaHook[][];
+      const list = Java.use("java.util.ArrayList").$new();
+      const builder = Java.use("java.lang.StringBuilder").$new();
+
+      try {
+        hooks.forEach((h) => manager.registerHooks(h));
+        list.add(Java.use("java.lang.String").$new("item"));
+        builder.append("text");
+        expect(builder.toString()).toBe("text");
+      } finally {
+        hooks.forEach((h) => manager.unregisterHooks(h));
+      }
+
+      // add(Object) and append(String) also call other overloads of themselves, which are recorded too
+      expect(list.size()).toBe(1);
+      expect(eventsOf(agent, "add", list).map((event) => event.argsIn!.length)).toContain(1);
+      expect(eventsOf(agent, "append", builder).map((event) => event.argsIn![0].type)).toContain("java.lang.String");
+      expect(eventsOf(agent, "toString", builder).length).toBe(1);
+    });
+
+    // a new class loader's ClassFactory converts values with types that haven't been used yet
+    it("hooks StringBuilder.toString() of a new ClassFactory without recursing", () => {
+      const parent = Java.use("java.lang.ClassLoader").getSystemClassLoader();
+      const loader = Java.use("dalvik.system.PathClassLoader").$new("", parent);
+      const factory = Java.ClassFactory.get(Java.retain(loader));
+      const StringBuilder = factory.use("java.lang.StringBuilder");
+      const hook: JavaHook = {
+        methodName: "toString",
+        method: (StringBuilder.toString as unknown as Java.MethodDispatcher).overload(),
+        params: [],
+        hookSettings: DEFAULT_HOOK_SETTINGS,
+        decoderSettings: DEFAULT_DECODER_SETTINGS,
+      };
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(stackTrace, agent);
+      const builder = StringBuilder.$new("text");
+
+      try {
+        manager.registerHooks([hook]);
+        expect(builder.toString()).toBe("text");
+      } finally {
+        manager.unregisterHooks([hook]);
+      }
+
+      expect(eventsOf(agent, "toString", builder).length).toBe(1);
+    });
+  });
 });
 
 export {};

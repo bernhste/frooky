@@ -159,7 +159,7 @@ What each decoder counts: [Java](./decoders-java.md#limits), [native](./decoders
 
 ### `argFilter`: Capture Only Matching Values
 
-`argFilter` is a list of regular expressions. An event is only captured if the decoded value of the parameter matches one of them. Only string and number values are filtered; other values, such as lists, always pass. Several hooks on the same function or method each apply their own filters.
+`argFilter` is a list of regular expressions. An event is only captured if the decoded value of the parameter matches one of them. String and number values are matched as they are. An object matches if one of its string or number fields matches, e.g. the `path` or `fd` of a file descriptor decoded with `decoder: fd`. A value decoded with its runtime type, e.g. a `String` passed as a `java.lang.Object` parameter, is matched by its inner value. Lists, booleans and `null` always pass. Several hooks on the same function or method each apply their own filters.
 
 ```yaml
 javaClass: org.owasp.mastestapp.MastgTest

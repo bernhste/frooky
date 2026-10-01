@@ -1,0 +1,93 @@
+metadata:
+  name: "Torture (Native) Level 4: Stack Traces on Hot libc"
+  description: |
+    Deep native stack traces on every call of the hot libc file functions, and native and Java stack traces
+    as deep as they go on the app's own functions. Symbolizing a native frame reads /proc/self/maps with the
+    hooked `open` and `read`.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/99_torture/04_level_4.yaml
+#
+# Guardrails exercised:
+# - One warning per hook: "Capturing stack traces on high-frequency libc function ...".
+# - Calls on an alternate signal stack (`sigaltstack`) skip the backtrace: their events have empty stack traces.
+# - `stackTraceFilter` on `close` never matches: every call pays for the full stack walk, and no event is sent.
+#
+# Known gap: no `platformStackTrace` on the libc functions. A Java stack trace enters the Java VM from inside
+# the call; with `write` this hangs the app during startup (ANR), as the caller can hold a lock that the VM
+# then waits for.
+#
+# Expected: heavy stutter, possibly an ANR. ~35 us per symbolized native frame x 32 frames x thousands of calls/s.
+# A crash here (SIGSEGV / SEGV_ACCERR on a small thread stack) is a finding; try `--runtime v8` next.
+
+settings:
+  hookSettings:
+    nativeStackTrace: true
+    maxStackFrames: 32
+  decoderSettings:
+    maxItems: 256
+
+hookCollection:
+  # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/mmap.2.html
+  - module: libc.so
+    hooks:
+      - symbol: open
+        retType: [int, { decoder: fd }]
+        params:
+          - ["const char *", path]
+          - [int, flags, { decoder: openFlags }]
+      - symbol: openat
+        retType: [int, { decoder: fd }]
+        params:
+          - [int, dirfd]
+          - ["const char *", path]
+          - [int, flags, { decoder: openFlags }]
+          - [mode_t, mode]
+      - symbol: close
+        hookSettings:
+          stackTraceFilter: ['frooky-never-matches']
+        retType: int
+        params:
+          - [int, fd, { decoder: fd }]
+      - symbol: read
+        retType: ssize_t
+        params:
+          - [int, fd, { decoder: fd }]
+          - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
+          - [size_t, count]
+      - symbol: write
+        retType: ssize_t
+        params:
+          - [int, fd, { decoder: fd }]
+          - ["const void *", buf, { decoderArgs: { length: count }, decoder: string }]
+          - [size_t, count]
+      - symbol: mmap
+        retType: "void *"
+        params:
+          - ["void *", addr]
+          - [size_t, length]
+          - [int, prot, { decoder: mmapProt }]
+          - [int, flags, { decoder: mmapFlags }]
+          - [int, fd, { decoder: fd }]
+          - [off_t, offset]
+
+  # the app's own functions, with stack traces as deep as they go
+  - module: libreceiveString.so
+    hookSettings:
+      platformStackTrace: true
+      maxStackFrames: 1000
+    hooks:
+      - symbol: receive_cstring
+        retType: "char *"
+        params:
+          - ["char *", s]
+      - symbol: track_event
+        params:
+          - ["char *", name]

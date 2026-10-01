@@ -234,6 +234,11 @@ def _add_stack(out: _Lines, stack_trace: list | dict) -> None:
             _add_stack_section(out, _LABEL_STACK, platform_stack)
         elif native_stack:
             _add_stack_section(out, "native stack", native_stack)
+        # e.g. `signal-stack`, see "Skipped Stack Traces" in docs/additional-features.md
+        skipped = stack_trace.get("skipped")
+        if skipped:
+            out.add()
+            _add_field(out, "stack skipped", str(skipped))
     elif isinstance(stack_trace, list) and stack_trace:
         _add_stack_section(out, _LABEL_STACK, stack_trace)
 

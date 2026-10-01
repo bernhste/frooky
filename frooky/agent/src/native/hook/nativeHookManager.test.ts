@@ -3,6 +3,7 @@ import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/de
 import { normalizeInputParams, normalizeInputRetType } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputParamSettings } from "../../shared/inputParsing/inputSettings";
 import { InputNativeOffsetHook, InputNativeSymbolHook } from "../../shared/inputParsing/inputNativeHookCollection";
+import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { sleepMilliseconds } from "../../shared/utils";
 import { NativeHook } from "./nativeHook";
@@ -343,6 +344,42 @@ describe("NativeHookManager", () => {
         // a negative length, e.g. -1 for an error, decodes as null
         [[{ type: "void *", name: "buf", value: null }], -1],
       ]);
+    });
+
+    it("doesn't record the calls that hook code makes, also the code of a Java hook", async () => {
+      const events: NativeHookEvent[] = [];
+      const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+      const addOne = new NativeFunction(cm.add_one, "int", ["int"]);
+      // stands in for a decoder or a stack trace that calls the hooked function
+      const reentrantStackTrace: PlatformStackTrace = {
+        build: () => ({ platformStackTrace: [`inner ${addOne(100)}`], nativeStackTrace: [] }),
+      };
+      const manager = new NativeHookManager(reentrantStackTrace, agent);
+      const params = normalizeInputParams([["int", "n"]], DEFAULT_DECODER_SETTINGS);
+      const [hooks] = await Promise.all(
+        await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, hookSettings: { ...DEFAULT_HOOK_SETTINGS, platformStackTrace: true } })]),
+      );
+      const hook: NativeHook = { ...hooks![0], symbolName: "add_one", symbolAddress: cm.add_one };
+
+      manager.registerHooks([hook]);
+      try {
+        await untilHooked(
+          () => addOne(0),
+          () => events.length > 0,
+        );
+        events.length = 0;
+        expect(addOne(1)).toBe(2);
+        const tid = enterHookCode();
+        try {
+          expect(addOne(2)).toBe(3);
+        } finally {
+          leaveHookCode(tid!);
+        }
+      } finally {
+        manager.unregisterHooks([hook]);
+      }
+
+      expect(events.map((event) => [event.argsIn![0].value, event.stackTrace!.platformStackTrace[0]])).toEqual([[1, "inner 101"]]);
     });
 
     describe("several hooks on the same function", () => {

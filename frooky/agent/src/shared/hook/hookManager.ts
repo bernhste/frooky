@@ -89,13 +89,18 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
 
   protected matchesFilter(decodedValue: DecodedValue, argFilter?: RegExp[]): boolean {
     if (!argFilter || argFilter.length === 0) return true;
-
-    const value = decodedValue.value;
-
-    if (typeof value !== "string" && typeof value !== "number") return true;
-
-    const stringValue = String(value);
-    return argFilter.some((pattern) => pattern.test(stringValue));
+    const matches = (value: string | number) => argFilter.some((pattern) => pattern.test(String(value)));
+    const value = filteredValue(decodedValue.value);
+    if (typeof value === "string" || typeof value === "number") return matches(value);
+    // e.g. `{ fd: 42, path: "/data/..." }` of `decoder: fd`
+    if (isPlainObject(value)) {
+      return Object.values(value).some((field) => {
+        const fieldValue = filteredValue(field);
+        return (typeof fieldValue === "string" || typeof fieldValue === "number") && matches(fieldValue);
+      });
+    }
+    // lists, null and booleans
+    return true;
   }
 
   // At debug level logs e.g. `Decoded com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"`,
@@ -145,4 +150,17 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     }
     return values;
   }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// The value a filter matches: a value decoded with its runtime type, e.g. a `java.lang.Object` parameter holding a
+// `String`, is nested as `{ type: "java.lang.String", value: "..." }`, and the filter matches its inner value.
+function filteredValue(value: unknown): unknown {
+  while (isPlainObject(value) && typeof value.type === "string" && "value" in value) {
+    value = value.value;
+  }
+  return value;
 }
