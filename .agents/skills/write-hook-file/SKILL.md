@@ -66,7 +66,7 @@ hookCollection:
 **Decoder settings** (at file, hook collection, hook or param/return type level; lower levels override higher ones):
 
 - `direction: in | out | inout`: use `out` or `inout` for buffers the callee fills (e.g. `Cipher.doFinal(byte[] output, ...)`, `RAND_bytes`).
-- `decoder: <name>`, which must be one of the registered names. Java: `string`, `getters`, `hashCode`, `intentFlag`, `intentUriFlag`, `constant`, `flags`. Native: `string`, `utf16`, `errno` (return value only), `fd`, `enum`, `flags`, `nullTerminated`, and the presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain`, `socketType`. `enum`, `flags` and Java `constant` take their names from `constants`. The schema does **not** check these names. If in doubt, check the registries in `frooky/agent/src/android/decoders/javaDecoderResolver.ts` and `frooky/agent/src/native/decoders/nativeDecoderResolver.ts`. Use `string` to show `byte[]` as text.
+- `decoder: <name>`, which must be one of the registered names. Java: `string`, `getters`, `hashCode`, `intentFlag`, `intentUriFlag`, `constant`, `flags`. Native: `string`, `utf16`, `errno` (return value only), `fd`, `enum`, `flags`, `nullTerminated`, and the presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain`, `socketType`. `enum`, `flags` and Java `constant` take their names from `constants`. The names are the types `JavaDecoderName` and `NativeDecoderName` in `frooky/agent/src/shared/frookySettings.ts`. The schema checks them per platform in settings objects, but not inside a param tuple such as `["[B", data, { decoder: string }]`; frooky skips a hook with a decoder of the other platform at runtime. Use `string` to show `byte[]` as text.
 - `maxDepth` (default 10), `maxItems` (default 100), `argFilter` (a regex list; only capture calls whose decoded value matches).
 
 **Hook settings:** `maxStackFrames` (default 0 = no stack trace) and `stackTraceFilter` (a regex list; an event is kept only if a frame matches). Without a limit the filter searches the whole stack; with a limit it only searches the captured frames, so a small limit (e.g. 5) also drops framework calls that merely run somewhere below app code, such as WebView initialization inside an app's `onCreate`. Filters on app package prefixes (e.g. `"^org\\.owasp\\."`) are the usual way to drop framework noise.
@@ -79,7 +79,7 @@ From the repo root (needs `npm ci` in `frooky/agent` once):
 node .agents/skills/write-hook-file/validate.cjs hooks.yaml
 ```
 
-This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf` mismatches, the deepest path in the error output usually points at the actual mistake. The validator catches structural errors, but not wrong class, method or decoder names; those only show up at runtime as `(N not resolved)` in the status bar, per-file `not resolved` counts, agent warnings, and debug logs (`frooky -vv`).
+This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf` mismatches, the deepest path in the error output usually points at the actual mistake. The validator catches structural errors, but not wrong class or method names, nor decoder names inside param tuples; those only show up at runtime as `(N not resolved)` in the status bar, per-file `not resolved` counts, agent warnings, and debug logs (`frooky -vv`).
 
 ## Review checklist
 

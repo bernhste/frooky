@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { DecoderName } from "../../shared/frookySettings";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
@@ -9,7 +10,7 @@ import { PrimitiveDecoder } from "./builtin/PrimitiveDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
 import { acceptedJavaDecoderArgs, JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "./javaDecoderResolver";
 
-function decodableOf(type: string, decoder?: string): Decodable {
+function decodableOf(type: string, decoder?: DecoderName): Decodable {
   return { type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder: decoder } };
 }
 
@@ -49,8 +50,8 @@ describe("JavaDecoderResolver", () => {
     });
 
     it("throws a descriptive error when settings.decoder names an unregistered decoder", () => {
-      const call = () => JavaDecoderResolver.resolveDecoder(decodableOf("int", "not.a.real.Decoder"));
-      expect(call).toThrow("not.a.real.Decoder");
+      const call = () => JavaDecoderResolver.resolveDecoder(decodableOf("int", "not.a.real.Decoder" as DecoderName));
+      expect(call).toThrow("not.a.real.Decoder" as DecoderName);
     });
 
     it("resolves JNI-style array types ('[' prefix) to ArrayDecoder", () => {
@@ -81,7 +82,7 @@ describe("JavaDecoderResolver", () => {
     });
 
     describe("acceptedJavaDecoderArgs()", () => {
-      const accepted = (type: string, decoder?: string) => acceptedJavaDecoderArgs({ type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder } });
+      const accepted = (type: string, decoder?: DecoderName) => acceptedJavaDecoderArgs({ type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder } });
 
       it("accepts length and offset for arrays, and for decoder: string on byte[] and char[]", () => {
         expect(accepted("[B")).toEqual(["length", "offset"]);

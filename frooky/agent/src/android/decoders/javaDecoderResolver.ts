@@ -3,6 +3,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
+import { JavaDecoderName } from "../../shared/frookySettings";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
@@ -18,8 +19,8 @@ import { StringDecoder } from "./builtin/StringDecoder";
 export type DecoderConstructor = { new (decodable: Decodable): Decoder<Java.Wrapper> };
 
 // created on first use: GetterDecoder imports this module through decodeGetterValues()
-let customDecoderRegistry: Record<string, DecoderConstructor> | undefined;
-function getCustomDecoderRegistry(): Record<string, DecoderConstructor> {
+let customDecoderRegistry: Record<JavaDecoderName, DecoderConstructor> | undefined;
+function getCustomDecoderRegistry(): Record<JavaDecoderName, DecoderConstructor> {
   return (customDecoderRegistry ??= {
     string: StringDecoder,
     hashCode: HashCodeDecoder,
@@ -29,6 +30,11 @@ function getCustomDecoderRegistry(): Record<string, DecoderConstructor> {
     flags: FlagsDecoder,
     getters: GetterDecoder,
   });
+}
+
+// The names of `decoder:` in Java hooks
+export function javaDecoderNames(): string[] {
+  return Object.keys(getCustomDecoderRegistry());
 }
 
 export const JAVA_PRIMITIVE_TYPES = new Set(["int", "long", "short", "byte", "char", "boolean", "float", "double"]);
@@ -50,7 +56,7 @@ function resolveTypeDecoder(decodable: Decodable): Decoder<Java.Wrapper> {
 export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
   resolveDecoder(decodable: Decodable): Decoder<Java.Wrapper> {
     if (decodable.settings.decoder) {
-      const CustomDecoderClass = getCustomDecoderRegistry()[decodable.settings.decoder];
+      const CustomDecoderClass = getCustomDecoderRegistry()[decodable.settings.decoder as JavaDecoderName];
       if (!CustomDecoderClass) {
         throw new Error(`Unknown custom decoder: "${decodable.settings.decoder}"`);
       }

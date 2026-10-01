@@ -119,6 +119,20 @@ describe("AndroidHookValidator", () => {
       expect(message).toContain("Skipping hook for java method 'bad' from class 'com.example.Foo' due to an invalid declaration:");
     });
 
+    it("skips a hook with a native decoder, naming the Java decoders", () => {
+      const javaCollection: InputJavaHookCollection = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: ["foo", { javaClass: "com.example.Foo", method: "bar", overloads: [{ params: [["int", "fd", { decoder: "fd" }]] }] }],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["foo"]);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("decoder 'fd' is no Java decoder. The Java decoders are: string, hashCode,");
+    });
+
     it("still validates the remaining java hook collections after one collection contained an unnormalizable hook", () => {
       const brokenCollection: InputJavaHookCollection = {
         type: "java",

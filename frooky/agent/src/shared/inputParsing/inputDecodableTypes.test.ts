@@ -6,6 +6,7 @@ import {
   normalizeInputRetType,
   normalizeInputRetTypeSettings,
   validateDecoderArgRoles,
+  validateDecoderNames,
 } from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
 
@@ -160,6 +161,18 @@ describe("inputDecodableTypes", () => {
         "decoderArgs of 'key': the decoder of '[B' doesn't accept the role 'offset'. It accepts: length.",
       );
       expect(() => validateDecoderArgRoles(params, () => [])).toThrow("doesn't accept the roles 'offset', 'length'. It accepts no decoderArgs.");
+    });
+  });
+
+  describe("validateDecoderNames()", () => {
+    it("accepts the platform's decoders and settings without a decoder", () => {
+      expect(() => validateDecoderNames([{ decoder: "string" }, {}, undefined], ["string", "fd"], "native")).not.toThrow();
+    });
+
+    it("throws for a decoder of another platform, listing the platform's decoders", () => {
+      expect(() => validateDecoderNames([{ decoder: "string" }, { decoder: "getters" }], ["string", "fd"], "native")).toThrow(
+        "decoder 'getters' is no native decoder. The native decoders are: string, fd.",
+      );
     });
   });
 

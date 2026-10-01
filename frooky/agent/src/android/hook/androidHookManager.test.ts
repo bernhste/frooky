@@ -98,7 +98,7 @@ describe("AndroidHookManager", () => {
 
     it("carries an overload's retType decoder settings onto the resolved JavaHook", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
-      const retTypeSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "myDecoder" };
+      const retTypeSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "hashCode" as const };
       const hook: InputJavaHookNormalized = {
         javaClass: "java.lang.String",
         method: "indexOf",

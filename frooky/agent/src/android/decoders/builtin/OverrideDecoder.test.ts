@@ -24,7 +24,7 @@ class EchoDecoder extends Decoder<Java.Wrapper> {
   }
 }
 
-const decodable: Decodable = { type: "int", name: "flags", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "failing" } };
+const decodable: Decodable = { type: "int", name: "flags", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "constant" } };
 
 describe("OverrideDecoder", () => {
   it("takes the name of the override", () => {

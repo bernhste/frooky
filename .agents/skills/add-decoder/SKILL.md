@@ -15,7 +15,7 @@ First decide which kind you need:
 |---|---|---|
 | **Java class decoder** | The runtime class of a value, or its nearest superclass, is a specific class | `classDecoderRegistry` in `frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts` |
 | **Java interface decoder** | The runtime class implements an interface (e.g. `java.util.Map`) and has no class decoder | `interfaceDecoderRegistry` in the same file (ordered, see below) |
-| **Named custom decoder** | The user opts in with `decoder: <name>` in the hook file | `CUSTOM_DECODER_REGISTRY` in `frooky/agent/src/android/decoders/javaDecoderResolver.ts` |
+| **Named custom decoder** | The user opts in with `decoder: <name>` in the hook file | The name in `JavaDecoderName` / `NativeDecoderName` in `frooky/agent/src/shared/frookySettings.ts`, then the registry in `javaDecoderResolver.ts` / `nativeDecoderResolver.ts` |
 | **Native decoder** | Native parameter or return types | `frooky/agent/src/native/decoders/nativeDecoderResolver.ts` / `nativeFridaType.ts` |
 
 Primitives, `java.lang.String`, `void` and arrays are handled by `PrimitiveDecoder` and `ArrayDecoder` before the registries are consulted.
@@ -41,13 +41,18 @@ The resolution order is documented in `docs/decoders-java.md` ("How frooky Picks
 
 ## Named custom decoders
 
-Same implementation rules as above. After adding the entry to `CUSTOM_DECODER_REGISTRY`, **update the list of registered decoders in `docs/decoders-java.md` or `docs/decoders-native.md`** (the "Named Decoders" section). Hook files reference decoders by these names, and the JSON schema does not check them.
+Same implementation rules as above. The names are part of the hook-file format:
+
+1. Add the name to `JavaDecoderName` or `NativeDecoderName` (a native preset: `NativeFlagsPresetName` / `NativeEnumPresetName`) in `frooky/agent/src/shared/frookySettings.ts`.
+2. Add the entry to the registry, `getCustomDecoderRegistry()` in `javaDecoderResolver.ts` or `CUSTOM_DECODER_REGISTRY` in `nativeDecoderResolver.ts`. Both are typed `Record<...DecoderName, ...>`, so the build fails until name and entry match.
+3. Regenerate both schemas (`npm run build:zodSchema && npm run build:jsonSchema`); the JSON schema then offers the name for autocompletion in hooks of that platform.
+4. **Update the list of registered decoders in `docs/decoders-java.md` or `docs/decoders-native.md`** (the "Named Decoders" section).
 
 If the decoder needs other values, it receives them by role in the `args` parameter of `decode` (`{ length, offset }`, read with `countArg()` or `sliceBounds()` from `shared/decoders/decoderArgs.ts`). List the roles it accepts in `acceptedJavaDecoderArgs()` or `acceptedNativeDecoderArgs()`, which reject other roles when the hook file is validated, and in the `decoderArgs` table of `docs/decoders-java.md` or `docs/decoders-native.md`.
 
 ## Native decoders
 
-Type parsing lives in `nativeFridaType.ts`. Named native decoders (`decoder: fd`, `flags`, ...) are factories in `CUSTOM_DECODER_REGISTRY` in `nativeDecoderResolver.ts`; presets of Linux constants live in `nativeConstantPresets.ts`. Values are handled by `NativeValueDecoder` (fundamental types) or `NativeReferenceDecoder` (pointers), with `NativeFallbackDecoder` for anything else. Extend the parser or the reference decoder there, and add cases to the matching `*.test.ts`. For behavior visible in the target app, also add a function to `tests/target-apps/android/value-passing-native` and a test in `tests/integration/android/test_value_passing_native.py`.
+Type parsing lives in `nativeFridaType.ts`. Named native decoders (`decoder: fd`, `flags`, ...) are factories in `CUSTOM_DECODER_REGISTRY` in `nativeDecoderResolver.ts`, named by `NativeDecoderName` (see above); presets of Linux constants live in `nativeConstantPresets.ts`. Values are handled by `NativeValueDecoder` (fundamental types) or `NativeReferenceDecoder` (pointers), with `NativeFallbackDecoder` for anything else. Extend the parser or the reference decoder there, and add cases to the matching `*.test.ts`. For behavior visible in the target app, also add a function to `tests/target-apps/android/value-passing-native` and a test in `tests/integration/android/test_value_passing_native.py`.
 
 ## Finish
 

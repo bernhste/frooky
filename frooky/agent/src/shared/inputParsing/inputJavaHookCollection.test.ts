@@ -232,7 +232,7 @@ describe("inputJavaHookCollection", () => {
             {
               javaClass: "com.example.Foo",
               method: "bar",
-              overloads: [{ params: ["int"], retType: { decoder: "myDecoder" } }],
+              overloads: [{ params: ["int"], retType: { decoder: "hashCode" } }],
             },
           ],
         };
@@ -240,7 +240,7 @@ describe("inputJavaHookCollection", () => {
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
         const hook = result.hooks[0] as InputJavaHookNormalized;
 
-        expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "myDecoder" });
+        expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "hashCode" });
       });
 
       it("leaves an overload's retType undefined when not declared", () => {
@@ -278,7 +278,7 @@ describe("inputJavaHookCollection", () => {
               {
                 javaClass: "com.example.Foo",
                 method: "bar",
-                overloads: [{ params: ["int"], retType: ["int", { decoder: "myDecoder" }] }],
+                overloads: [{ params: ["int"], retType: ["int", { decoder: "hashCode" }] }],
               },
             ],
           };
@@ -296,7 +296,7 @@ describe("inputJavaHookCollection", () => {
               {
                 javaClass: "com.example.Foo",
                 method: "bar",
-                overloads: [{ params: ["int"], retType: { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "myDecoder" } } }],
+                overloads: [{ params: ["int"], retType: { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "hashCode" } } }],
               },
             ],
           };

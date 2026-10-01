@@ -103,6 +103,8 @@ For some types, frooky's built-in decoders are not sufficient to give the captur
 
 The decoder you choose always wins over the one frooky would pick for the value. The registered decoders differ per platform: [Java](./decoders-java.md#named-decoders), [native](./decoders-native.md#named-decoders).
 
+A hook only accepts the decoders of its platform; frooky skips a hook with a decoder of the other platform, e.g. `decoder: fd` in a Java hook, with a warning that lists the valid names. The [JSON schema](./schema/frooky-config.schema.json) offers the names for autocompletion: the Java decoders below `javaClass`, the native decoders below `module`, and both in the top-level `settings`.
+
 ### `maxItems` and `maxDepth`: Limit Large and Nested Values
 
 Hooks run inside the target app on every call, so frooky bounds how much of a value it decodes.

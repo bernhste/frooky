@@ -203,6 +203,17 @@ describe("NativeHookValidator", () => {
       expect(message).toContain("decoder: errno on 'path' is only supported on the return value");
     });
 
+    it("skips a hook with a Java decoder on its return value, naming the native decoders", () => {
+      const getenvHook: InputNativeHookNormalized = { symbol: "getenv", module: "libc.so", retType: ["char *", { decoder: "hashCode" }] };
+      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", getenvHook] };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("decoder 'hashCode' is no native decoder. The native decoders are: string, utf16,");
+    });
+
     it("skips a hook that passes a role its decoder doesn't accept", () => {
       const closeHook: InputNativeHookNormalized = {
         symbol: "close",

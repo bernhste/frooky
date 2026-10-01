@@ -137,6 +137,16 @@ export function validateDecoderArgRoles(params: Param[] | undefined, acceptedRol
   }
 }
 
+// Throws if a value uses a decoder of another platform, e.g. `decoder: fd` in a Java hook. `names` lists the
+// decoders of the hook's platform.
+export function validateDecoderNames(settings: (Partial<DecoderSettings> | undefined)[], names: readonly string[], platform: string): void {
+  for (const decoder of settings.map((s) => s?.decoder)) {
+    if (decoder !== undefined && !names.includes(decoder)) {
+      throw new Error(`decoder '${decoder}' is no ${platform} decoder. The ${platform} decoders are: ${names.join(", ")}.`);
+    }
+  }
+}
+
 /**
  * A return type in a hook file, normalized to a {@link RetType}.
  *

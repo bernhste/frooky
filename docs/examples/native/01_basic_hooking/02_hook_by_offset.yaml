@@ -18,17 +18,17 @@ hookCollection:
   - module: libreceiveFundamentalValue.so
     hooks:
       # int receive_int(int minValue, int maxValue)
-      - offset: 0xf20
+      - offset: 0x1400
         retType: int
         params:
           - [int, minValue]
           - [int, maxValue]
       # short receive_short(short minValue, short maxValue), offset as a hex string
-      - offset: "0x0000000000000EE0"
+      - offset: "0x00000000000013C0"
         params:
           - [short, minValue]
           - [short, maxValue]
 
 # Expected events (they have an `offset` instead of a `symbol`):
-#   0xf20: minValue -2147483648, maxValue 2147483647, returnValue -2147483648
-#   0xee0: minValue -32768, maxValue 32767
+#   0x1400: minValue -2147483648, maxValue 2147483647, returnValue -2147483648
+#   0x13c0: minValue -32768, maxValue 32767

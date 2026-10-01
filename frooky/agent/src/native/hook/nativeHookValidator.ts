@@ -1,4 +1,4 @@
-import { Param } from "../../shared/decoders/decodable";
+import { Param, RetType } from "../../shared/decoders/decodable";
 import z from "zod";
 
 import { InputFrookyConfig } from "../../shared/frookyConfig";
@@ -13,8 +13,8 @@ import {
 } from "../../shared/inputParsing/inputNativeHookCollection";
 import { inputNativeHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
 import { logger } from "../../shared/logger";
-import { validateDecoderArgRoles } from "../../shared/inputParsing/inputDecodableTypes";
-import { acceptedNativeDecoderArgs } from "../decoders/nativeDecoderResolver";
+import { validateDecoderArgRoles, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
+import { acceptedNativeDecoderArgs, NATIVE_DECODER_NAMES } from "../decoders/nativeDecoderResolver";
 
 export class NativeHookValidator implements HookValidator<InputNativeHookNormalized, InputNativeHookCollection> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputNativeHookNormalized[] {
@@ -27,6 +27,15 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
         try {
           const normalizedNativeHook = normalizeNativeHook(inputNativeHook, nativeHookCollection.module, hookSettings, decoderSettings);
           validateDecoderArgRoles(normalizedNativeHook.params as Param[] | undefined, acceptedNativeDecoderArgs);
+          validateDecoderNames(
+            [
+              normalizedNativeHook.decoderSettings,
+              (normalizedNativeHook.retType as RetType | undefined)?.settings,
+              ...((normalizedNativeHook.params as Param[] | undefined) ?? []).map((p) => p.settings),
+            ],
+            NATIVE_DECODER_NAMES,
+            "native",
+          );
           rejectErrnoOnParams(normalizedNativeHook.params as Param[] | undefined);
           normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(normalizedNativeHook));
         } catch (e) {

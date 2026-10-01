@@ -49,9 +49,10 @@ export interface DecoderSettings {
   maxItems: number;
 
   /**
-   * Name of the decoder to use instead of the one chosen from the declared type.
+   * Name of the decoder to use instead of the one chosen from the declared type. Java and native hooks each have their
+   * own decoders, see {@link JavaDecoderName} and {@link NativeDecoderName}.
    */
-  decoder?: string;
+  decoder?: DecoderName;
 
   /**
    * Values the decoder needs to decode the parameter, by their role, e.g. `{ length: len }` for a buffer whose length is
@@ -71,6 +72,43 @@ export interface DecoderSettings {
    */
   argFilter?: string[];
 }
+
+/**
+ * Decoders of Java hooks, selected with `decoder:`. See docs/decoders-java.md.
+ *
+ * @public
+ */
+export type JavaDecoderName = "string" | "hashCode" | "intentFlag" | "intentUriFlag" | "constant" | "flags" | "getters";
+
+/**
+ * Decoders of native hooks that decode an integer bitmask with built-in constants, like `decoder: flags`.
+ *
+ * @public
+ */
+export type NativeFlagsPresetName = "openFlags" | "mmapProt" | "mmapFlags" | "dlopenFlags" | "socketType";
+
+/**
+ * Decoders of native hooks that decode an integer with built-in constants, like `decoder: enum`.
+ *
+ * @public
+ */
+export type NativeEnumPresetName = "socketDomain";
+
+/**
+ * Decoders of native hooks, selected with `decoder:`. See docs/decoders-native.md.
+ *
+ * @public
+ */
+export type NativeDecoderName =
+  "string" | "utf16" | "errno" | "fd" | "enum" | "flags" | "nullTerminated" | NativeFlagsPresetName | NativeEnumPresetName;
+
+/**
+ * Name of a decoder of any platform. Settings outside a hook collection, e.g. the top-level `decoderSettings`, accept
+ * both; a hook only the decoders of its platform.
+ *
+ * @public
+ */
+export type DecoderName = JavaDecoderName | NativeDecoderName;
 
 /**
  * A value passed to a decoder: the name of another parameter, `$ret` for the return value (only for a parameter with

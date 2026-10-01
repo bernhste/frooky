@@ -48,7 +48,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 - Python: ruff, double quotes, `from __future__ import annotations`. Host unit tests live in `tests/unit/` and mirror the module layout.
 - TypeScript: Prettier (`.prettierrc`); tests sit next to the code as `*.test.ts`.
 - Docs: Markdown in `docs/` with markdownlint (`.markdownlint.json`). Every hook-file feature has an example in `docs/examples/` with a `# Docs:` link to the upstream API.
-- Examples in `docs/examples/<platform>/<topic>/` run against the target apps and document their events in `# Expected` comments; `tests/integration/android/test_examples.py` checks them. Change both together, and add methods or functions to the target apps when an example needs them.
+- Examples in `docs/examples/<platform>/<topic>/` run against the target apps and document their events in `# Expected` comments; `tests/integration/android/test_examples.py` checks them. Change both together, and add methods or functions to the target apps when an example needs them. Changing a native target app moves its functions, so update the examples' `offset:` hooks afterwards (`update-native-offsets` skill).
 - Code comments:
   - Only comment what the code doesn't say itself: why, non-obvious constraints, units, formats. No comments that restate the next line (`// decode the return value`) and no commented-out code.
   - Describe the current behavior. Never reference old behavior, fixed bugs or how the code got there ("used to", "regression", "previously", "instead of the old ..."), and leave that out of test names too. Bugfix context belongs in the commit message.
@@ -84,3 +84,4 @@ Task-specific instructions live in `.agents/skills/<name>/SKILL.md` (the [Agent 
 - [`add-decoder`](.agents/skills/add-decoder/SKILL.md): add a Java or native value decoder.
 - [`device-testing`](.agents/skills/device-testing/SKILL.md): run agent and integration tests against an emulator or device.
 - [`write-hook-file`](.agents/skills/write-hook-file/SKILL.md): write or review a frooky hook YAML for a given API, and validate it.
+- [`update-native-offsets`](.agents/skills/update-native-offsets/SKILL.md): update the hardcoded `offset:` values in `docs/examples` after changing or rebuilding a native target app.

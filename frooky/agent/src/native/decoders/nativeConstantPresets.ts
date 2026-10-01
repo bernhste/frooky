@@ -1,5 +1,6 @@
 import { logger } from "../../shared/logger";
 import { ConstantSet } from "../../shared/decoders/constantNames";
+import { NativeEnumPresetName, NativeFlagsPresetName } from "../../shared/frookySettings";
 
 // Constants of system calls and libc for 64-bit processes, one table per platform:
 // - linux: Android (and Linux), from the Linux UAPI headers and Bionic. The kernel keeps the values stable per
@@ -8,7 +9,6 @@ import { ConstantSet } from "../../shared/decoders/constantNames";
 type Arch = "arm64" | "x64";
 
 type Preset = {
-  kind: "flags" | "enum";
   linux: (arch: Arch) => ConstantSet;
   darwin: () => ConstantSet;
 };
@@ -17,7 +17,6 @@ type Preset = {
 const ACCESS_MODES = { O_RDONLY: 0x0, O_WRONLY: 0x1, O_RDWR: 0x2 };
 
 const openFlags: Preset = {
-  kind: "flags",
   linux: (arch) => {
     const arm = arch === "arm64";
     return {
@@ -76,11 +75,10 @@ const openFlags: Preset = {
 
 // mmap(2), mprotect(2)
 const PROT = { PROT_NONE: 0x0, PROT_READ: 0x1, PROT_WRITE: 0x2, PROT_EXEC: 0x4 };
-const mmapProt: Preset = { kind: "flags", linux: () => ({ constants: PROT }), darwin: () => ({ constants: PROT }) };
+const mmapProt: Preset = { linux: () => ({ constants: PROT }), darwin: () => ({ constants: PROT }) };
 
 // mmap(2): the sharing type is the lowest two bits
 const mmapFlags: Preset = {
-  kind: "flags",
   linux: () => ({
     enumMask: 0x3,
     enumConstants: { MAP_SHARED: 0x1, MAP_PRIVATE: 0x2, MAP_SHARED_VALIDATE: 0x3 },
@@ -120,7 +118,6 @@ const mmapFlags: Preset = {
 
 // dlopen(3)
 const dlopenFlags: Preset = {
-  kind: "flags",
   linux: () => ({ constants: { RTLD_LAZY: 0x1, RTLD_NOW: 0x2, RTLD_NOLOAD: 0x4, RTLD_GLOBAL: 0x100, RTLD_NODELETE: 0x1000, RTLD_LOCAL: 0x0 } }),
   darwin: () => ({
     constants: { RTLD_LAZY: 0x1, RTLD_NOW: 0x2, RTLD_LOCAL: 0x4, RTLD_GLOBAL: 0x8, RTLD_NOLOAD: 0x10, RTLD_NODELETE: 0x80, RTLD_FIRST: 0x100 },
@@ -129,7 +126,6 @@ const dlopenFlags: Preset = {
 
 // socket(2): the `domain`
 const socketDomain: Preset = {
-  kind: "enum",
   linux: () => ({ constants: { AF_UNSPEC: 0, AF_UNIX: 1, AF_INET: 2, AF_INET6: 10, AF_NETLINK: 16, AF_PACKET: 17, AF_BLUETOOTH: 31, AF_VSOCK: 40 } }),
   darwin: () => ({ constants: { AF_UNSPEC: 0, AF_UNIX: 1, AF_INET: 2, AF_ROUTE: 17, AF_LINK: 18, AF_INET6: 30, AF_SYSTEM: 32, AF_VSOCK: 40 } }),
 };
@@ -137,20 +133,18 @@ const socketDomain: Preset = {
 // socket(2): the `type`. Linux adds flags above the socket type, Darwin has none.
 const SOCKET_TYPES = { SOCK_STREAM: 1, SOCK_DGRAM: 2, SOCK_RAW: 3, SOCK_RDM: 4, SOCK_SEQPACKET: 5 };
 const socketType: Preset = {
-  kind: "flags",
   linux: () => ({ enumMask: 0xf, enumConstants: { ...SOCKET_TYPES, SOCK_PACKET: 10 }, constants: { SOCK_NONBLOCK: 0x800, SOCK_CLOEXEC: 0x80000 } }),
   darwin: () => ({ enumMask: 0xf, enumConstants: SOCKET_TYPES, constants: {} }),
 };
 
-const PRESETS: Record<string, Preset> = { openFlags, mmapProt, mmapFlags, dlopenFlags, socketDomain, socketType };
+type PresetName = NativeFlagsPresetName | NativeEnumPresetName;
 
-export const FLAG_PRESET_NAMES = Object.keys(PRESETS).filter((name) => PRESETS[name].kind === "flags");
-export const ENUM_PRESET_NAMES = Object.keys(PRESETS).filter((name) => PRESETS[name].kind === "enum");
+const PRESETS: Record<PresetName, Preset> = { openFlags, mmapProt, mmapFlags, dlopenFlags, socketDomain, socketType };
 
 // The constants of a preset, undefined where frooky has no values: other platforms than Android/Linux and
 // iOS/macOS, 32-bit processes, and other architectures than arm64 and x86_64 on Linux.
 export function presetConstants(
-  name: string,
+  name: PresetName,
   platform: string = Process.platform,
   arch: string = Process.arch,
   pointerSize: number = Process.pointerSize,
@@ -163,7 +157,7 @@ export function presetConstants(
 }
 
 // presetConstants() of this process, with a warning if there are none
-export function resolvePreset(name: string): ConstantSet | undefined {
+export function resolvePreset(name: PresetName): ConstantSet | undefined {
   const constants = presetConstants(name);
   if (!constants) {
     logger.warn(

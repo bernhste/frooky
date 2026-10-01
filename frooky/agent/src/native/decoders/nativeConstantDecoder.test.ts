@@ -1,4 +1,5 @@
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
+import { NativeFlagsPresetName } from "../../shared/frookySettings";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { decodeFlags } from "../../shared/decoders/constantNames";
 import { presetConstants } from "./nativeConstantPresets";
@@ -112,7 +113,7 @@ describe("NativeFlagsDecoder", () => {
   });
 
   describe("preset tables per platform", () => {
-    const flags = (name: string, platform: string, arch: string, bits: number) =>
+    const flags = (name: NativeFlagsPresetName, platform: string, arch: string, bits: number) =>
       decodeFlags(uint64(bits), presetConstants(name, platform, arch, 8)!);
 
     it("has the open flags of Linux per architecture", () => {

@@ -210,7 +210,7 @@ describe("HookManager", () => {
       const resolver = new FakeDecoderResolver();
       const manager = createManager(resolver);
       // the buffer's custom decoder must not be applied to the length it references
-      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "string", decoderArgs: { length: "length" } };
+      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "string" as const, decoderArgs: { length: "length" } };
       const lengthSettings = { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 };
       const params: Param[] = [
         makeParam({ name: "length", type: "int", settings: lengthSettings }),

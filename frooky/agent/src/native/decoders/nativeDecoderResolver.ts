@@ -2,8 +2,9 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
+import { NativeDecoderName, NativeEnumPresetName, NativeFlagsPresetName } from "../../shared/frookySettings";
 import { NativeEnumDecoder, NativeFlagsDecoder } from "./nativeConstantDecoder";
-import { ENUM_PRESET_NAMES, FLAG_PRESET_NAMES, resolvePreset } from "./nativeConstantPresets";
+import { resolvePreset } from "./nativeConstantPresets";
 import { NativeErrnoDecoder } from "./nativeErrnoDecoder";
 import { NativeFallbackDecoder } from "./nativeFallbackDecoder";
 import { NativeFdDecoder } from "./nativeFdDecoder";
@@ -42,7 +43,16 @@ function resolveTypeDecoder(decodable: Decodable): Decoder<NativePointer> {
   }
 }
 
-const CUSTOM_DECODER_REGISTRY: Record<string, NativeDecoderFactory> = {
+const flagsPreset =
+  (name: NativeFlagsPresetName): NativeDecoderFactory =>
+  (decodable) =>
+    new NativeFlagsDecoder(decodable, resolvePreset(name) ?? null);
+const enumPreset =
+  (name: NativeEnumPresetName): NativeDecoderFactory =>
+  (decodable) =>
+    new NativeEnumDecoder(decodable, resolvePreset(name) ?? null);
+
+const CUSTOM_DECODER_REGISTRY: Record<NativeDecoderName, NativeDecoderFactory> = {
   string: (decodable) => new NativeStringDecoder(decodable),
   utf16: (decodable) => new NativeUtf16Decoder(decodable),
   errno: (decodable) => new NativeErrnoDecoder(decodable, resolveTypeDecoder(decodable)),
@@ -50,15 +60,22 @@ const CUSTOM_DECODER_REGISTRY: Record<string, NativeDecoderFactory> = {
   enum: (decodable) => new NativeEnumDecoder(decodable),
   flags: (decodable) => new NativeFlagsDecoder(decodable),
   nullTerminated: nullTerminatedArray,
-  ...Object.fromEntries(FLAG_PRESET_NAMES.map((name) => [name, (d: Decodable) => new NativeFlagsDecoder(d, resolvePreset(name) ?? null)])),
-  ...Object.fromEntries(ENUM_PRESET_NAMES.map((name) => [name, (d: Decodable) => new NativeEnumDecoder(d, resolvePreset(name) ?? null)])),
+  openFlags: flagsPreset("openFlags"),
+  mmapProt: flagsPreset("mmapProt"),
+  mmapFlags: flagsPreset("mmapFlags"),
+  dlopenFlags: flagsPreset("dlopenFlags"),
+  socketType: flagsPreset("socketType"),
+  socketDomain: enumPreset("socketDomain"),
 };
+
+// The names of `decoder:` in native hooks
+export const NATIVE_DECODER_NAMES = Object.keys(CUSTOM_DECODER_REGISTRY);
 
 // Picks the decoder of a value: the custom decoder from its settings, else by its declared type.
 export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
   resolveDecoder(decodable: Decodable): Decoder<NativePointer> {
     if (decodable.settings.decoder) {
-      const createCustomDecoder = CUSTOM_DECODER_REGISTRY[decodable.settings.decoder];
+      const createCustomDecoder = CUSTOM_DECODER_REGISTRY[decodable.settings.decoder as NativeDecoderName];
       if (!createCustomDecoder) {
         throw new Error(`Unknown custom decoder: "${decodable.settings.decoder}"`);
       }

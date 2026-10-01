@@ -1,4 +1,5 @@
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
+import { DecoderName } from "../../shared/frookySettings";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { acceptedNativeDecoderArgs, NativeDecoderResolver } from "./nativeDecoderResolver";
 import { isUtf16PointerType, NativeUtf16Decoder } from "./nativeUtf16Decoder";
@@ -40,7 +41,7 @@ describe("NativeUtf16Decoder", () => {
   });
 
   it("is the default decoder of UTF-16 pointer types, and of decoder: utf16", () => {
-    const resolve = (type: string, decoder?: string) =>
+    const resolve = (type: string, decoder?: DecoderName) =>
       NativeDecoderResolver.resolveDecoder({ type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder } }) instanceof NativeUtf16Decoder;
     expect(resolve("const char16_t *")).toBe(true);
     expect(resolve("jchar*")).toBe(true);

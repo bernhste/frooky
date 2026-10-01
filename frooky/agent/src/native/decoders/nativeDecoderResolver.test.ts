@@ -1,4 +1,5 @@
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
+import { DecoderName } from "../../shared/frookySettings";
 import { acceptedNativeDecoderArgs, NativeDecoderResolver } from "./nativeDecoderResolver";
 import { NativeFallbackDecoder } from "./nativeFallbackDecoder";
 import { NativeReferenceDecoder } from "./nativeReferenceDecoder";
@@ -60,13 +61,14 @@ describe("NativeDecoderResolver", () => {
     });
 
     it("should throw a descriptive error for an unknown custom decoder", () => {
-      expect(() => NativeDecoderResolver.resolveDecoder({ type: "void *", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "nope" } })).toThrow(
-        'Unknown custom decoder: "nope"',
-      );
+      expect(() =>
+        NativeDecoderResolver.resolveDecoder({ type: "void *", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "nope" as DecoderName } }),
+      ).toThrow('Unknown custom decoder: "nope"');
     });
 
     describe("acceptedNativeDecoderArgs()", () => {
-      const accepted = (type: string, decoder?: string) => acceptedNativeDecoderArgs({ type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder } });
+      const accepted = (type: string, decoder?: DecoderName) =>
+        acceptedNativeDecoderArgs({ type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder } });
 
       it("accepts length and offset for pointers to fundamental types and decoder: string", () => {
         expect(accepted("const char *")).toEqual(["length", "offset"]);
