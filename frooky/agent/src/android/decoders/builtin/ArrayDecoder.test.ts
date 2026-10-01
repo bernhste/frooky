@@ -186,6 +186,41 @@ describe("ArrayDecoder", () => {
         { type: "java.lang.String", value: "b" },
       ]);
     });
+
+    describe("with the roles offset and length", () => {
+      const decode = (type: string, array: unknown, args: Record<string, unknown>, maxItems = DEFAULT_DECODER_SETTINGS.maxItems) =>
+        new ArrayDecoder({ type, settings: { ...DEFAULT_DECODER_SETTINGS, maxItems } }).decode(array as Java.Wrapper, args).value;
+
+      it("decodes only the slice of a primitive array", () => {
+        expect(decode("[B", Java.array("byte", [1, 2, 3, 4, 5]), { offset: 1, length: 3 })).toEqual([2, 3, 4]);
+        expect(decode("[I", Java.array("int", [10, 20, 30, 40]), { offset: 2, length: 2 })).toEqual([30, 40]);
+        expect(decode("[S", Java.array("short", [1, 2, 3]), { offset: 1, length: 1 })).toEqual([2]);
+      });
+
+      it("decodes from the offset to the end without a length, and from the start without an offset", () => {
+        expect(decode("[I", Java.array("int", [1, 2, 3]), { offset: 1 })).toEqual([2, 3]);
+        expect(decode("[I", Java.array("int", [1, 2, 3]), { length: 2 })).toEqual([1, 2]);
+      });
+
+      it("cuts the slice to the array", () => {
+        expect(decode("[I", Java.array("int", [1, 2, 3]), { offset: 2, length: 10 })).toEqual([3]);
+        expect(decode("[I", Java.array("int", [1, 2, 3]), { offset: 5 })).toEqual([]);
+      });
+
+      it("decodes the slice of an object array", () => {
+        const strings = Java.array("java.lang.String", ["a", "b", "c"]);
+        expect(decode("[Ljava.lang.String;", strings, { offset: 1, length: 2 })).toEqual(["b", "c"]);
+      });
+
+      it("limits the slice to maxItems", () => {
+        expect(decode("[I", Java.array("int", [1, 2, 3, 4, 5]), { offset: 1, length: 4 }, 2)).toEqual([2, 3, "[truncated at 2]"]);
+      });
+
+      it("accepts a 64-bit decimal string and decodes an invalid value as null", () => {
+        expect(decode("[I", Java.array("int", [1, 2, 3]), { offset: "1" })).toEqual([2, 3]);
+        expect(decode("[I", Java.array("int", [1, 2, 3]), { length: -1 })).toBeNull();
+      });
+    });
   });
 });
 

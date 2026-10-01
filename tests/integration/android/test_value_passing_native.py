@@ -417,14 +417,14 @@ class TestValuePassingNative:
         assert count_matched_events(expected) == 1
 
     def test_buffer_with_decoder_arg_and_direction_inout(self, run_frooky, find_matched_events):
-        """`decoderArg` + `direction: inout` (see decoders.md): decode a length-bounded buffer before/after the call."""
+        """`decoderArgs: {length: ...}` + `direction: inout` (see decoders.md): decode a length-bounded buffer before/after the call."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_REFERENCE}
                 hooks:
                   - symbol: receive_byte_array
                     params:
-                      - ["unsigned char *", data, {{direction: inout, decoderArg: length}}]
+                      - ["unsigned char *", data, {{direction: inout, decoderArgs: {{length: length}}}}]
                       - [int, length]
             """)
 
@@ -438,7 +438,7 @@ class TestValuePassingNative:
         assert event["argsOut"][0]["value"] == "0xb79a939390"
 
     def test_null_terminated_buffer_with_direction_inout(self, run_frooky, count_matched_events):
-        """Without `decoderArg`, a `char *`/`unsigned char *` decodes as a NUL-terminated C string."""
+        """Without the role `length`, a `char *`/`unsigned char *` decodes as a NUL-terminated C string."""
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_REFERENCE}

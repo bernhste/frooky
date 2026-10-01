@@ -3,6 +3,8 @@ import { RecursiveDecoder } from "../../../shared/decoders/recursiveDecoder";
 import { Decodable } from "../../../shared/decoders/decodable";
 import { DecoderSettings } from "../../../shared/frookySettings";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
+import { DecoderArgValues, sliceBounds } from "../../../shared/decoders/decoderArgs";
+import { logger } from "../../../shared/logger";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "../javaDecoderResolver";
 
 // JNI array element signature to a declared type:
@@ -37,14 +39,39 @@ function elementTypeFromSignature(element: string): string {
   return element;
 }
 
-// Reads primitive array elements in bulk via JNI withElements to avoid per-element JNI pinning.
-export function decodePrimitiveArray(value: any, elementType: string, decodeLen: number): unknown[] {
+// Size in bytes of a primitive array element, by its type or JNI signature
+function primitiveSize(elementType: string): number {
+  switch (elementType.replace(/^\[/, "")) {
+    case "B":
+    case "byte":
+    case "Z":
+    case "boolean":
+      return 1;
+    case "S":
+    case "short":
+    case "C":
+    case "char":
+      return 2;
+    case "J":
+    case "long":
+    case "D":
+    case "double":
+      return 8;
+    default:
+      return 4;
+  }
+}
+
+// Reads `decodeLen` primitive array elements from index `start` in bulk via JNI withElements to avoid per-element
+// JNI pinning.
+export function decodePrimitiveArray(value: any, elementType: string, decodeLen: number, start: number = 0): unknown[] {
   if (decodeLen === 0) {
     return [];
   }
 
   if (typeof value?.withElements === "function") {
-    return value.withElements((elements: NativePointer) => {
+    return value.withElements((arrayElements: NativePointer) => {
+      const elements = arrayElements.add(start * primitiveSize(elementType));
       switch (elementType) {
         case "B":
         case "[B":
@@ -116,35 +143,44 @@ export function decodePrimitiveArray(value: any, elementType: string, decodeLen:
 
   const result = new Array(decodeLen);
   for (let i = 0; i < decodeLen; i++) {
-    result[i] = value[i];
+    result[i] = value[start + i];
   }
   return result;
 }
 
 export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
   readonly decoderName = "ArrayDecoder";
-  readonly description = "Decodes a Java array element by element, up to `maxItems` elements.";
+  readonly description =
+    "Decodes a Java array element by element, up to `maxItems` elements. The roles `offset` and `length` select a slice, e.g. of `SecretKeySpec(byte[] key, int offset, int len, String algorithm)`.";
 
-  public decode(value: Java.Wrapper, arg?: any): DecodedValue {
+  public decode(value: Java.Wrapper, args?: DecoderArgValues): DecodedValue {
     // checked before the depth limit, so null is never reported as truncated
     if (value == null) {
       return { type: this.type, name: this.name, value: null };
     }
-    return super.decode(value, arg);
+    return super.decode(value, args);
   }
 
-  protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings): DecodedValue {
+  protected decodeRecursive(value: Java.Wrapper, childSettings: DecoderSettings, args?: DecoderArgValues): DecodedValue {
     const signature = this.type;
     const elementSignature = signature.startsWith("[") ? signature.substring(1) : signature;
     const elementType = elementTypeFromSignature(elementSignature);
     const arrayLike = value as unknown as ArrayLike<unknown>;
     const maxItems = this.settings.maxItems;
-    const total: number = arrayLike.length;
+    let start: number;
+    let end: number;
+    try {
+      ({ start, end } = sliceBounds(args, arrayLike.length));
+    } catch (e) {
+      logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""}: ${e}`);
+      return { type: this.type, name: this.name, value: null };
+    }
+    const total = end - start;
     const decodeLen = Math.min(total, maxItems);
     let arrayValue: unknown[];
 
     if (JAVA_PRIMITIVE_TYPES.has(elementType)) {
-      arrayValue = decodePrimitiveArray(value, elementType, decodeLen);
+      arrayValue = decodePrimitiveArray(value, elementType, decodeLen, start);
     } else {
       // reference types and nested arrays
       const elementDecodable: Decodable = {
@@ -155,7 +191,7 @@ export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
       const elementDecoder = JavaDecoderResolver.resolveDecoder(elementDecodable);
       arrayValue = new Array(decodeLen);
       for (let i = 0; i < decodeLen; i++) {
-        const el = value[i];
+        const el = value[start + i];
         arrayValue[i] = el == null ? null : elementDecoder.decode(el).value;
       }
     }

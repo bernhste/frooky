@@ -172,11 +172,11 @@ describe("NativeHookValidator", () => {
       expect(message).toContain("Skipping hook for native function 'bad' from module 'libc.so' due to an invalid declaration:");
     });
 
-    it("skips a hook whose decoderArg does not name another param", () => {
+    it("skips a hook whose decoderArgs role does not name another param", () => {
       const writeHook: InputNativeHookNormalized = {
         symbol: "write",
         module: "libc.so",
-        params: ["int", ["const void *", { decoderArg: "count", decoder: "string" }], "size_t"],
+        params: ["int", ["const void *", "buf", { decoderArgs: { length: "count" }, decoder: "string" }], "size_t"],
       };
       const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", writeHook] };
 
@@ -185,7 +185,22 @@ describe("NativeHookValidator", () => {
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
       const [message] = warnSpy.mock.calls[0] as [string];
       expect(message).toContain("Skipping hook for native function 'write'");
-      expect(message).toContain("decoderArg: no parameter named 'count' found.");
+      expect(message).toContain("'length: count' names no parameter");
+    });
+
+    it("skips a hook that passes a role its decoder doesn't accept", () => {
+      const closeHook: InputNativeHookNormalized = {
+        symbol: "close",
+        module: "libc.so",
+        params: [["int", "fd", { decoder: "fd", decoderArgs: { length: 1 } }]],
+      };
+      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", closeHook] };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("decoder 'fd' doesn't accept the role 'length'. It accepts no decoderArgs.");
     });
 
     it("skips a hook whose retType declaration is in an unrecognized format, without aborting the rest of the collection", () => {

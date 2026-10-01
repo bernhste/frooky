@@ -1,6 +1,7 @@
 import type Java from "frida-java-bridge";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
+import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
@@ -56,3 +57,11 @@ export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
     return resolveTypeDecoder(decodable);
   },
 };
+
+// The `decoderArgs` roles the decoder of a parameter accepts, see docs/decoders-java.md
+export function acceptedJavaDecoderArgs(decodable: Decodable): readonly DecoderArgRole[] {
+  const decoder = decodable.settings.decoder;
+  if (decoder === "string") return decodable.type === "[B" || decodable.type === "[C" ? ["length", "offset"] : [];
+  if (decoder) return [];
+  return decodable.type.startsWith("[") ? ["length", "offset"] : [];
+}

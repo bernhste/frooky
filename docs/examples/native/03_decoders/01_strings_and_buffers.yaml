@@ -1,9 +1,9 @@
 metadata:
   name: "Decoders (Native): Strings and Buffers"
   description: |
-    `char *` is read as a NUL-terminated string. A `void *` buffer without a terminator needs its length
-    (`decoderArg`) and is shown as hex, or as text with `decoder: string`. If the function returns the
-    length, as `read` does, `decoderArg: $ret` passes the return value.
+    `char *` is read as a NUL-terminated string. A `void *` buffer without a terminator needs its length,
+    passed in the role `length` of `decoderArgs`, and is shown as hex, or as text with `decoder: string`.
+    If the function returns the length, as `read` does, `decoderArgs: { length: $ret }` passes it.
   version: 1
   author: frooky dev
   platform: Android
@@ -25,11 +25,11 @@ hookCollection:
     hooks:
       - symbol: send_message
         params:
-          - ["void *", buf, { decoderArg: len }]
+          - ["void *", buf, { decoderArgs: { length: len } }]
           - [int, len]
       - symbol: send_message
         params:
-          - ["void *", text, { decoderArg: len, decoder: string }]
+          - ["void *", text, { decoderArgs: { length: len }, decoder: string }]
           - [int, len]
 
       # int read_message(char *buf, int len) writes the 12 bytes of "Hello frooky" into a 32-byte buffer and
@@ -37,7 +37,7 @@ hookCollection:
       - symbol: read_message
         retType: int
         params:
-          - ["void *", buf, { direction: out, decoderArg: $ret, decoder: string }]
+          - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
           - [int, len]
 
 # Expected values (argsIn[0].value):

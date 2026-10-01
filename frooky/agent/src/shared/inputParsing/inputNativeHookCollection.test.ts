@@ -207,8 +207,8 @@ describe("inputNativeHookCollection", () => {
         ]);
       });
 
-      it("throws when a decoderArg is the return value of a hook without retType", () => {
-        const params: InputParam[] = ["int", ["void *", "buf", { direction: "out", decoderArg: "$ret" }], "size_t"];
+      it("throws when a decoderArgs role is the return value of a hook without retType", () => {
+        const params: InputParam[] = ["int", ["void *", "buf", { direction: "out", decoderArgs: { length: "$ret" } }], "size_t"];
         const withoutRetType: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",

@@ -1,5 +1,6 @@
 import { Decodable } from "./decodable";
 import { DecodedValue } from "./decodedValue";
+import { DecoderArgValues } from "./decoderArgs";
 import { DecoderSettings } from "../frookySettings";
 
 export abstract class Decoder<TValue> {
@@ -23,6 +24,6 @@ export abstract class Decoder<TValue> {
     return this.type;
   }
 
-  // `arg` is the decoded value of the param named by `decoderArg`
-  public abstract decode(value: TValue, arg?: any): DecodedValue;
+  // `args` are the values of the roles in `decoderArgs`, only set for the roles the decoder accepts
+  public abstract decode(value: TValue, args?: DecoderArgValues): DecodedValue;
 }

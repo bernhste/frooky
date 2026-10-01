@@ -1,4 +1,4 @@
-import { DecodedValue } from "../../shared/decoders/decodedValue";
+import { DecoderArgValues } from "../../shared/decoders/decoderArgs";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { FridaFundamentalType } from "./nativeFridaType";
@@ -8,7 +8,7 @@ import { NativeReferenceDecoder } from "./nativeReferenceDecoder";
 const makeDecoder = (pointee: FridaFundamentalType, settings: DecoderSettings = DEFAULT_DECODER_SETTINGS): NativeReferenceDecoder =>
   new NativeReferenceDecoder({ type: `${pointee}*`, settings }, { pointee, depth: 1 });
 
-const decodedArg = (value: unknown): DecodedValue => ({ type: "int", value });
+const lengthArg = (value: unknown): DecoderArgValues => ({ length: value });
 
 const writeWord = (ptr: NativePointer, value: number, signed: boolean): void => {
   if (Process.pointerSize < 8) {
@@ -125,7 +125,7 @@ describe("NativeReferenceDecoder", () => {
       expect(makeDecoder("double").decode(scratch)).toEqual({ type: "double*", value: 3.14159 });
     });
 
-    it("should decode char* as a UTF-8 string when no length arg is given", () => {
+    it("should decode char* as a UTF-8 string when no length is given", () => {
       const scratch = Memory.alloc(16);
       scratch.writeUtf8String("hello");
       expect(makeDecoder("char").decode(scratch)).toEqual({ type: "char*", value: "hello" });
@@ -138,57 +138,57 @@ describe("NativeReferenceDecoder", () => {
       expect(decoder.decode(scratch)).toEqual({ type: "char*", value: "hello..." });
     });
 
-    it("should use a char* length arg as the string length (via the native string decoder)", () => {
+    it("should use a char* length as the string length (via the native string decoder)", () => {
       const scratch = Memory.alloc(16);
       scratch.writeUtf8String("hello world");
-      expect(makeDecoder("char").decode(scratch, decodedArg(4))).toEqual({ type: "char*", value: "hell" });
+      expect(makeDecoder("char").decode(scratch, lengthArg(4))).toEqual({ type: "char*", value: "hell" });
     });
 
-    it("should decode uchar* as a UTF-8 string when no length arg is given", () => {
+    it("should decode uchar* as a UTF-8 string when no length is given", () => {
       const scratch = Memory.alloc(16);
       scratch.writeUtf8String("world");
       expect(makeDecoder("uchar").decode(scratch)).toEqual({ type: "uchar*", value: "world" });
     });
 
-    it("should decode void* to hex using a numeric length arg", () => {
+    it("should decode void* to hex using a numeric length", () => {
       const scratch = Memory.alloc(4);
       scratch.writeByteArray([0x41, 0x42, 0x43, 0x44]);
-      const result = makeDecoder("void").decode(scratch, decodedArg(4));
+      const result = makeDecoder("void").decode(scratch, lengthArg(4));
       expect(result).toEqual({ type: "void*", value: "0x41424344" });
     });
 
-    it("should decode void* using a decimal-string length arg (64-bit size_t)", () => {
+    it("should decode void* using a decimal-string length (64-bit size_t)", () => {
       const scratch = Memory.alloc(4);
       scratch.writeByteArray([0x41, 0x42, 0x43, 0x44]);
-      const result = makeDecoder("void").decode(scratch, decodedArg("4"));
+      const result = makeDecoder("void").decode(scratch, lengthArg("4"));
       expect(result).toEqual({ type: "void*", value: "0x41424344" });
     });
 
-    it("should clamp a void* length arg to the configured maxItems and append an ellipsis", () => {
+    it("should clamp a void* length to the configured maxItems and append an ellipsis", () => {
       const scratch = Memory.alloc(10);
       scratch.writeByteArray([0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a]);
       const decoder = makeDecoder("void", { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
-      const result = decoder.decode(scratch, decodedArg(10));
+      const result = decoder.decode(scratch, lengthArg(10));
       expect(result).toEqual({ type: "void*", value: "0x414243..." });
     });
 
-    it("should not append an ellipsis when the void* length arg is exactly maxItems", () => {
+    it("should not append an ellipsis when the void* length is exactly maxItems", () => {
       const scratch = Memory.alloc(3);
       scratch.writeByteArray([0x41, 0x42, 0x43]);
       const decoder = makeDecoder("void", { ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
-      expect(decoder.decode(scratch, decodedArg(3))).toEqual({ type: "void*", value: "0x414243" });
+      expect(decoder.decode(scratch, lengthArg(3))).toEqual({ type: "void*", value: "0x414243" });
     });
 
-    it("should return null for void* when the length arg isn't a number or numeric string", () => {
+    it("should return null for void* when the length isn't a number or numeric string", () => {
       const scratch = Memory.alloc(4);
-      const result = makeDecoder("void").decode(scratch, decodedArg("not-a-number"));
+      const result = makeDecoder("void").decode(scratch, lengthArg("not-a-number"));
       expect(result).toEqual({ type: "void*", value: null });
     });
 
-    it("should decode uchar* to hex using a numeric length arg", () => {
+    it("should decode uchar* to hex using a numeric length", () => {
       const scratch = Memory.alloc(3);
       scratch.writeByteArray([0x58, 0x59, 0x5a]);
-      const result = makeDecoder("uchar").decode(scratch, decodedArg(3));
+      const result = makeDecoder("uchar").decode(scratch, lengthArg(3));
       expect(result).toEqual({ type: "uchar*", value: "0x58595a" });
     });
 
@@ -259,18 +259,18 @@ describe("NativeReferenceDecoder", () => {
       expect(makeDeepDecoder("int", 1).decode(ptr(0x10)).value).toBeNull();
     });
 
-    it("decodes an int * with a decoderArg as an array of that many ints", () => {
-      expect(makeDeepDecoder("int", 1).decode(intArray([3, 1, 4]), decodedArg(3))).toEqual({ type: "int*", value: [3, 1, 4] });
+    it("decodes an int * with a length as an array of that many ints", () => {
+      expect(makeDeepDecoder("int", 1).decode(intArray([3, 1, 4]), lengthArg(3))).toEqual({ type: "int*", value: [3, 1, 4] });
     });
 
     it("accepts the count as a decimal string (64-bit size_t)", () => {
-      expect(makeDeepDecoder("int", 1).decode(intArray([3, 1, 4]), decodedArg("3")).value).toEqual([3, 1, 4]);
+      expect(makeDeepDecoder("int", 1).decode(intArray([3, 1, 4]), lengthArg("3")).value).toEqual([3, 1, 4]);
     });
 
     it("limits an array to maxItems elements", () => {
       const decoder = makeDeepDecoder("int", 1, { ...DEFAULT_DECODER_SETTINGS, maxItems: 2 });
 
-      expect(decoder.decode(intArray([3, 1, 4]), decodedArg(3)).value).toEqual([3, 1, "[truncated at 2]"]);
+      expect(decoder.decode(intArray([3, 1, 4]), lengthArg(3)).value).toEqual([3, 1, "[truncated at 2]"]);
     });
 
     it("steps by the size of the pointee", () => {
@@ -282,27 +282,27 @@ describe("NativeReferenceDecoder", () => {
       // not exactly representable as a JS number
       longs.add(8).writeS64(int64("9007199254740993"));
 
-      expect(makeDeepDecoder("double", 1).decode(doubles, decodedArg(2)).value).toEqual([1.5, -2.25]);
-      expect(makeDeepDecoder("int64", 1).decode(longs, decodedArg(2)).value).toEqual(["-1", "9007199254740993"]);
+      expect(makeDeepDecoder("double", 1).decode(doubles, lengthArg(2)).value).toEqual([1.5, -2.25]);
+      expect(makeDeepDecoder("int64", 1).decode(longs, lengthArg(2)).value).toEqual(["-1", "9007199254740993"]);
     });
 
-    it("decodes a char ** with a decoderArg as an array of strings", () => {
+    it("decodes a char ** with a length as an array of strings", () => {
       const strings = pointerArray([string("alpha"), ptr(0), string("gamma")]);
 
-      expect(makeDeepDecoder("char", 2).decode(strings, decodedArg(3))).toEqual({ type: "char**", value: ["alpha", null, "gamma"] });
+      expect(makeDeepDecoder("char", 2).decode(strings, lengthArg(3))).toEqual({ type: "char**", value: ["alpha", null, "gamma"] });
     });
 
-    it("decodes a void ** with a decoderArg as the addresses it holds", () => {
+    it("decodes a void ** with a length as the addresses it holds", () => {
       const pointers = pointerArray([ptr(0x1000), ptr(0)]);
 
-      expect(makeDeepDecoder("void", 2).decode(pointers, decodedArg(2)).value).toEqual(["0x1000", null]);
+      expect(makeDeepDecoder("void", 2).decode(pointers, lengthArg(2)).value).toEqual(["0x1000", null]);
     });
 
-    it("keeps the decoderArg of a char * a length in bytes", () => {
-      expect(makeDeepDecoder("char", 1).decode(Memory.allocUtf8String("abcdef"), decodedArg(3)).value).toBe("abc");
+    it("keeps the length of a char * a length in bytes", () => {
+      expect(makeDeepDecoder("char", 1).decode(Memory.allocUtf8String("abcdef"), lengthArg(3)).value).toBe("abc");
     });
 
-    it("decodes a void * without a decoderArg as its address", () => {
+    it("decodes a void * without a length as its address", () => {
       expect(makeDeepDecoder("void", 1).decode(ptr(0x1234)).value).toBe("0x1234");
     });
 
@@ -310,14 +310,32 @@ describe("NativeReferenceDecoder", () => {
       const buffer = Memory.allocUtf8String("abc");
       keepAlive.push(buffer);
 
-      expect(makeDeepDecoder("void", 1).decode(buffer, decodedArg(-1)).value).toBeNull();
-      expect(makeDeepDecoder("uchar", 1).decode(buffer, decodedArg(-1)).value).toBeNull();
-      expect(makeDeepDecoder("char", 1).decode(buffer, decodedArg(-1)).value).toBeNull();
+      expect(makeDeepDecoder("void", 1).decode(buffer, lengthArg(-1)).value).toBeNull();
+      expect(makeDeepDecoder("uchar", 1).decode(buffer, lengthArg(-1)).value).toBeNull();
+      expect(makeDeepDecoder("char", 1).decode(buffer, lengthArg(-1)).value).toBeNull();
     });
 
     it("decodes an invalid count as null", () => {
-      expect(makeDeepDecoder("int", 1).decode(intArray([1]), decodedArg("many")).value).toBeNull();
-      expect(makeDeepDecoder("int", 1).decode(intArray([1]), decodedArg(-1)).value).toBeNull();
+      expect(makeDeepDecoder("int", 1).decode(intArray([1]), lengthArg("many")).value).toBeNull();
+      expect(makeDeepDecoder("int", 1).decode(intArray([1]), lengthArg(-1)).value).toBeNull();
+    });
+
+    describe("the role offset", () => {
+      it("skips that many elements of an array", () => {
+        expect(makeDeepDecoder("int", 1).decode(intArray([3, 1, 4, 1]), { offset: 1, length: 2 }).value).toEqual([1, 4]);
+        expect(makeDeepDecoder("char", 2).decode(pointerArray([string("a"), string("b")]), { offset: 1, length: 1 }).value).toEqual(["b"]);
+      });
+
+      it("skips that many bytes of a buffer or string", () => {
+        const buffer = string("--secret--");
+        expect(makeDeepDecoder("char", 1).decode(buffer, { offset: 2, length: 6 }).value).toBe("secret");
+        expect(makeDeepDecoder("char", 1).decode(buffer, { offset: 2 }).value).toBe("secret--");
+        expect(makeDeepDecoder("void", 1).decode(buffer, { offset: 2, length: 2 }).value).toBe("0x7365");
+      });
+
+      it("reads one element at the offset without a length", () => {
+        expect(makeDeepDecoder("int", 1).decode(intArray([3, 1, 4]), { offset: 2 }).value).toBe(4);
+      });
     });
 
     describe("decoder: nullTerminated", () => {
@@ -328,6 +346,10 @@ describe("NativeReferenceDecoder", () => {
         const argv = pointerArray([string("ls"), string("-l"), ptr(0), string("not read")]);
 
         expect(makeNullTerminatedDecoder("char *const *").decode(argv)).toEqual({ type: "char *const *", value: ["ls", "-l"] });
+      });
+
+      it("decodes a char * like without the decoder, up to its \\0", () => {
+        expect(makeNullTerminatedDecoder("char *").decode(string("test")).value).toBe("test");
       });
 
       it("decodes an array declared with []", () => {
@@ -344,6 +366,12 @@ describe("NativeReferenceDecoder", () => {
 
         expect(makeNullTerminatedDecoder("char **", 2).decode(argv).value).toEqual(["a", "b", "[truncated at 2]"]);
         expect(makeNullTerminatedDecoder("char **", 3).decode(argv).value).toEqual(["a", "b", "c"]);
+      });
+
+      it("skips the first elements with the role offset", () => {
+        const argv = pointerArray([string("ls"), string("-l"), ptr(0)]);
+
+        expect(makeNullTerminatedDecoder("char **").decode(argv, { offset: 1 }).value).toEqual(["-l"]);
       });
 
       it("decodes the elements of an unknown pointer type as addresses", () => {

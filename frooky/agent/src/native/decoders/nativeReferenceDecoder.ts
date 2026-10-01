@@ -4,11 +4,12 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { logger } from "../../shared/logger";
 import { toHex } from "../../shared/utils";
-import { parseLengthArgValue } from "./nativeDecoderArg";
+import { countArg, DecoderArgValues } from "../../shared/decoders/decoderArgs";
 import { FridaFundamentalType, FridaReferenceType } from "./nativeFridaType";
 import { decodeNativeString } from "./nativeStringDecoder";
 
-type ReferenceDecoder = (input: NativePointer, setting: DecoderSettings, arg?: DecodedValue) => any;
+// `length` is the role `length` in bytes, only passed for `void *`, `char *` and `unsigned char *`
+type ReferenceDecoder = (input: NativePointer, setting: DecoderSettings, length?: number) => any;
 
 const readWord = (input: NativePointer, signed: boolean): number | string => {
   if (Process.pointerSize < 8) {
@@ -25,42 +26,13 @@ const readHex = (input: NativePointer, length: number, maxItems: number): string
 };
 
 const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
-  void: (input, setting, arg) => {
-    // the pointee is unknown without a decoderArg (the buffer length), so only the address is shown
-    if (!arg) return input.toString();
-    try {
-      if (arg) {
-        const length = parseLengthArgValue(arg.value);
-        if (length === undefined) {
-          throw Error(`void * Decoder: Argument must be a number, but it is: ${arg.value}`);
-        }
-        logger.debug(`void * Decoder: Decoder argument passed: ${length}`);
-        return readHex(input, length, setting.maxItems);
-      }
-    } catch (e) {
-      logger.warn(`Unable to decode void *: ${e}`);
-      return null;
-    }
-  },
+  // the pointee is unknown without a length, so only the address is shown
+  void: (input, setting, length) => (length === undefined ? input.toString() : readHex(input, length, setting.maxItems)),
   bool: (input) => input.readU8() !== 0,
-  char: (input, setting, arg) => decodeNativeString(input, setting, arg, "char *"),
+  char: (input, setting, length) => decodeNativeString(input, setting, length === undefined ? undefined : { length }, "char *"),
   int8: (input) => input.readS8(),
-  uchar: (input, setting, arg) => {
-    try {
-      if (arg) {
-        const length = parseLengthArgValue(arg.value);
-        if (length === undefined) {
-          throw Error(`Argument for uchar * decoder must be a number, but it is: ${arg.value}`);
-        }
-        return readHex(input, length, setting.maxItems);
-      } else {
-        return decodeNativeString(input, setting, undefined, "unsigned char *");
-      }
-    } catch (e) {
-      logger.warn(`Unable to decode uchar *: ${e}`);
-      return null;
-    }
-  },
+  uchar: (input, setting, length) =>
+    length === undefined ? decodeNativeString(input, setting, undefined, "unsigned char *") : readHex(input, length, setting.maxItems),
   uint8: (input) => input.readU8(),
   int16: (input) => input.readS16(),
   uint16: (input) => input.readU16(),
@@ -104,17 +76,17 @@ const POINTEE_SIZES: Record<FridaFundamentalType, () => number> = {
   double: () => 8,
 };
 
-// For these, a decoderArg is the length of a buffer in bytes, not a number of elements
+// For these, the role `length` is the length of a buffer in bytes, not a number of elements
 const BUFFER_POINTEES = new Set<FridaFundamentalType>(["void", "char", "uchar"]);
 
-// A `T *` is read as one T, a `T **` follows the pointer and reads the `T *` it points to, and so on. With a
-// decoderArg, the outermost pointer is an array of that many elements, e.g. `int *` with 3 is [1, 2, 3] and
-// `char **` with 2 is ["a", "b"]. For `void *`, `char *` and `unsigned char *` the decoderArg is a buffer
-// length instead (see referenceDecoders). A NULL pointer on any level is null.
+// A `T *` is read as one T, a `T **` follows the pointer and reads the `T *` it points to, and so on. With the
+// role `length`, the outermost pointer is an array of that many elements, e.g. `int *` with 3 is [1, 2, 3] and
+// `char **` with 2 is ["a", "b"]; for `void *`, `char *` and `unsigned char *` it is a length in bytes instead
+// (see referenceDecoders). The role `offset` skips elements (or bytes) first. A NULL pointer on any level is null.
 export class NativeReferenceDecoder extends Decoder<NativePointer> {
   readonly decoderName: string = "NativeReferenceDecoder";
   readonly description: string =
-    "Decodes a native pointer by reading what it points to as its declared type, e.g. `char *` as a string, `int *` as an int, `char **` by following both pointers, or an array with the number of elements from `decoderArg`.";
+    "Decodes a native pointer by reading what it points to as its declared type, e.g. `char *` as a string, `int *` as an int, `char **` by following both pointers, or an array with the roles `length` and `offset` of `decoderArgs`.";
 
   protected fridaReference: FridaReferenceType;
 
@@ -123,10 +95,13 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
     this.fridaReference = fridaReference;
   }
 
-  public decode(value: NativePointer, arg?: DecodedValue): DecodedValue {
+  public decode(value: NativePointer, args?: DecoderArgValues): DecodedValue {
     let decoded: unknown;
     try {
-      decoded = this.decodePointer(value, this.fridaReference.depth, arg);
+      const { depth } = this.fridaReference;
+      const offset = countArg(args, "offset") ?? 0;
+      const start = value.isNull() ? value : value.add(offset * this.elementSize(depth));
+      decoded = this.decodePointer(start, depth, countArg(args, "length"));
     } catch (e) {
       logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} at ${value}: ${e}`);
       decoded = null;
@@ -138,28 +113,29 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
     };
   }
 
-  protected decodePointer(pointer: NativePointer, depth: number, arg?: DecodedValue): unknown {
+  // Size in bytes of what a pointer of this depth points to: a pointer for `T **`, else one T
+  protected elementSize(depth: number): number {
+    return depth > 1 ? Process.pointerSize : POINTEE_SIZES[this.fridaReference.pointee]();
+  }
+
+  protected decodePointer(pointer: NativePointer, depth: number, length?: number): unknown {
     if (pointer.isNull()) return null;
     const pointee = this.fridaReference.pointee;
-    if (arg && !(depth === 1 && BUFFER_POINTEES.has(pointee))) {
-      return this.decodeArray(pointer, depth, arg);
+    if (length !== undefined && !(depth === 1 && BUFFER_POINTEES.has(pointee))) {
+      return this.decodeArray(pointer, depth, length);
     }
     if (depth > 1) {
       return this.decodePointer(pointer.readPointer(), depth - 1);
     }
-    return referenceDecoders[pointee](pointer, this.settings, arg);
+    return referenceDecoders[pointee](pointer, this.settings, length);
   }
 
   // The elements of a pointer to `count` elements, at most `maxItems` of them.
-  private decodeArray(pointer: NativePointer, depth: number, arg: DecodedValue): unknown[] {
-    const count = parseLengthArgValue(arg.value);
-    if (count === undefined || count < 0) {
-      throw Error(`decoderArg must be a non-negative number of elements, but it is: ${arg.value}`);
-    }
+  private decodeArray(pointer: NativePointer, depth: number, count: number): unknown[] {
     const maxItems = this.settings.maxItems;
     const decodeLen = Math.min(count, maxItems);
     const pointee = this.fridaReference.pointee;
-    const stride = depth > 1 ? Process.pointerSize : POINTEE_SIZES[pointee]();
+    const stride = this.elementSize(depth);
 
     const items: unknown[] = new Array(decodeLen);
     for (let i = 0; i < decodeLen; i++) {
@@ -179,10 +155,13 @@ export class NativeNullTerminatedArrayDecoder extends NativeReferenceDecoder {
   readonly decoderName = "NativeNullTerminatedArrayDecoder";
   readonly description = "Decodes a pointer to pointers, e.g. `char **`, as an array that ends at a NULL pointer, like the `argv` of execve.";
 
-  public decode(value: NativePointer): DecodedValue {
+  public decode(value: NativePointer, args?: DecoderArgValues): DecodedValue {
     let decoded: unknown;
     try {
-      decoded = this.fridaReference.depth < 2 ? this.decodePointer(value, this.fridaReference.depth) : this.decodeElements(value);
+      const { depth } = this.fridaReference;
+      const offset = countArg(args, "offset") ?? 0;
+      const start = value.isNull() ? value : value.add(offset * this.elementSize(depth));
+      decoded = depth < 2 ? this.decodePointer(start, depth) : this.decodeElements(start);
     } catch (e) {
       logger.warn(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""} at ${value}: ${e}`);
       decoded = null;

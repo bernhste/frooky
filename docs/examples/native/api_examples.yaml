@@ -60,9 +60,9 @@ hookCollection:
       retType: int
       params:
       - ["EVP_CIPHER_CTX *", ctx]
-      - ["unsigned char *", out, { direction: out, decoderArg: outl }]
+      - ["unsigned char *", out, { direction: out, decoderArgs: { length: outl } }]
       - ["int *", outl, { direction: out }]
-      - ["const unsigned char *", in, { decoderArg: inl }]
+      - ["const unsigned char *", in, { decoderArgs: { length: inl } }]
       - [int, inl]
 
   # `key` and `iv` have no length parameter: their lengths depend on the cipher (e.g. 32 and 12 bytes for
@@ -81,7 +81,7 @@ hookCollection:
       - ["const void *", key]
       - ["const void *", iv]
 
-  # `decoderArg` passes the length of `buf`, since it isn't NUL-terminated.
+  # The role `length` passes the length of `buf`, since it isn't NUL-terminated.
   # Docs: https://docs.openssl.org/master/man3/SSL_write/
   - module: libssl.so
     hooks:
@@ -89,12 +89,12 @@ hookCollection:
       retType: int
       params:
       - ["SSL *", ssl]
-      - ["const void *", buf, { decoderArg: num }]
+      - ["const void *", buf, { decoderArgs: { length: num } }]
       - [int, num]
 
 
   # `read` writes up to `count` bytes into `buf` and returns how many it wrote, so `buf` is decoded on return
-  # (`direction: out`) with the return value as its length (`decoderArg: $ret`). A return value of -1 (an
+  # (`direction: out`) with the return value in the role `length` (`decoderArgs: { length: $ret }`). A return value of -1 (an
   # error) decodes `buf` as null. `decoder: fd` shows the file, socket or pipe that `fd` refers to.
   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
   - module: libc.so
@@ -103,7 +103,7 @@ hookCollection:
       retType: ssize_t
       params:
       - [int, fd, { decoder: fd }]
-      - [void *, buf, { direction: out, decoderArg: $ret, decoder: string, maxItems: 100 }]
+      - [void *, buf, { direction: out, decoderArgs: { length: $ret }, decoder: string, maxItems: 100 }]
       - [size_t, count]
 
   # The same for TLS: the plaintext an app receives, before it's parsed.
@@ -114,11 +114,11 @@ hookCollection:
       retType: int
       params:
       - ["SSL *", ssl]
-      - ["void *", buf, { direction: out, decoderArg: $ret, decoder: string }]
+      - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
       - [int, num]
 
   # Use `decoder: string` to decode a buffer as text instead of hex/ASCII.
-  # `decoderArg` passes the buffer length, since `buf` is not NUL-terminated.
+  # The role `length` passes the buffer length, since `buf` is not NUL-terminated.
   # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
   - module: libc.so
     hooks:
@@ -126,7 +126,7 @@ hookCollection:
       retType: ssize_t
       params:
       - int
-      - [const void *, buf , { decoderArg: count, decoder: string, maxItems: 200 }]
+      - [const void *, buf , { decoderArgs: { length: count }, decoder: string, maxItems: 200 }]
       - [size_t, count]
 
   # Flags and enums of system calls with the built-in presets, e.g. `open` flags as ["O_WRONLY", "O_CREAT"].

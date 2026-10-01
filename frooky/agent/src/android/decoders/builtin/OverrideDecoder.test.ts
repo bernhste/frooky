@@ -1,6 +1,7 @@
 import type Java from "frida-java-bridge";
 import { Decoder } from "../../../shared/decoders/baseDecoder";
 import { Decodable } from "../../../shared/decoders/decodable";
+import { DecoderArgValues } from "../../../shared/decoders/decoderArgs";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
 import { OverrideDecoder } from "./OverrideDecoder";
@@ -18,8 +19,8 @@ class FailingDecoder extends Decoder<Java.Wrapper> {
 class EchoDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "EchoDecoder";
 
-  decode(value: Java.Wrapper, arg?: any): DecodedValue {
-    return { type: this.type, name: this.name, value: arg === undefined ? value : [value, arg] };
+  decode(value: Java.Wrapper, args?: DecoderArgValues): DecodedValue {
+    return { type: this.type, name: this.name, value: args === undefined ? value : [value, args] };
   }
 }
 
@@ -32,10 +33,10 @@ describe("OverrideDecoder", () => {
     expect(decoder.decoderName).toBe("FailingDecoder");
   });
 
-  it("returns the result of the override and passes the decoder argument", () => {
+  it("returns the result of the override and passes the decoderArgs", () => {
     const decoder = new OverrideDecoder(decodable, new EchoDecoder(decodable), new FailingDecoder(decodable));
 
-    expect(decoder.decode(5 as unknown as Java.Wrapper, 7)).toEqual({ type: "int", name: "flags", value: [5, 7] });
+    expect(decoder.decode(5 as unknown as Java.Wrapper, { length: 7 })).toEqual({ type: "int", name: "flags", value: [5, { length: 7 }] });
   });
 
   it("decodes with the fallback decoder when the override throws, on every call", () => {

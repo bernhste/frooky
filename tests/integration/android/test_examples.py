@@ -285,6 +285,16 @@ class TestAndroidExamples:
         assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "trackEvent")] == [["button_click"]]
         assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "receiveInt")] == [[2147483647]]
 
+    def test_decoder_args(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/04_decoder_settings/04_decoder_args.yaml"), JAVA_APP)
+
+        # the framework may create other keys, the app's key has the offset 16
+        keys = [event for event in find_matched_events({"javaClassName": "javax.crypto.spec.SecretKeySpec"}) if event["argsIn"][1]["value"] == 16]
+        assert len(keys) == 1
+        assert _values(keys[0]["argsIn"]) == [list(range(16, 32)), 16, 16, "AES"]
+        [packet] = self._events(find_matched_events, "sendPacket")
+        assert _values(packet["argsIn"]) == ["hello frooky", 7, 12]
+
     def test_platform_stack_trace(self, run_frooky, find_matched_events):
         run_frooky(_example("android/05_hook_settings/01_platform_stack_trace.yaml"), JAVA_APP)
 

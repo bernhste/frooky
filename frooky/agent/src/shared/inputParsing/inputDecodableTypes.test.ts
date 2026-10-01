@@ -1,6 +1,12 @@
 import { Decodable as RetType, Param } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../defaultValues";
-import { InputRetTypeSettings, normalizeInputParams, normalizeInputRetType, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
+import {
+  InputRetTypeSettings,
+  normalizeInputParams,
+  normalizeInputRetType,
+  normalizeInputRetTypeSettings,
+  validateDecoderArgRoles,
+} from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
 
 describe("inputDecodableTypes", () => {
@@ -80,41 +86,80 @@ describe("inputDecodableTypes", () => {
     });
   });
 
-  describe("normalizeInputParams(), decoderArg references", () => {
-    it("accepts a decoderArg that names another param", () => {
-      const params = normalizeInputParams(["int", ["const void *", { decoderArg: "count" }], ["size_t", "count"]]);
-      expect(params[1].settings.decoderArg).toBe("count");
-      expect(params[2].name).toBe("count");
+  describe("normalizeInputParams(), decoderArgs", () => {
+    it("accepts the roles with another param, a number or the return value", () => {
+      const params = normalizeInputParams([
+        ["[B", "key", { decoderArgs: { offset: "offset", length: 16 } }],
+        ["int", "offset"],
+        ["void *", "buf", { direction: "out", decoderArgs: { length: "$ret" } }],
+      ]);
+      expect(params[0].settings.decoderArgs).toEqual({ offset: "offset", length: 16 });
+      expect(params[2].settings.decoderArgs).toEqual({ length: "$ret" });
     });
 
-    it("throws when no param has the decoderArg name", () => {
-      expect(() => normalizeInputParams(["int", ["const void *", { decoderArg: "count" }], "size_t"])).toThrow(
-        "decoderArg: no parameter named 'count' found. Name the parameter whose runtime value you want to pass to the decoder.",
+    it("throws for decoderArg, which is no setting", () => {
+      expect(() =>
+        normalizeInputParams([
+          ["const void *", "buf", { decoderArg: "count" } as never],
+          ["size_t", "count"],
+        ]),
+      ).toThrow("'decoderArg' is no decoder setting. Pass the value by its role, e.g. 'decoderArgs: { length: len }' on 'buf'.");
+    });
+
+    it("throws for an unknown role", () => {
+      expect(() =>
+        normalizeInputParams([
+          ["const void *", "buf", { decoderArgs: { size: "count" } as never }],
+          ["size_t", "count"],
+        ]),
+      ).toThrow("decoderArgs of 'buf': 'size' is no role. The roles are: length, offset.");
+    });
+
+    it("throws when no param has the name", () => {
+      expect(() => normalizeInputParams(["int", ["const void *", "buf", { decoderArgs: { length: "count" } }], "size_t"])).toThrow(
+        "decoderArgs of 'buf': 'length: count' names no parameter. Use the name of another parameter, '$ret' or a number.",
       );
     });
 
-    it("throws when decoderArg references the param itself", () => {
-      expect(() => normalizeInputParams([["const void *", "buf", { decoderArg: "buf" }], "size_t"])).toThrow("refers to the parameter itself");
+    it("throws for a number that is no count", () => {
+      expect(() => normalizeInputParams([["const void *", "buf", { decoderArgs: { length: -1 } }]])).toThrow("must be a non-negative integer");
+      expect(() => normalizeInputParams([["const void *", "buf", { decoderArgs: { offset: 1.5 } }]])).toThrow("must be a non-negative integer");
     });
 
-    it("throws when decoderArg names more than one param", () => {
+    it("throws when a role names the param itself", () => {
+      expect(() => normalizeInputParams([["const void *", "buf", { decoderArgs: { length: "buf" } }], "size_t"])).toThrow("is the parameter itself");
+    });
+
+    it("throws when a role names more than one param", () => {
       expect(() =>
         normalizeInputParams([
-          ["const void *", { decoderArg: "n" }],
+          ["const void *", { decoderArgs: { length: "n" } }],
           ["size_t", "n"],
           ["int", "n"],
         ]),
       ).toThrow("more than one parameter is named");
     });
 
-    it("accepts the return value as decoderArg of an out param", () => {
-      const params = normalizeInputParams(["int", ["void *", "buf", { direction: "out", decoderArg: "$ret" }], ["size_t", "count"]]);
-      expect(params[1].settings.decoderArg).toBe("$ret");
+    it("throws when the return value is passed to a param decoded on entry", () => {
+      expect(() => normalizeInputParams(["int", ["void *", "buf", { decoderArgs: { length: "$ret" } }]])).toThrow("Set 'direction: out' on 'buf'");
+      expect(() => normalizeInputParams(["int", ["void *", "buf", { direction: "inout", decoderArgs: { length: "$ret" } }]])).toThrow(
+        "Set 'direction: out'",
+      );
+    });
+  });
+
+  describe("validateDecoderArgRoles()", () => {
+    const params = normalizeInputParams([["[B", "key", { decoderArgs: { offset: 1, length: 2 } }], "int"]);
+
+    it("accepts roles the decoder accepts", () => {
+      expect(() => validateDecoderArgRoles(params, () => ["length", "offset"])).not.toThrow();
     });
 
-    it("throws when the return value is the decoderArg of a param decoded on entry", () => {
-      expect(() => normalizeInputParams(["int", ["void *", "buf", { decoderArg: "$ret" }]])).toThrow("Set 'direction: out' on 'buf'");
-      expect(() => normalizeInputParams(["int", ["void *", "buf", { direction: "inout", decoderArg: "$ret" }]])).toThrow("Set 'direction: out'");
+    it("throws for a role the decoder doesn't accept, naming the accepted ones", () => {
+      expect(() => validateDecoderArgRoles(params, () => ["length"])).toThrow(
+        "decoderArgs of 'key': the decoder of '[B' doesn't accept the role 'offset'. It accepts: length.",
+      );
+      expect(() => validateDecoderArgRoles(params, () => [])).toThrow("doesn't accept the roles 'offset', 'length'. It accepts no decoderArgs.");
     });
   });
 

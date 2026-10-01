@@ -6,7 +6,7 @@ How frooky decodes the parameters and return values of native (C/C++) functions.
 
 - [How frooky Picks a Decoder](#how-frooky-picks-a-decoder)
 - [Pointers and Arrays](#pointers-and-arrays)
-- [`decoderArg`: Lengths and Counts](#decoderarg-lengths-and-counts)
+- [`decoderArgs`: Length and Offset](#decoderargs-length-and-offset)
 - [File Descriptors](#file-descriptors)
 - [Flags and Enums](#flags-and-enums)
 - [Named Decoders](#named-decoders)
@@ -29,16 +29,16 @@ A native value has no runtime type, so frooky decodes it by the type declared in
 
 ## Pointers and Arrays
 
-A pointer is read as its declared type: `int *` as one `int`, `char *` as a NUL-terminated string, `char **` by following both pointers to the string, and so on for every `*`. A NULL pointer on any level is `null`, as is memory that can't be read. A `void *` without a `decoderArg` is shown as its address, since its contents are unknown.
+A pointer is read as its declared type: `int *` as one `int`, `char *` as a NUL-terminated string, `char **` by following both pointers to the string, and so on for every `*`. A NULL pointer on any level is `null`, as is memory that can't be read. A `void *` without the role `length` is shown as its address, since its contents are unknown.
 
-With a `decoderArg`, a pointer is an array with that many elements: `int *` with `count: 3` is `[3, 1, 4]`, and `char **` with `count: 2` is `["alpha", "beta"]`. At most `maxItems` elements are decoded. For `void *`, `char *` and `unsigned char *`, the `decoderArg` is the length of the buffer in bytes instead.
+With the role `length` in `decoderArgs`, a pointer is an array with that many elements: `int *` with a length of 3 is `[3, 1, 4]`, and `char **` with a length of 2 is `["alpha", "beta"]`. At most `maxItems` elements are decoded. For `void *`, `char *` and `unsigned char *`, the length is in bytes instead, see [`decoderArgs`](#decoderargs-length-and-offset).
 
 ```yaml
 module: libreceiveFundamentalReference.so
 hooks:
   - symbol: count_chars
     params:
-      - [ "const char **", strings, { decoderArg: count } ]
+      - [ "const char **", strings, { decoderArgs: { length: count } } ]
       - [ int, count ]
 ```
 
@@ -57,22 +57,40 @@ hooks:
       - [ "char *const []", envp, { decoder: nullTerminated, maxItems: 20 } ]
 ```
 
-`argv` is decoded as e.g. `["ls", "-l", "/sdcard"]`. The elements are decoded as the type one `*` less, here `char *`. For a pointee frooky doesn't know, e.g. `FILE **`, they are shown as addresses.
+An array of strings has two kinds of terminators. Each string ends with a `\0` byte, and the array of pointers ends with a NULL pointer (8 zero bytes in a 64-bit app). For `char *const argv[] = {"ls", "-l", "/sdcard", NULL}`, the memory looks like this (with made-up addresses):
+
+```text
+argv ─► 0x7f00a000:  00 b0 00 00 7f 00 00 00   → 0x7f0000b000  argv[0]
+        0x7f00a008:  10 b0 00 00 7f 00 00 00   → 0x7f0000b010  argv[1]
+        0x7f00a010:  20 b0 00 00 7f 00 00 00   → 0x7f0000b020  argv[2]
+        0x7f00a018:  00 00 00 00 00 00 00 00   → NULL, the end of the array
+
+0x7f0000b000:  6c 73 00                  "ls\0"
+0x7f0000b010:  2d 6c 00                  "-l\0"
+0x7f0000b020:  2f 73 64 63 61 72 64 00   "/sdcard\0"
+```
+
+A string is always read up to its `\0`. `decoder: nullTerminated` adds the outer loop: frooky reads one pointer after the other until it reaches the NULL pointer, and decodes each element as the type with one `*` less, here `char *`. So `argv` is decoded as `["ls", "-l", "/sdcard"]`. Without `nullTerminated`, only the first pointer is followed (`"ls"`), and with `decoderArgs: { length: argc }` exactly `argc` elements are read.
+
+For a pointee frooky doesn't know, e.g. `FILE **`, the elements are shown as addresses. On a single pointer such as `char *`, `nullTerminated` has no effect: the string is read up to its `\0`, as without the decoder.
 
 See [`02_pointers_and_arrays.yaml`](examples/native/03_decoders/02_pointers_and_arrays.yaml).
 
-## `decoderArg`: Lengths and Counts
+## `decoderArgs`: Length and Offset
 
-`decoderArg` passes the value of another parameter, or with `$ret` the return value, to the decoder (see [`decoderArg`](./decoders.md#decoderarg-pass-arguments-to-decoder)). What the value means depends on the decoder of the parameter:
+`decoderArgs` passes values to the decoder of a parameter, each in a role (see [`decoderArgs`](./decoders.md#decoderargs-pass-values-to-the-decoder-by-role)). Native decoders accept these roles:
 
-| Decoder of the parameter                       | `decoderArg` is                                                         |
-| ---------------------------------------------- | ----------------------------------------------------------------------- |
-| `void *`, `unsigned char *`                    | The length of the buffer in bytes, decoded as hex                       |
-| `char *`, and `decoder: string` on any pointer | The length of the string in bytes. NUL bytes in it don't end it.        |
-| Other pointers (`int *`, `char **`, ...)       | The number of elements, see [Pointers and Arrays](#pointers-and-arrays) |
-| Values passed by value, and unknown types      | Ignored                                                                 |
+| Decoder of the parameter                                                                   | Role `length`                                                          | Role `offset`                    |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------- |
+| `void *`, `unsigned char *`                                                                | Bytes of the buffer, decoded as hex                                    | Bytes to skip                    |
+| `char *`, and `decoder: string` on any pointer                                             | Bytes of the string. NUL bytes in it don't end it.                     | Bytes to skip                    |
+| Other pointers (`int *`, `char **`, ...)                                                   | Elements of the array, see [Pointers and Arrays](#pointers-and-arrays) | Elements to skip                 |
+| `decoder: nullTerminated`                                                                  | –                                                                      | Elements to skip, e.g. `argv[0]` |
+| Values passed by value, unknown types, and the other decoders (`fd`, `enum`, `flags`, ...) | –                                                                      | –                                |
 
-A value that isn't a non-negative number, such as `-1` when `read` fails, decodes the parameter as `null`.
+Without `offset`, decoding starts at the pointer. Without `length`, a `char *` ends at its `\0`, and other pointers are read as one element. C usually passes a slice as a pointer to its start (`buf + off`), so `offset` is only needed for APIs that pass the start and the offset separately.
+
+A value that isn't a non-negative integer, such as `-1` when `read` fails, decodes the parameter as `null`.
 
 [`send`](https://www.man7.org/linux/man-pages/man2/send.2.html) passes the length of `buf` as `len`:
 
@@ -83,7 +101,7 @@ hooks:
     retType: ssize_t
     params:
       - [int, sockfd]
-      - [const void *, buf, { decoderArg: len, decoder: string }]
+      - [const void *, buf, { decoderArgs: { length: len }, decoder: string }]
       - [size_t, len]
       - [int, flags]
 ```
@@ -97,7 +115,7 @@ hooks:
     retType: ssize_t
     params:
       - [int, fd]
-      - [void *, buf, { direction: out, decoderArg: $ret, decoder: string }]
+      - [void *, buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
       - [size_t, count]
 ```
 
@@ -120,9 +138,9 @@ hooks:
     retType: int
     params:
       - [ "EVP_CIPHER_CTX *", ctx ]
-      - [ "unsigned char *", out, { direction: out, decoderArg: outl } ]
+      - [ "unsigned char *", out, { direction: out, decoderArgs: { length: outl } } ]
       - [ "int *", outl, { direction: out } ]
-      - [ "const unsigned char *", in, { decoderArg: inl } ]
+      - [ "const unsigned char *", in, { decoderArgs: { length: inl } } ]
       - [ int, inl ]
 ```
 
@@ -156,7 +174,7 @@ hooks:
     retType: ssize_t
     params:
       - [ int, fd, { decoder: fd } ]
-      - [ "void *", buf, { direction: out, decoderArg: $ret, decoder: string } ]
+      - [ "void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string } ]
       - [ size_t, count ]
 ```
 
@@ -220,9 +238,9 @@ Native hooks have these registered decoders:
 - `fd`: decodes an `int` file descriptor to the file, socket or pipe it refers to, see [File Descriptors](#file-descriptors).
 - `enum` and `flags`: decode an integer to the names in `constants`, see [Flags and Enums](#flags-and-enums). The presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain` and `socketType` have the constants built in.
 - `nullTerminated`: decodes a pointer to pointers, e.g. `char **`, as an array that ends at a NULL pointer, see [Pointers and Arrays](#pointers-and-arrays).
-- `string`: decodes a pointer (`void *`, ...) as a UTF-8 string, or as ASCII if the bytes aren't valid UTF-8. Without a `decoderArg`, the string ends at its NUL terminator. With a `decoderArg`, that parameter's value is the buffer length and exactly that many bytes are decoded, so buffers that aren't NUL-terminated can be decoded too. NUL bytes inside the buffer don't end the string; they are decoded like any other byte (as `.` when decoded as ASCII). At most `maxItems` bytes are decoded, and a longer string ends with `...`.
+- `string`: decodes a pointer (`void *`, ...) as a UTF-8 string, or as ASCII if the bytes aren't valid UTF-8. Without the role `length`, the string ends at its NUL terminator. With it, exactly that many bytes are decoded, so buffers that aren't NUL-terminated can be decoded too. The role `offset` skips bytes at the start. NUL bytes inside the buffer don't end the string; they are decoded like any other byte (as `.` when decoded as ASCII). At most `maxItems` bytes are decoded, and a longer string ends with `...`.
 
-`char *` is always decoded this way, and so is `unsigned char *` without a `decoderArg`, so they don't need `decoder: string`.
+`char *` is always decoded this way, and so is `unsigned char *` without the role `length`, so they don't need `decoder: string`.
 
 ```yaml
 module: libc.so
@@ -231,7 +249,7 @@ hooks:
     retType: ssize_t
     params:
       - [int, fd]
-      - [void *, buf, { direction: out, decoderArg: $ret, decoder: string, maxItems: 200 }]
+      - [void *, buf, { direction: out, decoderArgs: { length: $ret }, decoder: string, maxItems: 200 }]
       - [size_t, count]
 ```
 
@@ -245,7 +263,7 @@ hooks:
   - symbol: RAND_bytes
     retType: int
     params:
-      - [ "unsigned char *", buf, { direction: out, decoderArg: num } ]
+      - [ "unsigned char *", buf, { direction: out, decoderArgs: { length: num } } ]
       - [ int, num ]
 ```
 
@@ -258,7 +276,7 @@ What `maxItems` limits for each decoder (see [`maxItems` and `maxDepth`](./decod
 | Decoder                               | `maxItems` limits          |
 | ------------------------------------- | -------------------------- |
 | `char *`, `unsigned char *`, `void *` | Bytes read from the buffer |
-| Other pointers with a `decoderArg`    | Elements of the array      |
+| Other pointers with the role `length` | Elements of the array      |
 | `nullTerminated`                      | Elements of the array      |
 
 Strings and buffers decoded as hex end with `...` when they're cut, arrays end with a `"[truncated at N]"` marker.

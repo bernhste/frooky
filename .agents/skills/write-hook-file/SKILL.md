@@ -41,7 +41,7 @@ hookCollection:
         retType: int
         params:
           - ["SSL *", ssl]
-          - ["const void *", buf, { decoderArg: num }]
+          - ["const void *", buf, { decoderArgs: { length: num } }]
           - [int, num]
 ```
 
@@ -59,7 +59,7 @@ hookCollection:
 
 - `module` is the library file name (`libc.so`, `libssl.so`, `libcrypto.so`, or the app's own `lib<name>.so`).
 - Declare `retType` and `params` with C types (`"const char *"`, `int`, `size_t`) if you want decoded values. Without them, only the call is recorded. Quote pointer types.
-- Non-terminated buffers need their length: `{ decoderArg: <name of the length param> }`.
+- Non-terminated buffers need their length in the role `length`: `{ decoderArgs: { length: <name of the length param> } }`. A Java method that uses a slice of an array (`byte[] b, int off, int len`) needs `{ decoderArgs: { offset: off, length: len } }`. Each decoder accepts only some roles, see `docs/decoders-native.md` and `docs/decoders-java.md`.
 
 **Parameter forms** (both platforms): `type` · `[type, name]` · `[type, name, {settings}]` · `{ type: ..., name: ..., <settings> }`. Hook forms: `- name` · `- [name, {decoderSettings}]` · the expanded object form.
 
@@ -84,7 +84,7 @@ This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf
 ## Review checklist
 
 - [ ] Every class/method or module/symbol has a `# Docs:` link and matches upstream exactly.
-- [ ] Output buffers use `direction: out` or `inout`; native buffers without a terminator have a `decoderArg`.
+- [ ] Output buffers use `direction: out` or `inout`; native buffers without a terminator have the role `length` in `decoderArgs`, and Java slices have `offset` and `length`.
 - [ ] `decoder:` names come from the registered list.
 - [ ] Hot methods (e.g. `String` methods, `HashMap.put`) are filtered or avoided; hooking them can make the app crawl.
 - [ ] The file validates.

@@ -149,6 +149,25 @@ describe("StringDecoder", () => {
 
       expect(decoder.decode(Java.array("char", ["p", "w", "d"]) as unknown as Java.Wrapper).value).toBe("pw...");
     });
+
+    describe("with the roles offset and length", () => {
+      const decode = (type: string, array: unknown, args: Record<string, unknown>) =>
+        new StringDecoder({ type, settings: DEFAULT_DECODER_SETTINGS }).decode(array as Java.Wrapper, args).value;
+
+      it("decodes only the slice of a byte[] as text", () => {
+        const bytes = Java.array(
+          "byte",
+          Array.from("--secret--", (c) => c.charCodeAt(0)),
+        );
+        expect(decode("[B", bytes, { offset: 2, length: 6 })).toBe("secret");
+      });
+
+      it("decodes only the slice of a char[] as text", () => {
+        const chars = Java.array("char", Array.from("xxpasswordxx"));
+        expect(decode("[C", chars, { offset: 2, length: 8 })).toBe("password");
+        expect(decode("[C", chars, { offset: 10 })).toBe("xx");
+      });
+    });
   });
 });
 

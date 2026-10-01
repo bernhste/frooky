@@ -1,5 +1,5 @@
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
-import { NativeDecoderResolver } from "./nativeDecoderResolver";
+import { acceptedNativeDecoderArgs, NativeDecoderResolver } from "./nativeDecoderResolver";
 import { NativeFallbackDecoder } from "./nativeFallbackDecoder";
 import { NativeReferenceDecoder } from "./nativeReferenceDecoder";
 import { NativeStringDecoder } from "./nativeStringDecoder";
@@ -63,6 +63,27 @@ describe("NativeDecoderResolver", () => {
       expect(() => NativeDecoderResolver.resolveDecoder({ type: "void *", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "nope" } })).toThrow(
         'Unknown custom decoder: "nope"',
       );
+    });
+
+    describe("acceptedNativeDecoderArgs()", () => {
+      const accepted = (type: string, decoder?: string) => acceptedNativeDecoderArgs({ type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder } });
+
+      it("accepts length and offset for pointers to fundamental types and decoder: string", () => {
+        expect(accepted("const char *")).toEqual(["length", "offset"]);
+        expect(accepted("int **")).toEqual(["length", "offset"]);
+        expect(accepted("void *", "string")).toEqual(["length", "offset"]);
+      });
+
+      it("accepts offset for decoder: nullTerminated", () => {
+        expect(accepted("char **", "nullTerminated")).toEqual(["offset"]);
+      });
+
+      it("accepts no roles for values, unknown types and the other decoders", () => {
+        expect(accepted("int")).toEqual([]);
+        expect(accepted("SSL *")).toEqual([]);
+        expect(accepted("int", "fd")).toEqual([]);
+        expect(accepted("int", "openFlags")).toEqual([]);
+      });
     });
   });
 });

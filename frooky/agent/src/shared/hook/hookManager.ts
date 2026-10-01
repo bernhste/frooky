@@ -3,7 +3,7 @@ import { Decoder } from "../decoders/baseDecoder";
 import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
-import { RETURN_VALUE_DECODER_ARG } from "../inputParsing/inputDecodableTypes";
+import { DecoderArgRole, DecoderArgValues, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
 import { HOOK_LOOKUP_INTERVAL_MS } from "../defaultValues";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
@@ -15,13 +15,14 @@ export type ParamDecoder<TValue> = {
   argIndex: number;
   direction: Direction;
   name?: string;
-  decoderArg?: string;
-  decoderArgIndex?: number;
-  decoderArgDecoder?: Decoder<TValue>;
-  // `decoderArg: $ret`: the decoded return value is passed instead of another parameter
-  decoderArgIsReturnValue?: boolean;
+  // where the value of each role in `decoderArgs` comes from
+  decoderArgs?: Partial<Record<DecoderArgRole, DecoderArgSource<TValue>>>;
   argFilter?: RegExp[];
 };
+
+// The value of a role: another parameter, decoded with its own decoder, the return value, or a number
+export type DecoderArgSource<TValue> =
+  { kind: "param"; name: string; index: number; decoder: Decoder<TValue> } | { kind: "returnValue" } | { kind: "number"; value: number };
 
 export type DecodedArgs = {
   in?: DecodedValue[];
@@ -63,63 +64,42 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     throw Error(`${label} not found within ${timeoutSeconds} seconds. Skipping the hooks declared for it.`);
   }
 
+  // `decoderArgs` were checked when the hook file was validated (see validateDecoderArgs())
   protected resolveParamDecoders(params: Param[]): ParamDecoder<TValue>[] {
-    const argDecoderSpecs: ParamDecoder<TValue>[] = [];
-
-    params.forEach((param: Param, paramIndex: number) => {
-      const decoderArgIsReturnValue = param.settings.decoderArg === RETURN_VALUE_DECODER_ARG;
-      const decoderArgResolution =
-        param.settings.decoderArg && !decoderArgIsReturnValue ? this.resolveDecoderArg(param, paramIndex, params) : undefined;
-      if (param.settings.decoderArg && !decoderArgIsReturnValue && !decoderArgResolution) {
-        return; // invalid decoderArg, logged by resolveDecoderArg()
-      }
-
+    return params.map((param: Param, paramIndex: number) => {
       const { direction, ...paramDecodable } = param;
       const paramDecoder: ParamDecoder<TValue> = {
         decoder: this.decoderResolver.resolveDecoder(paramDecodable),
         argIndex: paramIndex,
         direction: param.direction,
         name: param.name,
-        decoderArg: param.settings.decoderArg,
-        decoderArgIndex: decoderArgResolution?.index,
-        decoderArgDecoder: decoderArgResolution?.decoder,
-        decoderArgIsReturnValue,
+        decoderArgs: this.resolveDecoderArgSources(param, params),
         argFilter: param.settings.argFilter?.map((pattern) => new RegExp(pattern)),
       };
       logger.debug(
         `Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify({ ...paramDecoder, decoder: paramDecoder.decoder.decoderName, settings: param.settings }, null, 2)}`,
       );
-      argDecoderSpecs.push(paramDecoder);
+      return paramDecoder;
     });
-
-    return argDecoderSpecs;
   }
 
-  protected resolveDecoderArg(param: Param, paramIndex: number, params: Param[]): { index: number; decoder: Decoder<TValue> } | undefined {
-    const decoderArgName = param.settings.decoderArg!;
-    const index = params.findIndex((p) => p.name === decoderArgName);
-    const otherParamNames = params
-      .filter((p) => p.name !== param.name)
-      .map((p) => p.name)
-      .join(", ");
-
-    if (index < 0) {
-      logger.warn(
-        `Decoder argument (${decoderArgName}) is not a valid parameter. Make sure to choose form one of the following parameter: ${otherParamNames} `,
-      );
-      return undefined;
+  private resolveDecoderArgSources(param: Param, params: Param[]): ParamDecoder<TValue>["decoderArgs"] {
+    const decoderArgs = param.settings.decoderArgs;
+    if (!decoderArgs) return undefined;
+    const sources: Partial<Record<DecoderArgRole, DecoderArgSource<TValue>>> = {};
+    for (const [role, value] of Object.entries(decoderArgs) as [DecoderArgRole, string | number][]) {
+      if (typeof value === "number") {
+        sources[role] = { kind: "number", value };
+      } else if (value === RETURN_VALUE_DECODER_ARG) {
+        sources[role] = { kind: "returnValue" };
+      } else {
+        const index = params.findIndex((p) => p.name === value);
+        // with the referenced param's own settings, not e.g. the `decoder: string` of the buffer referencing it
+        const decoder = this.decoderResolver.resolveDecoder({ type: params[index].type, settings: params[index].settings });
+        sources[role] = { kind: "param", name: value, index, decoder };
+      }
     }
-
-    if (index === paramIndex) {
-      logger.warn(
-        `Decoder argument (${decoderArgName}) cannot be itself. Make sure to choose form one of the following parameter: ${otherParamNames} `,
-      );
-      return undefined;
-    }
-
-    // with the referenced param's own settings, not e.g. the `decoder: string` of the buffer referencing it
-    const decoder = this.decoderResolver.resolveDecoder({ type: params[index].type, settings: params[index].settings });
-    return { index, decoder };
+    return sources;
   }
 
   protected resolveRetTypeDecoder(retType: RetType): Decoder<TValue> {
@@ -139,8 +119,8 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
 
   // At debug level logs e.g. `Decoded com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"`,
   // where `what` is `com.example.Foo.bar param #0 'key'`.
-  protected decodeValue(decoder: Decoder<TValue>, value: TValue, what: string, arg?: any): DecodedValue {
-    const decodedValue = decoder.decode(value, arg);
+  protected decodeValue(decoder: Decoder<TValue>, value: TValue, what: string, args?: DecoderArgValues): DecodedValue {
+    const decodedValue = decoder.decode(value, args);
     // previewValue() serializes the whole decoded value
     if (logger.isEnabled("debug")) {
       logger.debug(`Decoded ${what} (${decoder.declaredType}, ${decoder.decoderName}): ${previewValue(decodedValue.value)}`);
@@ -149,22 +129,13 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   }
 
   // Throws FilterMismatchError if an argument doesn't match its argFilter. `target` is for debug logs. `returnValue`
-  // is the decoded return value for `decoderArg: $ret`, only known when decoding `out` parameters.
+  // is the decoded return value for `decoderArgs` with `$ret`, only known when decoding `out` parameters.
   protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[], target: string = "hook", returnValue?: DecodedValue): DecodedValue[] {
     const decodedArgs: DecodedValue[] = [];
     for (const paramDecoder of paramDecoders) {
       const param = `${target} param #${paramDecoder.argIndex}${paramDecoder.name ? ` '${paramDecoder.name}'` : ""}`;
-      let decodedDecoderArg: any;
-      if (paramDecoder.decoderArgIsReturnValue) {
-        decodedDecoderArg = returnValue;
-      } else if (paramDecoder.decoderArg && paramDecoder.decoderArgIndex !== undefined && paramDecoder.decoderArgDecoder) {
-        decodedDecoderArg = this.decodeValue(
-          paramDecoder.decoderArgDecoder,
-          args[paramDecoder.decoderArgIndex],
-          `decoderArg '${paramDecoder.decoderArg}' of ${param}`,
-        );
-      }
-      const decodedValue = this.decodeValue(paramDecoder.decoder, args[paramDecoder.argIndex], param, decodedDecoderArg);
+      const decoderArgValues = paramDecoder.decoderArgs ? this.decodeDecoderArgs(paramDecoder.decoderArgs, args, param, returnValue) : undefined;
+      const decodedValue = this.decodeValue(paramDecoder.decoder, args[paramDecoder.argIndex], param, decoderArgValues);
       if (this.matchesFilter(decodedValue, paramDecoder.argFilter)) {
         decodedArgs.push(decodedValue);
       } else {
@@ -173,5 +144,24 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     }
 
     return decodedArgs;
+  }
+
+  private decodeDecoderArgs(
+    sources: Partial<Record<DecoderArgRole, DecoderArgSource<TValue>>>,
+    args: TValue[],
+    param: string,
+    returnValue?: DecodedValue,
+  ): DecoderArgValues {
+    const values: DecoderArgValues = {};
+    for (const [role, source] of Object.entries(sources) as [DecoderArgRole, DecoderArgSource<TValue>][]) {
+      if (source.kind === "number") {
+        values[role] = source.value;
+      } else if (source.kind === "returnValue") {
+        values[role] = returnValue?.value;
+      } else {
+        values[role] = this.decodeValue(source.decoder, args[source.index], `decoderArgs '${role}: ${source.name}' of ${param}`).value;
+      }
+    }
+    return values;
   }
 }

@@ -1,5 +1,6 @@
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
+import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { NativeEnumDecoder, NativeFlagsDecoder } from "./nativeConstantDecoder";
 import { ENUM_PRESET_NAMES, FLAG_PRESET_NAMES, resolvePreset } from "./nativeConstantPresets";
@@ -54,3 +55,13 @@ export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
     }
   },
 };
+
+// The `decoderArgs` roles the decoder of a parameter accepts, see docs/decoders-native.md
+export function acceptedNativeDecoderArgs(decodable: Decodable): readonly DecoderArgRole[] {
+  const decoder = decodable.settings.decoder;
+  if (decoder === "string") return ["length", "offset"];
+  if (decoder === "nullTerminated") return ["offset"];
+  if (decoder) return [];
+  // pointers to fundamental types, e.g. `char *` or `int *`
+  return typeof parseNativeFridaType(decodable.type) === "object" ? ["length", "offset"] : [];
+}

@@ -7,7 +7,7 @@ import { ArrayDecoder } from "./builtin/ArrayDecoder";
 import { OverrideDecoder } from "./builtin/OverrideDecoder";
 import { PrimitiveDecoder } from "./builtin/PrimitiveDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
-import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "./javaDecoderResolver";
+import { acceptedJavaDecoderArgs, JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "./javaDecoderResolver";
 
 function decodableOf(type: string, decoder?: string): Decodable {
   return { type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder: decoder } };
@@ -78,6 +78,25 @@ describe("JavaDecoderResolver", () => {
     it("resolves any other reference type to ReferenceTypeDecoder", () => {
       const decoder = JavaDecoderResolver.resolveDecoder(decodableOf("android.os.Bundle"));
       expect(decoder instanceof ReferenceTypeDecoder).toBeTruthy();
+    });
+
+    describe("acceptedJavaDecoderArgs()", () => {
+      const accepted = (type: string, decoder?: string) => acceptedJavaDecoderArgs({ type, settings: { ...DEFAULT_DECODER_SETTINGS, decoder } });
+
+      it("accepts length and offset for arrays, and for decoder: string on byte[] and char[]", () => {
+        expect(accepted("[B")).toEqual(["length", "offset"]);
+        expect(accepted("[Ljava.lang.String;")).toEqual(["length", "offset"]);
+        expect(accepted("[B", "string")).toEqual(["length", "offset"]);
+        expect(accepted("[C", "string")).toEqual(["length", "offset"]);
+      });
+
+      it("accepts no roles for other types and decoders", () => {
+        expect(accepted("int")).toEqual([]);
+        expect(accepted("java.lang.String")).toEqual([]);
+        expect(accepted("java.util.List")).toEqual([]);
+        expect(accepted("java.lang.Object", "string")).toEqual([]);
+        expect(accepted("[B", "hashCode")).toEqual([]);
+      });
     });
   });
 });

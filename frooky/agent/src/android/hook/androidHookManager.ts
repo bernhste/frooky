@@ -209,7 +209,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   private leaveHook(call: JavaHookCall, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any): void {
     const { hook, target, outArgDecoders, retTypeDecoder } = call.installedHook;
     const { decodedArgs } = call;
-    // first, as `out` parameters with `decoderArg: $ret` need it
+    // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
     let decodedRetValue: DecodedValue | undefined;
     if (retTypeDecoder) {
       try {

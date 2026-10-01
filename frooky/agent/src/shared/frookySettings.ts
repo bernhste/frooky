@@ -54,11 +54,10 @@ export interface DecoderSettings {
   decoder?: string;
 
   /**
-   * Name of another parameter whose value is passed to this decoder, or `$ret` for the return value (only with
-   * `direction: out`). The decoder decides what the value means, e.g. a buffer length in bytes or the number of
-   * elements a native pointer points to. Decoders that need no argument ignore it.
+   * Values the decoder needs to decode the parameter, by their role, e.g. `{ length: len }` for a buffer whose length is
+   * in the parameter `len`. Each decoder accepts some roles; any other role makes the hook invalid.
    */
-  decoderArg?: string;
+  decoderArgs?: DecoderArgs;
 
   /**
    * Names of the values of an integer, e.g. `{ O_CREAT: 0x40 }`. Used by `decoder: enum` and `decoder: flags` for native
@@ -71,6 +70,31 @@ export interface DecoderSettings {
    * matches. Only string and number values are filtered; other values always pass.
    */
   argFilter?: string[];
+}
+
+/**
+ * A value passed to a decoder: the name of another parameter, `$ret` for the return value (only for a parameter with
+ * `direction: out`), or a number.
+ *
+ * @public
+ */
+export type DecoderArgValue = string | number;
+
+/**
+ * The roles a value can have for a decoder. Each role means the same for every decoder that accepts it.
+ *
+ * @public
+ */
+export interface DecoderArgs {
+  /**
+   * Role `length`: how many elements to decode, e.g. the number of bytes of a buffer or of elements of an array.
+   */
+  length?: DecoderArgValue;
+
+  /**
+   * Role `offset`: how many elements to skip before decoding, e.g. where a slice starts in a Java `byte[]`.
+   */
+  offset?: DecoderArgValue;
 }
 
 export interface FrookySettings {

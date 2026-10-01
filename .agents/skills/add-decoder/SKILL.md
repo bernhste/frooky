@@ -43,7 +43,7 @@ The resolution order is documented in `docs/decoders-java.md` ("How frooky Picks
 
 Same implementation rules as above. After adding the entry to `CUSTOM_DECODER_REGISTRY`, **update the list of registered decoders in `docs/decoders-java.md` or `docs/decoders-native.md`** (the "Named Decoders" section). Hook files reference decoders by these names, and the JSON schema does not check them.
 
-If the decoder needs context from another argument, it receives it via `decoderArg` (the `arg` parameter of `decode`).
+If the decoder needs other values, it receives them by role in the `args` parameter of `decode` (`{ length, offset }`, read with `countArg()` or `sliceBounds()` from `shared/decoders/decoderArgs.ts`). List the roles it accepts in `acceptedJavaDecoderArgs()` or `acceptedNativeDecoderArgs()`, which reject other roles when the hook file is validated, and in the `decoderArgs` table of `docs/decoders-java.md` or `docs/decoders-native.md`.
 
 ## Native decoders
 

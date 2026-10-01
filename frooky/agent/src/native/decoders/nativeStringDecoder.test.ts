@@ -1,4 +1,4 @@
-import { DecodedValue } from "../../shared/decoders/decodedValue";
+import { DecoderArgValues } from "../../shared/decoders/decoderArgs";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { NativeStringDecoder } from "./nativeStringDecoder";
@@ -6,7 +6,7 @@ import { NativeStringDecoder } from "./nativeStringDecoder";
 const makeDecoder = (settings: DecoderSettings = DEFAULT_DECODER_SETTINGS): NativeStringDecoder =>
   new NativeStringDecoder({ type: "void *", name: "buf", settings: { ...settings, decoder: "string" } });
 
-const lengthArg = (value: unknown): DecodedValue => ({ type: "size_t", value });
+const lengthArg = (value: unknown): DecoderArgValues => ({ length: value });
 
 const writeBytes = (bytes: number[]): NativePointer => {
   const buffer = Memory.alloc(bytes.length);
@@ -49,36 +49,42 @@ describe("NativeStringDecoder", () => {
       expect(decoder.decode(Memory.allocUtf8String("abc")).value).toBe("abc");
     });
 
-    it("should decode a buffer that isn't NUL-terminated using the decoderArg as its length", () => {
+    it("should decode a buffer that isn't NUL-terminated using the length", () => {
       const buffer = writeBytes([0x61, 0x62, 0x63, 0x64, 0x65]);
       expect(makeDecoder().decode(buffer, lengthArg(3)).value).toBe("abc");
     });
 
-    it("should accept a decoderArg decoded as a decimal string (size_t on LP64)", () => {
+    it("should accept a length decoded as a decimal string (size_t on LP64)", () => {
       const buffer = writeBytes([0x61, 0x62, 0x63]);
       expect(makeDecoder().decode(buffer, lengthArg("2")).value).toBe("ab");
     });
 
-    it("should decode NUL bytes inside the decoderArg length instead of stopping at them", () => {
+    it("should decode NUL bytes inside the length instead of stopping at them", () => {
       const buffer = writeBytes([0x61, 0x62, 0x00, 0x63, 0x64]);
       expect(makeDecoder().decode(buffer, lengthArg(5)).value).toBe("ab.cd");
     });
 
-    it("should cap the decoderArg length at maxItems and append an ellipsis", () => {
+    it("should cap the length at maxItems and append an ellipsis", () => {
       const buffer = writeBytes([0x61, 0x62, 0x63, 0x64, 0x65]);
       const decoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 2 });
       expect(decoder.decode(buffer, lengthArg(5)).value).toBe("ab...");
     });
 
-    it("should decode an empty string for a decoderArg length of 0", () => {
+    it("should decode an empty string for a length of 0", () => {
       expect(makeDecoder().decode(writeBytes([0x61]), lengthArg(0)).value).toBe("");
+    });
+
+    it("should skip the bytes of the role offset", () => {
+      const buffer = writeBytes([0x2d, 0x61, 0x62, 0x63, 0x00]);
+      expect(makeDecoder().decode(buffer, { offset: 1 }).value).toBe("abc");
+      expect(makeDecoder().decode(buffer, { offset: 1, length: 2 }).value).toBe("ab");
     });
 
     it("should decode a NULL pointer as null", () => {
       expect(makeDecoder().decode(ptr(0)).value).toBe(null);
     });
 
-    it("should decode as null and warn when the decoderArg isn't a number", () => {
+    it("should decode as null and warn when the length isn't a number", () => {
       expect(makeDecoder().decode(Memory.allocUtf8String("abc"), lengthArg("abc")).value).toBe(null);
     });
 

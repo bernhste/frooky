@@ -274,7 +274,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   private leaveHook(call: NativeHookCall, returnValue: InvocationReturnValue, context: CpuContext): void {
     const { hook, target, outArgDecoders, retTypeDecoder, floatRetSlot } = call.installedHook;
     try {
-      // first, as `out` parameters with `decoderArg: $ret` need it
+      // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
       let decodedRetValue: DecodedValue | undefined;
       if (retTypeDecoder) {
         // returnValue is the general-purpose return register, a float/double is returned in an FP register

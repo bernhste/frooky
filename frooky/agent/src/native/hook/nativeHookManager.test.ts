@@ -242,13 +242,13 @@ describe("NativeHookManager", () => {
       expect(events[0].argsOut).toEqual([{ type: "int *", name: "out", value: 42 }]);
     });
 
-    it("passes the decoded return value to an out param with decoderArg $ret", async () => {
+    it("passes the decoded return value to an out param with the role length: $ret", async () => {
       const events: NativeHookEvent[] = [];
       const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
       const manager = new NativeHookManager(stackTrace, agent);
       const params = normalizeInputParams(
         [
-          ["void *", "buf", { direction: "out", decoderArg: "$ret", decoder: "string" }],
+          ["void *", "buf", { direction: "out", decoderArgs: { length: "$ret" }, decoder: "string" }],
           ["int", "len"],
           ["int", "fail"],
         ],

@@ -8,7 +8,7 @@ How frooky decodes the parameters and return values of Java and Kotlin methods. 
 - [Built-in Decoders](#built-in-decoders)
 - [Named Decoders](#named-decoders)
 - [`direction`: Output Parameters](#direction-output-parameters)
-- [`decoderArg`](#decoderarg)
+- [`decoderArgs`: Offset and Length](#decoderargs-offset-and-length)
 - [Limits](#limits)
 - [Return Values](#return-values)
 
@@ -135,9 +135,43 @@ hooks:
 
 See [`02_output_parameters.yaml`](examples/android/02_parameters_and_return_values/02_output_parameters.yaml).
 
-## `decoderArg`
+## `decoderArgs`: Offset and Length
 
-The Java decoders ignore `decoderArg`. A `byte[]` is decoded as a whole, up to `maxItems` bytes, also if a method only uses part of it, such as `Cipher.update(byte[] input, int inputOffset, int inputLen)`.
+Java can't pass a pointer into the middle of an array, so many APIs take an array with an offset and a length and only use that slice. `decoderArgs` passes these values to the decoder, each in its role (see [`decoderArgs`](./decoders.md#decoderargs-pass-values-to-the-decoder-by-role)). Java decoders accept these roles:
+
+| Decoder of the parameter                              | Role `offset`               | Role `length`                         |
+| ----------------------------------------------------- | --------------------------- | ------------------------------------- |
+| Arrays (`[B`, `[C`, `[I`, `[Ljava.lang.String;`, ...) | Elements to skip            | Elements to decode                    |
+| `decoder: string` on `[B` or `[C`                     | Bytes or characters to skip | Bytes or characters to decode as text |
+| All other types and decoders                          | –                           | –                                     |
+
+Without `offset`, the slice starts at index 0. Without `length`, it ends at the end of the array. A slice that reaches past the end of the array is cut to the array. At most `maxItems` elements of the slice are decoded.
+
+Common APIs that pass a slice:
+
+| API                                                                                   | Parameter | `decoderArgs`                               |
+| ------------------------------------------------------------------------------------- | --------- | ------------------------------------------- |
+| `SecretKeySpec(byte[] key, int offset, int len, String algorithm)`                    | `key`     | `{ offset: offset, length: len }`           |
+| `IvParameterSpec(byte[] iv, int offset, int len)`                                     | `iv`      | `{ offset: offset, length: len }`           |
+| `Cipher.update(byte[] input, int inputOffset, int inputLen)`, also `doFinal`          | `input`   | `{ offset: inputOffset, length: inputLen }` |
+| `Mac.update(byte[] input, int offset, int len)`, also `MessageDigest` and `Signature` | `input`   | `{ offset: offset, length: len }`           |
+| `OutputStream.write(byte[] b, int off, int len)`                                      | `b`       | `{ offset: off, length: len }`              |
+| `InputStream.read(byte[] b, int off, int len)`, with `direction: out`                 | `b`       | `{ offset: off, length: $ret }`             |
+
+`read` returns how many bytes it read, so the return value is the length of the slice. Hook the class that implements `read`, e.g. `FileInputStream`, since most streams override it:
+
+```yaml
+javaClass: java.io.FileInputStream
+hooks:
+  - method: read
+    overloads:
+      - params:
+        - [ "[B", b, { direction: out, decoder: string, decoderArgs: { offset: off, length: $ret } } ]
+        - [ int, off ]
+        - [ int, len ]
+```
+
+A role on any other parameter, e.g. on a `java.lang.String` or with `decoder: getters`, makes the hook invalid. See [`04_decoder_args.yaml`](examples/android/04_decoder_settings/04_decoder_args.yaml).
 
 ## Limits
 

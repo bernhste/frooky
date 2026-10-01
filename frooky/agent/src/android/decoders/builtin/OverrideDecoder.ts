@@ -2,6 +2,7 @@ import type Java from "frida-java-bridge";
 import { Decoder } from "../../../shared/decoders/baseDecoder";
 import { Decodable } from "../../../shared/decoders/decodable";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
+import { DecoderArgValues } from "../../../shared/decoders/decoderArgs";
 import { logger } from "../../../shared/logger";
 
 // Runs the decoder chosen with `decoder:` in the hook file. If it fails on a value (e.g. `decoder: intentFlag` on
@@ -22,9 +23,9 @@ export class OverrideDecoder extends Decoder<Java.Wrapper> {
     this.description = override.description;
   }
 
-  decode(value: Java.Wrapper, arg?: any): DecodedValue {
+  decode(value: Java.Wrapper, args?: DecoderArgValues): DecodedValue {
     try {
-      return this.override.decode(value, arg);
+      return this.override.decode(value, args);
     } catch (e) {
       // once per parameter, a hook can fire very often
       const message = `Decoder '${this.settings.decoder}' failed on ${this.type}${this.name ? ` '${this.name}'` : ""}, using ${this.fallback.decoderName}: ${e}`;
@@ -34,7 +35,7 @@ export class OverrideDecoder extends Decoder<Java.Wrapper> {
         logger.warn(message);
         this.warned = true;
       }
-      return this.fallback.decode(value, arg);
+      return this.fallback.decode(value, args);
     }
   }
 }

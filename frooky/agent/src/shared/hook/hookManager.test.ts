@@ -71,10 +71,6 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     return this.resolveParamDecoders(params);
   }
 
-  public exposedResolveDecoderArg(param: Param, paramIndex: number, params: Param[]): { index: number; decoder: Decoder<TestValue> } | undefined {
-    return this.resolveDecoderArg(param, paramIndex, params);
-  }
-
   public exposedResolveRetTypeDecoder(retType: RetType): Decoder<TestValue> {
     return this.resolveRetTypeDecoder(retType);
   }
@@ -83,8 +79,8 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     return this.matchesFilter(decodedValue, argFilter);
   }
 
-  public exposedDecodeArgs(args: TestValue[], paramDecoders: ParamDecoder<TestValue>[]): DecodedValue[] {
-    return this.decodeArgs(args, paramDecoders);
+  public exposedDecodeArgs(args: TestValue[], paramDecoders: ParamDecoder<TestValue>[], target?: string, returnValue?: DecodedValue): DecodedValue[] {
+    return this.decodeArgs(args, paramDecoders, target, returnValue);
   }
 }
 
@@ -210,41 +206,34 @@ describe("HookManager", () => {
       expect(resolver.resolveCalls).toEqual([{ type: "int", name: "a", settings: DEFAULT_DECODER_SETTINGS }]);
     });
 
-    it("resolves the decoderArg's own decoder and links it via decoderArgIndex when settings.decoderArg names another param", () => {
+    it("resolves the decoder of a param a role names, with that param's own type and settings", () => {
       const resolver = new FakeDecoderResolver();
       const manager = createManager(resolver);
-      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "length" };
-      const params: Param[] = [makeParam({ name: "length", type: "int" }), makeParam({ name: "buffer", type: "pointer", settings: bufferSettings })];
+      // the buffer's custom decoder must not be applied to the length it references
+      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "string", decoderArgs: { length: "length" } };
+      const lengthSettings = { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 };
+      const params: Param[] = [
+        makeParam({ name: "length", type: "int", settings: lengthSettings }),
+        makeParam({ name: "buffer", type: "pointer", settings: bufferSettings }),
+      ];
 
       const result = manager.exposedResolveParamDecoders(params);
 
       expect(result.length).toBe(2);
-      const bufferDecoder = result[1];
-      expect(bufferDecoder.decoderArg).toBe("length");
-      expect(bufferDecoder.decoderArgIndex).toBe(0);
-      expect(bufferDecoder.decoderArgDecoder).toBeDefined();
-      // the decoderArg decoder is resolved using the referenced param's own type and settings
-      expect(resolver.resolveCalls[1]).toEqual({ type: "int", settings: params[0].settings });
+      const source = result[1].decoderArgs!.length!;
+      expect(source.kind).toBe("param");
+      expect(source.kind === "param" && source.index).toBe(0);
+      expect(resolver.resolveCalls[2]).toEqual({ type: "int", settings: lengthSettings });
     });
 
-    it("skips the param and warns when settings.decoderArg names a non-existent parameter", () => {
+    it("resolves a number and the return value as sources of roles", () => {
       const manager = createManager();
-      const params: Param[] = [makeParam({ name: "buffer", type: "pointer", settings: { ...DEFAULT_DECODER_SETTINGS, decoderArg: "doesNotExist" } })];
+      const settings = { ...DEFAULT_DECODER_SETTINGS, decoderArgs: { offset: 4, length: "$ret" } };
+      const params: Param[] = [makeParam({ name: "buffer", type: "pointer", direction: "out", settings })];
 
-      const result = manager.exposedResolveParamDecoders(params);
+      const [buffer] = manager.exposedResolveParamDecoders(params);
 
-      expect(result).toEqual([]);
-      expect(warnSpy).toHaveBeenCalled();
-    });
-
-    it("skips the param and warns when settings.decoderArg refers to the param itself", () => {
-      const manager = createManager();
-      const params: Param[] = [makeParam({ name: "self", type: "pointer", settings: { ...DEFAULT_DECODER_SETTINGS, decoderArg: "self" } })];
-
-      const result = manager.exposedResolveParamDecoders(params);
-
-      expect(result).toEqual([]);
-      expect(warnSpy).toHaveBeenCalled();
+      expect(buffer.decoderArgs).toEqual({ offset: { kind: "number", value: 4 }, length: { kind: "returnValue" } });
     });
 
     it("returns an empty array for an empty params list", () => {
@@ -252,9 +241,9 @@ describe("HookManager", () => {
       expect(manager.exposedResolveParamDecoders([])).toEqual([]);
     });
 
-    it("resolves decoderArg when the param using it and other params are unnamed", () => {
+    it("resolves a role when the param using it and other params are unnamed", () => {
       const manager = createManager();
-      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "count" };
+      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArgs: { length: "count" } };
       // e.g. write(int, const void *, size_t count): only the referenced param needs a name
       const params: Param[] = [
         makeParam({ name: undefined, type: "int" }),
@@ -265,63 +254,9 @@ describe("HookManager", () => {
       const result = manager.exposedResolveParamDecoders(params);
 
       expect(result.length).toBe(3);
-      expect(result[1].decoderArgIndex).toBe(2);
-      expect(result[1].decoderArgDecoder).toBeDefined();
+      const source = result[1].decoderArgs!.length!;
+      expect(source.kind === "param" && source.index).toBe(2);
       expect(warnSpy).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("resolveDecoderArg()", () => {
-    let warnSpy: Mock;
-
-    beforeEach(() => {
-      warnSpy = spyOn(logger, "warn");
-    });
-
-    afterEach(() => {
-      warnSpy.mockRestore();
-    });
-
-    it("resolves the index and decoder of the referenced param, using its own type and settings", () => {
-      const resolver = new FakeDecoderResolver();
-      const manager = createManager(resolver);
-      // the buffer's custom decoder must not be applied to the length it references
-      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "length", decoder: "string" };
-      const lengthSettings = { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 };
-      const params: Param[] = [
-        makeParam({ name: "length", type: "int", settings: lengthSettings }),
-        makeParam({ name: "buffer", type: "pointer", settings: bufferSettings }),
-      ];
-
-      const resolution = manager.exposedResolveDecoderArg(params[1], 1, params);
-
-      expect(resolution).toBeDefined();
-      expect(resolution!.index).toBe(0);
-      expect(resolution!.decoder).toBeDefined();
-      expect(resolver.resolveCalls).toEqual([{ type: "int", settings: lengthSettings }]);
-      expect(warnSpy).not.toHaveBeenCalled();
-    });
-
-    it("returns undefined and warns when decoderArg names a non-existent parameter", () => {
-      const manager = createManager();
-      const settings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "doesNotExist" };
-      const params: Param[] = [makeParam({ name: "buffer", type: "pointer", settings })];
-
-      const resolution = manager.exposedResolveDecoderArg(params[0], 0, params);
-
-      expect(resolution).toBeUndefined();
-      expect(warnSpy).toHaveBeenCalled();
-    });
-
-    it("returns undefined and warns when decoderArg refers to the param itself", () => {
-      const manager = createManager();
-      const settings = { ...DEFAULT_DECODER_SETTINGS, decoderArg: "self" };
-      const params: Param[] = [makeParam({ name: "self", type: "pointer", settings })];
-
-      const resolution = manager.exposedResolveDecoderArg(params[0], 0, params);
-
-      expect(resolution).toBeUndefined();
-      expect(warnSpy).toHaveBeenCalled();
     });
   });
 
@@ -416,33 +351,34 @@ describe("HookManager", () => {
       expect(decoderBCalled).toBeFalsy();
     });
 
-    it("decodes the decoderArg value first and passes it as the second argument to the decoder", () => {
+    it("passes the value of each role to the decoder: a decoded param, a number and the return value", () => {
       const manager = createManager();
-      const decoderArgDecoder = new FakeDecoder({ type: "int", settings: DEFAULT_DECODER_SETTINGS }, (value) => ({
+      const lengthDecoder = new FakeDecoder({ type: "int", settings: DEFAULT_DECODER_SETTINGS }, (value) => ({
         type: "int",
         value: Number(value),
       }));
-      let receivedDecoderArg: unknown;
-      const bufferDecoder = new FakeDecoder({ type: "pointer", settings: DEFAULT_DECODER_SETTINGS }, (value, arg) => {
-        receivedDecoderArg = arg;
+      let receivedArgs: unknown;
+      const bufferDecoder = new FakeDecoder({ type: "pointer", settings: DEFAULT_DECODER_SETTINGS }, (value, args) => {
+        receivedArgs = args;
         return { type: "pointer", value };
       });
       const paramDecoders: ParamDecoder<TestValue>[] = [
-        { decoder: decoderArgDecoder, argIndex: 0, direction: "in", name: "length" },
+        { decoder: lengthDecoder, argIndex: 0, direction: "in", name: "length" },
         {
           decoder: bufferDecoder,
           argIndex: 1,
           direction: "in",
           name: "buffer",
-          decoderArg: "length",
-          decoderArgIndex: 0,
-          decoderArgDecoder,
+          decoderArgs: { length: { kind: "param", name: "length", index: 0, decoder: lengthDecoder }, offset: { kind: "number", value: 2 } },
         },
       ];
 
       manager.exposedDecodeArgs(["4", "buf-ptr"], paramDecoders);
+      expect(receivedArgs).toEqual({ length: 4, offset: 2 });
 
-      expect(receivedDecoderArg).toEqual({ type: "int", value: 4 });
+      paramDecoders[1].decoderArgs = { length: { kind: "returnValue" } };
+      manager.exposedDecodeArgs(["4", "buf-ptr"], paramDecoders, "hook", { type: "int", value: 3 });
+      expect(receivedArgs).toEqual({ length: 3 });
     });
   });
 });

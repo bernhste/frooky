@@ -180,6 +180,8 @@ class MastgTest(private val context: Context) {
         }
 
         fun receiveMode(mode: Int): Int = mode
+        // Sends `length` bytes of `buffer` from `offset`, like OutputStream.write(byte[], int, int).
+        fun sendPacket(buffer: ByteArray, offset: Int, length: Int): Int = length
         fun receiveTextBytes(arg: ByteArray): ByteArray = arg
         fun receiveBundle(arg: Bundle): Bundle = arg
         fun receiveContentValues(arg: ContentValues): ContentValues = arg
@@ -386,6 +388,11 @@ class MastgTest(private val context: Context) {
                 receiveMode(MODE_DECRYPT)
                 receiveTextBytes("Hello frooky".toByteArray())
                 r.add(Status.PASS, "mode and text bytes")
+
+                // only the middle of each buffer is used: 12 bytes of the packet, and the 16 key bytes 0x10 to 0x1f
+                sendPacket("HEADER|hello frooky|TRAILER".toByteArray(), 7, 12)
+                SecretKeySpec(ByteArray(48) { it.toByte() }, 16, 16, "AES")
+                r.add(Status.PASS, "slices")
 
                 receiveBundle(Bundle().apply {
                         putString("user", "alice")

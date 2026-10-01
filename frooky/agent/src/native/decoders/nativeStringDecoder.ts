@@ -3,7 +3,7 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { logger } from "../../shared/logger";
 import { bytesToString, trimIncompleteUtf8Tail } from "../../shared/utils";
-import { parseLengthArgValue } from "./nativeDecoderArg";
+import { countArg, DecoderArgValues } from "../../shared/decoders/decoderArgs";
 
 // Reads byte chunks up to the NUL terminator, bounded by memory page boundaries so it never reads
 // into unmapped memory. Reads at most `limit` bytes plus one to tell whether the string continues.
@@ -81,27 +81,19 @@ function readBoundedString(input: NativePointer, length: number, limit: number):
   return [bytes, length > limit];
 }
 
-// Decodes a string as UTF-8, else as ASCII, for `char *` and `decoder: string`. Without `arg` the string ends
-// at its NUL terminator, with `arg` (the decoded decoderArg) it has that length. At most `maxItems` bytes are
-// decoded, a longer string ends with `...`. Returns null for NULL or unreadable memory.
-export function decodeNativeString(input: NativePointer, settings: DecoderSettings, arg: DecodedValue | undefined, type: string): string | null {
+// Decodes a string as UTF-8, else as ASCII, for `char *` and `decoder: string`. The roles in `args`, both in bytes:
+// `offset` skips bytes at the start, `length` is the length of the string, otherwise it ends at its NUL terminator.
+// At most `maxItems` bytes are decoded, a longer string ends with `...`. Returns null for NULL or unreadable memory.
+export function decodeNativeString(input: NativePointer, settings: DecoderSettings, args: DecoderArgValues | undefined, type: string): string | null {
   if (input.isNull()) {
     return null;
   }
 
   try {
     const maxItems = settings.maxItems;
-    let bytes: Uint8Array;
-    let truncated: boolean;
-    if (arg) {
-      const length = parseLengthArgValue(arg.value);
-      if (length === undefined || length < 0) {
-        throw Error(`decoderArg must be a non-negative number, but it is: ${arg.value}`);
-      }
-      [bytes, truncated] = readBoundedString(input, length, maxItems);
-    } else {
-      [bytes, truncated] = readCString(input, maxItems);
-    }
+    const start = input.add(countArg(args, "offset") ?? 0);
+    const length = countArg(args, "length");
+    const [bytes, truncated] = length !== undefined ? readBoundedString(start, length, maxItems) : readCString(start, maxItems);
     // a cut multi-byte character would make the whole string decode as ASCII
     return truncated ? bytesToString(trimIncompleteUtf8Tail(bytes)) + "..." : bytesToString(bytes);
   } catch (e) {
@@ -114,11 +106,11 @@ export class NativeStringDecoder extends Decoder<NativePointer> {
   readonly decoderName = "NativeStringDecoder";
   readonly description = "Reads the memory a pointer points to as a string, for pointer types not decoded as strings by default (e.g. `void *`).";
 
-  public decode(value: NativePointer, arg?: DecodedValue): DecodedValue {
+  public decode(value: NativePointer, args?: DecoderArgValues): DecodedValue {
     return {
       type: this.type,
       name: this.name,
-      value: decodeNativeString(value, this.settings, arg, this.type),
+      value: decodeNativeString(value, this.settings, args, this.type),
     };
   }
 }

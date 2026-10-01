@@ -8,11 +8,18 @@ export const hookSettingsSchema = z.object({
     platformStackTrace: z.boolean()
 });
 
+export const decoderArgValueSchema = z.union([z.string(), z.number()]);
+
+export const decoderArgsSchema = z.object({
+    length: decoderArgValueSchema.optional(),
+    offset: decoderArgValueSchema.optional()
+});
+
 export const decoderSettingsSchema = z.object({
     maxDepth: z.number().min(1),
     maxItems: z.number().min(1),
     decoder: z.string().optional(),
-    decoderArg: z.string().optional(),
+    decoderArgs: decoderArgsSchema.optional(),
     constants: z.record(z.string(), z.number()).optional(),
     argFilter: z.array(z.string()).optional()
 });

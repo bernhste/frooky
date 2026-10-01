@@ -2,8 +2,8 @@ metadata:
   name: "Decoders (Native): Pointers and Arrays"
   description: |
     A pointer is read as its declared type: `int *` as one int, `char **` by following both pointers to
-    the string. With `decoderArg`, a pointer is an array with that many elements, and with
-    `decoder: nullTerminated` an array that ends at a NULL pointer, like argv.
+    the string. With the role `length` of `decoderArgs`, a pointer is an array with that many elements.
+    With `decoder: nullTerminated`, it is an array that ends at a NULL pointer, like argv.
   version: 1
   author: frooky dev
   platform: Android
@@ -12,7 +12,7 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/02_pointers_and_arrays.yaml
 # See:    docs/decoders-native.md#pointers-and-arrays
 #
-# For `void *`, `char *` and `unsigned char *`, the decoderArg is the length of the buffer in bytes instead
+# For `void *`, `char *` and `unsigned char *`, the role `length` is the length of the buffer in bytes instead
 # (see 01_strings_and_buffers.yaml).
 
 hookCollection:
@@ -22,13 +22,13 @@ hookCollection:
       - symbol: sum_ints
         retType: int
         params:
-          - ["const int *", values, { decoderArg: count }]
+          - ["const int *", values, { decoderArgs: { length: count } }]
           - [int, count]
 
       # int count_chars(const char **strings, int count): an array of `count` strings, like argv
       - symbol: count_chars
         params:
-          - ["const char **", strings, { decoderArg: count }]
+          - ["const char **", strings, { decoderArgs: { length: count } }]
           - [int, count]
 
       # int count_args(char *const argv[]) of the target app takes a NULL-terminated array of strings, in the

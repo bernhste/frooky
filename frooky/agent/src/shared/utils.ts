@@ -67,8 +67,14 @@ function getDecodeBounds(availableLength: number, length: number): [number, stri
 }
 
 // Reads only up to `limit` elements, e.g. of a Java array proxy where every access calls into Java.
-export function readBytesLimited(array: ArrayLike<number>, limit: number): [bytes: Uint8Array, truncated: boolean] {
-  const total = array.length;
+// The bytes `[start, end)` of a Java byte[] or array, at most `limit` of them.
+export function readBytesLimited(
+  array: ArrayLike<number>,
+  limit: number,
+  start: number = 0,
+  end: number = array.length,
+): [bytes: Uint8Array, truncated: boolean] {
+  const total = Math.max(end - start, 0);
   const readLength = Math.min(total, limit);
 
   if (readLength === 0) {
@@ -77,7 +83,7 @@ export function readBytesLimited(array: ArrayLike<number>, limit: number): [byte
 
   if (typeof (array as any).withElements === "function") {
     const bytes = (array as any).withElements((elements: NativePointer) => {
-      const raw = elements.readByteArray(readLength);
+      const raw = elements.add(start).readByteArray(readLength);
       return raw !== null ? new Uint8Array(raw) : new Uint8Array(0);
     });
     return [bytes, total > limit];
@@ -85,7 +91,7 @@ export function readBytesLimited(array: ArrayLike<number>, limit: number): [byte
 
   const bytes = new Uint8Array(readLength);
   for (let i = 0; i < readLength; i++) {
-    bytes[i] = array[i];
+    bytes[i] = array[start + i];
   }
 
   return [bytes, total > limit];

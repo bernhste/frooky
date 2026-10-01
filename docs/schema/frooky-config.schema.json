@@ -72,8 +72,22 @@
             "decoder": {
               "type": "string"
             },
-            "decoderArg": {
-              "type": "string"
+            "decoderArgs": {
+              "type": "object",
+              "properties": {
+                "length": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                },
+                "offset": {
+                  "type": [
+                    "string",
+                    "number"
+                  ]
+                }
+              }
             },
             "constants": {
               "type": "object",
@@ -135,8 +149,22 @@
                             "decoder": {
                               "type": "string"
                             },
-                            "decoderArg": {
-                              "type": "string"
+                            "decoderArgs": {
+                              "type": "object",
+                              "properties": {
+                                "length": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                },
+                                "offset": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                }
+                              }
                             },
                             "constants": {
                               "type": "object",
@@ -215,8 +243,22 @@
                                             "decoder": {
                                               "type": "string"
                                             },
-                                            "decoderArg": {
-                                              "type": "string"
+                                            "decoderArgs": {
+                                              "type": "object",
+                                              "properties": {
+                                                "length": {
+                                                  "type": [
+                                                    "string",
+                                                    "number"
+                                                  ]
+                                                },
+                                                "offset": {
+                                                  "type": [
+                                                    "string",
+                                                    "number"
+                                                  ]
+                                                }
+                                              }
                                             },
                                             "constants": {
                                               "type": "object",
@@ -264,8 +306,22 @@
                                             "decoder": {
                                               "type": "string"
                                             },
-                                            "decoderArg": {
-                                              "type": "string"
+                                            "decoderArgs": {
+                                              "type": "object",
+                                              "properties": {
+                                                "length": {
+                                                  "type": [
+                                                    "string",
+                                                    "number"
+                                                  ]
+                                                },
+                                                "offset": {
+                                                  "type": [
+                                                    "string",
+                                                    "number"
+                                                  ]
+                                                }
+                                              }
                                             },
                                             "constants": {
                                               "type": "object",
@@ -308,8 +364,22 @@
                                   "decoder": {
                                     "type": "string"
                                   },
-                                  "decoderArg": {
-                                    "type": "string"
+                                  "decoderArgs": {
+                                    "type": "object",
+                                    "properties": {
+                                      "length": {
+                                        "type": [
+                                          "string",
+                                          "number"
+                                        ]
+                                      },
+                                      "offset": {
+                                        "type": [
+                                          "string",
+                                          "number"
+                                        ]
+                                      }
+                                    }
                                   },
                                   "constants": {
                                     "type": "object",
@@ -369,8 +439,22 @@
                             "decoder": {
                               "type": "string"
                             },
-                            "decoderArg": {
-                              "type": "string"
+                            "decoderArgs": {
+                              "type": "object",
+                              "properties": {
+                                "length": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                },
+                                "offset": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                }
+                              }
                             },
                             "constants": {
                               "type": "object",
@@ -432,8 +516,22 @@
                   "decoder": {
                     "type": "string"
                   },
-                  "decoderArg": {
-                    "type": "string"
+                  "decoderArgs": {
+                    "type": "object",
+                    "properties": {
+                      "length": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "offset": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
                   },
                   "constants": {
                     "type": "object",
@@ -495,8 +593,22 @@
                             "decoder": {
                               "type": "string"
                             },
-                            "decoderArg": {
-                              "type": "string"
+                            "decoderArgs": {
+                              "type": "object",
+                              "properties": {
+                                "length": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                },
+                                "offset": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                }
+                              }
                             },
                             "constants": {
                               "type": "object",
@@ -567,8 +679,22 @@
                                       "decoder": {
                                         "type": "string"
                                       },
-                                      "decoderArg": {
-                                        "type": "string"
+                                      "decoderArgs": {
+                                        "type": "object",
+                                        "properties": {
+                                          "length": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          }
+                                        }
                                       },
                                       "constants": {
                                         "type": "object",
@@ -616,8 +742,22 @@
                                       "decoder": {
                                         "type": "string"
                                       },
-                                      "decoderArg": {
-                                        "type": "string"
+                                      "decoderArgs": {
+                                        "type": "object",
+                                        "properties": {
+                                          "length": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          }
+                                        }
                                       },
                                       "constants": {
                                         "type": "object",
@@ -671,8 +811,22 @@
                                     "decoder": {
                                       "type": "string"
                                     },
-                                    "decoderArg": {
-                                      "type": "string"
+                                    "decoderArgs": {
+                                      "type": "object",
+                                      "properties": {
+                                        "length": {
+                                          "type": [
+                                            "string",
+                                            "number"
+                                          ]
+                                        },
+                                        "offset": {
+                                          "type": [
+                                            "string",
+                                            "number"
+                                          ]
+                                        }
+                                      }
                                     },
                                     "constants": {
                                       "type": "object",
@@ -734,8 +888,22 @@
                             "decoder": {
                               "type": "string"
                             },
-                            "decoderArg": {
-                              "type": "string"
+                            "decoderArgs": {
+                              "type": "object",
+                              "properties": {
+                                "length": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                },
+                                "offset": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                }
+                              }
                             },
                             "constants": {
                               "type": "object",
@@ -812,8 +980,22 @@
                                       "decoder": {
                                         "type": "string"
                                       },
-                                      "decoderArg": {
-                                        "type": "string"
+                                      "decoderArgs": {
+                                        "type": "object",
+                                        "properties": {
+                                          "length": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          }
+                                        }
                                       },
                                       "constants": {
                                         "type": "object",
@@ -861,8 +1043,22 @@
                                       "decoder": {
                                         "type": "string"
                                       },
-                                      "decoderArg": {
-                                        "type": "string"
+                                      "decoderArgs": {
+                                        "type": "object",
+                                        "properties": {
+                                          "length": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          }
+                                        }
                                       },
                                       "constants": {
                                         "type": "object",
@@ -916,8 +1112,22 @@
                                     "decoder": {
                                       "type": "string"
                                     },
-                                    "decoderArg": {
-                                      "type": "string"
+                                    "decoderArgs": {
+                                      "type": "object",
+                                      "properties": {
+                                        "length": {
+                                          "type": [
+                                            "string",
+                                            "number"
+                                          ]
+                                        },
+                                        "offset": {
+                                          "type": [
+                                            "string",
+                                            "number"
+                                          ]
+                                        }
+                                      }
                                     },
                                     "constants": {
                                       "type": "object",
@@ -979,8 +1189,22 @@
                             "decoder": {
                               "type": "string"
                             },
-                            "decoderArg": {
-                              "type": "string"
+                            "decoderArgs": {
+                              "type": "object",
+                              "properties": {
+                                "length": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                },
+                                "offset": {
+                                  "type": [
+                                    "string",
+                                    "number"
+                                  ]
+                                }
+                              }
                             },
                             "constants": {
                               "type": "object",
@@ -1051,8 +1275,22 @@
                   "decoder": {
                     "type": "string"
                   },
-                  "decoderArg": {
-                    "type": "string"
+                  "decoderArgs": {
+                    "type": "object",
+                    "properties": {
+                      "length": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      },
+                      "offset": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
                   },
                   "constants": {
                     "type": "object",

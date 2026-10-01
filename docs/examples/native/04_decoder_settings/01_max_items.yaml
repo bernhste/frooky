@@ -22,7 +22,7 @@ hookCollection:
     hooks:
       - symbol: send_message
         params:
-          - ["void *", buf, { decoderArg: len, maxItems: 5 }]
+          - ["void *", buf, { decoderArgs: { length: len }, maxItems: 5 }]
           - [int, len]
 
 # Expected values (argsIn[0].value):

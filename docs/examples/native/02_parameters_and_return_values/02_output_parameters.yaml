@@ -23,10 +23,10 @@ hookCollection:
           - [int, out_len]
 
       # unsigned char *receive_byte_array(unsigned char *data, int length) XORs each byte with 0xFF in place.
-      # `data` has no terminator, so `decoderArg` passes the length.
+      # `data` has no terminator, so the role `length` passes its length.
       - symbol: receive_byte_array
         params:
-          - ["unsigned char *", data, { direction: inout, decoderArg: length }]
+          - ["unsigned char *", data, { direction: inout, decoderArgs: { length: length } }]
           - [int, length]
 
 # Expected events:

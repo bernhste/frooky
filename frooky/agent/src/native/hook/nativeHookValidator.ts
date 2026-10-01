@@ -1,3 +1,4 @@
+import { Param } from "../../shared/decoders/decodable";
 import z from "zod";
 
 import { InputFrookyConfig } from "../../shared/frookyConfig";
@@ -12,6 +13,8 @@ import {
 } from "../../shared/inputParsing/inputNativeHookCollection";
 import { inputNativeHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
 import { logger } from "../../shared/logger";
+import { validateDecoderArgRoles } from "../../shared/inputParsing/inputDecodableTypes";
+import { acceptedNativeDecoderArgs } from "../decoders/nativeDecoderResolver";
 
 export class NativeHookValidator implements HookValidator<InputNativeHookNormalized, InputNativeHookCollection> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputNativeHookNormalized[] {
@@ -23,6 +26,7 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
       for (const inputNativeHook of nativeHookCollection.hooks) {
         try {
           const normalizedNativeHook = normalizeNativeHook(inputNativeHook, nativeHookCollection.module, hookSettings, decoderSettings);
+          validateDecoderArgRoles(normalizedNativeHook.params as Param[] | undefined, acceptedNativeDecoderArgs);
           normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(normalizedNativeHook));
         } catch (e) {
           const symbol =

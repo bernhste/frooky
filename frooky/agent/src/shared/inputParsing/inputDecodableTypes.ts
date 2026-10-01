@@ -2,6 +2,7 @@ import { validateAndRepairDecoderSettings } from "../configValidator";
 import { Direction, Param, Decodable as RetType } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_DECODE_AT } from "../defaultValues";
 import { DecoderSettings } from "../frookySettings";
+import { DECODER_ARG_ROLES, DecoderArgRole, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
 import { InputDecoderSettings, InputParamSettings } from "./inputSettings";
 
 /**
@@ -57,46 +58,83 @@ function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSetting
   throw new Error(`Unrecognized InputParam format: ${JSON.stringify(input)}`);
 }
 
-// The `decoderArg` that passes the return value, e.g. the number of bytes `read` wrote into its buffer.
-export const RETURN_VALUE_DECODER_ARG = "$ret";
-
-// Throws unless every `decoderArg` names exactly one other parameter of the list, or is the return value of an
-// `out` parameter.
+// Throws unless the `decoderArgs` of every parameter are valid, see validateDecoderArgs().
 export function normalizeInputParams(inputs: InputParam[], decoderSettings?: DecoderSettings): Param[] {
   if (!Array.isArray(inputs)) {
     throw new Error(`Expected 'params' to be an array, but received ${inputs === undefined ? "undefined" : typeof inputs}.`);
   }
   const params = inputs.map((input) => normalizeInputParam(input, decoderSettings));
-  validateDecoderArgs(params);
+  params.forEach((param, paramIndex) => validateDecoderArgs(param, paramIndex, params));
   return params;
 }
 
-function validateDecoderArgs(params: Param[]): void {
-  params.forEach((param, paramIndex) => {
-    const decoderArg = param.settings.decoderArg;
-    if (decoderArg === undefined) return;
-    if (decoderArg === RETURN_VALUE_DECODER_ARG) {
+// Throws unless every role in `decoderArgs` is known and its value is a number, the return value of an `out`
+// parameter, or the name of exactly one other parameter.
+function validateDecoderArgs(param: Param, paramIndex: number, params: Param[]): void {
+  const label = param.name ?? param.type;
+  if ((param.settings as { decoderArg?: unknown }).decoderArg !== undefined) {
+    throw new Error(`'decoderArg' is no decoder setting. Pass the value by its role, e.g. 'decoderArgs: { length: len }' on '${label}'.`);
+  }
+  const decoderArgs = param.settings.decoderArgs;
+  if (decoderArgs === undefined) return;
+  if (typeof decoderArgs !== "object" || decoderArgs === null || Array.isArray(decoderArgs)) {
+    throw new Error(`decoderArgs of '${label}' must be an object of roles, e.g. '{ length: len }'.`);
+  }
+
+  for (const [role, value] of Object.entries(decoderArgs)) {
+    if (!DECODER_ARG_ROLES.includes(role as DecoderArgRole)) {
+      throw new Error(`decoderArgs of '${label}': '${role}' is no role. The roles are: ${DECODER_ARG_ROLES.join(", ")}.`);
+    }
+    if (typeof value === "number") {
+      if (!Number.isInteger(value) || value < 0) {
+        throw new Error(`decoderArgs of '${label}': '${role}: ${value}' must be a non-negative integer.`);
+      }
+      continue;
+    }
+    if (value === RETURN_VALUE_DECODER_ARG) {
       if (param.direction !== "out") {
         throw new Error(
-          `decoderArg: '${RETURN_VALUE_DECODER_ARG}' is the return value, which only exists once the call returns. Set 'direction: out' on '${param.name ?? param.type}'.`,
+          `decoderArgs of '${label}': '${role}: ${RETURN_VALUE_DECODER_ARG}' is the return value, which only exists once the call returns. Set 'direction: out' on '${label}'.`,
         );
       }
-      return;
+      continue;
     }
 
-    const matches = params.map((p, i) => ({ p, i })).filter(({ p }) => p.name === decoderArg);
+    const matches = params.map((p, i) => ({ p, i })).filter(({ p }) => p.name === value);
     if (matches.length === 0) {
-      throw new Error(
-        `decoderArg: no parameter named '${decoderArg}' found. Name the parameter whose runtime value you want to pass to the decoder.`,
-      );
+      throw new Error(`decoderArgs of '${label}': '${role}: ${value}' names no parameter. Use the name of another parameter, '$ret' or a number.`);
     }
     if (matches.length > 1) {
-      throw new Error(`decoderArg: more than one parameter is named '${decoderArg}'. Parameter names must be unique.`);
+      throw new Error(`decoderArgs of '${label}': more than one parameter is named '${value}'. Parameter names must be unique.`);
     }
     if (matches[0].i === paramIndex) {
-      throw new Error(`decoderArg: '${decoderArg}' refers to the parameter itself. Name a different parameter.`);
+      throw new Error(`decoderArgs of '${label}': '${role}: ${value}' is the parameter itself. Name a different parameter.`);
     }
-  });
+  }
+}
+
+// The return value is decoded first, so it can't use other values
+function rejectRetTypeDecoderArgs(settings: object | undefined): void {
+  const inline = settings as { decoderArgs?: unknown; decoderArg?: unknown } | undefined;
+  if (inline?.decoderArgs !== undefined || inline?.decoderArg !== undefined) {
+    throw new Error(`'decoderArgs' is only supported on parameters, not on the return value.`);
+  }
+}
+
+// Throws if a parameter passes a role its decoder doesn't accept. `acceptedRoles` lists them per platform.
+export function validateDecoderArgRoles(params: Param[] | undefined, acceptedRoles: (param: Param) => readonly DecoderArgRole[]): void {
+  for (const param of params ?? []) {
+    const roles = Object.keys(param.settings.decoderArgs ?? {}) as DecoderArgRole[];
+    if (roles.length === 0) continue;
+    const accepted = acceptedRoles(param);
+    const rejected = roles.filter((role) => !accepted.includes(role));
+    if (rejected.length > 0) {
+      const decoder = param.settings.decoder ? `decoder '${param.settings.decoder}'` : `the decoder of '${param.type}'`;
+      throw new Error(
+        `decoderArgs of '${param.name ?? param.type}': ${decoder} doesn't accept the role${rejected.length > 1 ? "s" : ""} ${rejected.map((r) => `'${r}'`).join(", ")}. ${accepted.length ? `It accepts: ${accepted.join(", ")}.` : "It accepts no decoderArgs."}`,
+      );
+    }
+  }
 }
 
 /**
@@ -123,9 +161,11 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings?: Dec
   } else if (Array.isArray(input)) {
     // Case 2: Type + decoder settings - ["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]
     const [type, inlineSettings] = input as [string, Partial<DecoderSettings>];
+    rejectRetTypeDecoderArgs(inlineSettings);
     return { type, settings: { ...validatedMergedSettings, ...inlineSettings } };
   } else if (typeof input === "object") {
     // Case 3: Object
+    rejectRetTypeDecoderArgs(input.settings);
     return input;
   }
   throw new Error(`Unrecognized InputRetType format: ${JSON.stringify(input)}`);
@@ -147,6 +187,7 @@ export function normalizeInputRetTypeSettings(input: InputRetTypeSettings, decod
   const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
 
   if (typeof input === "object" && input !== null && !Array.isArray(input) && !("type" in input)) {
+    rejectRetTypeDecoderArgs(input);
     return validateAndRepairDecoderSettings({ ...mergedSettings, ...input });
   }
   throw new Error(`Unrecognized InputRetTypeSettings format: ${JSON.stringify(input)}`);

@@ -1,3 +1,6 @@
+import { Param } from "../../shared/decoders/decodable";
+import { validateDecoderArgRoles } from "../../shared/inputParsing/inputDecodableTypes";
+import { acceptedJavaDecoderArgs } from "../decoders/javaDecoderResolver";
 import z from "zod";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
@@ -22,6 +25,7 @@ export class AndroidHookValidator implements HookValidator<InputJavaHookNormaliz
       for (const inputJavaHook of javaHookCollection.hooks) {
         try {
           const normalizedJavaHook = normalizeJavaHook(javaHookCollection.javaClass, inputJavaHook, hookSettings, decoderSettings);
+          normalizedJavaHook.overloads?.forEach((overload) => validateDecoderArgRoles(overload.params as Param[], acceptedJavaDecoderArgs));
           normalizedJavaHooks.push(inputJavaHookNormalizedSchema.parse(normalizedJavaHook));
         } catch (e) {
           const method = typeof inputJavaHook === "string" ? inputJavaHook : Array.isArray(inputJavaHook) ? inputJavaHook[0] : inputJavaHook.method;

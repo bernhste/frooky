@@ -20,7 +20,7 @@ hookCollection:
       - symbol: write_log
         params:
           - [int, fd, { decoder: fd }]
-          - ["const void *", buf, { decoderArg: len, decoder: string }]
+          - ["const void *", buf, { decoderArgs: { length: len }, decoder: string }]
           - [int, len]
 
       # int open_log(const char *path, int flags) returns the fd it opened, like open(2)
