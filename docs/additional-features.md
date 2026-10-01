@@ -7,6 +7,7 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 - [Hook Settings](#hook-settings)
 - [Settings Precedence](#settings-precedence)
 - [Event Filter Based on Stack Trace](#event-filter-based-on-stack-trace)
+  - [Low-Level and High-Frequency libc Functions](#low-level-and-high-frequency-libc-functions)
 - [Multiple Hooks on the Same Method or Function](#multiple-hooks-on-the-same-method-or-function)
 
 <!-- /TOC -->
@@ -86,10 +87,12 @@ With this filter, noise can be reduced. The filter only searches the captured fr
 ### Low-Level and High-Frequency libc Functions
 
 Stack traces are off by default because capturing them is expensive, and a native stack walk can crash hooks on low-level functions such as libc's `open`, `openat`, `close`, `read`, `write`, `mmap`, `mprotect`, `malloc`, `free`, `memcpy`, or `memset`:
+
 - A native stack walk or JNI call can call the hooked function again (e.g. `open` while reading `/proc/self/maps`), causing recursion.
 - Low-level functions may run on a small thread or signal stack. Under QuickJS, recursive JS execution and deep hook chains can exhaust the thread stack and trigger a stack overflow (`SIGSEGV` / `SEGV_ACCERR`).
 
 **Recommendations for low-level libc hooks:**
+
 1. **Keep stack traces disabled** on high-frequency libc functions (`nativeStackTrace: false`, `platformStackTrace: false`).
 2. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`), keeping non-matching calls fast and avoiding OS noise.
 3. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
