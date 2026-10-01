@@ -4,7 +4,7 @@ How frooky decodes the parameters and return values of Java and Kotlin methods. 
 
 <!-- TOC -->
 
-- [How frooky Picks a Decoder](#how-frooky-picks-a-decoder)
+- [How frooky Picks a Java Decoder](#how-frooky-picks-a-java-decoder)
 - [Built-in Decoders](#built-in-decoders)
 - [Named Decoders](#named-decoders)
 - [`direction`: Output Parameters](#direction-output-parameters)
@@ -14,9 +14,9 @@ How frooky decodes the parameters and return values of Java and Kotlin methods. 
 
 <!-- /TOC -->
 
-## How frooky Picks a Decoder
+## How frooky Picks a Java Decoder
 
-frooky picks the decoder by the object's runtime class, not by the type declared in the hook file. A parameter declared as `java.lang.Object` that receives a `HashMap` is decoded as a map. frooky uses the first of these that applies:
+frooky picks the Java decoder by the object's runtime class, not by the type declared in the hook file. A parameter declared as `java.lang.Object` that receives a `HashMap` is decoded as a map. frooky uses the first of these that applies:
 
 1. **`decoder` in the decoder settings.** A decoder you choose always wins. If it fails on a value, frooky logs a warning and decodes the value as if no `decoder` were set.
 2. **A class decoder** for the runtime class or, if there is none, for its nearest superclass. `Intent` has one, so a `LabeledIntent`, a subclass of `Intent`, is decoded like an `Intent`.

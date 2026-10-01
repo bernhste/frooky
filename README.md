@@ -21,13 +21,7 @@
 - Filter hooks by argument values or stack trace patterns
 - Output events in JSON Lines format for easy processing
 
-Use it, if you know what you want to hook but you don't want to write custom Frida scripts or copy and paste them together. For example you can use it to quickly hook functions or methods based on public API documentation and quickly get insight about them.
-
-> [!NOTE]
->
-> This documentation describes the intended feature set for [frooky 1.0](https://github.com/cpholguera/frooky/milestone/1). At the time of writing this document, not all described features may have been fully implemented and there may be breaking changes to the hook file API until the release of frooky 1.0.
->
-> [Feedback](https://github.com/cpholguera/frooky/discussions) is always welcome.
+Use it, if you want to quickly hook functions or methods and access decoded runtime data withouth writing Frida scripts.
 
 ## Installation
 

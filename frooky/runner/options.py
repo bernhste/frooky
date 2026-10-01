@@ -4,9 +4,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-# port of the Chrome Inspector server opened by --debug, the same as the frida CLI's --debug
-DEBUGGER_PORT = 9229
-
 
 @dataclass
 class RunnerOptions:
@@ -32,7 +29,6 @@ class RunnerOptions:
     watch: bool = False
     # Frida script runtime ("qjs" or "v8") for the frooky agent and user scripts, None uses Frida's default (QuickJS)
     runtime: Optional[str] = None
-    enable_debugger: bool = False
 
     @property
     def agent_log_level(self) -> str:

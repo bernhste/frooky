@@ -5,7 +5,7 @@
  */
 export interface HookSettings {
   /**
-   * Maximum number of stack frames captured per event. Default: `10`.
+   * Maximum number of stack frames captured per event. Default: `5`.
    *
    * @minimum 0
    */

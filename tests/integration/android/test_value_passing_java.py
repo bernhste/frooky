@@ -298,7 +298,7 @@ class TestValuePassingJava:
         assert len(events) >= 1
         assert all(isinstance(e["returnValue"]["value"], str) for e in events)
 
-    # Stack traces (see additional-features.md#hook-settings) are opt-in via `platformStackTrace` and
+    # Stack traces (see additional-features.md#stack-traces) are opt-in via `platformStackTrace` and
     # `nativeStackTrace`. A Java hook has no CPU context, so it only ever captures platform (Java) frames.
 
     def _receive_string_events(self, run_frooky, find_matched_events, hook_settings, expect_events=True):

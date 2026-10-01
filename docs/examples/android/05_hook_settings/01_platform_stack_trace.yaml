@@ -9,7 +9,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/05_hook_settings/01_platform_stack_trace.yaml
-# See:    docs/additional-features.md#hook-settings
+# See:    docs/additional-features.md#general-settings
 #
 # A Java hook has no CPU context, so `nativeStackTrace` has no effect here: nativeStackTrace is always [].
 

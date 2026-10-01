@@ -32,6 +32,7 @@ A decoder's behavior is controlled by `decoderSettings`:
 
 | Setting       | Type       | Default     | Description                                                                                                                                                                                                                                                         |
 | ------------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `direction`   | `string`   | `"in"`      | When to decode the value: `"in"` (on call), `"out"` (on return), or `"inout"` (both). Only available on parameters and return types, see [`direction`](#direction-declare-the-time-of-decoding).                                                                    |
 | `decoder`     | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder, see [`decoder`](#decoder-override-the-default-decoder).                                                                                                                                                |
 | `decoderArgs` | `object`   | `undefined` | Values the decoder needs, each in a role: `length` or `offset`, e.g. `{ length: len }`. Each value is another parameter, `$ret` or a number. See [`decoderArgs`](#decoderargs-pass-values-to-the-decoder-by-role).                                                  |
 | `constants`   | `object`   | `undefined` | Names of the values of an integer, e.g. `{ O_CREAT: 0x40 }`. For `decoder: enum` and `decoder: flags` of [native hooks](./decoders-native.md#flags-and-enums), and for `decoder: constant` and `decoder: flags` of [Java hooks](./decoders-java.md#named-decoders). |
@@ -39,15 +40,54 @@ A decoder's behavior is controlled by `decoderSettings`:
 | `maxItems`    | `number`   | `100`       | Maximum number of elements decoded per array, list, map, etc., bytes per buffer, or characters per Java string. Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                                           |
 | `argFilter`   | `string[]` | `undefined` | Regular expressions matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them, see [`argFilter`](#argfilter-capture-only-matching-values).                                         |
 
-When settings are attached to a parameter or a return type, an additional `direction` field is available, see [`direction`](#direction-declare-the-time-of-decoding).
+`decoderSettings` can be declared at multiple levels of a hook file (file-level, hook collection, individual hook, or per-parameter/return-type). On a parameter, decoder settings are attached as the third element of the parameter declaration tuple:
 
-`decoderSettings` can be declared at multiple levels of a hook file (file-level, hook collection, individual hook, or per-parameter/return-type). See [Settings Precedence](./additional-features.md#settings-precedence) for how these levels combine. The following chapters explain the settings that need more context.
+```yaml
+params:
+  - [ <type>, <name>, { <decoder settings> } ]
+```
+
+See [Settings Precedence](./additional-features.md#settings-precedence) for how these levels combine. The following chapters explain the settings that need more context.
 
 ### `direction`: Declare the Time of Decoding
 
-By default, arguments are decoded when the function or method is called. Larger data structures, such as arrays, are often passed by reference so the function or method can write a result into them. In these cases, decode the parameter after completion using `direction: out`, or both at the beginning and after completion using `direction: inout`.
+By default, arguments are decoded when the function or method is entered (`direction: in`). Larger data structures, such as arrays and memory buffers, are often passed by reference so the function or method can write results into them. In these cases:
 
-Examples: [Java](./decoders-java.md#direction-output-parameters), [native](./decoders-native.md#direction-output-parameters).
+- `direction: in` (default): Decode parameter when the function or method is called.
+- `direction: out`: Decode parameter after the function returns, capturing data written by the function into output buffers or objects.
+- `direction: inout`: Decode parameter both upon entry and upon return, allowing you to observe how the value changed.
+
+**Native Output Buffer Example (`direction: out`):**
+
+When calling `read(int fd, void *buf, size_t count)`, `buf` is empty on entry and filled upon return. Using `direction: out` captures the data after `read` returns:
+
+```yaml
+module: libc.so
+hooks:
+  - symbol: read
+    retType: ssize_t
+    params:
+      - [ int, fd ]
+      - [ "void *", buf, { direction: out, decoderArgs: { length: $ret } } ]
+      - [ size_t, count ]
+```
+
+**Java In-Place Mutation Example (`direction: inout`):**
+
+When a method mutates a byte array or collection in place:
+
+```yaml
+javaClass: com.example.CryptoHelper
+hooks:
+  - method: decryptInPlace
+    overloads:
+      - params:
+          - [ "[B", buffer, { direction: inout } ]
+```
+
+The resulting event records both the input value and the output value after decryption.
+
+For platform-specific details and further examples, see [Java output parameters](./decoders-java.md#direction-output-parameters) and [native output parameters](./decoders-native.md#direction-output-parameters).
 
 ### `decoderArgs`: Pass Values to the Decoder by Role
 

@@ -9,7 +9,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/05_hook_settings/01_native_and_platform_stack_traces.yaml
-# See:    docs/additional-features.md#hook-settings
+# See:    docs/additional-features.md#platform-vs-native-stack-traces
 #
 # A native frame is "<symbol>+<offset> (<module>:<address>)". It starts with the caller of the hooked
 # function; the hooked function itself is not part of the trace.

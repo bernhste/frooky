@@ -9,7 +9,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/05_hook_settings/03_low_level_functions.yaml
-# See:    docs/additional-features.md#event-filter-based-on-stack-trace
+# See:    docs/additional-features.md#dangerous-low-level-early-and-high-frequency-hooks
 #
 # Why stack traces and unfiltered hooks are risky here:
 # - A native stack walk can call the hooked function again (e.g. open while reading a module), which recurses.

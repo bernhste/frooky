@@ -55,7 +55,6 @@ class TestArgumentParsing:
         assert args.host is None
         assert args.certificate is None
         assert args.runtime is None
-        assert args.debug is False
 
     def test_multiple_hooks_files(self):
         parser = build_parser()
@@ -246,28 +245,6 @@ class TestMain:
         assert exc_info.value.code == 1
         assert "frooky agent not found" in capsys.readouterr().err.lower()
 
-    def test_rejects_debug_with_quickjs(self, monkeypatch, tmp_path, capsys):
-        hooks_file = tmp_path / "hooks.yaml"
-        hooks_file.write_text("category: TEST\nhooks: []\n")
-        monkeypatch.setattr("sys.argv", ["frooky", "-F", "--debug", "--runtime", "qjs", str(hooks_file)])
-
-        with pytest.raises(SystemExit) as exc_info:
-            main()
-
-        assert exc_info.value.code == 2
-        assert "--debug needs the v8 runtime" in capsys.readouterr().err
-
-    def test_debug_implies_v8(self, monkeypatch, tmp_path, stub_runner):
-        hooks_file = tmp_path / "hooks.yaml"
-        hooks_file.write_text("category: TEST\nhooks: []\n")
-        monkeypatch.setattr("sys.argv", ["frooky", "-F", "--debug", str(hooks_file)])
-
-        main()
-
-        options = stub_runner.call_args.args[0]
-        assert options.runtime == "v8"
-        assert options.enable_debugger is True
-
     def test_runtime_is_passed_to_the_runner(self, monkeypatch, tmp_path, stub_runner):
         hooks_file = tmp_path / "hooks.yaml"
         hooks_file.write_text("category: TEST\nhooks: []\n")
@@ -277,7 +254,6 @@ class TestMain:
 
         options = stub_runner.call_args.args[0]
         assert options.runtime == "v8"
-        assert options.enable_debugger is False
 
     def test_builds_options_and_runs(self, monkeypatch, tmp_path, stub_runner):
         hooks_file = tmp_path / "hooks.yaml"

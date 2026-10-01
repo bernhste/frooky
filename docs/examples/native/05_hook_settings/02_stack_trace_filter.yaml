@@ -9,7 +9,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/05_hook_settings/02_stack_trace_filter.yaml
-# See:    docs/additional-features.md#event-filter-based-on-stack-trace
+# See:    docs/additional-features.md#stack-trace-filtering
 #
 # What the filter matches:
 # - Each frame on its own, as it appears in the event: native "<symbol>+<offset> (<module>:<address>)",

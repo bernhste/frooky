@@ -547,7 +547,7 @@ class TestValuePassingNative:
         assert re.fullmatch(r"0x[0-9a-f]+", event["address"])
         assert event["hashCode"] == _address_hash_code(event["address"])
 
-    # Stack traces (see additional-features.md#hook-settings) are opt-in: `nativeStackTrace` captures the
+    # Stack traces (see additional-features.md#stack-traces) are opt-in: `nativeStackTrace` captures the
     # C/C++ frames from the hook's CPU context, `platformStackTrace` the Java frames of the calling thread
     # (receive_int is called from a JNI method, so there are some). `maxStackFrames` caps each of them.
 

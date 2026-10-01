@@ -16,7 +16,7 @@ from .device import attach_or_spawn, describe_target, detect_platform, get_devic
 from .feed import LEVEL_STYLES, Feed, HookStatus
 from .keys import KeyListener
 from .messages import create_log_handler, create_message_handler
-from .options import DEBUGGER_PORT, RunnerOptions
+from .options import RunnerOptions
 from .output import OutputWriter
 from .watcher import HookFileWatcher, describe_reload_error
 
@@ -178,8 +178,6 @@ class FrookyRunner:
             # no runtime means Frida's default, QuickJS
             "Runtime": {"qjs": "QuickJS", "v8": "V8"}[self.options.runtime or "qjs"],
         }
-        if self.options.enable_debugger:
-            output_info["Debugger"] = f"port {DEBUGGER_PORT} (open chrome://inspect)"
 
         info = [
             f"Frooky v{frooky_version}",
@@ -255,8 +253,6 @@ class FrookyRunner:
             self.user_scripts = load_user_scripts(self.session, self.options.user_scripts, self.feed, self.options.runtime)
 
             self.script = self.session.create_script(script_source, runtime=self.options.runtime)
-            if self.options.enable_debugger:
-                self.script.enable_debugger(DEBUGGER_PORT)
             self.script.on(
                 "message",
                 create_message_handler(

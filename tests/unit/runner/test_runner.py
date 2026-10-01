@@ -4,7 +4,6 @@ import os
 from unittest.mock import MagicMock
 
 from frooky.runner import FrookyRunner, RunnerOptions
-from frooky.runner.runner import DEBUGGER_PORT
 
 
 def make_runner(tmp_path, **overrides) -> FrookyRunner:
@@ -310,7 +309,7 @@ class TestRunSessionLoss:
 
 
 class TestRunRuntime:
-    """run() creates the agent script with the chosen runtime and opens the debugger for --debug."""
+    """run() creates the agent script with the chosen runtime."""
 
     def _run(self, monkeypatch, tmp_path, **option_overrides):
         runner, session = TestRunSessionLoss()._make_wired_runner(monkeypatch, tmp_path, **option_overrides)
@@ -322,23 +321,20 @@ class TestRunRuntime:
         runner.run()
         return session
 
-    def test_uses_fridas_default_runtime_without_debugger(self, monkeypatch, tmp_path, capsys):
+    def test_uses_fridas_default_runtime_without_override(self, monkeypatch, tmp_path, capsys):
         session = self._run(monkeypatch, tmp_path)
 
         assert session.create_script.call_args.kwargs == {"runtime": None}
-        session.create_script.return_value.enable_debugger.assert_not_called()
         out = capsys.readouterr().out
         assert "Runtime:" in out and "QuickJS" in out
         assert "Hook files" not in out
 
-    def test_enables_debugger_with_v8(self, monkeypatch, tmp_path, capsys):
-        session = self._run(monkeypatch, tmp_path, runtime="v8", enable_debugger=True)
+    def test_uses_v8_runtime(self, monkeypatch, tmp_path, capsys):
+        session = self._run(monkeypatch, tmp_path, runtime="v8")
 
         assert session.create_script.call_args.kwargs == {"runtime": "v8"}
-        session.create_script.return_value.enable_debugger.assert_called_once_with(DEBUGGER_PORT)
         out = capsys.readouterr().out
         assert "Runtime:" in out and "V8" in out
-        assert f"port {DEBUGGER_PORT}" in out
 
 
 class TestRunWatch:

@@ -129,6 +129,11 @@ int sqlite3_exec(
 
 ## Decoders
 
-When hooking a method, frooky tries to decode arguments as well as return values. This is done using decoders, which can be configured per parameter, for example to control the time of decoding or to pass additional context.
+When hooking a method, frooky tries to decode arguments as well as return values. This is done using decoders, which can be configured per parameter (for example to control the time of decoding via `direction`, limit items with `maxItems`, or pass roles with `decoderArgs`) by adding a third element to the parameter tuple:
 
-See [Decoders](./decoders.md) for what decoders are, the full list of decoder settings, and how to configure them on a parameter. Which decoders exist and how they use these settings is described per platform in [Decoders for Android Java Hooks](./decoders-java.md) and [Decoders for Native Hooks](./decoders-native.md).
+```yaml
+params:
+  - [ <type>, <name>, { <decoder settings> } ]
+```
+
+See [Decoders](./decoders.md) for what decoders are, the full list of decoder settings (`direction`, `maxDepth`, `maxItems`, `argFilter`, `decoderArgs`), and how to configure them. Which decoders exist and how they use these settings is described per platform in [Decoders for Android Java Hooks](./decoders-java.md) and [Decoders for Native Hooks](./decoders-native.md).
