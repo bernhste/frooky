@@ -56,19 +56,19 @@ describe("NativeHookValidator", () => {
     });
 
     it("normalizes a plain symbol-name hook into a full InputNativeHookNormalized", () => {
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["malloc"] };
+      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: ["custom_func"] };
       const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result).toEqual([
-        { symbol: "malloc", module: "libc.so", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
+        { symbol: "custom_func", module: "libfoo.so", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
       ]);
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it("collects hooks from multiple native hook collections, ignoring non-native hook collections", () => {
-      const nativeCollectionA: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["malloc"] };
+      const nativeCollectionA: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: ["funcA"] };
       const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: ["foo"] };
       const nativeCollectionB: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: ["SSL_write"] };
       const config: InputFrookyConfig = {
@@ -77,27 +77,27 @@ describe("NativeHookValidator", () => {
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
-      expect(result.map((hook) => hook.symbol)).toEqual(["malloc", "SSL_write"]);
+      expect(result.map((hook) => hook.symbol)).toEqual(["funcA", "SSL_write"]);
     });
 
     it("always uses the hook collection's module, ignoring a module set on the hook itself", () => {
       const nativeCollection: InputNativeHookCollection = {
         type: "native",
-        module: "libc.so",
-        hooks: [{ symbol: "malloc", module: "libwrong.so" }],
+        module: "libfoo.so",
+        hooks: [{ symbol: "funcA", module: "libwrong.so" }],
       };
       const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
-      expect(result[0].module).toBe("libc.so");
+      expect(result[0].module).toBe("libfoo.so");
     });
 
     it("normalizes params and retType using the merged decoder settings", () => {
       const nativeCollection: InputNativeHookCollection = {
         type: "native",
-        module: "libc.so",
-        hooks: [{ symbol: "memcpy", module: "libc.so", params: ["void *", "void *", "size_t"], retType: "void *" }],
+        module: "libfoo.so",
+        hooks: [{ symbol: "custom_func", module: "libfoo.so", params: ["void *", "void *", "size_t"], retType: "void *" }],
       };
       const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
@@ -273,7 +273,163 @@ describe("NativeHookValidator", () => {
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
       expect(warnSpy.mock.calls.length).toBe(2);
     });
+
+    describe("high-frequency libc hook warnings", () => {
+      it("warns when nativeStackTrace is enabled on a high-frequency libc function", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              hookSettings: { nativeStackTrace: true },
+              hooks: ["open"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).toHaveBeenCalled();
+        const messages = warnSpy.mock.calls.map((call) => call[0]);
+        expect(messages.some((msg) => msg.includes("Capturing stack traces on high-frequency libc function 'open' in 'libc.so'"))).toBe(true);
+      });
+
+      it("warns when platformStackTrace is enabled on a high-frequency libc function", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              hookSettings: { platformStackTrace: true },
+              hooks: ["read"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).toHaveBeenCalled();
+        const messages = warnSpy.mock.calls.map((call) => call[0]);
+        expect(messages.some((msg) => msg.includes("Capturing stack traces on high-frequency libc function 'read' in 'libc.so'"))).toBe(true);
+      });
+
+      it("warns under QuickJS when hooking a high-frequency libc function without argFilter", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              hooks: ["open"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).toHaveBeenCalled();
+        const messages = warnSpy.mock.calls.map((call) => call[0]);
+        expect(
+          messages.some((msg) =>
+            msg.includes("Hooking high-frequency libc function 'open' in 'libc.so' under QuickJS without an 'argFilter'"),
+          ),
+        ).toBe(true);
+        expect(messages.some((msg) => msg.includes("switching to the V8 runtime (--runtime v8)"))).toBe(true);
+      });
+
+      it("does not warn under QuickJS when an argFilter is present on a parameter", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              hooks: [
+                {
+                  symbol: "open",
+                  params: [["char *", "path", { argFilter: ["^/proc/self/status$"] }], "int"],
+                },
+              ],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("does not warn under QuickJS when an argFilter is present on hook decoderSettings", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              decoderSettings: { argFilter: ["^/data/"] },
+              hooks: ["open"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("does not warn about missing argFilter when running under V8 runtime", () => {
+        const originalScript = (globalThis as unknown as { Script?: { runtime: string } }).Script;
+        (globalThis as unknown as { Script?: { runtime: string } }).Script = { runtime: "V8" };
+        try {
+          const config: InputFrookyConfig = {
+            hookCollection: [
+              {
+                type: "native",
+                module: "libc.so",
+                hooks: ["open"],
+              },
+            ],
+          };
+
+          validator.validateAndNormalizeHooks(config, defaultSettings);
+
+          expect(warnSpy).not.toHaveBeenCalled();
+        } finally {
+          (globalThis as unknown as { Script?: { runtime: string } }).Script = originalScript;
+        }
+      });
+
+      it("does not warn on non-libc module even if symbol matches high-frequency name", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libcustom.so",
+              hooks: ["open"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("does not warn on low-frequency libc functions", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              hooks: ["getenv", "unlink"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+    });
   });
 });
 
 export {};
+

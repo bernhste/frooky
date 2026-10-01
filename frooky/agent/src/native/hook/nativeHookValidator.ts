@@ -37,7 +37,9 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
             "native",
           );
           rejectErrnoOnParams(normalizedNativeHook.params as Param[] | undefined);
-          normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(normalizedNativeHook));
+          const validatedHook = inputNativeHookNormalizedSchema.parse(normalizedNativeHook);
+          warnOnHighFrequencyLibcHook(validatedHook);
+          normalizedNativeHooks.push(validatedHook);
         } catch (e) {
           const symbol =
             typeof inputNativeHook === "string" ? inputNativeHook : Array.isArray(inputNativeHook) ? inputNativeHook[0] : inputNativeHook.symbol;
@@ -65,6 +67,55 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
   }
 }
 
+export const HIGH_FREQUENCY_LIBC_SYMBOLS = new Set([
+  "open",
+  "openat",
+  "close",
+  "read",
+  "write",
+  "mmap",
+  "mprotect",
+  "malloc",
+  "free",
+  "memcpy",
+  "memset",
+]);
+
+export function isLibcModule(moduleName: string): boolean {
+  const normalized = moduleName.toLowerCase();
+  return normalized === "libc.so" || normalized === "libc" || normalized.endsWith("/libc.so");
+}
+
+function hasArgFilter(hook: InputNativeHookNormalized): boolean {
+  if (hook.decoderSettings?.argFilter && hook.decoderSettings.argFilter.length > 0) {
+    return true;
+  }
+  const params = hook.params as Param[] | undefined;
+  if (!params || params.length === 0) {
+    return false;
+  }
+  return params.some((p) => p.settings?.argFilter && p.settings.argFilter.length > 0);
+}
+
+export function warnOnHighFrequencyLibcHook(hook: InputNativeHookNormalized): void {
+  if (!hook.symbol || !isLibcModule(hook.module) || !HIGH_FREQUENCY_LIBC_SYMBOLS.has(hook.symbol)) {
+    return;
+  }
+
+  if (hook.hookSettings?.nativeStackTrace || hook.hookSettings?.platformStackTrace) {
+    logger.warn(
+      `Capturing stack traces on high-frequency libc function '${hook.symbol}' in '${hook.module}' can cause recursive stack unwinding or crashes. Keep stack traces disabled for low-level functions.`,
+    );
+  }
+
+  const isQuickJs = typeof Script === "undefined" || Script.runtime === "QJS";
+  if (isQuickJs && !hasArgFilter(hook)) {
+    logger.warn(
+      `Hooking high-frequency libc function '${hook.symbol}' in '${hook.module}' under QuickJS without an 'argFilter' may cause stack overflow (SIGSEGV) or high overhead on background threads. Recommend adding an 'argFilter' for the current app or switching to the V8 runtime (--runtime v8).`,
+    );
+  }
+}
+
 // errno is only set by the call, so `decoder: errno` only applies to the return value
 function rejectErrnoOnParams(params: Param[] | undefined): void {
   const param = params?.find((p) => p.settings.decoder === "errno");
@@ -74,3 +125,4 @@ function rejectErrnoOnParams(params: Param[] | undefined): void {
     );
   }
 }
+

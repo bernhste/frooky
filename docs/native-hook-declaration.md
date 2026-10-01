@@ -7,6 +7,7 @@ This documentation explains how to write native hook declarations.
 - [Structure](#structure)
 - [Basic Usage](#basic-usage)
 - [Hooking Functions Without a Symbol](#hooking-functions-without-a-symbol)
+  - [Finding the Offset](#finding-the-offset)
 - [Decoding Arguments and Return Values](#decoding-arguments-and-return-values)
 - [Hook and Decoder Settings](#hook-and-decoder-settings)
 

@@ -11,11 +11,16 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/05_hook_settings/03_low_level_functions.yaml
 # See:    docs/additional-features.md#event-filter-based-on-stack-trace
 #
-# Why stack traces are risky here:
+# Why stack traces and unfiltered hooks are risky here:
 # - A native stack walk can call the hooked function again (e.g. open while reading a module), which recurses.
-# - Low-level functions may run on a small signal stack, which a stack walk overflows. On a signal stack,
-#   frooky captures no frames at all.
-# - Every call pays for the stack walk, which slows the whole app down.
+# - Low-level functions may run on a small thread/signal stack. Under QuickJS, hooking libc primitives without
+#   `argFilter` or enabling stack traces can exhaust the thread stack and cause a crash (SIGSEGV / SEGV_ACCERR).
+# - Bad cases:
+#     - Capturing stack traces: `nativeStackTrace: true` or `platformStackTrace: true` on libc hooks.
+#     - Unfiltered hooks under QuickJS: hooking `open`, `read`, or `write` without `argFilter`.
+# - Recommended solutions:
+#     - Use `argFilter` to narrow down calls to specific paths/descriptors of interest.
+#     - Or switch to the V8 runtime (`--runtime v8`) for deeper stack headroom.
 # `argFilter` is checked before any stack trace is built, so non-matching calls stay cheap.
 
 hookCollection:
