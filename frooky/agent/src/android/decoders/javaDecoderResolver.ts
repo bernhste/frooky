@@ -7,6 +7,7 @@ import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
 import { ConstantDecoder } from "./builtin/ConstantDecoder";
+import { FlagsDecoder } from "./builtin/FlagsDecoder";
 import { GetterDecoder } from "./builtin/GetterDecoder";
 import { HashCodeDecoder } from "./builtin/HashCodeDecoder";
 import { OverrideDecoder } from "./builtin/OverrideDecoder";
@@ -25,6 +26,7 @@ function getCustomDecoderRegistry(): Record<string, DecoderConstructor> {
     intentFlag: IntentFlagDecoder,
     intentUriFlag: IntentUriFlagDecoder,
     constant: ConstantDecoder,
+    flags: FlagsDecoder,
     getters: GetterDecoder,
   });
 }

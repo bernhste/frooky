@@ -2,7 +2,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { logger } from "../../shared/logger";
 import { bytesToString } from "../../shared/utils";
-import { decodeEnum } from "./nativeConstantDecoder";
+import { decodeEnum } from "../../shared/decoders/constantNames";
 import { presetConstants } from "./nativeConstantPresets";
 
 // size of sockaddr_storage

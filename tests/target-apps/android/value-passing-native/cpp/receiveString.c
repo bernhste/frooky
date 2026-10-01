@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <jni.h>
+#include <uchar.h>
+#include <unistd.h>
 
 #define NOINLINE __attribute__((noinline))
 #define EXPORT __attribute__((visibility("default")))
@@ -26,6 +28,25 @@ NOINLINE EXPORT int read_status(void)
     return first;
 }
 
+// A UTF-16 string of `len` code units without a terminator, like the `const jchar *` of JNI's GetStringChars.
+NOINLINE EXPORT int receive_utf16(const char16_t *s, int len)
+{
+    (void)s;
+    return len;
+}
+
+// A UTF-16 string that ends with a 0 code unit, like an ICU `const UChar *`.
+NOINLINE EXPORT int receive_utf16_cstring(const char16_t *s)
+{
+    int length = 0;
+    while (s[length])
+        length++;
+    return length;
+}
+
+// Like unlink(2): fails with ENOENT for a file that doesn't exist.
+NOINLINE EXPORT int delete_cache(const char *path) { return unlink(path); }
+
 JNIEXPORT jstring JNICALL
 Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI(JNIEnv *env, jobject thiz)
 {
@@ -34,6 +55,11 @@ Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI(JNIEnv *env, jobject thiz)
     track_event("button_click");
     sdk_flush();
     read_status();
+
+    static const char16_t greeting[] = u"Grüße 📱 frooky";
+    receive_utf16(greeting, (int)(sizeof(greeting) / sizeof(greeting[0])) - 1);
+    receive_utf16_cstring(u"Hello UTF-16");
+    delete_cache("/proc/self/frooky-missing-cache");
 
     return (*env)->NewStringUTF(env, "Called functions which receive C-Sting, UTF-8-String and UTF-16-String.");
 }

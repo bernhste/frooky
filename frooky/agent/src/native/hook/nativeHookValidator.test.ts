@@ -188,6 +188,21 @@ describe("NativeHookValidator", () => {
       expect(message).toContain("'length: count' names no parameter");
     });
 
+    it("skips a hook with decoder: errno on a param", () => {
+      const unlinkHook: InputNativeHookNormalized = {
+        symbol: "unlink",
+        module: "libc.so",
+        params: [["const char *", "path", { decoder: "errno" }]],
+      };
+      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", unlinkHook] };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("decoder: errno on 'path' is only supported on the return value");
+    });
+
     it("skips a hook that passes a role its decoder doesn't accept", () => {
       const closeHook: InputNativeHookNormalized = {
         symbol: "close",

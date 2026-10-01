@@ -7,8 +7,10 @@ How frooky decodes the parameters and return values of native (C/C++) functions.
 - [How frooky Picks a Decoder](#how-frooky-picks-a-decoder)
 - [Pointers and Arrays](#pointers-and-arrays)
 - [`decoderArgs`: Length and Offset](#decoderargs-length-and-offset)
+- [UTF-16 Strings](#utf-16-strings)
 - [File Descriptors](#file-descriptors)
 - [Flags and Enums](#flags-and-enums)
+- [errno](#errno)
 - [Named Decoders](#named-decoders)
 - [`direction`: Output Parameters](#direction-output-parameters)
 - [Limits](#limits)
@@ -22,8 +24,9 @@ A native value has no runtime type, so frooky decodes it by the type declared in
 
 1. **`decoder` in the decoder settings.** A decoder you choose always wins.
 2. **A fundamental type** passed by value, such as `int`, `unsigned long`, `size_t`, `bool` or `double`, is decoded as that type. 64-bit integers, and on 64-bit devices also pointer-sized ones such as `size_t` and `long`, are decimal strings, since a JSON number can't hold every 64-bit value.
-3. **A pointer to a fundamental type**, such as `int *` or `char **`, is read from memory, see [Pointers and Arrays](#pointers-and-arrays).
-4. **Any other type**, such as `SSL *` or `FILE *`, is shown as its raw value in hex, e.g. the address of a struct.
+3. **A pointer to a UTF-16 code unit**, such as `const jchar *` or `char16_t *`, is read as a UTF-16 string, see [UTF-16 Strings](#utf-16-strings).
+4. **A pointer to a fundamental type**, such as `int *` or `char **`, is read from memory, see [Pointers and Arrays](#pointers-and-arrays).
+5. **Any other type**, such as `SSL *` or `FILE *`, is shown as its raw value in hex, e.g. the address of a struct.
 
 `const` and `volatile` in a type are ignored.
 
@@ -86,6 +89,7 @@ See [`02_pointers_and_arrays.yaml`](examples/native/03_decoders/02_pointers_and_
 | `char *`, and `decoder: string` on any pointer                                             | Bytes of the string. NUL bytes in it don't end it.                     | Bytes to skip                    |
 | Other pointers (`int *`, `char **`, ...)                                                   | Elements of the array, see [Pointers and Arrays](#pointers-and-arrays) | Elements to skip                 |
 | `decoder: nullTerminated`                                                                  | –                                                                      | Elements to skip, e.g. `argv[0]` |
+| UTF-16 pointers (`const jchar *`, ...), and `decoder: utf16`                               | Code units of the string (2 bytes each). 0 units in it don't end it.   | Code units to skip               |
 | Values passed by value, unknown types, and the other decoders (`fd`, `enum`, `flags`, ...) | –                                                                      | –                                |
 
 Without `offset`, decoding starts at the pointer. Without `length`, a `char *` ends at its `\0`, and other pointers are read as one element. C usually passes a slice as a pointer to its start (`buf + off`), so `offset` is only needed for APIs that pass the start and the offset separately.
@@ -143,6 +147,29 @@ hooks:
       - [ "const unsigned char *", in, { decoderArgs: { length: inl } } ]
       - [ int, inl ]
 ```
+
+See [`01_strings_and_buffers.yaml`](examples/native/03_decoders/01_strings_and_buffers.yaml).
+
+## UTF-16 Strings
+
+Most native code on Android and iOS uses UTF-8, but some APIs pass UTF-16 strings:
+
+- JNI: `GetStringChars` and `GetStringCritical` return a `const jchar *`, `NewString` takes one.
+- Binder (`android::String16`) and ICU (`const UChar *`) on Android.
+- CoreFoundation and Foundation on iOS, e.g. `CFStringGetCharacters` (`UniChar *`) and `-[NSString initWithCharacters:length:]` (`const unichar *`).
+
+A pointer to `char16_t`, `jchar`, `unichar`, `UniChar` or `UChar` is decoded as a UTF-16 string. For other types, e.g. `uint16_t *` or `void *`, use `decoder: utf16`. Without the role `length`, the string ends at a 0 code unit. JNI strings have no terminator, so they need the length, which JNI and CoreFoundation count in code units:
+
+```yaml
+module: libfoo.so
+hooks:
+  - symbol: Java_org_example_Native_process
+    params:
+      - [ "const jchar *", chars, { decoderArgs: { length: len } } ]
+      - [ jsize, len ]
+```
+
+At most `maxItems` code units are decoded. A cut string ends with `...` and never ends with half of a character that takes two code units, such as an emoji. `wchar_t` isn't UTF-16 on Android and iOS, but 4 bytes per character, so `wchar_t *` isn't decoded as UTF-16.
 
 See [`01_strings_and_buffers.yaml`](examples/native/03_decoders/01_strings_and_buffers.yaml).
 
@@ -231,10 +258,40 @@ hooks:
 
 See [`04_flags_and_enums.yaml`](examples/native/03_decoders/04_flags_and_enums.yaml).
 
+## errno
+
+Many C functions report an error by returning `-1` (or `NULL`) and set `errno` to its reason. With `decoder: errno` on the return value, frooky decodes the return value as its declared type and adds `errno` if the return value reports an error:
+
+```json
+{ "value": -1, "errno": { "number": 2, "name": "ENOENT", "message": "No such file or directory" } }
+```
+
+- An error is `-1`, read with the size of the return type (32 bits for `int`, 64 bits for `ssize_t` or `long`), or `NULL` or `MAP_FAILED` (`(void *) -1`) for a pointer. For other return values, `errno` is `null`, since a function only sets `errno` on an error.
+- `name` is the name of the constant, `null` for a number frooky has no name for. The numbers differ between Android and iOS above 34, e.g. `11` is `EAGAIN` on Android and `EDEADLK` on iOS. `message` comes from `strerror` of the C library.
+- frooky reads `errno` right when the function returns, before anything else can change it.
+- Functions that return the error number themselves, such as `pthread_create`, don't use `errno`. Use `decoder: enum` for them.
+
+`decoder: errno` is only supported on the return value. A native hook needs a `retType` for it:
+
+```yaml
+module: libc.so
+hooks:
+  - symbol: connect
+    retType: [ int, { decoder: errno } ]
+    params:
+      - [ int, sockfd, { decoder: fd } ]
+      - [ "const void *", addr ]
+      - [ int, addrlen ]
+```
+
+See [`05_errno.yaml`](examples/native/03_decoders/05_errno.yaml).
+
 ## Named Decoders
 
 Native hooks have these registered decoders:
 
+- `utf16`: decodes a pointer as a UTF-16 string, see [UTF-16 Strings](#utf-16-strings).
+- `errno`: on the return value, adds the `errno` of a call that failed, see [errno](#errno).
 - `fd`: decodes an `int` file descriptor to the file, socket or pipe it refers to, see [File Descriptors](#file-descriptors).
 - `enum` and `flags`: decode an integer to the names in `constants`, see [Flags and Enums](#flags-and-enums). The presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain` and `socketType` have the constants built in.
 - `nullTerminated`: decodes a pointer to pointers, e.g. `char **`, as an array that ends at a NULL pointer, see [Pointers and Arrays](#pointers-and-arrays).
@@ -278,6 +335,7 @@ What `maxItems` limits for each decoder (see [`maxItems` and `maxDepth`](./decod
 | `char *`, `unsigned char *`, `void *` | Bytes read from the buffer |
 | Other pointers with the role `length` | Elements of the array      |
 | `nullTerminated`                      | Elements of the array      |
+| UTF-16 pointers, `utf16`              | Code units of the string   |
 
 Strings and buffers decoded as hex end with `...` when they're cut, arrays end with a `"[truncated at N]"` marker.
 

@@ -21,28 +21,29 @@ const FRIDA_FUNDAMENTAL_TYPES = [
   "double",
 ] as const;
 
+// includes the primitive types of JNI (jni.h), e.g. `jint` and `jsize`
 const FRIDA_FUNDAMENTAL_TYPE_ALIASES: Record<string, FridaFundamentalType> = Object.fromEntries(
   [
     ["void", ["void"]],
     ["bool", ["bool", "_Bool", "boolean"]],
     ["char", ["char", "schar", "signed char"]],
     ["uchar", ["uchar", "unsigned char"]],
-    ["int8", ["int8", "int8_t"]],
-    ["uint8", ["uint8", "uint8_t"]],
-    ["int16", ["int16", "int16_t", "short", "signed short", "short int", "signed short int"]],
-    ["uint16", ["uint16", "uint16_t", "ushort", "unsigned short", "unsigned short int"]],
-    ["int32", ["int32", "int32_t"]],
+    ["int8", ["int8", "int8_t", "jbyte"]],
+    ["uint8", ["uint8", "uint8_t", "jboolean"]],
+    ["int16", ["int16", "int16_t", "short", "signed short", "short int", "signed short int", "jshort"]],
+    ["uint16", ["uint16", "uint16_t", "ushort", "unsigned short", "unsigned short int", "jchar"]],
+    ["int32", ["int32", "int32_t", "jint", "jsize"]],
     ["uint32", ["uint32", "uint32_t"]],
     ["int", ["int", "signed", "signed int"]],
     ["uint", ["uint", "unsigned", "unsigned int"]],
-    ["int64", ["int64", "int64_t", "long long", "signed long long", "long long int", "llong"]],
+    ["int64", ["int64", "int64_t", "long long", "signed long long", "long long int", "llong", "jlong"]],
     ["uint64", ["uint64", "uint64_t", "unsigned long long", "unsigned long long int", "ullong"]],
     ["long", ["long", "signed long", "long int", "intptr_t", "ptrdiff_t", "off_t", "time_t"]],
     ["ulong", ["ulong", "unsigned long", "unsigned long int", "uintptr_t"]],
     ["size_t", ["size_t"]],
     ["ssize_t", ["ssize_t"]],
-    ["float", ["float"]],
-    ["double", ["double"]],
+    ["float", ["float", "jfloat"]],
+    ["double", ["double", "jdouble"]],
   ].flatMap(([fridaType, aliases]) =>
     // parseNativeFridaType() lowercases its input
     (aliases as string[]).map((alias) => [alias.toLowerCase(), fridaType as FridaFundamentalType]),

@@ -1,6 +1,6 @@
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
-import { decodeFlags } from "./nativeConstantDecoder";
+import { decodeFlags } from "../../shared/decoders/constantNames";
 import { presetConstants } from "./nativeConstantPresets";
 import { NativeDecoderResolver } from "./nativeDecoderResolver";
 

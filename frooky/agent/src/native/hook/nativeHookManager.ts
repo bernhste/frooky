@@ -7,6 +7,7 @@ import { logger } from "../../shared/logger";
 import { EMPTY_STACK_TRACE, HookStackTrace, PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
+import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { NativeHook } from "./nativeHook";
 import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
@@ -198,6 +199,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         }
       },
       onLeave: function (returnValue: InvocationReturnValue) {
+        // before anything else, which could set it
+        const errno = this.errno;
         const calls: NativeHookCall[] | undefined = this.calls;
         if (!calls) return;
         const tid = Process.getCurrentThreadId();
@@ -205,7 +208,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         hookManager.activeThreads.add(tid);
         try {
           for (const call of calls) {
-            hookManager.leaveHook(call, returnValue, this.context);
+            hookManager.leaveHook(call, returnValue, this.context, errno);
           }
         } finally {
           hookManager.activeThreads.delete(tid);
@@ -271,7 +274,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     }
   }
 
-  private leaveHook(call: NativeHookCall, returnValue: InvocationReturnValue, context: CpuContext): void {
+  // `errno` is the errno right after the call, for `decoder: errno`
+  private leaveHook(call: NativeHookCall, returnValue: InvocationReturnValue, context: CpuContext, errno: number): void {
     const { hook, target, outArgDecoders, retTypeDecoder, floatRetSlot } = call.installedHook;
     try {
       // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
@@ -279,7 +283,10 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       if (retTypeDecoder) {
         // returnValue is the general-purpose return register, a float/double is returned in an FP register
         const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile() ? readFloatArgBits(context, floatRetSlot) : null;
-        decodedRetValue = this.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
+        decodedRetValue =
+          retTypeDecoder instanceof NativeErrnoDecoder
+            ? retTypeDecoder.decodeWithErrno(returnValue, errno)
+            : this.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
       }
 
       const decodedArgs: DecodedArgs = { in: call.argsIn, out: [] };

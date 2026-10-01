@@ -2,8 +2,8 @@ metadata:
   name: "Decoders (Android): Custom Decoders"
   description: |
     `decoder` replaces the decoder chosen by type with a registered custom decoder, e.g. to show a
-    byte array or a char array as text, an object by its identity or its getters, or an int as the
-    name of a constant.
+    byte array or a char array as text, an object by its identity or its getters, an int as the
+    name of a constant, or a bitmask as the names of its flags.
   version: 1
   author: frooky dev
   platform: Android
@@ -52,6 +52,17 @@ hookCollection:
           - params:
               - [int, opmode, { decoder: constant, constants: { ENCRYPT: 1, DECRYPT: 2 } }]
 
+  # `flags`: the names of the constants whose bits are set in a bitmask, from `constants`. The purposes of a
+  # Keystore key are a bitmask of KeyProperties.PURPOSE_*, which aren't declared on the hooked Builder class.
+  # Docs: https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec.Builder#Builder(java.lang.String,%20int)
+  - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
+    hooks:
+      - method: $init
+        overloads:
+          - params:
+              - [java.lang.String, keystoreAlias]
+              - [int, purposes, { decoder: flags, constants: { PURPOSE_ENCRYPT: 1, PURPOSE_DECRYPT: 2, PURPOSE_SIGN: 4, PURPOSE_VERIFY: 8, PURPOSE_WRAP_KEY: 32, PURPOSE_AGREE_KEY: 64, PURPOSE_ATTEST_KEY: 128 } }]
+
   # `intentFlag`: the Intent.FLAG_* constants set in a bitmask
   # Docs: https://developer.android.com/reference/android/content/Intent#setFlags(int)
   - javaClass: android.content.Intent
@@ -75,5 +86,6 @@ hookCollection:
 #   receiveProfile:    [{name: age, value: 42}, {name: name, value: "alice"}, {name: admin, value: true}] (in the order of reflection)
 #   receiveBigInteger: "java.math.BigInteger@<hashCode>"
 #   receiveMode:       mode "MODE_DECRYPT", and opmode "DECRYPT" (a second event)
+#   Builder.$init:     keystoreAlias "TestKeyPair", purposes ["PURPOSE_SIGN", "PURPOSE_VERIFY"]
 #   setFlags:          {type: android.content.IntentFlag, value: [FLAG_GRANT_READ_URI_PERMISSION, ..., FLAG_ACTIVITY_NEW_TASK, FLAG_ACTIVITY_CLEAR_TASK]}
 #   parseUri:          flags {type: android.content.IntentUriFlag, value: [URI_INTENT_SCHEME]}

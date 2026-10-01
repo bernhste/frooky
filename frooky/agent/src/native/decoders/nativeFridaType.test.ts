@@ -65,6 +65,14 @@ describe("parseNativeFridaType", () => {
       expect(parseNativeFridaType("time_t")).toBe("long");
     });
 
+    it("should resolve the primitive types of JNI", () => {
+      expect(parseNativeFridaType("jint")).toBe("int32");
+      expect(parseNativeFridaType("jsize")).toBe("int32");
+      expect(parseNativeFridaType("jlong")).toBe("int64");
+      expect(parseNativeFridaType("jboolean")).toBe("uint8");
+      expect(parseNativeFridaType("jchar")).toBe("uint16");
+    });
+
     it("should return undefined for an unrecognized fundamental type", () => {
       expect(parseNativeFridaType("SomeStruct")).toBeUndefined();
     });

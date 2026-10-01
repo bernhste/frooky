@@ -27,6 +27,7 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
         try {
           const normalizedNativeHook = normalizeNativeHook(inputNativeHook, nativeHookCollection.module, hookSettings, decoderSettings);
           validateDecoderArgRoles(normalizedNativeHook.params as Param[] | undefined, acceptedNativeDecoderArgs);
+          rejectErrnoOnParams(normalizedNativeHook.params as Param[] | undefined);
           normalizedNativeHooks.push(inputNativeHookNormalizedSchema.parse(normalizedNativeHook));
         } catch (e) {
           const symbol =
@@ -52,5 +53,15 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
       }
     }
     return platformHookCollection;
+  }
+}
+
+// errno is only set by the call, so `decoder: errno` only applies to the return value
+function rejectErrnoOnParams(params: Param[] | undefined): void {
+  const param = params?.find((p) => p.settings.decoder === "errno");
+  if (param) {
+    throw new Error(
+      `decoder: errno on '${param.name ?? param.type}' is only supported on the return value, e.g. 'retType: [int, { decoder: errno }]'.`,
+    );
   }
 }

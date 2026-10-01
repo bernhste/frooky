@@ -1,5 +1,5 @@
 import { logger } from "../../shared/logger";
-import { ConstantSet } from "./nativeConstantDecoder";
+import { ConstantSet } from "../../shared/decoders/constantNames";
 
 // Constants of system calls and libc for 64-bit processes, one table per platform:
 // - linux: Android (and Linux), from the Linux UAPI headers and Bionic. The kernel keeps the values stable per

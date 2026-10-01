@@ -183,6 +183,8 @@ class TestAndroidExamples:
         assert {prop["name"]: prop["value"] for prop in profile["argsIn"][0]["value"]} == {"name": "alice", "age": 42, "admin": True}
         modes = sorted(event["argsIn"][0]["name"] + "=" + event["argsIn"][0]["value"] for event in self._events(find_matched_events, "receiveMode"))
         assert modes == ["mode=MODE_DECRYPT", "opmode=DECRYPT"]
+        builders = find_matched_events({"javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder"})
+        assert ["TestKeyPair", ["PURPOSE_SIGN", "PURPOSE_VERIFY"]] in [_values(event["argsIn"]) for event in builders]
         # setFlags is a framework method, so the app process may call it more than once
         flags = [event["argsIn"][0] for event in self._events(find_matched_events, "setFlags", "android.content.Intent")]
         expected_flags = {
@@ -409,6 +411,10 @@ class TestNativeExamples:
         assert _values(utf8["argsIn"]) == ["Welcome the first OWASP MASCon 📱❤️"]
         messages = sorted((event["argsIn"][0]["name"], event["argsIn"][0]["value"]) for event in self._events(find_matched_events, "send_message"))
         assert messages == [("buf", "0x48656c6c6f2066726f6f6b79"), ("text", "Hello frooky")]
+        [utf16] = self._events(find_matched_events, "receive_utf16")
+        assert _values(utf16["argsIn"]) == ["Grüße 📱 frooky", 15]
+        [utf16_cstring] = self._events(find_matched_events, "receive_utf16_cstring")
+        assert _values(utf16_cstring["argsIn"]) == ["Hello UTF-16"]
         [read_message] = self._events(find_matched_events, "read_message")
         assert read_message["argsOut"] == [{"type": "void *", "name": "buf", "value": "Hello frooky"}]
         assert read_message["returnValue"]["value"] == 12
@@ -455,6 +461,17 @@ class TestNativeExamples:
         assert _values(open_socket["argsIn"]) == ["AF_INET", ["SOCK_DGRAM", "SOCK_CLOEXEC"]]
         [map_page] = self._events(find_matched_events, "map_page")
         assert _values(map_page["argsIn"]) == [["PROT_READ", "PROT_WRITE"], ["MAP_PRIVATE", "MAP_ANONYMOUS"]]
+
+    def test_errno(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/03_decoders/05_errno.yaml"), NATIVE_APP)
+
+        [delete_cache] = self._events(find_matched_events, "delete_cache")
+        assert delete_cache["returnValue"] == {
+            "type": "int",
+            "value": {"value": -1, "errno": {"number": 2, "name": "ENOENT", "message": "No such file or directory"}},
+        }
+        [read_status] = self._events(find_matched_events, "read_status")
+        assert read_status["returnValue"]["value"] == {"value": ord("N"), "errno": None}
 
     def test_max_items(self, run_frooky, find_matched_events):
         run_frooky(_example("native/04_decoder_settings/01_max_items.yaml"), NATIVE_APP)

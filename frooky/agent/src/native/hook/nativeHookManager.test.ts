@@ -26,6 +26,19 @@ const cm = new CModule(`
   }
 `);
 
+// Bionic's errno is `*__errno()`. Module level like `cm`: its code must outlive the hooks on it.
+const cmErrno = new CModule(
+  `
+  extern int *__errno (void);
+  int unlink_missing (int fail) {
+    if (!fail) return 0;
+    *__errno () = 2;
+    return -1;
+  }
+`,
+  { __errno: Module.getGlobalExportByName("__errno") },
+);
+
 // Interceptor changes are only committed once no thread runs a JS callback, which can take a moment
 // while the app keeps hitting other hooks (e.g. frida-java-bridge's), so call until the hook fires
 async function untilHooked(call: () => void, fired: () => boolean): Promise<void> {
@@ -240,6 +253,35 @@ describe("NativeHookManager", () => {
       expect(events.length).toBe(1);
       expect(events[0].argsIn).toEqual([{ type: "int", name: "val", value: 21 }]);
       expect(events[0].argsOut).toEqual([{ type: "int *", name: "out", value: 42 }]);
+    });
+
+    it("decodes the errno of a call that returns -1 with decoder: errno", async () => {
+      const events: NativeHookEvent[] = [];
+      const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+      const manager = new NativeHookManager(stackTrace, agent);
+      const params = normalizeInputParams([["int", "fail"]], DEFAULT_DECODER_SETTINGS);
+      const retType = normalizeInputRetType(["int", { decoder: "errno" }], DEFAULT_DECODER_SETTINGS);
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })], 5));
+      const hook: NativeHook = { ...hooks![0], symbolName: "unlink_missing", symbolAddress: cmErrno.unlink_missing };
+
+      manager.registerHooks([hook]);
+      const unlinkMissing = new NativeFunction(cmErrno.unlink_missing, "int", ["int"]);
+      await untilHooked(
+        () => unlinkMissing(0),
+        () => events.length > 0,
+      );
+      events.length = 0;
+      try {
+        unlinkMissing(0);
+        unlinkMissing(1);
+      } finally {
+        manager.unregisterHooks([hook]);
+      }
+
+      expect(events.map((event) => event.returnValue!.value)).toEqual([
+        { value: 0, errno: null },
+        { value: -1, errno: { number: 2, name: "ENOENT", message: "No such file or directory" } },
+      ]);
     });
 
     it("passes the decoded return value to an out param with the role length: $ret", async () => {

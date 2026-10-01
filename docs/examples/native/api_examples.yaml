@@ -173,6 +173,17 @@ hookCollection:
       - [const char *, filename]
       - [int, flags, { decoder: dlopenFlags }]
 
+  # Connections and why they fail: `decoder: errno` adds the errno of a call that returns -1, e.g. ECONNREFUSED.
+  # Docs: https://www.man7.org/linux/man-pages/man2/connect.2.html
+  - module: libc.so
+    hooks:
+    - symbol: connect
+      retType: [int, { decoder: errno }]
+      params:
+      - [int, sockfd, { decoder: fd }]
+      - [const void *, addr]
+      - [int, addrlen]
+
   # The command lines of programs the app starts: `argv` and `envp` end at a NULL pointer.
   # Docs: https://www.man7.org/linux/man-pages/man2/execve.2.html
   - module: libc.so

@@ -75,6 +75,7 @@ With `decoder`, a parameter or return value is decoded with one of these registe
 - `hashCode`: renders a reference type as `<class>@<hashCode>`, without invoking a custom `toString()` override
 - `intentFlag`: decodes an `int` bitmask into the matching `Intent.FLAG_*` constant names
 - `intentUriFlag`: decodes an `int` bitmask into the matching `Intent.URI_*` constant names
+- `flags`: decodes an integer bitmask into the names of the `constants` whose bits are set, see below
 - `constant`: decodes a value into the name of the matching `static final` constant declared on the hooked method's own class (e.g. `1` -> `"ENCRYPT_MODE"` for `javax.crypto.Cipher`'s `opmode`), or of the `constants` you declare
 
 ```yaml
@@ -115,6 +116,22 @@ hooks:
 ```
 
 The value is compared as a number, so `constants` only matches numeric values (`int`, `long`, `short`, `byte`, `float`, `double`). An `int` is compared as 32 bits, so a constant can be written in hex, e.g. `0x80000000` for `-2147483648`. A value without a constant is decoded as the value itself; frooky doesn't fall back to the constants of the hooked class.
+
+The `flags` decoder decodes a bitmask into the names of the constants in `constants` whose bits are set, e.g. the purposes of a Keystore key. The constants are often declared on another class than the hooked one, here `KeyProperties`:
+
+```yaml
+javaClass: android.security.keystore.KeyGenParameterSpec$Builder
+hooks:
+  - method: $init
+    overloads:
+      - params:
+        - [java.lang.String, keystoreAlias]
+        - [int, purposes, { decoder: flags, constants: { PURPOSE_ENCRYPT: 1, PURPOSE_DECRYPT: 2, PURPOSE_SIGN: 4, PURPOSE_VERIFY: 8 } }]
+```
+
+`KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY` is decoded as `["PURPOSE_SIGN", "PURPOSE_VERIFY"]`. Bits that no constant has are added as one hex string, e.g. `"0x100"`, and a constant with the value `0` is only shown if no bit is set. `flags` works on `int`, `long`, `short`, `byte` and `char` values; other values are decoded as they are. It decodes the same as `decoder: flags` of [native hooks](./decoders-native.md#flags-and-enums).
+
+Other common bitmasks: the `flags` of `PendingIntent.getActivity()` (`FLAG_IMMUTABLE`, `FLAG_MUTABLE`, ...), of `Context.registerReceiver()` (`RECEIVER_EXPORTED`, ...) and of `Window.setFlags()` (`FLAG_SECURE`, ...).
 
 See [`03_custom_decoders.yaml`](examples/android/03_decoders/03_custom_decoders.yaml).
 

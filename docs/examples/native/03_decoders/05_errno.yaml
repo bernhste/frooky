@@ -1,0 +1,31 @@
+metadata:
+  name: "Decoders (Native): errno"
+  description: |
+    `decoder: errno` on the return value decodes the return value and, if it reports an error by the
+    POSIX convention (-1, or NULL for a pointer), the `errno` the function set, e.g. ENOENT.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/05_errno.yaml
+# See:    docs/decoders-native.md#errno
+
+hookCollection:
+  - module: libreceiveString.so
+    hooks:
+      # int delete_cache(const char *path) calls unlink(2) on a file that doesn't exist, so it returns -1 and
+      # sets errno to ENOENT
+      # Docs: https://www.man7.org/linux/man-pages/man2/unlink.2.html
+      - symbol: delete_cache
+        retType: [int, { decoder: errno }]
+        params:
+          - ["const char *", path]
+
+      # read_status() returns the first character of /proc/self/status, so it succeeds and has no errno
+      - symbol: read_status
+        retType: [int, { decoder: errno }]
+
+# Expected values (returnValue.value):
+#   delete_cache: {value: -1, errno: {number: 2, name: "ENOENT", message: "No such file or directory"}}
+#   read_status:  {value: 78, errno: null} ("N" of "Name:")
