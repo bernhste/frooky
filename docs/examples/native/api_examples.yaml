@@ -205,7 +205,8 @@ hookCollection:
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   - module: libc.so
     hookSettings:
-      callerFilter: ['^libapp\.so$']
+      callerFilter:
+        - libapp.so
     hooks:
     - symbol: open
       retType: int

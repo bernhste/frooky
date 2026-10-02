@@ -16,7 +16,8 @@ settings:
     platformStackTrace: true
     nativeStackTrace: true
     maxStackFrames: 1
-    callerFilter: ['^libreceiveString\.so$']
+    callerFilter:
+      - libreceiveString.so
   decoderSettings:
     maxItems: 10
 

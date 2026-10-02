@@ -30,7 +30,8 @@ metadata:
 settings:
   hookSettings:
     # the app's own libraries (System.loadLibrary in MastgTest.kt)
-    callerFilter: ['^lib(receive[A-Za-z]+|loadTime)\.so$']
+    callerFilter:
+      - '^lib(receive[A-Za-z]+|loadTime)\.so$'
   decoderSettings:
     maxItems: 1024
 

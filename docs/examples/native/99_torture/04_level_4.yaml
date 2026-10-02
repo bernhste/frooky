@@ -52,7 +52,8 @@ hookCollection:
           - [mode_t, mode]
       - symbol: close
         hookSettings:
-          callerFilter: ['frooky-never-matches']
+          callerFilter:
+            - frooky-never-matches
         retType: int
         params:
           - [int, fd, { decoder: fd }]

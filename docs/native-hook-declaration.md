@@ -212,7 +212,8 @@ hookSettings:
   platformStackTrace: true
   nativeStackTrace: true
   maxStackFrames: 10
-  callerFilter: ['^libapp\.so$']
+  callerFilter:
+    - libapp.so
 hooks:
   - symbol: SSL_write
     retType: int

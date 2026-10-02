@@ -208,7 +208,7 @@ hookSettings:
   platformStackTrace: true
   maxStackFrames: 5
   callerFilter:
-    - "^org\\.owasp\\.mastestapp\\."
+    - org.owasp.mastestapp
 hooks:
   - method: query
     overloads:

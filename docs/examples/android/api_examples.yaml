@@ -60,7 +60,7 @@ hookCollection:
       platformStackTrace: true
       maxStackFrames: 10
       callerFilter:
-        - "^com\\.example\\.app\\."
+        - com.example.app.
 
   # Hook multiple overloads of the same method.
   # Docs: https://developer.android.com/reference/android/content/Intent

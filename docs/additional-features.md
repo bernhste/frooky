@@ -202,14 +202,15 @@ For a Java hook, `callerFilter` searches the Java stack of the call for a matchi
 ```yaml
 javaClass: org.owasp.mastestapp.MastgTest
 hookSettings:
-  callerFilter: ['^org\.owasp\.mastestapp\.ThirdPartySdk\.']
+  callerFilter:
+    - org.owasp.mastestapp.ThirdPartySdk
 hooks:
   - trackEvent
 ```
 
-The app calls `trackEvent` directly from `mastgTest` and through `ThirdPartySdk.flush`. Only the second call is recorded. `'^org\.owasp\.mastestapp\.MastgTest\.'` would record both, as `mastgTest` is on the stack of both.
+The app calls `trackEvent` directly from `mastgTest` and through `ThirdPartySdk.flush`. Only the second call is recorded. `'org.owasp.mastestapp.MastgTest'` would record both, as `mastgTest` is on the stack of both.
 
-The same applies to library code the app uses: `EncryptedSharedPreferences` (Google Tink) calls `SharedPreferences.Editor.putString` when it creates its keyset. With `callerFilter: ['^org\.owasp\.mastestapp\.']`, that call is recorded if the app called `EncryptedSharedPreferences.create`. A `putString` of a framework component on its own thread has no app method on its stack and is dropped.
+The same applies to library code the app uses: `EncryptedSharedPreferences` (Google Tink) calls `SharedPreferences.Editor.putString` when it creates its keyset. With `callerFilter: [org.owasp.mastestapp]`, that call is recorded if the app called `EncryptedSharedPreferences.create`. A `putString` of a framework component on its own thread has no app method on its stack and is dropped.
 
 ### Native Hooks
 
@@ -225,7 +226,8 @@ For a native hook, `callerFilter` checks the module of the call's return address
 ```yaml
 module: libc.so
 hookSettings:
-  callerFilter: ['^libreceiveString\.so$']
+  callerFilter:
+    - libreceiveString.so
 hooks:
   - symbol: fopen
     retType: "void *"
@@ -297,7 +299,7 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 **Recommendations for low-level and high-frequency hooks:**
 
 1. **Keep stack traces disabled** on high-frequency libc functions (`nativeStackTrace: false`, `platformStackTrace: false`).
-2. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: ['^libapp\.so$']`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
+2. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: [libapp.so]`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
 3. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
 4. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
 

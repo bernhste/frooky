@@ -15,7 +15,8 @@ settings:
   hookSettings:
     platformStackTrace: true
     maxStackFrames: 1
-    callerFilter: ['^org\.owasp\.mastestapp']
+    callerFilter:
+      - org.owasp.mastestapp
   decoderSettings:
     maxItems: 10
 
