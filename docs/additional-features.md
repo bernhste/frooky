@@ -115,7 +115,7 @@ Capturing stack traces provides visibility into the execution path leading up to
 | `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames. Native hooks only: Java hooks have no native context and always capture an empty native stack trace.                                                                                                                  |
 | `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames. For a native hook, these are the Java frames that led to the native call, if it was called from Java.                                                                               |
 | `callerFilter`       | `string[]` | `[]`    | Regular expressions; a call is only recorded if its caller matches one of them. Java hooks match the methods on the Java stack (e.g. `'^com\.myapp\.'`), native hooks the module of the direct caller (e.g. `'^libapp\.so$'`). See [Caller Filters](#caller-filters). |
-| `early`              | `boolean`  | `false` | Whether to install native hooks early, before the platform runtime (e.g. ART) is initialized. When `false` (default), hooks are gated behind `platformReady` to prevent early bootstrap crashes and deadlocks. Native hooks only. |
+| `early`              | `boolean`  | `false` | Whether to install native hooks early, before the platform runtime (e.g. ART) is initialized. When `false` (default), hooks are gated behind `platformReady` to prevent early bootstrap crashes and deadlocks. Native hooks only.                                     |
 
 In the output events, captured stack traces appear in the `stackTrace` object with separate arrays for `platformStackTrace` and `nativeStackTrace` (see [Output Format](./output.md)):
 
@@ -310,16 +310,7 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 
 ### Blocked Functions
 
-A hook on some low-level functions breaks the app, whatever the hook file says. frooky skips these hooks, or their stack traces, with a warning:
-
-| Function                                                 | Runtime | Blocked      | Why                                                                                                                                       |
-| -------------------------------------------------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | all     | hook         | Frida's Interceptor uses them itself: installing the hook hangs the app.                                                                  |
-| `dlopen` (`libdl.so`)                                    | all     | hook         | The linker picks the namespace by the caller's address, which the hook changes, so system libraries (e.g. graphics drivers) fail to load. |
-| `memset`, `clock_gettime` (`libc.so`)                    | V8      | hook         | V8 calls them itself while it runs a hook, which re-enters V8 and crashes the app (`SIGTRAP`). Use QuickJS to hook them.                  |
-| `sigprocmask` (`libc.so`)                                | all     | stack traces | The native stack walk crashes the app in it. A `callerFilter` still works, as it needs no stack walk.                                     |
-
-The list comes from hooking about 50 low-level libc and libdl functions on Android 15, with and without stack traces, under both runtimes. `android_dlopen_ext` and `dlsym` also depend on the caller's address but didn't break the test app, so they aren't blocked. Hooks declared with `offset` aren't checked.
+Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_getspecific`, `dlopen` in `libdl.so`, and under V8 `memset` and `clock_gettime`. frooky doesn't install hooks on these functions (or, for `sigprocmask`, doesn't capture their stack traces) and logs a warning instead. See [Blocked Functions](./under-the-hood.md#blocked-functions) in Under the Hood for the full list and why each one is blocked.
 
 See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml), [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml) and [`examples/native/08_early_hooking/02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) for full examples.
 

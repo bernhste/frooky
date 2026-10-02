@@ -9,11 +9,12 @@ This page explains what happens between starting frooky and the moment every hoo
 
 - [Overview](#overview)
 - [From Start to Installed Hooks](#from-start-to-installed-hooks)
-  - [Installing Java Hooks](#installing-java-hooks)
-  - [Installing Native Hooks](#installing-native-hooks)
-    - [Early Hooking](#early-hooking)
+- [Loading the Hook Files](#loading-the-hook-files)
+- [Installing Java Hooks](#installing-java-hooks)
+- [Installing Native Hooks](#installing-native-hooks)
+  - [Early Hooking](#early-hooking)
+    - [Blocked Functions](#blocked-functions)
   - [Starting the Agent](#starting-the-agent)
-  - [Loading the Hook Files](#loading-the-hook-files)
   - [Platform Ready](#platform-ready)
   - [The Resolver Timeout and Hook States](#the-resolver-timeout-and-hook-states)
 - [When a Hook Is Installed](#when-a-hook-is-installed)
@@ -81,7 +82,38 @@ sequenceDiagram
     FA-->>Host: progress report (hooked / pending / waiting / failed)
 ```
 
-### Installing Java Hooks
+## Loading the Hook Files
+
+The host passes all hook files at once to `loadFrookyConfigs` (step 5). The RPC call returns right away and doesn't wait for the hooks: in spawn mode, the app stays suspended only as long as the host waits for this call.
+
+Each hook file is then processed on its own, all of them concurrently:
+
+1. **Validation:** `validateAndRepairFrookyConfig()` checks the file against the schema. An invalid file is skipped with a warning; the other files still load. The Java and native validators then normalize each hook declaration, e.g. expand shorthands and merge the [settings](./additional-features.md#settings-precedence), and drop invalid declarations with a warning. They also warn about risky declarations, e.g. `early: true` on a Java hook (which is ignored) or on a high-frequency libc function without a `callerFilter`.
+2. **Diff:** every normalized declaration gets a fingerprint. On a [reload](./additional-features.md#hot-reloading-and-watch-mode), unchanged declarations keep their installed hooks, removed ones are unhooked, and only new, changed or retried ones are resolved. On the first load, every declaration is new and starts in the state `pending`.
+3. **Resolve and install:** the Java and native declarations go to their hook managers in parallel. `resolveHooks()` returns one promise per declaration, which settles once its class or module is found and its hooks are installed, or once it is clear that the method or symbol doesn't exist.
+
+What is installed before the app is resumed is only part of the hooks: Java hooks on classes of the default class loader (e.g. the Android framework's) and native hooks with `early: true` on modules that are already loaded. Everything else waits for platform ready or for its class or module, see [When a Hook Is Installed](#when-a-hook-is-installed).
+
+```mermaid
+flowchart TD
+    file["hook file, sent by the host"] --> valid{"validateAndRepairFrookyConfig():<br/>valid?"}
+    valid -->|no, first load| skip["warn, skip the file"]
+    valid -->|no, reload| keep["warn, keep the previous version"]
+    valid -->|yes| normalize["Java and native validators:<br/>normalize each declaration,<br/>drop invalid ones with a warning"]
+    normalize --> fp["fingerprint per declaration:<br/>kind + normalized declaration"]
+    fp --> known{"fingerprint in the<br/>previous version?"}
+    known -->|yes| unchanged["unchanged:<br/>keeps its state and hooks"]
+    known -->|"yes, failed, and r key"| retried["retried: pending"]
+    known -->|no| added["new: pending"]
+    fp --> gone["fingerprints only in the previous version:<br/>removed, unregisterHooks()"]
+    added --> resolve["resolveHooks() in the Java<br/>and native hook managers"]
+    retried --> resolve
+    resolve --> summary["log what changed, e.g.<br/>Updated hooks.yaml: 1 new, 3 unchanged"]
+```
+
+A changed declaration has a new fingerprint, so it is removed and added again: its old hooks are unhooked and its new version is resolved and installed. The summary counts such a pair with the same target (method or symbol) as `updated`.
+
+## Installing Java Hooks
 
 Java hooks don't wait for platform ready: a class that the default class loader has is hooked right away (steps 3 and 4). See [Java Hooks](#java-hooks) below.
 
@@ -122,7 +154,7 @@ sequenceDiagram
     end
 ```
 
-### Installing Native Hooks
+## Installing Native Hooks
 
 By default, a native hook waits for platform ready, even if its module is loaded and its symbol resolves right away. The symbol or offset is still resolved as soon as the module is found, so a misspelled symbol fails right away.
 
@@ -160,20 +192,38 @@ sequenceDiagram
     Note over FA,NM: a symbol or offset that doesn't resolve settles as null: failed
 ```
 
-#### Early Hooking
+### Early Hooking
 
 Before platform ready, the runtime (ART) is still starting its own threads, and hooks on functions like `read` or `close` collide with them: the app can deadlock or stop responding (ANR). That's why native hooks wait by default.
 
 `early: true` skips this wait. Use it for code that runs before platform ready, e.g. ELF constructors in `.init_array`, `JNI_OnLoad` of a library loaded at startup, or anti-tampering checks, and give a high-frequency function a `callerFilter`, see [Dangerous Low-Level, Early, and High-Frequency Hooks](./additional-features.md#dangerous-low-level-early-and-high-frequency-hooks) and the examples in [`08_early_hooking`](./examples/native/08_early_hooking/). `early` only matters when spawning (`-f`): when attaching, the app is already past platform ready.
 
-A spawned app goes through four stages:
+A spawned app goes through three stages:
 
-| Stage | What can be hooked | What is risky or blocked | Stack traces available? |
-| :--- | :--- | :--- | :--- |
-| **Stage 1: Frooky init** (process paused at spawn) | Opt-in via `early: true`: modules already mapped (`libc.so`, `libdl.so`). ✅ Java hooks on classes of the default class loader (e.g. the Android framework's) | ❌ High-risk Bionic primitives (`read`, `close`) without `callerFilter` collide with ART bootstrap threads on ARM64; Java hooks on app classes cannot install yet (queued as `pending`) | ❌ No stack traces (`detectUnsafeContext()` returns `"before-ready"`) |
-| **Stage 2: Resume & linker** (process resumed, before platform ready) | Opt-in via `early: true`: dynamically loaded `.so` libraries as the linker loads them, before `.init_array` / `JNI_OnLoad` | ❌ Hooking functions actively executing inside the dynamic linker (`linker-busy` / `in-linker`) without `callerFilter` risks ANRs | ❌ No stack traces (blocked by `"in-linker"`, `"linker-busy"`, or `"before-ready"`) |
-| **Stage 3: Platform ready** (`targetReady` / `Java.perform()`) | ✅ Default for native hooks: installed now. Java hooks on the app's classes, found in its class loaders | ⚠️ Hot-path libc functions (`malloc`, `free`, `memcpy`) still benefit from `callerFilter` to reduce event volume | ✅ Platform (Java) stack traces available; native stack traces available (guarded by `detectUnsafeContext` on low stack) |
-| **Stage 4: App steady state** (activities and UI running) | ✅ Everything (Java, Kotlin, native symbols, offsets) | ⚠️ Functions in `BLOCKED_FUNCTIONS` (e.g. `pthread_getspecific`, `dlopen`) | ✅ Full stack traces (Java + native) |
+| Stage                                                                       | Native hooks                                                                                          | Java hooks                                                          | Stack traces                |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------- |
+| **1. Paused at spawn** (the agent loads the hook files)                     | ⚠️ Only with `early: true`, on modules that are already loaded (e.g. `libc.so`)                       | ✅ Classes of the default class loader (e.g. `javax.crypto.Cipher`) | ❌ Skipped (`before-ready`) |
+| **2. Resumed** (the process starts up, before platform ready)               | ⚠️ Only with `early: true`, in the linker while a module loads, before `.init_array` and `JNI_OnLoad` | ⏳ App classes stay `pending`                                       | ❌ Skipped (`before-ready`) |
+| **3. Platform ready** (`targetReady` resolves in `handleBindApplication()`) | ✅ Every waiting hook on a loaded module is installed                                                 | ✅ App classes are looked up in the app's class loaders             | ✅ Java and native          |
+
+Independent of the stage:
+
+- ⚠️ An `early: true` hook on a high-frequency libc function (e.g. `read`, `close`, `malloc`) without a `callerFilter` can deadlock the app or make it stop responding (ANR) during startup. The validator warns about it.
+- ⚠️ Hot-path functions (e.g. `malloc`, `free`, `memcpy`) produce a lot of events. A `callerFilter` keeps only the calls of the modules you are interested in, see [Caller Filters](#caller-filters).
+- ❌ Stack traces are also skipped while any thread loads a library (`in-linker`, `linker-busy`), on a signal stack (`signal-stack`) and when little stack is left (`low-stack`), see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces).
+
+#### Blocked Functions
+
+Hooking some low-level functions makes the app hang or crash, no matter which settings the hook uses. frooky doesn't install hooks on these functions (or, for `sigprocmask`, doesn't capture their stack traces) and logs a warning instead:
+
+| Function                                                 | Runtime | Blocked      | Why                                                                                                                                                                                                                                             |
+| -------------------------------------------------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | all     | hook         | Frida's Interceptor uses them itself: installing the hook hangs the app.                                                                                                                                                                        |
+| `dlopen` (`libdl.so`)                                    | all     | hook         | The linker picks the namespace by the caller's address, which the hook changes, so system libraries (e.g. graphics drivers) fail to load.                                                                                                       |
+| `memset`, `clock_gettime` (`libc.so`)                    | V8      | hook         | V8 calls them itself while it runs a hook, which re-enters V8 and crashes the app (`SIGTRAP`). Use QuickJS to hook them.                                                                                                                        |
+| `sigprocmask` (`libc.so`)                                | all     | stack traces | Its calls come from ART's signal chain wrapper in `libsigchain.so`, and Frida's accurate stack walker crashes the app (`SIGSEGV`) when it walks from there, also after platform ready. A `callerFilter` still works, as it needs no stack walk. |
+
+The list comes from hooking about 50 low-level libc and libdl functions on Android 15, with and without stack traces, under both runtimes. `android_dlopen_ext` and `dlsym` also depend on the caller's address but didn't break the test app, so they aren't blocked. Hooks declared with `offset` aren't checked.
 
 With `early: true`, a hook is installed as soon as its module is found: before the app is resumed (stage 1) if the module is already loaded, otherwise inside the linker while the module loads (stage 2), so its constructors and `JNI_OnLoad` run hooked.
 
@@ -217,37 +267,6 @@ The `FrookyAgent` constructor sets up everything the hooks need later:
 
 Finally, `reportCrashes()` installs the [Native Crash Reporter](./additional-features.md#native-crash-reporter), except under V8.
 
-### Loading the Hook Files
-
-The host passes all hook files at once to `loadFrookyConfigs` (step 5). The RPC call returns right away and doesn't wait for the hooks: in spawn mode, the app stays suspended only as long as the host waits for this call.
-
-Each hook file is then processed on its own, all of them concurrently:
-
-1. **Validation:** `validateAndRepairFrookyConfig()` checks the file against the schema. An invalid file is skipped with a warning; the other files still load. The Java and native validators then normalize each hook declaration, e.g. expand shorthands and merge the [settings](./additional-features.md#settings-precedence), and drop invalid declarations with a warning. They also warn about risky declarations, e.g. `early: true` on a Java hook (which is ignored) or on a high-frequency libc function without a `callerFilter`.
-2. **Diff:** every normalized declaration gets a fingerprint. On a [reload](./additional-features.md#hot-reloading-and-watch-mode), unchanged declarations keep their installed hooks, removed ones are unhooked, and only new, changed or retried ones are resolved. On the first load, every declaration is new and starts in the state `pending`.
-3. **Resolve and install:** the Java and native declarations go to their hook managers in parallel. `resolveHooks()` returns one promise per declaration, which settles once its class or module is found and its hooks are installed, or once it is clear that the method or symbol doesn't exist.
-
-What is installed before the app is resumed is only part of the hooks: Java hooks on classes of the default class loader (e.g. the Android framework's) and native hooks with `early: true` on modules that are already loaded. Everything else waits for platform ready or for its class or module, see [When a Hook Is Installed](#when-a-hook-is-installed).
-
-```mermaid
-flowchart TD
-    file["hook file, sent by the host"] --> valid{"validateAndRepairFrookyConfig():<br/>valid?"}
-    valid -->|no, first load| skip["warn, skip the file"]
-    valid -->|no, reload| keep["warn, keep the previous version"]
-    valid -->|yes| normalize["Java and native validators:<br/>normalize each declaration,<br/>drop invalid ones with a warning"]
-    normalize --> fp["fingerprint per declaration:<br/>kind + normalized declaration"]
-    fp --> known{"fingerprint in the<br/>previous version?"}
-    known -->|yes| unchanged["unchanged:<br/>keeps its state and hooks"]
-    known -->|"yes, failed, and r key"| retried["retried: pending"]
-    known -->|no| added["new: pending"]
-    fp --> gone["fingerprints only in the previous version:<br/>removed, unregisterHooks()"]
-    added --> resolve["resolveHooks() in the Java<br/>and native hook managers"]
-    retried --> resolve
-    resolve --> summary["log what changed, e.g.<br/>Updated hooks.yaml: 1 new, 3 unchanged"]
-```
-
-A changed declaration has a new fingerprint, so it is removed and added again: its old hooks are unhooked and its new version is resolved and installed. The summary counts such a pair with the same target (method or symbol) as `updated`.
-
 ### Platform Ready
 
 Platform ready is the moment the Android runtime has the app's class loader and the app's own classes can be looked up. In the source, it is the `targetReady` promise, resolved by a `Java.perform()` callback.
@@ -286,15 +305,15 @@ The agent reports these counts to the host at most every 250 ms while they chang
 
 When a hook is installed decides which calls it can record: a call made before the hook is installed is missed. For an app that is spawned, the timing depends on the kind of hook, on whether its class or module is already loaded, and for native hooks on `early`. When attaching, platform ready has already passed, so every hook is installed as soon as its class or module is found.
 
-| Hook                                                                 | Installed (spawn)                                                     |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Java, class in the default class loader (e.g. `javax.crypto.Cipher`) | Before the app is resumed                                             |
-| Java, class of the app or of a class loader created later            | At platform ready, or while the class loader that has it is created   |
-| Native, module already loaded (e.g. `libc.so`)                       | At platform ready                                                     |
-| Native, `early: true`, module already loaded                         | Before the app is resumed                                             |
-| Native, module loaded before platform ready                          | At platform ready, after the module's constructors and `JNI_OnLoad`   |
-| Native, `early: true`, module loaded before platform ready           | While the linker loads it, before its constructors and `JNI_OnLoad`   |
-| Native, module loaded after platform ready                           | While the linker loads it, before its constructors and `JNI_OnLoad`   |
+| Hook                                                                 | Installed (spawn)                                                   |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Java, class in the default class loader (e.g. `javax.crypto.Cipher`) | Before the app is resumed                                           |
+| Java, class of the app or of a class loader created later            | At platform ready, or while the class loader that has it is created |
+| Native, module already loaded (e.g. `libc.so`)                       | At platform ready                                                   |
+| Native, `early: true`, module already loaded                         | Before the app is resumed                                           |
+| Native, module loaded before platform ready                          | At platform ready, after the module's constructors and `JNI_OnLoad` |
+| Native, `early: true`, module loaded before platform ready           | While the linker loads it, before its constructors and `JNI_OnLoad` |
+| Native, module loaded after platform ready                           | While the linker loads it, before its constructors and `JNI_OnLoad` |
 
 ### Java Hooks
 
