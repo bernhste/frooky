@@ -7,6 +7,16 @@ Two components, each with its own build and tests:
 - **Host** (`frooky/`, Python): CLI, device attach/spawn, loads hook files, writes `output.json`.
 - **Agent** (`frooky/agent/`, TypeScript): runs inside the target process, validates hook files, installs hooks, decodes values. See [frooky/agent/AGENTS.md](frooky/agent/AGENTS.md).
 
+## Target Platforms
+
+Target platforms to support (keep cross-platform compatibility in mind so fixes on Linux x86_64 do not break macOS Apple Silicon / M1 environments and vice versa):
+
+- Android devices (ARM64)
+- Android Emulator (macOS ARM64, x86_64)
+- iOS devices (ARM64)
+- iOS Simulator (ARM64)
+- Linux x86_64 (Debian)
+
 ## Commands
 
 ```bash

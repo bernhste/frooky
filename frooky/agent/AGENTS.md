@@ -2,6 +2,16 @@
 
 This is the Frida agent that runs inside the target process. It is compiled with `frida-compile` through `build.js`, which stages `src/android` + `src/shared` + `src/native` into a temp dir. Anything outside those folders is not part of the Android build.
 
+## Target Platforms
+
+Target platforms to support (ensure changes remain compatible across Linux x86_64 and macOS Apple Silicon / M1):
+
+- Android devices (ARM64)
+- Android Emulator (macOS ARM64, x86_64)
+- iOS devices (ARM64)
+- iOS Simulator (ARM64)
+- Linux x86_64 (Debian)
+
 ## Layout
 
 - `src/shared/`: platform-agnostic code: hook-file input types (`inputParsing/`), settings, events, decoder and hook base classes.

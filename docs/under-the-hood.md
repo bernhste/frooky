@@ -12,6 +12,7 @@ This page explains what happens between starting frooky and the moment every hoo
   - [Starting the Agent](#starting-the-agent)
   - [Loading the Hook Files](#loading-the-hook-files)
   - [Resuming the App and the Resolver Timeout](#resuming-the-app-and-the-resolver-timeout)
+  - [Hooking Stages and Capabilities](#hooking-stages-and-capabilities)
 - [Caller Filters](#caller-filters)
   - [The Path of a Native Call](#the-path-of-a-native-call)
   - [Which Listener a Function Gets](#which-listener-a-function-gets)
@@ -123,6 +124,17 @@ At the same moment, the resolver timeout starts: `-t`/`--resolver-timeout` secon
 - **The timeout fires:** declarations that are still `pending` become `waiting`, with one warning per class or module they wait for.
 
 Either way, frooky logs a summary per hook file, e.g. `Loaded hooks.yaml: hooked 12 methods and 3 functions, 1 waiting`, and reports the counts to the host's status bar. The timeout doesn't stop anything: waiting hooks stay registered and are installed as soon as their class or module loads.
+
+### Hooking Stages and Capabilities
+
+The table below summarizes what can be hooked and accessed across the app's lifecycle:
+
+| Stage                                                          | What can be hooked                                                                           | What is risky or blocked                                                                                                                                                                     | Stack traces available?                                                                                                  |
+| :------------------------------------------------------------- | :------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| **Stage 1: Frooky init** (process paused at spawn)             | Modules already mapped (`libc.so`, `libdl.so`), or app modules when attaching (`-n`)         | ❌ High-risk Bionic primitives (`read`, `close`) without `callerFilter` collide with ART bootstrap threads on ARM64; Java hooks cannot install yet (VM not initialized, queued as `pending`) | ❌ No stack traces (`detectUnsafeContext()` returns `"before-ready"`)                                                    |
+| **Stage 2: Resume & linker** (process resumed, ART booting)    | Dynamically loaded app `.so` libraries as the linker loads them                              | ❌ Hooking functions actively executing inside the dynamic linker (`linker-busy` / `in-linker`)                                                                                              | ❌ No stack traces (blocked by `"in-linker"`, `"linker-busy"`, or `"before-ready"`)                                      |
+| **Stage 3: Platform ready** (`targetReady` / `Java.perform()`) | ✅ All Java and Kotlin methods; low-level native hooks (safe once ART daemon threads settle) | ⚠️ Hot-path libc functions (`malloc`, `free`, `memcpy`) still need `callerFilter` to avoid ANR                                                                                               | ✅ Platform (Java) stack traces available; native stack traces available (guarded by `detectUnsafeContext` on low stack) |
+| **Stage 4: App steady state** (activities and UI running)      | ✅ Everything (Java, Kotlin, native symbols, offsets)                                        | ⚠️ Functions in `BLOCKED_FUNCTIONS` (e.g. `pthread_getspecific`, `dlopen`)                                                                                                                   | ✅ Full stack traces (Java + native)                                                                                     |
 
 ## Caller Filters
 
