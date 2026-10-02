@@ -94,6 +94,15 @@ class TestEvent:
         assert len(lines[-1]) == 90
         assert any("strcpy()" in line for line in lines)
 
+    def test_decoupled_event_printing_with_feed_start_stop(self):
+        feed, buffer = make_feed(width=90)
+        feed.start()
+        feed.event({"type": "native-hook", "module": "libc.so", "symbol": "strcpy"})
+        feed.stop()
+
+        lines = buffer.getvalue().splitlines()
+        assert any("strcpy()" in line for line in lines)
+
 
 class TestPrint:
     def test_prints_plain_text(self):

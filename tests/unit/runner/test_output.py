@@ -36,7 +36,18 @@ class TestOutputWriter:
         writer.append(payload)
 
         lines = writer.output_path.read_text(encoding="utf-8").splitlines()
-        assert json.loads(lines[0]) == payload
+        assert json.loads(lines[0]) == payload[0]
+
+    def test_append_writes_raw_ndjson_string(self, tmp_path):
+        writer = OutputWriter(tmp_path / "out.json")
+        raw = '{"module": "libc.so", "symbol": "strcpy"}\n{"module": "libc.so", "symbol": "memcpy"}\n'
+
+        writer.append(raw)
+
+        lines = writer.output_path.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 2
+        assert json.loads(lines[0]) == {"module": "libc.so", "symbol": "strcpy"}
+        assert json.loads(lines[1]) == {"module": "libc.so", "symbol": "memcpy"}
 
     def test_append_is_additive(self, tmp_path):
         writer = OutputWriter(tmp_path / "out.json")
@@ -46,6 +57,8 @@ class TestOutputWriter:
 
         lines = writer.output_path.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 2
+        assert json.loads(lines[0]) == {"a": 1}
+        assert json.loads(lines[1]) == {"b": 2}
 
     def test_record_event_updates_count_and_last_event(self, tmp_path):
         writer = OutputWriter(tmp_path / "out.json")
@@ -97,8 +110,8 @@ class TestOutputWriter:
 
         lines = output_path.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 2
-        assert json.loads(lines[0]) == [{"a": 1}]
-        assert json.loads(lines[1]) == [{"b": 2}]
+        assert json.loads(lines[0]) == {"a": 1}
+        assert json.loads(lines[1]) == {"b": 2}
 
     def test_context_manager(self, tmp_path):
         output_path = tmp_path / "out.json"
@@ -107,7 +120,7 @@ class TestOutputWriter:
 
         lines = output_path.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 1
-        assert json.loads(lines[0]) == [{"x": 10}]
+        assert json.loads(lines[0]) == {"x": 10}
 
     def test_truncate_while_open_reopens_file(self, tmp_path):
         output_path = tmp_path / "out.json"
@@ -121,4 +134,16 @@ class TestOutputWriter:
 
         lines = output_path.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 1
-        assert json.loads(lines[0]) == [{"new": 2}]
+        assert json.loads(lines[0]) == {"new": 2}
+
+    def test_record_events_raw_updates_count_and_last_event(self, tmp_path):
+        writer = OutputWriter(tmp_path / "out.json")
+        lines = [
+            json.dumps({"module": "libc.so", "symbol": "strcpy"}),
+            json.dumps({"javaClassName": "com.example.Foo", "method": "bar"}),
+        ]
+
+        writer.record_events_raw(lines)
+
+        assert writer.event_count == 2
+        assert writer.last_event == "com.example.Foo.bar"

@@ -51,7 +51,21 @@ class TestCreateMessageHandler:
         assert output.event_count == 2
         assert output.last_event == "libc.so: memcpy"
         lines = output.output_path.read_text(encoding="utf-8").splitlines()
-        assert json.loads(lines[0]) == payload
+        assert json.loads(lines[0]) == payload[0]
+        assert json.loads(lines[1]) == payload[1]
+
+    def test_writes_ndjson_string_payload_and_updates_status(self, tmp_path):
+        output = OutputWriter(tmp_path / "out.json")
+        on_message = create_message_handler(output, MagicMock(), print_events=False)
+        payload = '{"module": "libc.so", "symbol": "strcpy"}\n{"module": "libc.so", "symbol": "memcpy"}\n'
+
+        on_message({"type": "send", "payload": payload}, None)
+
+        assert output.event_count == 2
+        assert output.last_event == "libc.so: memcpy"
+        lines = output.output_path.read_text(encoding="utf-8").splitlines()
+        assert json.loads(lines[0]) == {"module": "libc.so", "symbol": "strcpy"}
+        assert json.loads(lines[1]) == {"module": "libc.so", "symbol": "memcpy"}
 
     def test_writes_list_payload_and_updates_status_from_java_method(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")

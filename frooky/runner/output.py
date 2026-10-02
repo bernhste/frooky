@@ -49,14 +49,20 @@ class OutputWriter:
         if was_open:
             self.open()
 
-    def append(self, payload: list) -> None:
-        line = json.dumps(payload) + "\n"
+    def append(self, payload: str | list[dict] | dict) -> None:
+        if isinstance(payload, str):
+            text = payload if payload.endswith("\n") else payload + "\n"
+        elif isinstance(payload, list):
+            text = "".join(json.dumps(event) + "\n" for event in payload)
+        else:
+            text = json.dumps(payload) + "\n"
+
         if self._file is not None:
-            self._file.write(line)
+            self._file.write(text)
             self._file.flush()
         else:
             with open(self.output_path, "a", encoding="utf-8") as f:
-                f.write(line)
+                f.write(text)
 
     def record_event(self, event: dict) -> None:
         self.event_count += 1
@@ -67,6 +73,18 @@ class OutputWriter:
     def record_events(self, events: list[dict]) -> None:
         self.event_count += len(events)
         for event in reversed(events):
+            description = describe_event(event)
+            if description:
+                self.last_event = description
+                break
+
+    def record_events_raw(self, lines: list[str]) -> None:
+        self.event_count += len(lines)
+        for line in reversed(lines):
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
             description = describe_event(event)
             if description:
                 self.last_event = description

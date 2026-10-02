@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import math
+import queue
 import re
+import threading
 import time
 from collections import deque
 from datetime import datetime
@@ -265,12 +267,20 @@ class Feed:
         self._started_at: Optional[float] = None
         self._status_bar = _StatusBar(self)
         self._live = Live(self._status_bar, console=self.console, refresh_per_second=8, transient=False)
+        self._event_queue: queue.Queue[Optional[dict]] = queue.Queue()
+        self._printer_thread: Optional[threading.Thread] = None
 
     def start(self) -> None:
         self._started_at = self.console.get_time()
+        self._printer_thread = threading.Thread(target=self._process_event_queue, daemon=True)
+        self._printer_thread.start()
         self._live.start()
 
     def stop(self) -> None:
+        if self._printer_thread is not None and self._printer_thread.is_alive():
+            self._event_queue.put(None)
+            self._printer_thread.join(timeout=2.0)
+            self._printer_thread = None
         self._live.stop()
 
     def print(self, text: str | Text = "") -> None:
@@ -306,10 +316,29 @@ class Feed:
         """Print the hook statistics table, see format_hook_statistics()."""
         self.console.print(format_hook_statistics(statistics))
 
-    def event(self, event: dict) -> None:
-        """Print a hook event as a box as wide as the terminal."""
+    def _process_event_queue(self) -> None:
+        while True:
+            item = self._event_queue.get()
+            if item is None:
+                self._event_queue.task_done()
+                break
+            try:
+                self._print_event(item)
+            except Exception:
+                pass
+            finally:
+                self._event_queue.task_done()
+
+    def _print_event(self, event: dict) -> None:
         lines = format_hook_event(event, self.console.width)
         self.console.print(Text.from_ansi("\n".join(lines)), no_wrap=True, crop=True)
+
+    def event(self, event: dict) -> None:
+        """Print a hook event as a box as wide as the terminal."""
+        if self._printer_thread is not None and self._printer_thread.is_alive():
+            self._event_queue.put(event)
+        else:
+            self._print_event(event)
 
     def status(self, event_count: int, last_event: str) -> None:
         """Update the event count and the last event in the status bar; they show on the next redraw."""

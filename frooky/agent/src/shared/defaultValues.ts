@@ -33,5 +33,8 @@ export const DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS = 5;
 // interval for sending cached events to the host
 export const SEND_INTERVAL_MS = 100;
 
+// maximum number of events held on the agent before sending them
+export const SEND_BATCH_SIZE = 200;
+
 // minimum interval between two progress reports to the host
 export const PROGRESS_INTERVAL_MS = 250;

@@ -99,6 +99,60 @@ describe("eventSender", () => {
       expect(sendSpyB).not.toHaveBeenCalled();
       expect(queueB).toEqual([eventB]);
     });
+
+    it("sends immediately when queued events reach batchSize without waiting for the interval", () => {
+      const sendSpy = fn();
+      const eventA = new TestEvent("a");
+      const eventB = new TestEvent("b");
+      const queue: BaseEvent[] = [];
+
+      startEventSender(queue, 1000, sendSpy, 2);
+      queue.push(eventA);
+      expect(sendSpy).not.toHaveBeenCalled();
+
+      queue.push(eventB);
+      expect(sendSpy).toHaveBeenCalledWith([eventA, eventB]);
+      expect(queue).toEqual([]);
+    });
+
+    it("sends in chunks of batchSize when more events than batchSize are queued", () => {
+      const sendSpy = fn();
+      const eventA = new TestEvent("a");
+      const eventB = new TestEvent("b");
+      const eventC = new TestEvent("c");
+      const queue: BaseEvent[] = [];
+
+      startEventSender(queue, 1000, sendSpy, 2);
+      queue.push(eventA, eventB, eventC);
+
+      expect(sendSpy.mock.calls).toEqual([[[eventA, eventB]]]);
+      expect(queue).toEqual([eventC]);
+    });
+
+    it("sends remaining events on interval even if batchSize was not reached", async () => {
+      const sendSpy = fn();
+      const event = new TestEvent("small-batch");
+      const queue: BaseEvent[] = [];
+
+      startEventSender(queue, 20, sendSpy, 10);
+      queue.push(event);
+      expect(sendSpy).not.toHaveBeenCalled();
+
+      await wait(40);
+      expect(sendSpy).toHaveBeenCalledWith([event]);
+      expect(queue).toEqual([]);
+    });
+
+    it("flushes pre-existing events if initial queue length reaches batchSize", () => {
+      const sendSpy = fn();
+      const eventA = new TestEvent("a");
+      const eventB = new TestEvent("b");
+      const queue: BaseEvent[] = [eventA, eventB];
+
+      startEventSender(queue, 1000, sendSpy, 2);
+      expect(sendSpy).toHaveBeenCalledWith([eventA, eventB]);
+      expect(queue).toEqual([]);
+    });
   });
 
   describe("stopEventSender()", () => {

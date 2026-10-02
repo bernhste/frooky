@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Callable, Optional
 
 from .feed import Feed
@@ -43,23 +44,45 @@ def create_message_handler(
                 on_crash(payload)
             return
 
-        # The agent always batches hook/log events as a JSON array (see eventSender.ts).
-        if not isinstance(payload, list):
-            feed.log("warn", f"Unexpected agent message: {payload}")
+        if isinstance(payload, str) and payload.lstrip().startswith("{"):
+            lines = [line for line in payload.splitlines() if line]
+            if not lines:
+                return
+
+            output.append(payload)
+            output.record_events_raw(lines)
+
+            if on_event:
+                for _ in lines:
+                    on_event()
+            if on_batch:
+                on_batch()
+
+            if print_events:
+                for line in lines:
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    feed.event(event)
             return
 
-        output.append(payload)
-        output.record_events(payload)
+        if isinstance(payload, list):
+            output.append(payload)
+            output.record_events(payload)
 
-        if on_event:
-            for _ in payload:
-                on_event()
-        if on_batch:
-            on_batch()
+            if on_event:
+                for _ in payload:
+                    on_event()
+            if on_batch:
+                on_batch()
 
-        if print_events:
-            for event in payload:
-                feed.event(event)
+            if print_events:
+                for event in payload:
+                    feed.event(event)
+            return
+
+        feed.log("warn", f"Unexpected agent message: {payload}")
 
     return on_message
 

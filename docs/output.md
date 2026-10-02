@@ -40,9 +40,9 @@ A `DecodedValue` (used for each `argsIn`/`argsOut` entry and for `returnValue`) 
 ```
 
 > [!TIP]
-> Use `jq -c '.[]' output.json` to flatten the file into one event object per line, or `jq . output.json` to pretty-print it.
+> Each line in `output.json` is a self-contained JSON event object (NDJSON). Use `jq -c '.' output.json` or `jq . output.json` to inspect or pretty-print individual events.
 >
-> If you want to be fancy, you could even visualize them on a time line using tools like [Grafana](https://grafana.com/docs/grafana/latest/visualizations/simplified-exploration/logs/) or [Kibana](https://www.elastic.co/kibana) from the ELK-Stack - feed them the flattened, one-event-per-line output of `jq -c '.[]' output.json`.
+> If you want to visualize them on a time line using tools like [Grafana](https://grafana.com/docs/grafana/latest/visualizations/simplified-exploration/logs/) or [Kibana](https://www.elastic.co/kibana) from the ELK-Stack - feed them the one-event-per-line output directly.
 
 ## `hook-java` Events
 
