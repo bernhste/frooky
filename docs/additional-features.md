@@ -388,15 +388,15 @@ frooky -U -f com.example.app -t 30 hooks.yaml
 
 ### Hook Statistics (`i` / `I` Key)
 
-While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not resolved, how many overloads or functions it hooks, how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, and how much time went into decoding the values of the recorded events. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
+While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not resolved, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, and how much time went into decoding the values of the recorded events. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
 
 ```text
 Hook statistics
-State         Hooks  Events  Filtered  Target                       File        Waits for
-hooked            3      41         0  javax.crypto.Cipher.init     hooks.yaml
-hooked            1   1,234    56,789  libc.so!open                 hooks.yaml
-waiting           -       -         -  com.example.Plugin.run       hooks.yaml  Java class 'com.example.Plugin'
-not resolved      -       -         -  libc.so!nope                 hooks.yaml
+State         Overloads  Events  Filtered  Target                       File        Waits for
+hooked                3      41         0  javax.crypto.Cipher.init     hooks.yaml
+hooked                -   1,234    56,789  libc.so!open                 hooks.yaml
+waiting               -       -         -  com.example.Plugin.run       hooks.yaml  Java class 'com.example.Plugin'
+not resolved          -       -         -  libc.so!nope                 hooks.yaml
 ```
 
 ## JavaScript Runtime: QuickJS vs. V8

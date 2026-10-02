@@ -116,12 +116,12 @@ _STATISTIC_STATES = {"installed": "hooked", "waiting": "waiting", "pending": "pe
 
 def format_hook_statistics(statistics: list[dict]) -> Table:
     """The table the `i` key prints: one row per hook declaration (see HookStatistic in FrookyAgent.ts), hooked ones
-    first, with the overloads or functions it hooks, their events, the calls their filters dropped and the time spent
+    first, with the overloads it hooks (Java hooks only), their events, the calls their filters dropped and the time spent
     decoding the values of their events, or the class or module it waits for. The `Waits for` column only shows while
     a declaration waits, so the table fits narrower terminals. Rows are colored per hook file."""
     table = Table(box=None, padding=(0, 2), pad_edge=False, header_style="bold", title="Hook statistics", title_justify="left", title_style="bold")
     table.add_column("State", no_wrap=True)
-    table.add_column("Hooks", justify="right", no_wrap=True)
+    table.add_column("Overloads", justify="right", no_wrap=True)
     table.add_column("Events", justify="right", no_wrap=True)
     table.add_column("Filtered", justify="right", no_wrap=True)
     table.add_column("Decoding time (sum)", justify="right")
@@ -139,7 +139,7 @@ def format_hook_statistics(statistics: list[dict]) -> Table:
         waiting = row["state"] in ("waiting", "pending")
         cells = [
             Text(_STATISTIC_STATES.get(row["state"], row["state"]), style="" if installed else "bold gold1"),
-            f"{row['hooked']:,}" if installed else "-",
+            f"{row['overloads']:,}" if installed and row.get("overloads") is not None else "-",
             f"{row['events']:,}" if installed else "-",
             f"{row.get('filtered', 0):,}" if installed else "-",
             _format_milliseconds(row.get("decodeMs", 0)) if installed else "-",

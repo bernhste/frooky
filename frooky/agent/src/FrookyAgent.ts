@@ -90,15 +90,15 @@ function targetOf(kind: string, inputHook: unknown): string | undefined {
 export type HookProgress = { hooked: number; pending: number; waiting: number; failed: number };
 
 // One hook declaration for the host's hook statistics (`i` key). `target` is e.g. `com.example.Foo.bar` or
-// `libfoo.so!open`, `waitsFor` the class or module it waits for, `hooked` how many overloads or functions it hooks,
-// `events` how many events these recorded, `filtered` how many calls their callerFilter or argFilters dropped, and
+// `libfoo.so!open`, `waitsFor` the class or module it waits for, `overloads` how many overloads a Java hook
+// declaration hooks (null for native hooks), `events` how many events these recorded, `filtered` how many calls their callerFilter or argFilters dropped, and
 // `decodeMs` the milliseconds spent decoding the values of the recorded events.
 export type HookStatistic = {
   config: string;
   target: string;
   state: "pending" | "waiting" | "installed" | "failed";
   waitsFor: string;
-  hooked: number;
+  overloads: number | null;
   events: number;
   filtered: number;
   decodeMs: number;
@@ -484,7 +484,7 @@ export class FrookyAgent {
           target: entry.target ? entry.target.slice(entry.target.indexOf(":") + 1) : fingerprint,
           state: entry.state,
           waitsFor: entry.waitsFor,
-          hooked: entry.hookedCount ?? 0,
+          overloads: entry.target?.startsWith("platform:") ? (entry.hookedCount ?? 0) : null,
           events: (entry.hooks ?? []).reduce((count, hook) => count + (this.eventCounts.get(hook) ?? 0), 0),
           filtered: (entry.hooks ?? []).reduce((count, hook) => count + filteredCallCount(hook), 0),
           decodeMs: (entry.hooks ?? []).reduce((ms, hook) => ms + (this.decodeTimes.get(hook) ?? 0), 0),
