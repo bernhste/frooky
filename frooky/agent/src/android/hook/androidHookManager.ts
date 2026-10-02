@@ -53,7 +53,8 @@ type HookedOverload = { method: Java.Method; hooks: InstalledJavaHook[]; observe
 
 // what a hook captured before the original method ran
 // `logTarget`: see callLogTarget()
-type JavaHookCall = { installedHook: InstalledJavaHook; logTarget: string; stackTrace: HookStackTrace; decodedArgs: DecodedArgs };
+// `decodeMs`: time spent decoding the `in` args, see FrookyAgent.addEventToLog()
+type JavaHookCall = { installedHook: InstalledJavaHook; logTarget: string; stackTrace: HookStackTrace; decodedArgs: DecodedArgs; decodeMs: number };
 
 // Resolves and installs hooks on Java methods.
 export class AndroidHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
@@ -290,6 +291,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
     const logTarget = this.callLogTarget(target);
     const decodedArgs: DecodedArgs = { in: [], out: [] };
+    const decodeStart = Date.now();
     if (inArgDecoders.length > 0) {
       try {
         decodedArgs.in = this.decodeArgs(args, inArgDecoders, logTarget);
@@ -299,12 +301,13 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         return null;
       }
     }
-    return { installedHook, logTarget, stackTrace, decodedArgs };
+    return { installedHook, logTarget, stackTrace, decodedArgs, decodeMs: Date.now() - decodeStart };
   }
 
   private leaveHook(call: JavaHookCall, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any): void {
     const { hook, target, outArgDecoders, retTypeDecoder } = call.installedHook;
     const { decodedArgs, logTarget } = call;
+    const decodeStart = Date.now();
     // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
     let decodedRetValue: DecodedValue | undefined;
     if (retTypeDecoder) {
@@ -325,11 +328,12 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         return;
       }
     }
+    const decodeMs = call.decodeMs + Date.now() - decodeStart;
 
     const fieldType = this.buildFieldType(instance);
     // identityHashCode() runs no app code, unlike an overridden hashCode(), and stays the same while the object mutates
     const hashCode = fieldType.fieldType === "instance" ? formatHashCode(getJavaSystem().identityHashCode(instance)) : undefined;
-    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook);
+    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook, decodeMs);
   }
 
   private buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {

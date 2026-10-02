@@ -445,15 +445,16 @@ class TestRunWatch:
         assert "Not reloaded hooks.yaml, keeping the previous version" in capsys.readouterr().out
 
     def test_i_prints_the_hook_statistics(self, monkeypatch, tmp_path, capsys):
+        monkeypatch.setenv("COLUMNS", "120")
         runner, script, _hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
-        script.exports_sync.hook_statistics.return_value = [{"config": "hooks.yaml", "target": "libc.so!open", "state": "installed", "waitsFor": "Module 'libc.so'", "hooked": 1, "events": 7, "filtered": 3}]
+        script.exports_sync.hook_statistics.return_value = [{"config": "hooks.yaml", "target": "libc.so!open", "state": "installed", "waitsFor": "Module 'libc.so'", "hooked": 1, "events": 7, "filtered": 3, "decodeMs": 12}]
 
         self._run_editing(monkeypatch, runner, [lambda: runner._on_key("i")])
 
         script.exports_sync.hook_statistics.assert_called_once_with()
         out = capsys.readouterr().out
         assert "Hook statistics" in out
-        assert re.search(r"hooked\s+1\s+7\s+3\s+libc\.so!open\s+hooks\.yaml", out)
+        assert re.search(r"hooked\s+1\s+7\s+3\s+12 ms\s+libc\.so!open\s+hooks\.yaml", out)
 
     def test_ignores_other_keys(self, monkeypatch, tmp_path):
         runner, script, _hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)

@@ -162,9 +162,9 @@ class TestHookStatus:
 
 class TestHookStatistics:
     STATISTICS = [
-        {"config": "hooks.yaml", "target": "com.example.Late.run", "state": "waiting", "waitsFor": "Java class 'com.example.Late'", "hooked": 0, "events": 0, "filtered": 0},
-        {"config": "hooks.yaml", "target": "libc.so!nope", "state": "failed", "waitsFor": "Module 'libc.so'", "hooked": 0, "events": 0, "filtered": 0},
-        {"config": "hooks.yaml", "target": "libc.so!open", "state": "installed", "waitsFor": "Module 'libc.so'", "hooked": 1, "events": 1234, "filtered": 56789},
+        {"config": "hooks.yaml", "target": "com.example.Late.run", "state": "waiting", "waitsFor": "Java class 'com.example.Late'", "hooked": 0, "events": 0, "filtered": 0, "decodeMs": 0},
+        {"config": "hooks.yaml", "target": "libc.so!nope", "state": "failed", "waitsFor": "Module 'libc.so'", "hooked": 0, "events": 0, "filtered": 0, "decodeMs": 0},
+        {"config": "hooks.yaml", "target": "libc.so!open", "state": "installed", "waitsFor": "Module 'libc.so'", "hooked": 1, "events": 1234, "filtered": 56789, "decodeMs": 2345},
     ]
 
     def test_lists_hooked_declarations_first_with_their_events(self):
@@ -174,10 +174,10 @@ class TestHookStatistics:
 
         lines = [line.rstrip() for line in buffer.getvalue().splitlines()]
         assert lines[0] == "Hook statistics"
-        assert re.match(r"^State\s+Hooks\s+Events\s+Filtered\s+Target\s+File\s+Waits for$", lines[1])
-        assert re.match(r"^hooked\s+1\s+1,234\s+56,789\s+libc\.so!open\s+hooks\.yaml$", lines[2])
-        assert re.match(r"^waiting\s+-\s+-\s+-\s+com\.example\.Late\.run\s+hooks\.yaml\s+Java class 'com\.example\.Late'$", lines[3])
-        assert re.match(r"^not resolved\s+-\s+-\s+-\s+libc\.so!nope\s+hooks\.yaml$", lines[4])
+        assert re.match(r"^State\s+Hooks\s+Events\s+Filtered\s+Decoding time \(sum\)\s+Target\s+File\s+Waits for$", lines[1])
+        assert re.match(r"^hooked\s+1\s+1,234\s+56,789\s+2\.3 s\s+libc\.so!open\s+hooks\.yaml$", lines[2])
+        assert re.match(r"^waiting\s+-\s+-\s+-\s+-\s+com\.example\.Late\.run\s+hooks\.yaml\s+Java class 'com\.example\.Late'$", lines[3])
+        assert re.match(r"^not resolved\s+-\s+-\s+-\s+-\s+libc\.so!nope\s+hooks\.yaml$", lines[4])
 
     def test_says_so_when_no_hooks_are_loaded(self):
         feed, buffer = make_feed()

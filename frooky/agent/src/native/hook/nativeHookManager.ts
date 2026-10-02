@@ -80,6 +80,8 @@ type NativeHookCall = {
   // the arguments for `out` params, as InvocationArguments is only valid during onEnter
   savedArgs?: NativePointer[];
   stackTrace: HookStackTrace;
+  // time spent decoding the `in` args, see FrookyAgent.addEventToLog()
+  decodeMs: number;
 };
 
 export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
@@ -430,7 +432,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       return null;
     }
     try {
-      const call: NativeHookCall = { installedHook, logTarget: this.callLogTarget(target), argsIn: [], stackTrace: EMPTY_STACK_TRACE };
+      const call: NativeHookCall = { installedHook, logTarget: this.callLogTarget(target), argsIn: [], stackTrace: EMPTY_STACK_TRACE, decodeMs: 0 };
       if (hook.params) {
         let effectiveArgs: NativePointer[];
         const separateFloatLanes = usesSeparateFloatRegisterFile();
@@ -452,7 +454,9 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         }
 
         if (inArgDecoders.length > 0) {
+          const decodeStart = Date.now();
           call.argsIn = this.decodeArgs(effectiveArgs, inArgDecoders, call.logTarget);
+          call.decodeMs = Date.now() - decodeStart;
         }
 
         if (outArgDecoders.length > 0) {
@@ -491,6 +495,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   private leaveHook(call: NativeHookCall, returnValue: InvocationReturnValue, context: CpuContext | undefined, errno: number): void {
     const { hook, target, outArgDecoders, retTypeDecoder, floatRetSlot } = call.installedHook;
     try {
+      const decodeStart = Date.now();
       // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
       let decodedRetValue: DecodedValue | undefined;
       if (retTypeDecoder) {
@@ -506,8 +511,13 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       if (outArgDecoders.length > 0) {
         decodedArgs.out = this.decodeArgs(call.savedArgs!, outArgDecoders, call.logTarget, decodedRetValue);
       }
+      const decodeMs = call.decodeMs + Date.now() - decodeStart;
 
-      this.frookyAgent.addEventToLog(new NativeHookEvent(hook, call.installedHook.hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook);
+      this.frookyAgent.addEventToLog(
+        new NativeHookEvent(hook, call.installedHook.hashCode, decodedArgs, decodedRetValue, call.stackTrace),
+        hook,
+        decodeMs,
+      );
     } catch (e) {
       if (e instanceof FilterMismatchError) countFilteredCall(hook);
       else logger.error(`Error during 'onLeave' of ${target}: ${e}`);

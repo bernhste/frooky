@@ -113,33 +113,45 @@ _STATISTIC_STATES = {"installed": "hooked", "waiting": "waiting", "pending": "pe
 
 def format_hook_statistics(statistics: list[dict]) -> Table:
     """The table the `i` key prints: one row per hook declaration (see HookStatistic in FrookyAgent.ts), hooked ones
-    first, with the overloads or functions it hooks, their events and the calls their filters dropped, or the class
-    or module it waits for."""
+    first, with the overloads or functions it hooks, their events, the calls their filters dropped and the time spent
+    decoding the values of their events, or the class or module it waits for. The `Waits for` column only shows while
+    a declaration waits, so the table fits narrower terminals."""
     table = Table(box=None, padding=(0, 2), pad_edge=False, header_style="bold", title="Hook statistics", title_justify="left", title_style="bold")
     table.add_column("State", no_wrap=True)
-    table.add_column("Hooks", justify="right")
-    table.add_column("Events", justify="right")
-    table.add_column("Filtered", justify="right")
+    table.add_column("Hooks", justify="right", no_wrap=True)
+    table.add_column("Events", justify="right", no_wrap=True)
+    table.add_column("Filtered", justify="right", no_wrap=True)
+    table.add_column("Decoding time (sum)", justify="right")
     table.add_column("Target", overflow="fold")
     table.add_column("File", no_wrap=True)
-    table.add_column("Waits for", overflow="fold")
+    any_waiting = any(row["state"] in ("waiting", "pending") for row in statistics)
+    if any_waiting:
+        table.add_column("Waits for", overflow="fold")
     order = list(_STATISTIC_STATES)
     rows = sorted(statistics, key=lambda row: (order.index(row["state"]) if row["state"] in order else len(order), row["config"], row["target"]))
     for row in rows:
         installed = row["state"] == "installed"
         waiting = row["state"] in ("waiting", "pending")
-        table.add_row(
+        cells = [
             Text(_STATISTIC_STATES.get(row["state"], row["state"]), style="" if installed else "bold gold1"),
             f"{row['hooked']:,}" if installed else "-",
             f"{row['events']:,}" if installed else "-",
             f"{row.get('filtered', 0):,}" if installed else "-",
+            _format_milliseconds(row.get("decodeMs", 0)) if installed else "-",
             row["target"],
             row["config"],
-            row["waitsFor"] if waiting else "",
-        )
+        ]
+        if any_waiting:
+            cells.append(row["waitsFor"] if waiting else "")
+        table.add_row(*cells)
     if not rows:
-        table.add_row("-", "-", "-", "-", "no hooks loaded", "", "")
+        table.add_row("-", "-", "-", "-", "-", "no hooks loaded", "")
     return table
+
+
+def _format_milliseconds(milliseconds: float) -> str:
+    """e.g. `850 ms` or `12.3 s`"""
+    return f"{milliseconds:,.0f} ms" if milliseconds < 1000 else f"{milliseconds / 1000:,.1f} s"
 
 
 def _format_duration(seconds: float) -> str:

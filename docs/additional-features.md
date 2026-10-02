@@ -381,7 +381,7 @@ frooky -U -f com.example.app -t 30 hooks.yaml
 
 ### Hook Statistics (`i` / `I` Key)
 
-While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not resolved, how many overloads or functions it hooks, how many events these recorded so far, and how many calls their `callerFilter` or `argFilter`s dropped. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
+While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not resolved, how many overloads or functions it hooks, how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, and how much time went into decoding the values of the recorded events. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
 
 ```text
 Hook statistics

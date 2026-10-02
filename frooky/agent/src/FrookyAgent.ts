@@ -91,7 +91,8 @@ export type HookProgress = { hooked: number; pending: number; waiting: number; f
 
 // One hook declaration for the host's hook statistics (`i` key). `target` is e.g. `com.example.Foo.bar` or
 // `libfoo.so!open`, `waitsFor` the class or module it waits for, `hooked` how many overloads or functions it hooks,
-// `events` how many events these recorded, and `filtered` how many calls their callerFilter or argFilters dropped.
+// `events` how many events these recorded, `filtered` how many calls their callerFilter or argFilters dropped, and
+// `decodeMs` the milliseconds spent decoding the values of the recorded events.
 export type HookStatistic = {
   config: string;
   target: string;
@@ -100,6 +101,7 @@ export type HookStatistic = {
   hooked: number;
   events: number;
   filtered: number;
+  decodeMs: number;
 };
 
 // Installed hooks (one per overload or function), declarations waiting for their class or module, and
@@ -158,6 +160,9 @@ export class FrookyAgent {
   // hooks of every loaded config, keyed by config id and then by the fingerprint of the normalized hook
   private loadedConfigs = new Map<string, Map<string, LoadedHookEntry>>();
   private readonly eventCounts = new WeakMap<Hook, number>();
+  // Summed Date.now() differences of whole milliseconds. Over many calls they add up to the real time, at a tenth of
+  // the cost of a high-resolution clock, which Frida only has as a NativeFunction call of clock_gettime().
+  private readonly decodeTimes = new WeakMap<Hook, number>();
   private anonymousConfigCount = 0;
   private reportProgress?: (progress: HookProgress) => void;
   public readonly targetReady: Promise<void>; // resolves once the target's own code can be looked up (e.g. Java.perform())
@@ -458,10 +463,14 @@ export class FrookyAgent {
     }, PROGRESS_INTERVAL_MS);
   }
 
-  // `hook` is the hook that recorded `event`, counted for hookStatistics()
-  public addEventToLog(event: LogEvent | HookEvent, hook?: Hook): void {
+  // `hook` is the hook that recorded `event` and `decodeMs` the time it spent decoding its values, both for
+  // hookStatistics()
+  public addEventToLog(event: LogEvent | HookEvent, hook?: Hook, decodeMs: number = 0): void {
     this.eventCache.push(event);
-    if (hook) this.eventCounts.set(hook, (this.eventCounts.get(hook) ?? 0) + 1);
+    if (hook) {
+      this.eventCounts.set(hook, (this.eventCounts.get(hook) ?? 0) + 1);
+      this.decodeTimes.set(hook, (this.decodeTimes.get(hook) ?? 0) + decodeMs);
+    }
   }
 
   // Every hook declaration of the loaded configs, see HookStatistic
@@ -478,6 +487,7 @@ export class FrookyAgent {
           hooked: entry.hookedCount ?? 0,
           events: (entry.hooks ?? []).reduce((count, hook) => count + (this.eventCounts.get(hook) ?? 0), 0),
           filtered: (entry.hooks ?? []).reduce((count, hook) => count + filteredCallCount(hook), 0),
+          decodeMs: (entry.hooks ?? []).reduce((ms, hook) => ms + (this.decodeTimes.get(hook) ?? 0), 0),
         });
       }
     }

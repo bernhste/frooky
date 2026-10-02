@@ -352,12 +352,12 @@ describe("FrookyAgent", () => {
       expect(rawManager.registerHooks).toHaveBeenCalledTimes(3);
     });
 
-    it("lists every declaration with its state and the events and filtered calls of its hooks", async () => {
+    it("lists every declaration with its state and the events, filtered calls and decode time of its hooks", async () => {
       const { agent, rawManager } = setupWithPendingClass(undefined, 0.05);
       await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
       const [installedHook] = rawManager.registerHooks.mock.calls[0][0] as Hook[];
-      agent.addEventToLog(new LogEvent("info", "event"), installedHook);
-      agent.addEventToLog(new LogEvent("info", "event"), installedHook);
+      agent.addEventToLog(new LogEvent("info", "event"), installedHook, 2);
+      agent.addEventToLog(new LogEvent("info", "event"), installedHook, 3);
       countFilteredCall(installedHook);
 
       expect(agent.hookStatistics()).toEqual([
@@ -369,6 +369,7 @@ describe("FrookyAgent", () => {
           hooked: 0,
           events: 0,
           filtered: 0,
+          decodeMs: 0,
         },
         {
           config: "hooks.yaml",
@@ -378,6 +379,7 @@ describe("FrookyAgent", () => {
           hooked: 0,
           events: 0,
           filtered: 0,
+          decodeMs: 0,
         },
         {
           config: "hooks.yaml",
@@ -387,6 +389,7 @@ describe("FrookyAgent", () => {
           hooked: 1,
           events: 2,
           filtered: 1,
+          decodeMs: 5,
         },
       ]);
     });
