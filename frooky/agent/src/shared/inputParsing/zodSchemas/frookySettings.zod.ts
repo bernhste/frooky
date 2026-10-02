@@ -5,7 +5,8 @@ export const hookSettingsSchema = z.object({
     maxStackFrames: z.number().min(0),
     nativeStackTrace: z.boolean(),
     platformStackTrace: z.boolean(),
-    callerFilter: z.array(z.string())
+    callerFilter: z.array(z.string()),
+    early: z.boolean()
 });
 
 export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("hashCode"), z.literal("intentFlag"), z.literal("intentUriFlag"), z.literal("constant"), z.literal("flags"), z.literal("getters")]);

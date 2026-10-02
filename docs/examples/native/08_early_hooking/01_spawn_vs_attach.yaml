@@ -26,6 +26,8 @@ hookCollection:
   # void *android_dlopen_ext(const char *filename, int flags, const android_dlextinfo *extinfo)
   # Docs: https://developer.android.com/ndk/reference/group/libdl#android_dlopen_ext
   - module: libdl.so
+    hookSettings:
+      early: true
     hooks:
       - symbol: android_dlopen_ext
         params:

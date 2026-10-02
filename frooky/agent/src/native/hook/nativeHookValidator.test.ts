@@ -395,6 +395,65 @@ describe("NativeHookValidator", () => {
 
         expect(warnSpy).not.toHaveBeenCalled();
       });
+
+      it("warns when early is true on a high-frequency libc function without a callerFilter", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              hookSettings: { early: true },
+              hooks: ["open"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).toHaveBeenCalled();
+        const messages = warnSpy.mock.calls.map((call) => String(call[0]));
+        expect(
+          messages.some((msg) =>
+            msg.includes(
+              "Early hooking enabled for high-frequency libc function 'open' in 'libc.so' without a callerFilter. This can cause deadlocks or ANRs (Application Not Responding)",
+            ),
+          ),
+        ).toBe(true);
+      });
+
+      it("does not warn when early is true on a high-frequency libc function with a callerFilter", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              hookSettings: { early: true, callerFilter: ["libapp.so"] },
+              hooks: ["open"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("does not warn when early is false on a high-frequency libc function without callerFilter and no stack traces", () => {
+        const config: InputFrookyConfig = {
+          hookCollection: [
+            {
+              type: "native",
+              module: "libc.so",
+              hookSettings: { early: false },
+              hooks: ["open"],
+            },
+          ],
+        };
+
+        validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
     });
   });
 });

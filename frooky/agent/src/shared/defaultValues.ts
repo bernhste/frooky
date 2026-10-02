@@ -17,6 +17,7 @@ export const DEFAULT_HOOK_SETTINGS: HookSettings = {
   nativeStackTrace: false,
   platformStackTrace: false,
   callerFilter: [],
+  early: false,
 };
 
 export const DEFAULT_FROOKY_SETTINGS: FrookySettings = {

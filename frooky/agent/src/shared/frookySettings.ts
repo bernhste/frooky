@@ -27,6 +27,14 @@ export interface HookSettings {
    * that called the function directly, e.g. `'^libapp\.so$'`. Default: `[]`.
    */
   callerFilter: string[];
+
+  /**
+   * Whether to install native hooks early, before the platform runtime (e.g. Android ART) is ready.
+   * When `false` (default), hooks are gated behind `platformReady` to prevent early bootstrap crashes and deadlocks.
+   * When `true`, hooks are installed immediately at process start or during dynamic linker module loading
+   * (e.g. to inspect `.init_array` constructors or anti-tampering routines). Default: `false`.
+   */
+  early: boolean;
 }
 
 /**

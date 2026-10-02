@@ -17,6 +17,8 @@ metadata:
 
 hookCollection:
   - module: libloadTime.so
+    hookSettings:
+      early: true
     hooks:
       # const char *on_library_load(const char *stage)
       - symbol: on_library_load

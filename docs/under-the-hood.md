@@ -112,11 +112,11 @@ Each hook file is then processed on its own, all of them concurrently:
 2. **Diff:** every normalized declaration gets a fingerprint. On a [reload](./additional-features.md#hot-reloading-and-watch-mode), unchanged declarations keep their installed hooks, removed ones are unhooked, and only new, changed or retried ones are resolved. On the first load, every declaration is new and starts in the state `pending`.
 3. **Resolve and install:** the Java and native declarations go to their hook managers in parallel. `resolveHooks()` returns one promise per declaration, which settles once its class or module is found and its hooks are installed, or once it is clear that the method or symbol doesn't exist.
 
-Everything that can be resolved right away, e.g. classes of the Android framework and modules like `libc.so` that are already loaded, is installed before `loadFrookyConfigs` returns. In spawn mode, these hooks are in place before the app's own code runs.
+By default, native hooks are gated behind `platformReady` (`targetReady`), waiting for the platform runtime (ART) to initialize before attaching interceptors. This prevents early bootstrap deadlocks and ANRs. Hooks with `early: true` opt into immediate installation during Stage 1 (spawn pause) or Stage 2 (dynamic linker loading before constructors or `JNI_OnLoad` run).
 
 ### Resuming the App and the Resolver Timeout
 
-In spawn mode, the host now resumes the app (step 21). The app starts, `Java.perform()` runs, and `targetReady` resolves. From then on, the `JavaClassResolver` also looks into the app's own class loaders.
+In spawn mode, the host now resumes the app (step 21). The app starts, `Java.perform()` runs, and `targetReady` resolves. From then on, standard native hooks are installed, and the `JavaClassResolver` also looks into the app's own class loaders.
 
 At the same moment, the resolver timeout starts: `-t`/`--resolver-timeout` seconds, 5 by default (see [Dynamic Class and Module Resolution](./additional-features.md#dynamic-class-and-module-resolution)). Then one of two things happens first:
 
@@ -131,10 +131,27 @@ The table below summarizes what can be hooked and accessed across the app's life
 
 | Stage | What can be hooked | What is risky or blocked | Stack traces available? |
 | :--- | :--- | :--- | :--- |
-| **Stage 1: Frooky init** (process paused at spawn) | Modules already mapped (`libc.so`, `libdl.so`), or app modules when attaching (`-n`) | ❌ High-risk Bionic primitives (`read`, `close`) without `callerFilter` collide with ART bootstrap threads on ARM64; Java hooks cannot install yet (VM not initialized, queued as `pending`) | ❌ No stack traces (`detectUnsafeContext()` returns `"before-ready"`) |
-| **Stage 2: Resume & linker** (process resumed, ART booting) | Dynamically loaded app `.so` libraries as the linker loads them | ❌ Hooking functions actively executing inside the dynamic linker (`linker-busy` / `in-linker`) | ❌ No stack traces (blocked by `"in-linker"`, `"linker-busy"`, or `"before-ready"`) |
-| **Stage 3: Platform ready** (`targetReady` / `Java.perform()`) | ✅ All Java and Kotlin methods; low-level native hooks (safe once ART daemon threads settle) | ⚠️ Hot-path libc functions (`malloc`, `free`, `memcpy`) still need `callerFilter` to avoid ANR | ✅ Platform (Java) stack traces available; native stack traces available (guarded by `detectUnsafeContext` on low stack) |
+| **Stage 1: Frooky init** (process paused at spawn) | Opt-in via `early: true`: modules already mapped (`libc.so`, `libdl.so`), or app modules when attaching (`-n`) | ❌ High-risk Bionic primitives (`read`, `close`) without `callerFilter` collide with ART bootstrap threads on ARM64; Java hooks cannot install yet (VM not initialized, queued as `pending`) | ❌ No stack traces (`detectUnsafeContext()` returns `"before-ready"`) |
+| **Stage 2: Resume & linker** (process resumed, ART booting) | Opt-in via `early: true`: dynamically loaded app `.so` libraries as the linker loads them, before `.init_array` / `JNI_OnLoad` | ❌ Hooking functions actively executing inside the dynamic linker (`linker-busy` / `in-linker`) without `callerFilter` risks ANRs | ❌ No stack traces (blocked by `"in-linker"`, `"linker-busy"`, or `"before-ready"`) |
+| **Stage 3: Platform ready** (`targetReady` / `Java.perform()`) | ✅ Default target for standard hooks: all Java and Kotlin methods; low-level native hooks (safe once ART daemon threads settle) | ⚠️ Hot-path libc functions (`malloc`, `free`, `memcpy`) still benefit from `callerFilter` to reduce event volume | ✅ Platform (Java) stack traces available; native stack traces available (guarded by `detectUnsafeContext` on low stack) |
 | **Stage 4: App steady state** (activities and UI running) | ✅ Everything (Java, Kotlin, native symbols, offsets) | ⚠️ Functions in `BLOCKED_FUNCTIONS` (e.g. `pthread_getspecific`, `dlopen`) | ✅ Full stack traces (Java + native) |
+
+```mermaid
+flowchart TD
+    Start["frooky starts (spawn or attach)"] --> Init["FrookyAgent init"]
+    Init --> CheckEarly{"Hook has early: true?"}
+
+    CheckEarly -- Yes (Opt-in) --> InstallEarly["Install immediately<br/>(linker callbacks / pre-resume)"]
+    InstallEarly --> WarnEarly["⚠️ Stacks suppressed ('before-ready')<br/>callerFilter strongly advised"]
+
+    CheckEarly -- No (Default) --> QueueUntilReady["Queue hook until platformReady"]
+
+    Init --> PlatformReadyWait["Wait for platformReady<br/>(targetReady / Java.perform)"]
+    PlatformReadyWait --> PlatformReady["platformReady resolves"]
+
+    QueueUntilReady --> PlatformReady
+    PlatformReady --> InstallDefault["Install standard hooks<br/>(safe ART state, stack traces enabled)"]
+```
 
 ## Caller Filters
 

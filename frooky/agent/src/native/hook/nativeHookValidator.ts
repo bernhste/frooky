@@ -157,6 +157,12 @@ export function warnOnHighFrequencyLibcHook(hook: InputNativeHookNormalized): vo
       `Capturing stack traces on high-frequency libc function '${hook.symbol}' in '${hook.module}' can cause recursive stack unwinding or crashes. Keep stack traces disabled for low-level functions.`,
     );
   }
+
+  if (hook.hookSettings?.early && (!hook.hookSettings.callerFilter || hook.hookSettings.callerFilter.length === 0)) {
+    logger.warn(
+      `Early hooking enabled for high-frequency libc function '${hook.symbol}' in '${hook.module}' without a callerFilter. This can cause deadlocks or ANRs (Application Not Responding) during app bootstrap. Specify a callerFilter to restrict callers.`,
+    );
+  }
 }
 
 // errno is only set by the call, so `decoder: errno` only applies to the return value

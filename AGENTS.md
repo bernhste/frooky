@@ -39,6 +39,12 @@ CI (`.github/workflows/`) runs on every push: `verify-host.yml` (wheel build, un
 
 Tests that need a device (`npm run test:android`, `pytest tests/integration/android`) are covered by the `device-testing` skill. In the devcontainer, adb, Appium and frida-server run on the host and are reached via `ADB_SERVER_SOCKET`, `APPIUM_URL` and `FRIDA_HOST`. Check `adb devices` before assuming a device is available. If none is, say so instead of skipping tests silently.
 
+## Testing Guide
+
+- **Always run `npm run test:android` when changing the agent** (`frooky/agent/`): runs TypeScript agent unit tests inside `com.google.android.dialer` on the device. Recompile first (`npm run build:dev:android` or `uv run compile-agent --dev`).
+- **Always run Python unit tests when changing Python host code** (`frooky/`, `tests/unit/`): run `uv run pytest tests/unit` (no device required) and check formatting/linting via `uv run ruff check . && uv run ruff format --check .`.
+- **Only run affected integration tests when agent or host changes**: integration tests (`pytest tests/integration/android`) use Appium and test apps; only run the specific tests affected by the change (e.g. `uv run pytest tests/integration/android -k <pattern>`) rather than the entire test suite.
+
 ## Rules
 
 - **Build order:** the agent must be compiled before `uv build`; the wheel bundles `frooky/agent/dist/`. A stale `dist/` means the host runs old agent code, so rebuild after any agent change before testing through `frooky`.

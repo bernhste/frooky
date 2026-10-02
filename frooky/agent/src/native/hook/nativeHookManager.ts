@@ -97,8 +97,9 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
   }
 
-  // A hook on a module that is not loaded yet is installed as soon as it loads: in the linker, before the module's
-  // constructors and JNI_OnLoad run. resolveHooks() resolves its promise afterwards, see registerHooks().
+  // Native hooks default to waiting for FrookyAgent.targetReady (platformReady) before installation to ensure
+  // stability during early process bootstrap. Hooks with `early: true` are installed immediately or inside
+  // the linker before constructors and JNI_OnLoad run.
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], source?: string): Promise<Promise<NativeHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "native hook")} in ${plural(new Set(inputHooks.map((h) => h.module)).size, "module")}${fromSource(source)}`,
@@ -116,9 +117,14 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         const findExport = isLoading
           ? (symbol: string) => (exports ??= new Map(module.enumerateExports().map((e) => [e.name, e.address]))).get(symbol)
           : (symbol: string) => module.findExportByName(symbol) ?? undefined;
-        return hookIndices.map((i) => {
-          const hooks = this.resolveHook(inputHooks[i], module, findExport);
-          if (hooks && isLoading) this.registerHooks(hooks, source);
+        return hookIndices.map(async (i) => {
+          const inputHook = inputHooks[i];
+          const hooks = this.resolveHook(inputHook, module, findExport);
+          if (!hooks) return null;
+          if (!inputHook.hookSettings?.early) {
+            await (this.frookyAgent.targetReady ?? Promise.resolve());
+          }
+          if (isLoading) this.registerHooks(hooks, source);
           return hooks;
         });
       });

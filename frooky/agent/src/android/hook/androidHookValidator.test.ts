@@ -162,5 +162,23 @@ describe("AndroidHookValidator", () => {
       expect(result.map((hook) => hook.method)).toEqual(["validMethod"]);
       expect(warnSpy.mock.calls.length).toBe(2);
     });
+
+    it("warns and disables early setting on Java hooks", () => {
+      const javaCollection: InputJavaHookCollection = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hookSettings: { early: true },
+        hooks: ["bar"],
+      };
+      const config: InputFrookyConfig = { hookCollection: [javaCollection] };
+
+      const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+
+      expect(result[0].hookSettings?.early).toBe(false);
+      expect(warnSpy).toHaveBeenCalled();
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("Early hooking ('early: true') is not supported for Java method 'bar' from class 'com.example.Foo'");
+    });
   });
 });
+

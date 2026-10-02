@@ -10,7 +10,7 @@ from frooky.runner.feed import Feed, HookStatus, normalize_level
 
 def make_feed(width=100, color=False):
     buffer = io.StringIO()
-    console = Console(file=buffer, width=width, force_terminal=color, color_system="256" if color else None, highlight=False)
+    console = Console(file=buffer, width=width, height=100, force_terminal=color, color_system="256" if color else None, highlight=False)
     return Feed(console), buffer
 
 

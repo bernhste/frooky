@@ -43,6 +43,12 @@ export class AndroidHookValidator implements HookValidator<InputJavaHookNormaliz
             javaDecoderNames(),
             "Java",
           );
+          if (normalizedJavaHook.hookSettings?.early) {
+            logger.warn(
+              `Early hooking ('early: true') is not supported for Java method '${normalizedJavaHook.method}' from class '${javaHookCollection.javaClass}' because Java hooks require the Android runtime (ART) to be initialized.`,
+            );
+            normalizedJavaHook.hookSettings = { ...normalizedJavaHook.hookSettings, early: false };
+          }
           normalizedJavaHooks.push(inputJavaHookNormalizedSchema.parse(normalizedJavaHook));
         } catch (e) {
           const method = typeof inputJavaHook === "string" ? inputJavaHook : Array.isArray(inputJavaHook) ? inputJavaHook[0] : inputJavaHook.method;

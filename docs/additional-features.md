@@ -115,6 +115,7 @@ Capturing stack traces provides visibility into the execution path leading up to
 | `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames. Native hooks only: Java hooks have no native context and always capture an empty native stack trace.                                                                                                                  |
 | `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames. For a native hook, these are the Java frames that led to the native call, if it was called from Java.                                                                               |
 | `callerFilter`       | `string[]` | `[]`    | Regular expressions; a call is only recorded if its caller matches one of them. Java hooks match the methods on the Java stack (e.g. `'^com\.myapp\.'`), native hooks the module of the direct caller (e.g. `'^libapp\.so$'`). See [Caller Filters](#caller-filters). |
+| `early`              | `boolean`  | `false` | Whether to install native hooks early, before the platform runtime (e.g. ART) is initialized. When `false` (default), hooks are gated behind `platformReady` to prevent early bootstrap crashes and deadlocks. Native hooks only. |
 
 In the output events, captured stack traces appear in the `stackTrace` object with separate arrays for `platformStackTrace` and `nativeStackTrace` (see [Output Format](./output.md)):
 
@@ -287,21 +288,25 @@ Capturing stack traces and hooking low-level primitives carries stability and re
 - **Hangs:** A platform stack trace enters the Java VM from inside the hooked call. If the caller holds a lock the VM then waits for, the app hangs; `platformStackTrace` on libc's `write` does this during startup (ANR).
 - **Performance degradation:** Resolving symbols for native frames takes ~35 µs per frame. On functions invoked thousands of times per second, capturing stack traces causes noticeable application stutter or ANR timeouts.
 
-**Early Hooking (Spawn vs. Attach):**
+**Early Hooking (Spawn vs. Attach and `early: true`):**
 
 Functions called during application launch (such as `Application.onCreate`, `JNI_OnLoad`, or early native library loads via `android_dlopen_ext` in `libdl.so`) only show up when frooky spawns the process with `-f`:
 
-- **Spawn (`-f`):** frooky starts the app suspended, installs the hooks, and resumes execution. Startup calls and initial library loads are captured.
+- **Default Gating behind `platformReady`:** By default, frooky gates all standard hooks behind `platformReady` (`targetReady`), waiting for the Android runtime (ART) to initialize before attaching interceptors. This prevents early bootstrap deadlocks, lock inversions, and crashes.
+- **Explicit `early: true`:** To observe early-stage execution (e.g. anti-tampering checks, ELF constructors in `.init_array`, or early library loads before ART initializes), set `early: true` under `hookSettings`.
+- **Spawn (`-f`):** frooky starts the app suspended, installs `early: true` hooks, and resumes execution.
 - **Attach (`-n`, `-N`, `-p`):** Attaches to an already running app. Code executed during startup has already finished and is not captured.
 - **Loader hooks:** Hooking `android_dlopen_ext` in `libdl.so` can observe library loads, but intercepting the dynamic linker can break loads across Android linker namespaces.
-- **Late-loaded code:** frooky hooks a native library as soon as it loads, before its constructors and `JNI_OnLoad` run, and a Java class as soon as a class loader has it, so calls made while they load are captured. This also works for code the app loads long after it starts. See [Dynamic Class and Module Resolution](#dynamic-class-and-module-resolution).
+- **Late-loaded code:** When a library is loaded after `platformReady`, hooks are installed as soon as the linker loads it.
 
 **Recommendations for low-level and high-frequency hooks:**
 
-1. **Keep stack traces disabled** on high-frequency libc functions (`nativeStackTrace: false`, `platformStackTrace: false`).
-2. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: [libapp.so]`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
-3. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
-4. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
+1. **Keep `early: false` (the default)** unless you specifically need to observe anti-tampering or `.init_array` code before runtime startup.
+2. **If using `early: true`, always specify a `callerFilter`** on high-frequency libc functions (e.g. `open`, `read`, `write`, `malloc`). Early hooks without a caller filter intercept ART daemon initialization and dynamic linker threads, risking deadlocks or ANRs (Application Not Responding).
+3. **Keep stack traces disabled** on high-frequency libc functions (`nativeStackTrace: false`, `platformStackTrace: false`).
+4. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: [libapp.so]`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
+5. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
+6. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
 
 ### Blocked Functions
 

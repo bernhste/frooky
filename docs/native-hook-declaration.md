@@ -202,7 +202,7 @@ If a type is more complex, you may need further [decoder settings](./decoders.md
 
 ## Hook and Decoder Settings
 
-`hookSettings` (e.g. `nativeStackTrace`, `platformStackTrace`, `maxStackFrames`, `callerFilter`) and `decoderSettings` (e.g. `maxDepth`, `maxItems`) can be declared on the hook collection (applying to every hook in it) or on an individual hook (overriding the hook collection for that hook only). See [Additional Features](./additional-features.md#settings-precedence), [Decoders](./decoders.md) and [Decoders for Native Hooks](./decoders-native.md) for the full list of options and how the file-level `settings`, the hook collection, an individual hook, and a parameter or return type are merged together.
+`hookSettings` (e.g. `early`, `nativeStackTrace`, `platformStackTrace`, `maxStackFrames`, `callerFilter`) and `decoderSettings` (e.g. `maxDepth`, `maxItems`) can be declared on the hook collection (applying to every hook in it) or on an individual hook (overriding the hook collection for that hook only). See [Additional Features](./additional-features.md#settings-precedence), [Decoders](./decoders.md) and [Decoders for Native Hooks](./decoders-native.md) for the full list of options and how the file-level `settings`, the hook collection, an individual hook, and a parameter or return type are merged together.
 
 **Example:**
 
