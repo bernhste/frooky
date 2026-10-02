@@ -1,4 +1,4 @@
-import { isReportableException } from "./crashReporter";
+import { installCrashReporter, isReportableException } from "./crashReporter";
 
 describe("isReportableException()", () => {
   it("reports an abort, e.g. ART's after a JNI error", () => {
@@ -19,5 +19,24 @@ describe("isReportableException()", () => {
 
   it("ignores breakpoints, e.g. from a debugger", () => {
     expect(isReportableException("breakpoint", false)).toBe(false);
+  });
+});
+
+describe("installCrashReporter()", () => {
+  it("installs no exception handler under V8", () => {
+    const script = globalThis as unknown as { Script: { runtime: string } };
+    const originalScript = script.Script;
+    script.Script = { runtime: "V8" };
+    const handlerSpy = spyOn(Process, "setExceptionHandler");
+    try {
+      installCrashReporter(
+        { isInHookedModule: () => false, describeHooksInModulesOf: () => [], describeHookedFunctionAt: () => undefined },
+        () => {},
+      );
+      expect(handlerSpy).not.toHaveBeenCalled();
+    } finally {
+      handlerSpy.mockRestore();
+      script.Script = originalScript;
+    }
   });
 });

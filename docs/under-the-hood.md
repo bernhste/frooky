@@ -91,10 +91,10 @@ The host attaches to the app (`-p`/`-n`) or spawns it (`-f`). When spawning, Fri
 The `FrookyAgent` constructor sets up everything the hooks need later:
 
 - **`targetReady`** is a promise that resolves once `Java.perform()` runs its callback, i.e. once the app's own classes can be looked up. In spawn mode, that is only after the app has been resumed.
-- **`watchLinker()`** hooks the linker's `dlopen()`/`dlclose()` entry points to know which threads are currently loading a library. Hooks don't capture stack traces on these threads (see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces)). It is installed first, so it covers the libraries that load while the hook files are processed.
+- **`watchLinker()`** hooks the linker's `dlopen()`/`dlclose()` entry points to know which threads are currently loading a library. While a thread is loading a library, hooks don't capture stack traces, neither on that thread nor on any other (see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces)). It is installed first, so it covers the libraries that load while the hook files are processed.
 - One **hook manager** per hook type: `AndroidHookManager` for Java hooks, with a `JavaClassResolver` that finds classes in every class loader, and `NativeHookManager` for native hooks.
 
-Finally, `reportCrashes()` installs the [Native Crash Reporter](./additional-features.md#native-crash-reporter).
+Finally, `reportCrashes()` installs the [Native Crash Reporter](./additional-features.md#native-crash-reporter), except under V8.
 
 ### Loading the Hook Files
 

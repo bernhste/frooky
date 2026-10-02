@@ -6,6 +6,9 @@ export type UnsafeContext =
   | "signal-stack"
   // inside dlopen()/dlclose() on this thread: the linker holds its lock and the module is only partly loaded
   | "in-linker"
+  // another thread is inside dlopen()/dlclose(): it can hold the linker's lock while it waits for the JS lock in a
+  // hook (e.g. on `mmap`), and the stack walk would wait for the linker's lock (dl_iterate_phdr())
+  | "linker-busy"
   // little stack left on the thread
   | "low-stack"
   // before the app's code runs (spawn mode): only native frames are captured

@@ -18,6 +18,9 @@ export function detectUnsafeContext(ctx?: CpuContext): UnsafeContext | undefined
   if (isOnSignalStack(ctx)) return "signal-stack";
   const tid = Process.getCurrentThreadId();
   if ((linkerDepth.get(tid) ?? 0) > 0) return "in-linker";
+  // No thread enters the linker meanwhile: watchLinker()'s callbacks need the JS lock this call holds, and they run
+  // before the linker takes its own lock.
+  if (linkerDepth.size > 0) return "linker-busy";
   if (ctx && hasLowStack(tid, ctx.sp)) return "low-stack";
   if (!targetReady) return "before-ready";
   return undefined;
@@ -64,6 +67,17 @@ export function isOnSignalStack(ctx?: CpuContext): boolean {
 const linkerDepth = new Map<number, number>();
 let watchingLinker = false;
 
+// Counts a dlopen()/dlclose() call of thread `tid` until leaveLinker(), see watchLinker()
+export function enterLinker(tid: number): void {
+  linkerDepth.set(tid, (linkerDepth.get(tid) ?? 0) + 1);
+}
+
+export function leaveLinker(tid: number): void {
+  const depth = (linkerDepth.get(tid) ?? 1) - 1;
+  if (depth > 0) linkerDepth.set(tid, depth);
+  else linkerDepth.delete(tid);
+}
+
 // Tracks which threads are inside dlopen()/dlclose(). Hooks the linker's entry points, which run before it takes
 // its lock, so the callbacks never wait for the JS lock while holding the linker's.
 export function watchLinker(): void {
@@ -79,12 +93,10 @@ export function watchLinker(): void {
       Interceptor.attach(address, {
         onEnter() {
           this.linkerTid = Process.getCurrentThreadId();
-          linkerDepth.set(this.linkerTid, (linkerDepth.get(this.linkerTid) ?? 0) + 1);
+          enterLinker(this.linkerTid);
         },
         onLeave() {
-          const depth = (linkerDepth.get(this.linkerTid) ?? 1) - 1;
-          if (depth > 0) linkerDepth.set(this.linkerTid, depth);
-          else linkerDepth.delete(this.linkerTid);
+          leaveLinker(this.linkerTid);
         },
       });
     } catch (_) {}

@@ -76,6 +76,7 @@ A Java method or native function can be hooked more than once, e.g. by two hook 
 - Removing a hook, e.g. by deleting it from a hook file while frooky runs with `--watch`, stops only that hook's events. The method or function is restored once no hook is left on it.
 - A declaration that is repeated identically in the same hook file is only hooked once.
 - The events of all hooks on one call carry the same [`hashCode`](./output.md): of the Java instance, or of the native function's address.
+- Two native symbols can be the same function, e.g. `memcpy` and `memmove` in some libcs. Hooking both records each call twice, and frooky warns: `libc.so!memmove is the same function as libc.so!memcpy`.
 
 **Example:** record every `Cipher.init` call, and additionally decode `opmode` of the `init(int, Key)` overload with the `constant` decoder:
 
@@ -128,12 +129,13 @@ Stack traces are disabled by default (`nativeStackTrace: false`, `platformStackT
 
 Some calls happen where walking the stack can crash or hang the app. frooky detects these per call and captures no stack trace for them. The `stackTrace` object then has a `skipped` field with the reason:
 
-| `skipped`      | Situation                                                                                     | Frames captured    |
-| -------------- | --------------------------------------------------------------------------------------------- | ------------------ |
-| `signal-stack` | The call runs in a signal handler on an alternate signal stack, which is usually only 32KB.   | none               |
-| `in-linker`    | The call happens inside `dlopen()`/`dlclose()` on this thread, e.g. in a library constructor. | none               |
-| `low-stack`    | Less than 64KB are left on the thread's stack. Native hooks only.                             | none               |
-| `before-ready` | The app's own code hasn't started yet (spawn mode, before `Java.perform()`).                  | native frames only |
+| `skipped`      | Situation                                                                                                     | Why it's unsafe                                                                                                                                                                                   | Frames captured    |
+| -------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `signal-stack` | The call runs in a signal handler on an alternate signal stack (`sigaltstack`), which is usually only 32KB.   | A stack walk and symbolizing can overflow it and crash the app.                                                                                                                                   | none               |
+| `in-linker`    | The call happens inside `dlopen()`/`dlclose()` on this thread, e.g. in a library constructor or `JNI_OnLoad`. | The linker holds its lock and the module is only partly loaded. The stack walk needs that lock (`dl_iterate_phdr()`).                                                                             | none               |
+| `linker-busy`  | Another thread is inside `dlopen()`/`dlclose()`, e.g. while the app starts.                                   | That thread can hold the linker's lock while it waits in a hook (e.g. on `mmap` or `openat`) until frooky's agent is free. A stack walk here would wait for the linker's lock, and the app hangs. | none               |
+| `low-stack`    | Less than 64KB are left on the thread's stack. Native hooks only, as Java hooks have no CPU context to check. | A stack walk, symbolizing and the JavaScript engine's own frames can overflow the rest of the stack.                                                                                              | none               |
+| `before-ready` | The app's own code hasn't started yet (spawn mode, before `Java.perform()`).                                  | Entering the Java VM for the Java frames this early can hang the app.                                                                                                                             | native frames only |
 
 ```json
 "stackTrace": {
@@ -352,6 +354,11 @@ frooky -U -f com.example.app --runtime v8 hooks.yaml
 - **Low-level native hooks:** When hooking frequently called libc functions (e.g. `open`, `read`, `write`, `malloc`) or native code with deep call stacks, QuickJS can exhaust the thread stack and cause a crash (`SIGSEGV` / `SEGV_ACCERR`). V8 avoids C-stack exhaustion because its execution model uses far less calling-thread C-stack space.
 - **Complex decoders and heavy throughput:** If decoding large collections, high-frequency events, or running demanding user scripts loaded via `-l`.
 
+**Limitations of V8:**
+
+- A hook on libc's `memset`, even an empty one, hangs or crashes the app (`SIGTRAP`) as soon as native code calls into JavaScript, e.g. when Android calls frooky's Java hooks. Use QuickJS to hook `memset`.
+- The [Native Crash Reporter](#native-crash-reporter) is disabled.
+
 ## Native Crash Reporter
 
 When hooking native functions or memory buffers, invalid pointers or hook side-effects can cause the target process to crash. frooky includes a built-in native exception handler that intercepts fatal signals:
@@ -369,3 +376,5 @@ When a crash occurs, frooky captures the native thread backtrace and matches the
 - If the crash occurred inside or directly following an installed hook, frooky highlights the matching hook symbol, module, and offset in the terminal and logs.
 - Access violations are only reported if the faulting instruction is in a module with a native hook. ART raises and handles access violations itself all the time (e.g. implicit null checks), and the exception handler runs on the thread's small signal stack, so frooky decides by comparing addresses before it walks the stack. An access violation in code a hooked function calls, outside a hooked module, is not reported.
 - Safe termination: frooky reports the crash reason and faulting context before allowing the OS process to terminate.
+
+The crash reporter is disabled under V8 (`--runtime v8`): there, an installed exception handler makes hooks on functions such as libc's `strlen` crash the app. Frida still reports the crash signal, e.g. `process crashed (SIGTRAP SI_KERNEL)`, but without the backtrace and the hooked functions involved.

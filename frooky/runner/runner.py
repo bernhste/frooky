@@ -23,6 +23,10 @@ from .watcher import HookFileWatcher, describe_reload_error
 # DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS in the agent's defaultValues.ts, used when no -t is given
 AGENT_DEFAULT_RESOLVER_TIMEOUT_SECONDS = 5
 
+# How long unloading the scripts and detaching may take. Both need the agent, which never responds again when the app
+# deadlocks inside a hook. Under heavy load, a normal stop takes up to ~8 s.
+DETACH_TIMEOUT_SECONDS = 10.0
+
 
 class FrookyRunner:
     """Runs Frooky hooks using Frida."""
@@ -135,6 +139,9 @@ class FrookyRunner:
             crashed = self._crash is not None or self._agent_crash is not None
             hint = "For the full crash report" if crashed else "If the app crashed, for the crash report"
             lines.append(Text(f"  {hint} run: adb logcat -d -b crash", style="dim"))
+            if not crashed:
+                # the system kills an app that doesn't respond, e.g. when hooks slow down its startup too much
+                lines.append(Text("  If the app stopped responding (ANR), run: adb logcat -d -b events | grep am_anr", style="dim"))
         return lines
 
     def _print_summary(self) -> None:
@@ -244,6 +251,32 @@ class FrookyRunner:
         for path, hook_config in reloaded:
             self.script.exports_sync.update_frooky_config(str(path), hook_config, True)
 
+    def _detach(self) -> bool:
+        """Unload the scripts and detach from the target. False if that didn't finish within DETACH_TIMEOUT_SECONDS
+        or was interrupted with Ctrl+C."""
+
+        def detach() -> None:
+            for script in [self.script, *self.user_scripts]:
+                if script:
+                    try:
+                        script.unload()
+                    except Exception:
+                        pass
+            if self.session:
+                try:
+                    self.session.detach()
+                except Exception:
+                    pass
+
+        # a daemon thread, as a deadlocked agent never lets it finish
+        thread = threading.Thread(target=detach, name="frooky-detach", daemon=True)
+        thread.start()
+        try:
+            thread.join(DETACH_TIMEOUT_SECONDS)
+        except KeyboardInterrupt:
+            pass
+        return not thread.is_alive()
+
     def run(self) -> int:
         """Run the Frooky hooks."""
         try:
@@ -316,21 +349,11 @@ class FrookyRunner:
 
         finally:
             self._key_listener.stop()
-            if self.script:
-                try:
-                    self.script.unload()
-                except Exception:
-                    pass
-            for script in self.user_scripts:
-                try:
-                    script.unload()
-                except Exception:
-                    pass
-            if self.session:
-                try:
-                    self.session.detach()
-                except Exception:
-                    pass
+            if not self._detach():
+                self.feed.log(
+                    "warn",
+                    f"The agent didn't respond within {DETACH_TIMEOUT_SECONDS:g} s, e.g. because the app hangs inside a hook. Stopped without detaching; restart the app if it stays frozen.",
+                )
             self.output.close()
             self._stop_live_terminal()
             self._print_summary()

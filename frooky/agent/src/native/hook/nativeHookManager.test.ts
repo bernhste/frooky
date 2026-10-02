@@ -4,6 +4,7 @@ import { normalizeInputParams, normalizeInputRetType } from "../../shared/inputP
 import { InputParamSettings } from "../../shared/inputParsing/inputSettings";
 import { InputNativeOffsetHook, InputNativeSymbolHook } from "../../shared/inputParsing/inputNativeHookCollection";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
+import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { sleepMilliseconds } from "../../shared/utils";
 import { NativeHook } from "./nativeHook";
@@ -183,6 +184,27 @@ describe("NativeHookManager", () => {
   // installs a real Interceptor hook on libc's atoi() and calls it from the test; other threads of
   // the host process may call it too, so this only asserts on calls from before/after the detach
   describe("registerHooks() / unregisterHooks()", () => {
+    it("warns when a hook's function is already hooked under another name", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi")]));
+      const sameName: NativeHook = { ...hooks![0] };
+      const alias: NativeHook = { ...hooks![0], symbolName: "atoi_alias" };
+      const warnSpy = spyOn(logger, "warn");
+      try {
+        manager.registerHooks([hooks![0], sameName]);
+        expect(warnSpy).not.toHaveBeenCalled();
+
+        manager.registerHooks([alias]);
+        const messages = warnSpy.mock.calls.map((call) => String(call[0]));
+        expect(messages).toEqual([
+          `libc.so!atoi_alias is the same function as libc.so!atoi (${alias.symbolAddress}): each call is recorded once per hook.`,
+        ]);
+      } finally {
+        warnSpy.mockRestore();
+        manager.unregisterHooks([hooks![0], sameName, alias]);
+      }
+    });
+
     it("detaches the Interceptor listener", async () => {
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
       const manager = new NativeHookManager(stackTrace, agent);

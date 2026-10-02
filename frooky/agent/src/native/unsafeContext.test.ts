@@ -1,4 +1,4 @@
-import { detectUnsafeContext, markTargetReady, stackBounds, watchLinker } from "./unsafeContext";
+import { detectUnsafeContext, enterLinker, leaveLinker, markTargetReady, stackBounds, watchLinker } from "./unsafeContext";
 
 // NDK libraries the dialer doesn't load, one of them is loaded by the "in-linker" test
 const UNLOADED_LIBRARY_CANDIDATES = ["libsensorndk.so", "libtextclassifier_hash.so", "libneuralnetworks.so"];
@@ -43,6 +43,18 @@ describe("detectUnsafeContext()", () => {
     }
     expect(detected.length).toBeGreaterThan(0);
     expect(detected.every((reason) => reason === "in-linker")).toBeTruthy();
+    expect(detectUnsafeContext()).toBeUndefined();
+  });
+
+  it("returns linker-busy while dlopen() runs on another thread", () => {
+    // a thread id that isn't this thread's
+    const otherThreadId = Process.getCurrentThreadId() + 1;
+    enterLinker(otherThreadId);
+    try {
+      expect(detectUnsafeContext()).toBe("linker-busy");
+    } finally {
+      leaveLinker(otherThreadId);
+    }
     expect(detectUnsafeContext()).toBeUndefined();
   });
 });

@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 // A native exception that is about to kill the process, sent to the host.
 export interface CrashReport {
   // Frida's exception type, e.g. `abort` or `access-violation`
@@ -36,6 +38,12 @@ export function isReportableException(type: string, inHookedModule: boolean): bo
 // Reports the first likely fatal native exception, before the process dies. Frida's own `crash` (with the
 // `detached` signal) is empty for some crashes, e.g. ART aborting after a JNI error, and doesn't name hooks.
 export function installCrashReporter(hooks: CrashHookLookup, report: (crash: CrashReport) => void): void {
+  // Under V8, an installed exception handler makes a hook on e.g. libc's strlen crash the app with a SIGTRAP inside
+  // Frida's agent, even if it is never called. Frida still reports the crash, without the hooks.
+  if (Script.runtime === "V8") {
+    logger.info("Native crash reporter disabled under V8: crashes are reported without the hooked functions involved.");
+    return;
+  }
   let reported = false;
   Process.setExceptionHandler((details) => {
     // Runs in the signal handler, usually on the thread's 32 KB signal stack, for every access violation ART

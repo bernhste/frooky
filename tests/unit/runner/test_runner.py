@@ -2,6 +2,7 @@
 
 import os
 import re
+import threading
 from unittest.mock import MagicMock
 
 from frooky.runner import FrookyRunner, RunnerOptions
@@ -214,6 +215,7 @@ class TestPrintSummary:
             assert "No hooked function on the crashing stack, but hooks in its modules: libfoo.so+0x7a0" in out
             assert "    0x7ea6c527c803 libfoo.so!Java_Foo_bar+0x42" in out
             assert "For the full crash report run: adb logcat -d -b crash" in out
+            assert "ANR" not in out
         finally:
             runner._stop_live_terminal()
 
@@ -251,6 +253,7 @@ class TestPrintSummary:
             out = capsys.readouterr().out
             assert "Stopped: Process terminated" in out
             assert "If the app crashed, for the crash report run: adb logcat -d -b crash" in out
+            assert "If the app stopped responding (ANR), run: adb logcat -d -b events | grep am_anr" in out
             assert "Backtrace" not in out
         finally:
             runner._stop_live_terminal()
@@ -307,6 +310,25 @@ class TestRunSessionLoss:
 
         assert exit_code == 0
         assert "Stopped: stopped by user (Ctrl+C)" in capsys.readouterr().out
+
+    def test_stops_when_the_agent_does_not_respond(self, monkeypatch, tmp_path, capsys):
+        runner, session = self._make_wired_runner(monkeypatch, tmp_path)
+        never_detached = threading.Event()
+        session.detach.side_effect = lambda: never_detached.wait()
+        monkeypatch.setattr("frooky.runner.runner.DETACH_TIMEOUT_SECONDS", 0.1)
+
+        def fake_sleep(seconds):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr("frooky.runner.runner.time.sleep", fake_sleep)
+
+        exit_code = runner.run()
+
+        never_detached.set()
+        out = capsys.readouterr().out
+        assert exit_code == 0
+        assert "The agent didn't respond within 0.1 s" in out
+        assert "Stopped: stopped by user (Ctrl+C)" in out
 
 
 class TestRunRuntime:

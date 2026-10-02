@@ -181,6 +181,11 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         hookedFunction = newHookedFunction;
         this.hookedFunctions.set(key, hookedFunction);
       }
+      // e.g. memmove and memcpy, which are one function in some libcs
+      const alias = hookedFunction.hooks.find((other) => other.target !== target);
+      if (alias) {
+        logger.warn(`${target} is the same function as ${alias.target} (${hook.symbolAddress}): each call is recorded once per hook.`);
+      }
       // copied on write: a call in progress keeps running the hooks it entered
       hookedFunction.hooks = [...hookedFunction.hooks, installedHook];
       hook.listener = hookedFunction.listener;
