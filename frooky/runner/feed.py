@@ -26,9 +26,10 @@ LEVEL_STYLES = {
     "error": "color(167)",
 }
 
-# Message colors of the agent's `Decoded ...` debug logs, one per hook call. Clearly different hues in the same
-# mid-tone range as LEVEL_STYLES and distinct from them.
-DECODER_STYLES = [
+# Colors that tell neighboring items apart: the agent's `Decoded ...` debug logs, one per hook call, and the
+# hook statistics rows, one per hook file. Clearly different hues in the same mid-tone range as LEVEL_STYLES
+# and distinct from them.
+ACCENT_STYLES = [
     "color(30)",  # teal
     "color(173)",  # salmon
     "color(97)",  # purple
@@ -117,7 +118,7 @@ def format_hook_statistics(statistics: list[dict]) -> Table:
     """The table the `i` key prints: one row per hook declaration (see HookStatistic in FrookyAgent.ts), hooked ones
     first, with the overloads or functions it hooks, their events, the calls their filters dropped and the time spent
     decoding the values of their events, or the class or module it waits for. The `Waits for` column only shows while
-    a declaration waits, so the table fits narrower terminals."""
+    a declaration waits, so the table fits narrower terminals. Rows are colored per hook file."""
     table = Table(box=None, padding=(0, 2), pad_edge=False, header_style="bold", title="Hook statistics", title_justify="left", title_style="bold")
     table.add_column("State", no_wrap=True)
     table.add_column("Hooks", justify="right", no_wrap=True)
@@ -131,6 +132,8 @@ def format_hook_statistics(statistics: list[dict]) -> Table:
         table.add_column("Waits for", overflow="fold")
     order = list(_STATISTIC_STATES)
     rows = sorted(statistics, key=lambda row: (order.index(row["state"]) if row["state"] in order else len(order), row["config"], row["target"]))
+    # by sorted file name, so a file keeps its color across prints while the states change
+    file_styles = {config: ACCENT_STYLES[i % len(ACCENT_STYLES)] for i, config in enumerate(sorted({row["config"] for row in rows}))}
     for row in rows:
         installed = row["state"] == "installed"
         waiting = row["state"] in ("waiting", "pending")
@@ -145,7 +148,7 @@ def format_hook_statistics(statistics: list[dict]) -> Table:
         ]
         if any_waiting:
             cells.append(row["waitsFor"] if waiting else "")
-        table.add_row(*cells)
+        table.add_row(*cells, style=file_styles[row["config"]])
     if not rows:
         table.add_row("-", "-", "-", "-", "-", "no hooks loaded", "")
     return table
@@ -310,7 +313,7 @@ class Feed:
         match = _DECODED_LOG_PATTERN.match(message)
         if not match:
             return None
-        return DECODER_STYLES[int(match.group(1)) % len(DECODER_STYLES)]
+        return ACCENT_STYLES[int(match.group(1)) % len(ACCENT_STYLES)]
 
     def hook_statistics(self, statistics: list[dict]) -> None:
         """Print the hook statistics table, see format_hook_statistics()."""
