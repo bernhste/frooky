@@ -11,8 +11,6 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/99_torture/02_level_2.yaml
 #
 # Guardrails exercised:
-# - Under QuickJS, one warning per hook: "Hooking high-frequency libc function ... without an 'argFilter'".
-#   With `--runtime v8` these warnings are gone.
 # - Agent log messages from app threads are queued and written from the JS thread, so hooking `write`
 #   doesn't deadlock the app (frooky -vv makes this visible: lots of debug logs while `write` is hooked).
 # - Events are batched and sent every 100 ms; the host must keep up with the batch size.

@@ -20,7 +20,6 @@ metadata:
 #
 # Guardrails exercised:
 # - `argFilter` is checked before any stack trace is built, so non-matching calls stay cheap.
-# - The high-frequency libc warning is not printed: every hook has an `argFilter`.
 #
 # Expected: app as smooth as without frooky, Event Rate near 0/s (one `open` of /proc/self/status per Start).
 

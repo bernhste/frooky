@@ -37,6 +37,7 @@ type HookedFunction = { listener?: InvocationListener; hooks: InstalledNativeHoo
 // what a hook captured in onEnter
 type NativeHookCall = {
   installedHook: InstalledNativeHook;
+  logTarget: string; // see callLogTarget()
   argsIn: DecodedValue[];
   // the arguments for `out` params, as InvocationArguments is only valid during onEnter
   savedArgs?: NativePointer[];
@@ -283,7 +284,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   ): NativeHookCall | null {
     const { hook, target, inArgDecoders, outArgDecoders, argSlots, hasFloatArgs } = installedHook;
     try {
-      const call: NativeHookCall = { installedHook, argsIn: [], stackTrace: EMPTY_STACK_TRACE };
+      const call: NativeHookCall = { installedHook, logTarget: this.callLogTarget(target), argsIn: [], stackTrace: EMPTY_STACK_TRACE };
       if (hook.params) {
         let effectiveArgs: NativePointer[];
         const separateFloatLanes = usesSeparateFloatRegisterFile();
@@ -305,7 +306,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         }
 
         if (inArgDecoders.length > 0) {
-          call.argsIn = this.decodeArgs(effectiveArgs, inArgDecoders, target);
+          call.argsIn = this.decodeArgs(effectiveArgs, inArgDecoders, call.logTarget);
         }
 
         if (outArgDecoders.length > 0) {
@@ -348,12 +349,12 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         decodedRetValue =
           retTypeDecoder instanceof NativeErrnoDecoder
             ? retTypeDecoder.decodeWithErrno(returnValue, errno)
-            : this.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${target} return value`);
+            : this.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${call.logTarget} return value`);
       }
 
       const decodedArgs: DecodedArgs = { in: call.argsIn, out: [] };
       if (outArgDecoders.length > 0) {
-        decodedArgs.out = this.decodeArgs(call.savedArgs!, outArgDecoders, target, decodedRetValue);
+        decodedArgs.out = this.decodeArgs(call.savedArgs!, outArgDecoders, call.logTarget, decodedRetValue);
       }
 
       this.frookyAgent.addEventToLog(new NativeHookEvent(hook, call.installedHook.hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook);
@@ -362,6 +363,15 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         logger.error(`Error during 'onLeave' of ${target}: ${e}`);
       }
     }
+  }
+
+  // Whether `address` is in a module with an installed hook. Called for every native exception, see
+  // installCrashReporter(), so it only compares addresses.
+  public isInHookedModule(address: NativePointer): boolean {
+    for (const hook of this.installedHooks) {
+      if (address.compare(hook.module.base) >= 0 && address.compare(hook.module.base.add(hook.module.size)) < 0) return true;
+    }
+    return false;
   }
 
   // The installed hooks (e.g. `libfoo.so+0x1a2b4`) in the modules that contain any of `addresses`.

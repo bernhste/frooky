@@ -159,6 +159,8 @@ describe("NativeHookManager", () => {
 
       // no await since Module.load(): the hook was installed while the linker loaded the module
       expect(manager.describeHooksInModulesOf([module.base])).toEqual([`${moduleName}!${symbol}`]);
+      expect(manager.isInHookedModule(module.base)).toBe(true);
+      expect(manager.isInHookedModule(module.base.add(module.size))).toBe(false);
       const [hooks] = await Promise.all(pending);
       expect(hooks![0].symbolAddress.toString()).toBe(module.getExportByName(symbol).toString());
       expect(manager.registerHooks(hooks!)).toBe(1);

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 import time
 from collections import deque
 from datetime import datetime
@@ -22,6 +23,28 @@ LEVEL_STYLES = {
     "warn": "color(136)",
     "error": "color(167)",
 }
+
+# Message colors of the agent's `Decoded ...` debug logs, one per hook call. Clearly different hues in the same
+# mid-tone range as LEVEL_STYLES and distinct from them.
+DECODER_STYLES = [
+    "color(30)",  # teal
+    "color(173)",  # salmon
+    "color(97)",  # purple
+    "color(179)",  # sand
+    "color(67)",  # steel blue
+    "color(132)",  # plum
+    "color(108)",  # sage
+    "color(139)",  # mauve
+    "color(61)",  # slate blue
+    "color(137)",  # tan
+    "color(72)",  # sea green
+    "color(134)",  # orchid
+]
+
+# Captures the hook call number, e.g. `42` in
+# `Decoded [call 42] com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"` or
+# `Decoded decoderArgs 'length: count' of [call 42] libc.so!write param #1 'buf' (size_t, NativeValueDecoder): 8`
+_DECODED_LOG_PATTERN = re.compile(r"^Decoded .*?\[call (\d+)\] ")
 
 # Frida reports console.warn() as "warning"
 _LEVEL_ALIASES = {"warning": "warn"}
@@ -248,7 +271,7 @@ class Feed:
         if source:
             text.append(f"[{source}] ", style="dim")
         # user scripts may still color their console output themselves
-        text.append_text(Text.from_ansi(message.rstrip("\n"), style=style))
+        text.append_text(Text.from_ansi(message.rstrip("\n"), style=self._decoder_style(message) or style))
 
         line = Table.grid(padding=(0, 2))
         line.add_column(no_wrap=True)
@@ -256,6 +279,13 @@ class Feed:
         line.add_column(overflow="fold")
         line.add_row(Text(datetime.now().strftime("%H:%M:%S"), style="dim"), Text(level.upper(), style=f"bold {style}"), text)
         self.console.print(line)
+
+    def _decoder_style(self, message: str) -> Optional[str]:
+        """The color of a `Decoded ...` log message: the next color for each hook call, so neighboring calls differ."""
+        match = _DECODED_LOG_PATTERN.match(message)
+        if not match:
+            return None
+        return DECODER_STYLES[int(match.group(1)) % len(DECODER_STYLES)]
 
     def hook_statistics(self, statistics: list[dict]) -> None:
         """Print the hook statistics table, see format_hook_statistics()."""

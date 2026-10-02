@@ -12,7 +12,7 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/99_torture/05_level_5.yaml
 #
 # Guardrails exercised:
-# - High-frequency warnings for malloc, free, memcpy and memset (with and without stack traces).
+# - High-frequency warnings for malloc, free, memcpy and memset with stack traces.
 # - The native crash reporter: an access violation in a hooked module is reported with its context.
 # - Re-entrancy under maximum pressure: decoding a value allocates and copies memory, the stack walk takes
 #   locks, sending an event allocates.

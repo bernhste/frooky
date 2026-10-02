@@ -13,15 +13,13 @@ metadata:
 #
 # Why stack traces and unfiltered hooks are risky here:
 # - A native stack walk can call the hooked function again (e.g. open while reading a module), which recurses.
-# - Low-level functions may run on a small thread/signal stack. Under QuickJS, hooking libc primitives without
-#   `argFilter` or enabling stack traces can exhaust the thread stack and cause a crash (SIGSEGV / SEGV_ACCERR).
-# - Bad cases:
-#     - Capturing stack traces: `nativeStackTrace: true` or `platformStackTrace: true` on libc hooks.
-#     - Unfiltered hooks under QuickJS: hooking `open`, `read`, or `write` without `argFilter`.
+# - Low-level functions may run on a small thread/signal stack. Under QuickJS, which needs much more stack than
+#   V8, a hook there can exhaust it and crash the app (SIGSEGV / SEGV_ACCERR).
+# - Bad case: capturing stack traces (`nativeStackTrace: true` or `platformStackTrace: true`) on libc hooks.
 # - Recommended solutions:
-#     - Use `argFilter` to narrow down calls to specific paths/descriptors of interest.
-#     - Or switch to the V8 runtime (`--runtime v8`) for deeper stack headroom.
-# `argFilter` is checked before any stack trace is built, so non-matching calls stay cheap.
+#     - Use `argFilter` to narrow down calls to specific paths/descriptors of interest. It is checked before any
+#       stack trace is built, so non-matching calls stay cheap and send no events.
+#     - Switch to the V8 runtime (`--runtime v8`) for deeper stack headroom.
 
 hookCollection:
   # int open(const char *pathname, int flags, mode_t mode)

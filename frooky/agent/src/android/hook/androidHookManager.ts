@@ -51,7 +51,8 @@ type InstalledJavaHook = {
 type HookedOverload = { method: Java.Method; hooks: InstalledJavaHook[]; observers: MethodObserver[] };
 
 // what a hook captured before the original method ran
-type JavaHookCall = { installedHook: InstalledJavaHook; stackTrace: HookStackTrace; decodedArgs: DecodedArgs };
+// `logTarget`: see callLogTarget()
+type JavaHookCall = { installedHook: InstalledJavaHook; logTarget: string; stackTrace: HookStackTrace; decodedArgs: DecodedArgs };
 
 // Resolves and installs hooks on Java methods.
 export class AndroidHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
@@ -276,10 +277,11 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       return null;
     }
 
+    const logTarget = this.callLogTarget(target);
     const decodedArgs: DecodedArgs = { in: [], out: [] };
     if (inArgDecoders.length > 0) {
       try {
-        decodedArgs.in = this.decodeArgs(args, inArgDecoders, target);
+        decodedArgs.in = this.decodeArgs(args, inArgDecoders, logTarget);
       } catch (e) {
         if (!(e instanceof FilterMismatchError)) {
           logger.error(`Decoder error during 'onEnter' argument decoding of ${target}: ${e}`);
@@ -287,17 +289,17 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         return null;
       }
     }
-    return { installedHook, stackTrace, decodedArgs };
+    return { installedHook, logTarget, stackTrace, decodedArgs };
   }
 
   private leaveHook(call: JavaHookCall, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any): void {
     const { hook, target, outArgDecoders, retTypeDecoder } = call.installedHook;
-    const { decodedArgs } = call;
+    const { decodedArgs, logTarget } = call;
     // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
     let decodedRetValue: DecodedValue | undefined;
     if (retTypeDecoder) {
       try {
-        decodedRetValue = this.decodeValue(retTypeDecoder, returnValue, `${target} return value`);
+        decodedRetValue = this.decodeValue(retTypeDecoder, returnValue, `${logTarget} return value`);
       } catch (e) {
         logger.error(`Decoder error during return value decoding of ${target}: ${e}`);
         return;
@@ -306,7 +308,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
     if (outArgDecoders.length > 0) {
       try {
-        decodedArgs.out = this.decodeArgs(args, outArgDecoders, target, decodedRetValue);
+        decodedArgs.out = this.decodeArgs(args, outArgDecoders, logTarget, decodedRetValue);
       } catch (e) {
         if (!(e instanceof FilterMismatchError)) {
           logger.error(`Decoder error during 'onLeave' argument decoding of ${target}: ${e}`);

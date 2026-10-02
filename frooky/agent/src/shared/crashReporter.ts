@@ -19,6 +19,7 @@ export interface CrashFrame {
 
 // implemented by NativeHookManager
 export interface CrashHookLookup {
+  isInHookedModule(address: NativePointer): boolean;
   describeHooksInModulesOf(addresses: NativePointer[]): string[];
   describeHookedFunctionAt(address: NativePointer): string | undefined;
 }
@@ -26,7 +27,7 @@ export interface CrashHookLookup {
 const MAX_BACKTRACE_FRAMES = 16;
 
 // Whether a native exception is likely fatal. ART raises and handles access violations itself (implicit null
-// and suspend checks, stack walks), so those are only reported if the thread runs through a hooked module.
+// and suspend checks, stack walks), so those are only reported if the faulting instruction is in a hooked module.
 export function isReportableException(type: string, inHookedModule: boolean): boolean {
   if (type === "access-violation") return inHookedModule;
   return type === "abort" || type === "illegal-instruction" || type === "arithmetic";
@@ -37,8 +38,11 @@ export function isReportableException(type: string, inHookedModule: boolean): bo
 export function installCrashReporter(hooks: CrashHookLookup, report: (crash: CrashReport) => void): void {
   let reported = false;
   Process.setExceptionHandler((details) => {
-    if (reported || !isReportableException(details.type, true)) return false;
+    // Runs in the signal handler, usually on the thread's 32 KB signal stack, for every access violation ART
+    // handles itself. Decided before the backtrace and symbolizing, which overflow that stack under QuickJS.
+    if (reported) return false;
     try {
+      if (!isReportableException(details.type, hooks.isInHookedModule(details.address))) return false;
       let frames: NativePointer[] = [];
       try {
         frames = Thread.backtrace(details.context, Backtracer.FUZZY);
@@ -48,7 +52,6 @@ export function installCrashReporter(hooks: CrashHookLookup, report: (crash: Cra
       // the backtrace doesn't include the crashing instruction itself
       const addresses = [details.address, ...frames].filter((address) => DebugSymbol.fromAddress(address).moduleName !== null);
       const nativeHooks = hooks.describeHooksInModulesOf(addresses);
-      if (!isReportableException(details.type, nativeHooks.length > 0)) return false;
       reported = true;
       report({
         type: details.type,

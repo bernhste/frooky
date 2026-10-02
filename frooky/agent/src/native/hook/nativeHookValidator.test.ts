@@ -41,7 +41,7 @@ describe("NativeHookValidator", () => {
 
   describe("validateAndNormalizeHooks()", () => {
     let warnSpy: Mock;
-    // the warning for a skipped hook; hooks such as `free` also warn about high-frequency functions
+    // the warning for a skipped hook
     const skipWarning = () => warnSpy.mock.calls.map((call) => String(call[0])).find((message) => message.startsWith("Skipping hook")) ?? "";
 
     beforeEach(() => {
@@ -313,88 +313,6 @@ describe("NativeHookValidator", () => {
         expect(warnSpy).toHaveBeenCalled();
         const messages = warnSpy.mock.calls.map((call) => String(call[0]));
         expect(messages.some((msg) => msg.includes("Capturing stack traces on high-frequency libc function 'read' in 'libc.so'"))).toBe(true);
-      });
-
-      it("warns under QuickJS when hooking a high-frequency libc function without argFilter", () => {
-        const config: InputFrookyConfig = {
-          hookCollection: [
-            {
-              type: "native",
-              module: "libc.so",
-              hooks: ["open"],
-            },
-          ],
-        };
-
-        validator.validateAndNormalizeHooks(config, defaultSettings);
-
-        expect(warnSpy).toHaveBeenCalled();
-        const messages = warnSpy.mock.calls.map((call) => String(call[0]));
-        expect(
-          messages.some((msg) => msg.includes("Hooking high-frequency libc function 'open' in 'libc.so' under QuickJS without an 'argFilter'")),
-        ).toBe(true);
-        expect(messages.some((msg) => msg.includes("switching to the V8 runtime (--runtime v8)"))).toBe(true);
-      });
-
-      it("does not warn under QuickJS when an argFilter is present on a parameter", () => {
-        const config: InputFrookyConfig = {
-          hookCollection: [
-            {
-              type: "native",
-              module: "libc.so",
-              hooks: [
-                {
-                  symbol: "open",
-                  module: "libc.so",
-                  params: [["char *", "path", { argFilter: ["^/proc/self/status$"] }], "int"],
-                },
-              ],
-            },
-          ],
-        };
-
-        validator.validateAndNormalizeHooks(config, defaultSettings);
-
-        expect(warnSpy).not.toHaveBeenCalled();
-      });
-
-      it("does not warn under QuickJS when an argFilter is present on hook decoderSettings", () => {
-        const config: InputFrookyConfig = {
-          hookCollection: [
-            {
-              type: "native",
-              module: "libc.so",
-              decoderSettings: { argFilter: ["^/data/"] },
-              hooks: ["open"],
-            },
-          ],
-        };
-
-        validator.validateAndNormalizeHooks(config, defaultSettings);
-
-        expect(warnSpy).not.toHaveBeenCalled();
-      });
-
-      it("does not warn about missing argFilter when running under V8 runtime", () => {
-        const originalScript = (globalThis as unknown as { Script?: { runtime: string } }).Script;
-        (globalThis as unknown as { Script?: { runtime: string } }).Script = { runtime: "V8" };
-        try {
-          const config: InputFrookyConfig = {
-            hookCollection: [
-              {
-                type: "native",
-                module: "libc.so",
-                hooks: ["open"],
-              },
-            ],
-          };
-
-          validator.validateAndNormalizeHooks(config, defaultSettings);
-
-          expect(warnSpy).not.toHaveBeenCalled();
-        } finally {
-          (globalThis as unknown as { Script?: { runtime: string } }).Script = originalScript;
-        }
       });
 
       it("does not warn on non-libc module even if symbol matches high-frequency name", () => {

@@ -29,6 +29,8 @@ export type DecodedArgs = {
 };
 
 export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
+  private callCount = 0;
+
   constructor(
     private readonly decoderResolver: DecoderResolver<TValue>,
     protected readonly stackTrace: PlatformStackTrace,
@@ -103,8 +105,14 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return true;
   }
 
-  // At debug level logs e.g. `Decoded com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"`,
-  // where `what` is `com.example.Foo.bar param #0 'key'`.
+  // `target` of one hook call in debug logs, e.g. `[call 42] libc.so!read`. The host colors the `Decoded` logs of a
+  // call by its number, as the logs of other calls come between its onEnter and onLeave logs.
+  protected callLogTarget(target: string): string {
+    return logger.isEnabled("debug") ? `[call ${++this.callCount}] ${target}` : target;
+  }
+
+  // At debug level logs e.g. `Decoded [call 42] com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"`,
+  // where `what` is `[call 42] com.example.Foo.bar param #0 'key'`.
   protected decodeValue(decoder: Decoder<TValue>, value: TValue, what: string, args?: DecoderArgValues): DecodedValue {
     const decodedValue = decoder.decode(value, args);
     // previewValue() serializes the whole decoded value
