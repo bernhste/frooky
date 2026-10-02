@@ -16,7 +16,7 @@ import { LogEvent } from "./shared/event/logEvent";
 import { InputFrookyConfig } from "./shared/frookyConfig";
 import { Platform } from "./shared/frookyMetadata";
 import { FrookySettings } from "./shared/frookySettings";
-import { Hook } from "./shared/hook/hook";
+import { filteredCallCount, Hook } from "./shared/hook/hook";
 import { HookManager } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { describeNativeTarget } from "./shared/inputParsing/inputNativeHookCollection";
@@ -477,7 +477,7 @@ export class FrookyAgent {
           waitsFor: entry.waitsFor,
           hooked: entry.hookedCount ?? 0,
           events: (entry.hooks ?? []).reduce((count, hook) => count + (this.eventCounts.get(hook) ?? 0), 0),
-          filtered: (entry.hooks ?? []).reduce((count, hook) => count + (hook.filteredCalls ?? 0), 0),
+          filtered: (entry.hooks ?? []).reduce((count, hook) => count + filteredCallCount(hook), 0),
         });
       }
     }

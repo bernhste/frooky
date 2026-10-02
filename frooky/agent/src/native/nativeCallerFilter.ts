@@ -29,6 +29,8 @@ function observeModules(): void {
 export class NativeCallerFilter {
   private readonly regExps: RegExp[];
   private ranges: ModuleRange[] = [];
+  // called after a matching module loaded or unloaded, e.g. to update a NativeFilteredListener
+  onChange?: () => void;
 
   // `target` names the hooked function in debug logs, e.g. `libc.so!malloc`
   constructor(
@@ -49,6 +51,11 @@ export class NativeCallerFilter {
     return `Caller filter on ${this.target}: records calls from ${this.ranges.map((range) => range.name).join(", ")}`;
   }
 
+  // the address ranges of the matching modules
+  get moduleRanges(): readonly ModuleRange[] {
+    return this.ranges;
+  }
+
   matches(address: NativePointer): boolean {
     const ranges = this.ranges;
     // no for...of: its iterator costs on every call of a hot function under QuickJS
@@ -62,6 +69,7 @@ export class NativeCallerFilter {
   dispose(): void {
     activeFilters.delete(this);
     this.ranges = [];
+    this.onChange = undefined;
   }
 
   addModule(module: Module, log = true): void {
@@ -69,11 +77,14 @@ export class NativeCallerFilter {
     if (this.ranges.some((range) => range.base.equals(module.base))) return;
     this.ranges.push({ name: module.name, base: module.base, end: module.base.add(module.size) });
     if (log) logger.debug(`Caller filter on ${this.target}: records calls from ${module.name}, which was loaded`);
+    this.onChange?.();
   }
 
   removeModule(module: Module): void {
     const count = this.ranges.length;
     this.ranges = this.ranges.filter((range) => !range.base.equals(module.base));
-    if (this.ranges.length < count) logger.debug(`Caller filter on ${this.target}: ${module.name} was unloaded`);
+    if (this.ranges.length === count) return;
+    logger.debug(`Caller filter on ${this.target}: ${module.name} was unloaded`);
+    this.onChange?.();
   }
 }

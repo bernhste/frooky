@@ -255,13 +255,17 @@ The figures below are orders of magnitude on an arm64 device, not measurements:
 | An unhooked `memset` on a small buffer             | ~10 ns                                       |
 | Entering a hook's JavaScript code                  | ~2-5 µs, and the threads wait for each other |
 | `callerFilter` of a native hook                    | + well under 1 µs                            |
+| A call that a native `callerFilter` drops in C     | ~0.2 µs in total, no JavaScript              |
 | Decoding the values and sending the event          | + ~10-50 µs                                  |
 | Native stack trace                                 | + ~35 µs per frame to symbolize              |
 | Java stack trace, or `callerFilter` of a Java hook | + 100 µs to several ms                       |
 
-On a native hook, a call that `callerFilter` drops costs little more than entering the hook: no decoding, no stack walk, no check for [unsafe calls](#skipped-stack-traces), no event. That makes the filter worthwhile on functions such as `open` or `strstr`, which run hundreds or thousands of times per second.
+On a native hook, a call that `callerFilter` drops is never decoded, gets no stack walk, no check for [unsafe calls](#skipped-stack-traces) and no event. Where the filter runs depends on the other hooks of the function:
 
-It doesn't make functions that run millions of times per second cheap, such as `malloc` or `memset`. The filter runs in JavaScript, so every call still enters the JavaScript engine and waits for the lock all hooks share. At a million calls per second, that alone takes seconds of CPU time per second.
+- **In native code**, if every hook of the function has a `callerFilter`, none records native stack traces and none decodes `float` or `double` values. A dropped call then never enters the JavaScript engine. This makes hooks on functions that run millions of times, such as `malloc` or `free`, affordable.
+- **In JavaScript** otherwise. Every call still enters the JavaScript engine twice and waits for the lock all hooks share, which is fine for functions such as `open` or `strstr` but takes seconds of CPU time per second on `malloc`.
+
+`frooky -vv` logs which of the two a function uses. See [Caller Filters in Under the Hood](./under-the-hood.md#caller-filters) for how it works.
 
 ### Pitfalls
 

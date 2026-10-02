@@ -4,6 +4,7 @@ import { normalizeInputParams, normalizeInputRetType } from "../../shared/inputP
 import { InputParamSettings } from "../../shared/inputParsing/inputSettings";
 import { InputNativeOffsetHook, InputNativeSymbolHook } from "../../shared/inputParsing/inputNativeHookCollection";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
+import { filteredCallCount } from "../../shared/hook/hook";
 import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { sleepMilliseconds } from "../../shared/utils";
@@ -40,6 +41,29 @@ const cmErrno = new CModule(
 `,
   { __errno: Module.getGlobalExportByName("__errno") },
 );
+
+// qsort() calls compare_ints() from libc.so, a NativeFunction call comes from Frida's agent: a callerFilter on
+// libc.so passes the first and drops the second
+const cmCompare = new CModule(
+  `
+  extern int *__errno (void);
+  int compare_ints (const int *a, const int *b) {
+    int result = (*a > *b) - (*a < *b);
+    if (result < 0) *__errno () = 2;
+    return result;
+  }
+`,
+  { __errno: Module.getGlobalExportByName("__errno") },
+);
+const qsort = new NativeFunction(Module.getGlobalExportByName("qsort"), "void", ["pointer", "size_t", "size_t", "pointer"]);
+
+// sorts [first, second] with compare_ints(), one call from libc.so
+function sortTwo(first: number, second: number): void {
+  const values = Memory.alloc(8);
+  values.writeS32(first);
+  values.add(4).writeS32(second);
+  qsort(values, 2, 4, cmCompare.compare_ints);
+}
 
 // Interceptor changes are only committed once no thread runs a JS callback, which can take a moment
 // while the app keeps hitting other hooks (e.g. frida-java-bridge's), so call until the hook fires
@@ -260,6 +284,86 @@ describe("NativeHookManager", () => {
       expect(events.length).toBeGreaterThan(0);
       expect(events.every((event) => event.symbol === "add_one_probe")).toBeTruthy();
       expect(builds).toBe(0);
+    });
+
+    it("checks the callerFilter in native code and decodes the calls from matching modules", async () => {
+      const events: NativeHookEvent[] = [];
+      const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+      const manager = new NativeHookManager(stackTrace, agent);
+      const params = normalizeInputParams(
+        [
+          ["const int *", "a"],
+          ["const int *", "b"],
+        ],
+        DEFAULT_DECODER_SETTINGS,
+      );
+      const retType = normalizeInputRetType(["int", { decoder: "errno" }], DEFAULT_DECODER_SETTINGS);
+      const hookSettings = { ...DEFAULT_HOOK_SETTINGS, callerFilter: ["^libc\\.so$"] };
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType, hookSettings })]));
+      const hook: NativeHook = { ...hooks![0], symbolName: "compare_ints", symbolAddress: cmCompare.compare_ints };
+      const debugSpy = spyOn(logger, "debug");
+
+      manager.registerHooks([hook]);
+      try {
+        await untilHooked(
+          () => sortTwo(1, 2),
+          () => events.length > 0,
+        );
+        events.length = 0;
+        const compareInts = new NativeFunction(cmCompare.compare_ints, "int", ["pointer", "pointer"]);
+        const filteredBefore = filteredCallCount(hook);
+        compareInts(Memory.alloc(8), Memory.alloc(8));
+        compareInts(Memory.alloc(8), Memory.alloc(8));
+        sortTwo(1, 2);
+
+        expect(debugSpy.mock.calls.map((call) => String(call[0]))).toContain("Caller filter on libc.so!compare_ints: checked in native code");
+        expect(filteredCallCount(hook) - filteredBefore).toBe(2);
+        expect(events.length).toBe(1);
+        expect(events[0].argsIn!.length).toBe(2);
+        expect(events[0].returnValue!.value).toEqual({ value: -1, errno: { number: 2, name: "ENOENT", message: "No such file or directory" } });
+      } finally {
+        debugSpy.mockRestore();
+        manager.unregisterHooks([hook]);
+      }
+    });
+
+    it("switches to the JS listener while a hook on the same function needs native stack traces, and back", async () => {
+      const events: NativeHookEvent[] = [];
+      const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+      const manager = new NativeHookManager(stackTrace, agent);
+      const hookSettings = { ...DEFAULT_HOOK_SETTINGS, callerFilter: ["^libc\\.so$"] };
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { hookSettings })]));
+      const hook: NativeHook = { ...hooks![0], symbolName: "compare_ints", symbolAddress: cmCompare.compare_ints };
+      const tracing: NativeHook = {
+        ...hook,
+        symbolName: "compare_ints_traced",
+        hookSettings: { ...hookSettings, nativeStackTrace: true },
+      };
+      const debugSpy = spyOn(logger, "debug");
+      const debugMessages = () => debugSpy.mock.calls.map((call) => String(call[0]));
+
+      manager.registerHooks([hook]);
+      try {
+        manager.registerHooks([tracing]);
+        expect(debugMessages()).toContain("Caller filter on libc.so!compare_ints_traced: checked in JS, as a hook records native stack traces");
+        await untilHooked(
+          () => sortTwo(1, 2),
+          () => events.some((event) => event.symbol === "compare_ints_traced"),
+        );
+        expect(events.some((event) => event.symbol === "compare_ints")).toBeTruthy();
+
+        manager.unregisterHooks([tracing]);
+        expect(debugMessages()[debugMessages().length - 1]).toBe("Caller filter on libc.so!compare_ints: checked in native code");
+        events.length = 0;
+        await untilHooked(
+          () => sortTwo(1, 2),
+          () => events.length > 0,
+        );
+        expect(events.every((event) => event.symbol === "compare_ints")).toBeTruthy();
+      } finally {
+        debugSpy.mockRestore();
+        manager.unregisterHooks([hook, tracing]);
+      }
     });
 
     it("keeps the arguments and stack trace of each call apart when calls overlap", async () => {

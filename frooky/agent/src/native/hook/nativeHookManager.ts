@@ -2,7 +2,7 @@ import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
-import { countFilteredCall } from "../../shared/hook/hook";
+import { countFilteredCall, filteredCallCount } from "../../shared/hook/hook";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { describeNativeTarget, InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
@@ -15,6 +15,7 @@ import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { NativeHook } from "./nativeHook";
 import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
+import { MAX_FILTERED_ARGS, ModuleRange, NativeFilteredListener } from "./nativeFilteredListener";
 
 // the most bytes the Interceptor overwrites at a hooked address (an absolute jump on x86_64 or arm64)
 const INTERCEPTOR_PATCH_BYTES = 16;
@@ -35,7 +36,31 @@ type InstalledNativeHook = {
   hashCode: string;
 };
 
-type HookedFunction = { listener?: InvocationListener; hooks: InstalledNativeHook[] };
+// `native` is set while the function's callerFilters run in native code, see updateListener()
+type HookedFunction = { address: NativePointer; listener?: InvocationListener; native?: NativeFilteredListener; hooks: InstalledNativeHook[] };
+
+// Why `hooks` need the JS listener instead of a NativeFilteredListener, which passes calls on without the CPU
+// context, or undefined if they don't
+function jsListenerReason(hooks: InstalledNativeHook[]): string | undefined {
+  for (const { hook, callerFilter, hasFloatArgs, floatRetSlot } of hooks) {
+    if (!callerFilter) return "a hook has no callerFilter";
+    if (hook.hookSettings.nativeStackTrace) return "a hook records native stack traces";
+    if (hasFloatArgs || floatRetSlot) return "a hook decodes float or double values";
+    if ((hook.params?.length ?? 0) > MAX_FILTERED_ARGS) return `a hook has more than ${MAX_FILTERED_ARGS} params`;
+  }
+  return undefined;
+}
+
+// the modules of all callerFilters of `hooks`
+function callerRanges(hooks: InstalledNativeHook[]): ModuleRange[] {
+  return hooks.flatMap((installedHook) => installedHook.callerFilter?.moduleRanges ?? []);
+}
+
+// Moves the calls a NativeFilteredListener dropped for `hook` into its own count, before that listener goes
+function keepNativeFilteredCalls(hook: NativeHook): void {
+  hook.filteredCalls = filteredCallCount(hook);
+  hook.nativeFilteredCalls = undefined;
+}
 
 // Whether a call from `returnAddress` passes the callerFilter of any of `hooks` (a hook without one passes).
 // Runs on every call of a hooked function, so a plain loop without a closure.
@@ -182,27 +207,28 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       const installedHook = this.prepareHook(hook, target);
 
       const key = hook.symbolAddress.toString();
-      let hookedFunction = this.hookedFunctions.get(key);
-      if (!hookedFunction) {
-        const newHookedFunction: HookedFunction = { hooks: [] };
-        try {
-          newHookedFunction.listener = Interceptor.attach(hook.symbolAddress, this.createDispatcher(newHookedFunction));
-        } catch (e) {
-          logger.warn(`Failed to hook ${target}: ${e}`);
-          installedHook.callerFilter?.dispose();
-          continue;
-        }
-        hookedFunction = newHookedFunction;
-        this.hookedFunctions.set(key, hookedFunction);
+      const hookedFunction: HookedFunction = this.hookedFunctions.get(key) ?? { address: hook.symbolAddress, hooks: [] };
+      const previousHooks = hookedFunction.hooks;
+      // copied on write: a call in progress keeps running the hooks it entered
+      hookedFunction.hooks = [...previousHooks, installedHook];
+      try {
+        this.updateListener(hookedFunction, target);
+      } catch (e) {
+        logger.warn(`Failed to hook ${target}: ${e}`);
+        installedHook.callerFilter?.dispose();
+        hookedFunction.hooks = previousHooks;
+        if (previousHooks.length > 0) this.tryUpdateListener(hookedFunction, target);
+        continue;
+      }
+      this.hookedFunctions.set(key, hookedFunction);
+      if (installedHook.callerFilter) {
+        installedHook.callerFilter.onChange = () => hookedFunction.native?.setRanges(callerRanges(hookedFunction.hooks));
       }
       // e.g. memmove and memcpy, which are one function in some libcs
-      const alias = hookedFunction.hooks.find((other) => other.target !== target);
+      const alias = previousHooks.find((other) => other.target !== target);
       if (alias) {
         logger.warn(`${target} is the same function as ${alias.target} (${hook.symbolAddress}): each call is recorded once per hook.`);
       }
-      // copied on write: a call in progress keeps running the hooks it entered
-      hookedFunction.hooks = [...hookedFunction.hooks, installedHook];
-      hook.listener = hookedFunction.listener;
       this.installedHooks.add(hook);
       logger.info(`Hooked ${target} at ${hook.symbolAddress}${fromSource(source)}`);
       if (installedHook.callerFilter) logger.debug(installedHook.callerFilter.describe());
@@ -219,14 +245,82 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       if (!hookedFunction || index < 0) continue;
 
       hookedFunction.hooks[index].callerFilter?.dispose();
+      keepNativeFilteredCalls(hook);
       hookedFunction.hooks = hookedFunction.hooks.filter((_, i) => i !== index);
       hook.listener = undefined;
       if (!hookedFunction.hooks.some((installedHook) => installedHook.hook === hook)) this.installedHooks.delete(hook);
-      if (hookedFunction.hooks.length > 0) continue;
+      if (hookedFunction.hooks.length > 0) {
+        // the remaining hooks may now fit a NativeFilteredListener
+        this.tryUpdateListener(hookedFunction, hookedFunction.hooks[0].target);
+        continue;
+      }
 
       this.hookedFunctions.delete(key);
+      this.detachListener(hookedFunction);
+    }
+  }
+
+  // Attaches the listener the hooks of `hookedFunction` need, replacing the attached one if it's the other kind:
+  // a NativeFilteredListener if all of them have a callerFilter and none needs the CPU context, else the JS
+  // dispatcher. Throws if the Interceptor can't hook the function.
+  private updateListener(hookedFunction: HookedFunction, target: string): void {
+    const { hooks } = hookedFunction;
+    let reason = jsListenerReason(hooks);
+    if (reason === undefined) {
+      const argCount = Math.max(0, ...hooks.map((installedHook) => installedHook.hook.params?.length ?? 0));
+      if (!hookedFunction.native) {
+        this.detachListener(hookedFunction);
+        try {
+          hookedFunction.native = new NativeFilteredListener(
+            hookedFunction.address,
+            callerRanges(hooks),
+            argCount,
+            (args, returnAddress, sp) => this.enterHooks(hookedFunction.hooks, args, { sp } as CpuContext, returnAddress),
+            (calls, returnValue, errno) => this.leaveHooks(calls as NativeHookCall[], returnValue as InvocationReturnValue, undefined, errno),
+          );
+          hookedFunction.listener = hookedFunction.native.listener;
+          logger.debug(`Caller filter on ${target}: checked in native code`);
+        } catch (e) {
+          reason = `the native caller filter failed: ${e}`;
+        }
+      } else {
+        hookedFunction.native.setRanges(callerRanges(hooks));
+        hookedFunction.native.setArgCount(argCount);
+      }
+    }
+    if (reason !== undefined && (hookedFunction.native || !hookedFunction.listener)) {
+      this.detachListener(hookedFunction);
+      hookedFunction.listener = Interceptor.attach(hookedFunction.address, this.createDispatcher(hookedFunction));
+      if (hooks.some((installedHook) => installedHook.callerFilter)) logger.debug(`Caller filter on ${target}: checked in JS, as ${reason}`);
+    }
+    const native = hookedFunction.native;
+    for (const { hook } of hooks) {
+      hook.listener = hookedFunction.listener;
+      if (native && !hook.nativeFilteredCalls) {
+        const before = native.filteredCalls;
+        hook.nativeFilteredCalls = () => native.filteredCalls - before;
+      }
+    }
+  }
+
+  // updateListener() for hooks that were hooked before, which stay hooked by the attached listener if it fails
+  private tryUpdateListener(hookedFunction: HookedFunction, target: string): void {
+    try {
+      this.updateListener(hookedFunction, target);
+    } catch (e) {
+      logger.warn(`Failed to update the hook of ${target}: ${e}`);
+    }
+  }
+
+  private detachListener(hookedFunction: HookedFunction): void {
+    if (hookedFunction.native) {
+      for (const { hook } of hookedFunction.hooks) keepNativeFilteredCalls(hook);
+      hookedFunction.native.detach();
+    } else {
       hookedFunction.listener?.detach();
     }
+    hookedFunction.native = undefined;
+    hookedFunction.listener = undefined;
   }
 
   // resolves the decoders and argument slots once per hook, not per call
@@ -271,45 +365,60 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           for (let i = 0; i < hooks.length; i++) countFilteredCall(hooks[i].hook);
           return;
         }
-        const tid = enterHookCode();
-        if (tid === undefined) return;
-        try {
-          const calls: NativeHookCall[] = [];
-          const context = this.context;
-          // detected at most once per call, and only for hooks whose caller filter passed
-          let unsafeContext: UnsafeContext | undefined | null = null;
-          const detectUnsafe = () => (unsafeContext === null ? (unsafeContext = detectUnsafeContext(context)) : unsafeContext);
-          for (const installedHook of hooks) {
-            const call = hookManager.enterHook(installedHook, args, context, returnAddress, detectUnsafe);
-            if (call) calls.push(call);
-          }
-          if (calls.length > 0) this.calls = calls;
-        } finally {
-          leaveHookCode(tid);
-        }
+        this.calls = hookManager.enterHooks(hooks, args, this.context, returnAddress);
       },
       onLeave: function (returnValue: InvocationReturnValue) {
         const calls: NativeHookCall[] | undefined = this.calls;
         if (!calls) return;
         // before running any code that could set it
         const errno = this.errno;
-        const tid = enterHookCode();
-        if (tid === undefined) return;
-        try {
-          for (const call of calls) {
-            hookManager.leaveHook(call, returnValue, this.context, errno);
-          }
-        } finally {
-          leaveHookCode(tid);
-        }
+        hookManager.leaveHooks(calls, returnValue, this.context, errno);
       },
     };
+  }
+
+  // The calls of `hooks` that passed their filters, for leaveHooks(), or undefined if none did. `context` only
+  // has `sp` when called from a NativeFilteredListener.
+  private enterHooks(
+    hooks: InstalledNativeHook[],
+    args: InvocationArguments | NativePointer[],
+    context: CpuContext,
+    returnAddress: NativePointer,
+  ): NativeHookCall[] | undefined {
+    const tid = enterHookCode();
+    if (tid === undefined) return undefined;
+    try {
+      const calls: NativeHookCall[] = [];
+      // detected at most once per call, and only for hooks whose caller filter passed
+      let unsafeContext: UnsafeContext | undefined | null = null;
+      const detectUnsafe = () => (unsafeContext === null ? (unsafeContext = detectUnsafeContext(context)) : unsafeContext);
+      for (const installedHook of hooks) {
+        const call = this.enterHook(installedHook, args, context, returnAddress, detectUnsafe);
+        if (call) calls.push(call);
+      }
+      return calls.length > 0 ? calls : undefined;
+    } finally {
+      leaveHookCode(tid);
+    }
+  }
+
+  // `context` is undefined when called from a NativeFilteredListener
+  private leaveHooks(calls: NativeHookCall[], returnValue: InvocationReturnValue, context: CpuContext | undefined, errno: number): void {
+    const tid = enterHookCode();
+    if (tid === undefined) return;
+    try {
+      for (const call of calls) {
+        this.leaveHook(call, returnValue, context, errno);
+      }
+    } finally {
+      leaveHookCode(tid);
+    }
   }
 
   // null if the callerFilter or an argFilter doesn't match, or decoding fails
   private enterHook(
     installedHook: InstalledNativeHook,
-    args: InvocationArguments,
+    args: InvocationArguments | NativePointer[],
     context: CpuContext,
     returnAddress: NativePointer,
     detectUnsafe: () => UnsafeContext | undefined,
@@ -378,14 +487,15 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   }
 
   // `errno` is the errno right after the call, for `decoder: errno`
-  private leaveHook(call: NativeHookCall, returnValue: InvocationReturnValue, context: CpuContext, errno: number): void {
+  // `context` is only needed for float/double return values, which NativeFilteredListener never passes on
+  private leaveHook(call: NativeHookCall, returnValue: InvocationReturnValue, context: CpuContext | undefined, errno: number): void {
     const { hook, target, outArgDecoders, retTypeDecoder, floatRetSlot } = call.installedHook;
     try {
       // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
       let decodedRetValue: DecodedValue | undefined;
       if (retTypeDecoder) {
         // returnValue is the general-purpose return register, a float/double is returned in an FP register
-        const floatRetBits = floatRetSlot && usesSeparateFloatRegisterFile() ? readFloatArgBits(context, floatRetSlot) : null;
+        const floatRetBits = floatRetSlot && context && usesSeparateFloatRegisterFile() ? readFloatArgBits(context, floatRetSlot) : null;
         decodedRetValue =
           retTypeDecoder instanceof NativeErrnoDecoder
             ? retTypeDecoder.decodeWithErrno(returnValue, errno)

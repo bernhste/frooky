@@ -1,6 +1,6 @@
 # Under the Hood
 
-This page explains what happens between starting frooky and the moment every hook of your hook files is installed, waiting, or failed. It helps to understand why a hook shows up as `waiting`, why some hooks fire before the app's own code runs, and where to look in the source when something doesn't get hooked.
+This page explains what happens between starting frooky and the moment every hook of your hook files is installed, waiting, or failed, and how a hook's `callerFilter` decides which calls it records. It helps to understand why a hook shows up as `waiting`, why some hooks fire before the app's own code runs, why a filtered hook can still slow the app down, and where to look in the source when something doesn't get hooked.
 
 > [!NOTE]
 > For now, this page describes the Android agent. iOS support is not yet complete, see the [README](../README.md).
@@ -12,6 +12,11 @@ This page explains what happens between starting frooky and the moment every hoo
   - [Starting the Agent](#starting-the-agent)
   - [Loading the Hook Files](#loading-the-hook-files)
   - [Resuming the App and the Resolver Timeout](#resuming-the-app-and-the-resolver-timeout)
+- [Caller Filters](#caller-filters)
+  - [The Path of a Native Call](#the-path-of-a-native-call)
+  - [Which Listener a Function Gets](#which-listener-a-function-gets)
+  - [Keeping the Module Ranges Current](#keeping-the-module-ranges-current)
+  - [Java Hooks](#java-hooks)
 - [Where to Find It in the Source](#where-to-find-it-in-the-source)
 
 <!-- /TOC -->
@@ -119,14 +124,109 @@ At the same moment, the resolver timeout starts: `-t`/`--resolver-timeout` secon
 
 Either way, frooky logs a summary per hook file, e.g. `Loaded hooks.yaml: hooked 12 methods and 3 functions, 1 waiting`, and reports the counts to the host's status bar. The timeout doesn't stop anything: waiting hooks stay registered and are installed as soon as their class or module loads.
 
+## Caller Filters
+
+A hook's [`callerFilter`](./additional-features.md#caller-filters) decides for every call whether the hook records it. Most calls of a hot function come from code you aren't interested in, so the filter mostly drops calls. What a dropped call costs depends on where the filter runs: in native code, or in JavaScript after Frida has entered the JS engine.
+
+### The Path of a Native Call
+
+frooky attaches one Frida Interceptor listener per hooked function, no matter how many hooks and hook files declare it. That listener is one of two kinds:
+
+- A **`NativeFilteredListener`**: a small CModule (C code that Frida compiles in the app's process) checks the return address and only calls into JavaScript for calls from a matching module.
+- The **JS listener**: Frida enters the JavaScript engine for every call, and the filter is the first thing that runs there.
+
+```mermaid
+flowchart TD
+    call(["App thread calls a hooked function,<br/>e.g. malloc"]) --> icpt["Frida Interceptor"]
+    icpt --> kind{"Listener of<br/>the function?"}
+
+    kind -->|NativeFilteredListener| cmod["CModule on_enter:<br/>return address inside a<br/>matching module?"]
+    cmod -->|no| cdrop["filtered++<br/>no JavaScript runs"]
+    cmod -->|yes| cb["NativeCallback into JavaScript<br/>with the arguments, return address<br/>and a stack address, no CPU context"]
+
+    kind -->|JS listener| jsenter["JS onEnter:<br/>this.returnAddress, then<br/>passesAnyCallerFilter()"]
+    jsenter -->|no| jsdrop["countFilteredCall()<br/>for every hook, return"]
+    jsenter -->|yes| hooks
+
+    cb --> hooks["enterHooks(), per hook:<br/>own callerFilter, unsafe context check,<br/>argFilter, decode in args, stack trace"]
+    hooks -->|all hooks dropped the call| none["nothing left to do on leave"]
+    hooks -->|at least one call| run["the function runs"]
+    cdrop --> orig["the function runs"]
+    jsdrop --> orig
+    run --> leaving["onLeave: leaveHooks()<br/>return value, errno, out args"]
+    leaving --> event(["event sent to the host"])
+```
+
+The return address is read when the function is entered: on arm64 it is the link register, on x86 and x86_64 the top of the stack. No stack walk or symbol lookup is needed to filter.
+
+A function can have several hooks, e.g. from two hook files, with different filters. The listener lets a call through if any hook's filter matches it. `enterHooks()` then checks each hook's own `callerFilter` again, so each hook records only its own calls.
+
+Between `onEnter` and `onLeave`, the JS listener keeps a call's state on Frida's invocation context (`this`). The `NativeFilteredListener` stores a call ID in the Interceptor's per-call data instead, and JavaScript keeps the state in a map by that ID. A call with an ID of 0 never calls into JavaScript on leave.
+
+### Which Listener a Function Gets
+
+A call that the `NativeFilteredListener` passes on reaches JavaScript through a `NativeCallback`, not through the Interceptor. Inside it, `this.context` is the callback's own frame, not the hooked call's: the CPU registers of the call are gone. So a function only gets a `NativeFilteredListener` if none of its hooks needs them:
+
+| All hooks of the function...            | Why                                                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| have a `callerFilter`                   | a hook without one records every call, which has to enter JavaScript anyway                         |
+| don't record native stack traces        | the stack walk starts at the call's registers; from the callback, Frida's own frames are in the way |
+| don't decode `float` or `double` values | on x86_64 and arm64 they are in the FP registers, which are part of the CPU context                 |
+| have at most 16 params                  | the CModule passes up to 16 arguments on                                                            |
+
+Java stack traces (`platformStackTrace`), `argFilter`, `out` params, `errno` and the [checks for unsafe calls](./additional-features.md#skipped-stack-traces) work on both listeners. For the stack checks, the CModule passes an address on the calling thread's stack.
+
+When hooks are added or removed, frooky checks the rules again and swaps the listener if needed, e.g. to the JS listener while a second hook file adds a hook with `nativeStackTrace: true` to the same function, and back once it's removed. With `-vv`, frooky logs which listener a function got and why:
+
+```text
+DEBUG  Caller filter on libc.so!malloc: checked in JS, as a hook records native stack traces
+DEBUG  Caller filter on libc.so!free: checked in native code
+```
+
+If the CModule can't be compiled, every function falls back to the JS listener.
+
+The hook statistics (`i` key) count the calls dropped by either listener in the `Filtered` column.
+
+### Keeping the Module Ranges Current
+
+A native `callerFilter` matches module names, but the listener compares addresses. Each filter keeps the address ranges of the loaded modules whose names match, and updates them when a module is loaded or unloaded:
+
+```mermaid
+sequenceDiagram
+    participant Linker as Linker (app thread)
+    participant MO as Module observer
+    participant CF as NativeCallerFilter
+    participant NM as NativeHookManager
+    participant FL as NativeFilteredListener
+    participant C as CModule (any thread)
+
+    Linker->>MO: library loaded, e.g. libapp.so
+    MO->>CF: addModule(): name matches a pattern?
+    CF->>CF: add [base, base + size) to its ranges
+    CF->>NM: onChange()
+    NM->>FL: setRanges(ranges of all hooks of the function)
+    FL->>FL: write a new table: count, then start and end per module
+    FL->>C: replace the table pointer (one write)
+    C->>C: next call reads the new table
+```
+
+Threads in the CModule read the table without a lock. `setRanges()` therefore never changes a table: it writes a new one and then replaces the pointer, so a thread sees either the old or the new table. The old tables stay allocated, as a thread may still be reading one. Before a matching module is loaded, the table is empty and every call is dropped.
+
+### Java Hooks
+
+A Java hook has no native listener: frooky replaces the method's implementation with a JavaScript function, so every call enters JavaScript. Its `callerFilter` walks the Java stack and searches it for a matching method (see [Java Hooks](./additional-features.md#java-hooks)), which costs as much as recording `platformStackTrace`. A dropped call still runs the original method, without decoding or an event.
+
 ## Where to Find It in the Source
 
-| Step                                   | Source                                                                                                          |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Attach or spawn, RPC calls, resume     | [`frooky/runner/runner.py`](../frooky/runner/runner.py)                                                         |
-| RPC exports of the Android agent       | [`frooky/agent/src/android/index.frooky.ts`](../frooky/agent/src/android/index.frooky.ts)                       |
-| Config loading, diff, timeout, states  | [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)                                         |
-| Java hooks                             | [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) |
-| Finding Java classes                   | [`frooky/agent/src/android/hook/javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts)   |
-| Native hooks and the module observer   | [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts)     |
-| Linker watch and unsafe stack contexts | [`frooky/agent/src/native/unsafeContext.ts`](../frooky/agent/src/native/unsafeContext.ts)                       |
+| Step                                   | Source                                                                                                                |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Attach or spawn, RPC calls, resume     | [`frooky/runner/runner.py`](../frooky/runner/runner.py)                                                               |
+| RPC exports of the Android agent       | [`frooky/agent/src/android/index.frooky.ts`](../frooky/agent/src/android/index.frooky.ts)                             |
+| Config loading, diff, timeout, states  | [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)                                               |
+| Java hooks                             | [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts)       |
+| Finding Java classes                   | [`frooky/agent/src/android/hook/javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts)         |
+| Native hooks and the module observer   | [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts)           |
+| Linker watch and unsafe stack contexts | [`frooky/agent/src/native/unsafeContext.ts`](../frooky/agent/src/native/unsafeContext.ts)                             |
+| Native `callerFilter` and its ranges   | [`frooky/agent/src/native/nativeCallerFilter.ts`](../frooky/agent/src/native/nativeCallerFilter.ts)                   |
+| `callerFilter` in native code          | [`frooky/agent/src/native/hook/nativeFilteredListener.ts`](../frooky/agent/src/native/hook/nativeFilteredListener.ts) |
+| Java `callerFilter`                    | [`frooky/agent/src/android/androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts)                   |
