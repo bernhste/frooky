@@ -37,7 +37,24 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
             "native",
           );
           rejectErrnoOnParams(normalizedNativeHook.params as Param[] | undefined);
-          const validatedHook = inputNativeHookNormalizedSchema.parse(normalizedNativeHook);
+          let validatedHook = inputNativeHookNormalizedSchema.parse(normalizedNativeHook);
+          const blocked = findBlockedFunction(validatedHook);
+          if (blocked) {
+            const { hookSettings: settings } = validatedHook;
+            const hint = blocked.runtime ? " Use the default QuickJS runtime to hook it." : "";
+            if (!blocked.stackTraceOnly) {
+              logger.warn(
+                `Skipping hook for native function '${validatedHook.symbol}' from module '${nativeHookCollection.module}': ${blocked.reason}.${hint}`,
+              );
+              continue;
+            }
+            if (settings && (settings.nativeStackTrace || settings.platformStackTrace)) {
+              logger.warn(
+                `No stack traces for native function '${validatedHook.symbol}' from module '${nativeHookCollection.module}': ${blocked.reason}.`,
+              );
+              validatedHook = { ...validatedHook, hookSettings: { ...settings, nativeStackTrace: false, platformStackTrace: false } };
+            }
+          }
           warnOnHighFrequencyLibcHook(validatedHook);
           normalizedNativeHooks.push(validatedHook);
         } catch (e) {
@@ -82,8 +99,52 @@ export const HIGH_FREQUENCY_LIBC_SYMBOLS = new Set([
 ]);
 
 export function isLibcModule(moduleName: string): boolean {
+  return isModule(moduleName, "libc.so");
+}
+
+// e.g. `libc.so`, `libc` or `/apex/com.android.runtime/lib64/bionic/libc.so` for `libc.so`
+function isModule(moduleName: string, library: string): boolean {
   const normalized = moduleName.toLowerCase();
-  return normalized === "libc.so" || normalized === "libc" || normalized.endsWith("/libc.so");
+  return normalized === library || normalized === library.replace(/\.so$/, "") || normalized.endsWith(`/${library}`);
+}
+
+type BlockedFunction = {
+  module: string;
+  symbol: string;
+  // completes "Skipping hook for native function 'x' from module 'y': "
+  reason: string;
+  // only blocked under this runtime
+  runtime?: ScriptRuntime;
+  // the hook is kept without stack traces
+  stackTraceOnly?: boolean;
+};
+
+// Functions a hook breaks the app on, whatever the hook file says. Measured on Android 15 (x86_64) with a hook on
+// each low-level function, with and without stack traces, under QuickJS and V8.
+export const BLOCKED_FUNCTIONS: BlockedFunction[] = [
+  { module: "libc.so", symbol: "pthread_getspecific", reason: "Frida's Interceptor uses it itself, so installing the hook hangs the app" },
+  { module: "libc.so", symbol: "pthread_setspecific", reason: "Frida's Interceptor uses it itself, so installing the hook hangs the app" },
+  {
+    module: "libdl.so",
+    symbol: "dlopen",
+    reason:
+      "the linker picks the namespace by the caller's address, which the hook changes, so loading system libraries (e.g. graphics drivers) fails",
+  },
+  { module: "libc.so", symbol: "memset", runtime: "V8", reason: "V8 calls it itself while it runs a hook, which re-enters V8 and crashes the app" },
+  {
+    module: "libc.so",
+    symbol: "clock_gettime",
+    runtime: "V8",
+    reason: "V8 calls it itself while it runs a hook, which re-enters V8 and crashes the app",
+  },
+  { module: "libc.so", symbol: "sigprocmask", stackTraceOnly: true, reason: "the native stack walk crashes the app in it" },
+];
+
+export function findBlockedFunction(hook: InputNativeHookNormalized): BlockedFunction | undefined {
+  if (!hook.symbol) return undefined;
+  return BLOCKED_FUNCTIONS.find(
+    (blocked) => blocked.symbol === hook.symbol && isModule(hook.module, blocked.module) && (!blocked.runtime || blocked.runtime === Script.runtime),
+  );
 }
 
 export function warnOnHighFrequencyLibcHook(hook: InputNativeHookNormalized): void {

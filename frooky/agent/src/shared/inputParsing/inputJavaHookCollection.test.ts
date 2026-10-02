@@ -108,7 +108,7 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          hookSettings: { maxStackFrames: 30, stackTraceFilter: ["^collection"] },
+          hookSettings: { maxStackFrames: 30, callerFilter: ["^collection"] },
           decoderSettings: { maxDepth: 30, maxItems: 30 },
           hooks: [
             {
@@ -126,7 +126,7 @@ describe("inputJavaHookCollection", () => {
         expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({
           ...DEFAULT_HOOK_SETTINGS,
           maxStackFrames: 40,
-          stackTraceFilter: ["^collection"],
+          callerFilter: ["^collection"],
         });
         expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,

@@ -228,6 +228,40 @@ describe("NativeHookManager", () => {
       expect((agent.addEventToLog as unknown as Mock).mock.calls.length).toBe(0);
     });
 
+    it("drops a call from a module the callerFilter doesn't match, before decoding or building a stack trace", async () => {
+      const events: NativeHookEvent[] = [];
+      const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
+      let builds = 0;
+      const countingStackTrace: PlatformStackTrace = {
+        build: () => {
+          builds++;
+          return { platformStackTrace: [], nativeStackTrace: [] };
+        },
+      };
+      const manager = new NativeHookManager(countingStackTrace, agent);
+      const params = normalizeInputParams([["int", "n"]], DEFAULT_DECODER_SETTINGS);
+      const hookSettings = { ...DEFAULT_HOOK_SETTINGS, nativeStackTrace: true, callerFilter: ["^never\\.so$"] };
+      const [hooks] = await Promise.all(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, hookSettings })]));
+      const hook: NativeHook = { ...hooks![0], symbolName: "add_one", symbolAddress: cm.add_one };
+      // a hook without filter on the same function tells when the listener is committed
+      const probe: NativeHook = { ...hooks![0], hookSettings: DEFAULT_HOOK_SETTINGS, symbolName: "add_one_probe", symbolAddress: cm.add_one };
+
+      manager.registerHooks([hook, probe]);
+      try {
+        const addOne = new NativeFunction(cm.add_one, "int", ["int"]);
+        await untilHooked(
+          () => addOne(1),
+          () => events.length > 0,
+        );
+      } finally {
+        manager.unregisterHooks([hook, probe]);
+      }
+
+      expect(events.length).toBeGreaterThan(0);
+      expect(events.every((event) => event.symbol === "add_one_probe")).toBeTruthy();
+      expect(builds).toBe(0);
+    });
+
     it("keeps the arguments and stack trace of each call apart when calls overlap", async () => {
       // countdown(3) recurses down to countdown(0), so every onEnter runs before the first onLeave
       const events: NativeHookEvent[] = [];

@@ -1,0 +1,81 @@
+metadata:
+  name: "Torture (Native) Level 5, Filtered: Allocator, Strings and Locks"
+  description: |
+    The part of level 5 that the app survives during startup: the allocator, strcmp and pthread mutexes,
+    recorded only when the app's own libraries call them. Shows how far `callerFilter` goes on functions that
+    run millions of times: a dropped call costs no decoding, but still enters the JS runtime.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# See 01_level_1.yaml for how to run and what to watch.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/99_torture/05_level_5_filtered.yaml
+#
+# Guardrails exercised:
+# - `callerFilter` is checked first in onEnter, against the module of the return address: a dropped call is
+#   neither decoded nor gets a stack trace, and onLeave does nothing for it.
+# - The high-frequency warning for `malloc`, whose stack traces are only built for calls that pass the filter.
+#
+# Why level 5's memcpy, memmove, memset and strlen are missing: every call still enters the JS runtime before
+# the filter drops it. Under QuickJS, these four together keep the app from finishing its startup; without
+# memset (which V8 skips anyway) it's borderline. An `argFilter` drops calls later, after decoding the
+# parameters before the filtered one, and can't drop `free(NULL)`: a NULL pointer is null, which always
+# passes an `argFilter`.
+#
+# Expected: the app starts and stays usable (press Start), under QuickJS and V8, with all hooks installed.
+# No events: the app's own libraries don't call these functions, so the filter drops every call. Add a
+# library to `callerFilter` to see its calls, e.g. '^libEGL\.so$' records a few thousand during startup.
+
+settings:
+  hookSettings:
+    # the app's own libraries (System.loadLibrary in MastgTest.kt)
+    callerFilter: ['^lib(receive[A-Za-z]+|loadTime)\.so$']
+  decoderSettings:
+    maxItems: 1024
+
+hookCollection:
+  # Docs: https://www.man7.org/linux/man-pages/man3/malloc.3.html
+  - module: libc.so
+    hooks:
+      - symbol: malloc
+        hookSettings:
+          nativeStackTrace: true
+          platformStackTrace: true
+          maxStackFrames: 16
+        retType: "void *"
+        params:
+          - [size_t, size]
+      - symbol: calloc
+        retType: "void *"
+        params:
+          - [size_t, nmemb]
+          - [size_t, size]
+      - symbol: realloc
+        retType: "void *"
+        params:
+          - ["void *", ptr]
+          - [size_t, size]
+      - symbol: free
+        params:
+          - ["void *", ptr]
+
+  # Docs: https://www.man7.org/linux/man-pages/man3/strcmp.3.html
+  - module: libc.so
+    hooks:
+      - symbol: strcmp
+        retType: int
+        params:
+          - ["const char *", s1]
+          - ["const char *", s2]
+
+  # Docs: https://www.man7.org/linux/man-pages/man3/pthread_mutex_lock.3p.html
+  - module: libc.so
+    hooks:
+      - symbol: pthread_mutex_lock
+        retType: int
+        params:
+          - ["pthread_mutex_t *", mutex]
+      - symbol: pthread_mutex_unlock
+        retType: int
+        params:
+          - ["pthread_mutex_t *", mutex]

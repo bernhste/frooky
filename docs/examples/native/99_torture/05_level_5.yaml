@@ -15,15 +15,15 @@ metadata:
 # - The high-frequency warning for `malloc`, the only hook with stack traces.
 # - "libc.so!memmove is the same function as libc.so!memcpy" where libc implements both with one function
 #   (e.g. x86_64): each of these calls then becomes two events.
+# - With `--runtime v8`: "Skipping hook for native function 'memset'", as V8 calls it itself while it runs a hook.
 # - The native crash reporter: an access violation in a hooked module is reported with its context.
 # - Re-entrancy under maximum pressure: decoding a value allocates and copies memory, the stack walk takes
 #   locks, sending an event allocates.
 # - The host: how many events/s it can receive, print and write to output.json before it falls behind.
 #
-# Known gap: with `--runtime v8`, the `memset` hook crashes the app with a SIGTRAP within a few seconds.
-#
 # Expected: the app freezes, ANRs or crashes. What counts is how: a clean crash report and a usable
 # output.json are a pass; a hung frooky, a lost output.json or a device reboot are findings.
+# 05_level_5_filtered.yaml is the part of this level that the app survives.
 
 settings:
   decoderSettings:

@@ -315,6 +315,55 @@ describe("NativeHookValidator", () => {
         expect(messages.some((msg) => msg.includes("Capturing stack traces on high-frequency libc function 'read' in 'libc.so'"))).toBe(true);
       });
 
+      describe("blocked functions", () => {
+        const warnings = () => warnSpy.mock.calls.map((call) => String(call[0]));
+        const hooksOf = (module: string, hooks: InputNativeHookCollection["hooks"], hookSettings?: InputNativeHookCollection["hookSettings"]) =>
+          validator.validateAndNormalizeHooks({ hookCollection: [{ type: "native", module, hooks, hookSettings }] }, defaultSettings);
+
+        it("skips a function the hook breaks the app on", () => {
+          expect(hooksOf("libc.so", ["pthread_getspecific", "getpid"]).map((hook) => hook.symbol)).toEqual(["getpid"]);
+          expect(warnings()).toEqual([
+            "Skipping hook for native function 'pthread_getspecific' from module 'libc.so': Frida's Interceptor uses it itself, so installing the hook hangs the app.",
+          ]);
+        });
+
+        it("matches the module by its file name", () => {
+          expect(hooksOf("/apex/com.android.runtime/lib64/bionic/libdl.so", ["dlopen"])).toEqual([]);
+          expect(hooksOf("libc.so", ["dlopen"]).map((hook) => hook.symbol)).toEqual(["dlopen"]);
+        });
+
+        it("skips a function only under the runtime it breaks", () => {
+          expect(hooksOf("libc.so", ["memset", "clock_gettime"]).map((hook) => hook.symbol)).toEqual(["memset", "clock_gettime"]);
+
+          const script = globalThis as unknown as { Script: { runtime: string } };
+          const originalScript = script.Script;
+          script.Script = { runtime: "V8" };
+          try {
+            expect(hooksOf("libc.so", ["memset", "clock_gettime"])).toEqual([]);
+          } finally {
+            script.Script = originalScript;
+          }
+          expect(warnings()[0]).toBe(
+            "Skipping hook for native function 'memset' from module 'libc.so': V8 calls it itself while it runs a hook, which re-enters V8 and crashes the app. Use the default QuickJS runtime to hook it.",
+          );
+        });
+
+        it("keeps a hook without the stack traces that crash in it", () => {
+          const [hook] = hooksOf("libc.so", ["sigprocmask"], { nativeStackTrace: true, platformStackTrace: true });
+
+          expect(hook.hookSettings!.nativeStackTrace).toBe(false);
+          expect(hook.hookSettings!.platformStackTrace).toBe(false);
+          expect(warnings()).toEqual([
+            "No stack traces for native function 'sigprocmask' from module 'libc.so': the native stack walk crashes the app in it.",
+          ]);
+        });
+
+        it("keeps a hook with a callerFilter, which needs no stack walk", () => {
+          expect(hooksOf("libc.so", ["sigprocmask"], { callerFilter: ["^libapp\\.so$"] }).length).toBe(1);
+          expect(warnings()).toEqual([]);
+        });
+      });
+
       it("does not warn on non-libc module even if symbol matches high-frequency name", () => {
         const config: InputFrookyConfig = {
           hookCollection: [

@@ -316,10 +316,10 @@ class TestAndroidExamples:
         assert traces["button_click"]["platformStackTrace"][1].startswith(f"{MASTG_CLASS}.mastgTest ")
         assert traces["sdk_flush"]["platformStackTrace"][1].startswith("org.owasp.mastestapp.ThirdPartySdk.flush ")
 
-    def test_stack_trace_filter(self, run_frooky, find_matched_events):
-        run_frooky(_example("android/05_hook_settings/02_stack_trace_filter.yaml"), JAVA_APP)
+    def test_caller_filter(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/05_hook_settings/02_caller_filter.yaml"), JAVA_APP)
 
-        assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "trackEvent")] == [["button_click"]]
+        assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "trackEvent")] == [["sdk_flush"]]
 
     @pytest.mark.parametrize(
         "example, max_stack_frames, arg_max_items, ret_max_items",
@@ -504,10 +504,14 @@ class TestNativeExamples:
         assert traces["button_click"]["nativeStackTrace"][0].startswith("Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI+0x")
         assert traces["sdk_flush"]["nativeStackTrace"][0].startswith("sdk_flush+0x")
 
-    def test_stack_trace_filter(self, run_frooky, find_matched_events):
-        run_frooky(_example("native/05_hook_settings/02_stack_trace_filter.yaml"), NATIVE_APP)
+    def test_caller_filter(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/05_hook_settings/02_caller_filter.yaml"), NATIVE_APP)
 
-        assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "track_event")] == [["button_click"]]
+        assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "fopen", "libc.so")] == [["/proc/self/status", "r"]]
+        [unlink] = self._events(find_matched_events, "unlink", "libc.so")
+        assert _values(unlink["argsIn"]) == ["/proc/self/frooky-missing-cache"]
+        assert unlink["returnValue"]["value"]["value"] == -1
+        assert unlink["returnValue"]["value"]["errno"]["name"] == "ENOENT"
 
     def test_low_level_functions(self, run_frooky, find_matched_events):
         run_frooky(_example("native/05_hook_settings/03_low_level_functions.yaml"), NATIVE_APP)

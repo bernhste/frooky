@@ -7,7 +7,7 @@ import {
 } from "./shared/defaultValues";
 import { stopEventSender } from "./shared/event/eventSender";
 import { InputFrookyConfig } from "./shared/frookyConfig";
-import { Hook } from "./shared/hook/hook";
+import { countFilteredCall, Hook } from "./shared/hook/hook";
 import { HookManager } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { LogEvent } from "./shared/event/logEvent";
@@ -352,17 +352,42 @@ describe("FrookyAgent", () => {
       expect(rawManager.registerHooks).toHaveBeenCalledTimes(3);
     });
 
-    it("lists every declaration with its state and the events its hooks recorded", async () => {
+    it("lists every declaration with its state and the events and filtered calls of its hooks", async () => {
       const { agent, rawManager } = setupWithPendingClass(undefined, 0.05);
       await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
       const [installedHook] = rawManager.registerHooks.mock.calls[0][0] as Hook[];
       agent.addEventToLog(new LogEvent("info", "event"), installedHook);
       agent.addEventToLog(new LogEvent("info", "event"), installedHook);
+      countFilteredCall(installedHook);
 
       expect(agent.hookStatistics()).toEqual([
-        { config: "hooks.yaml", target: "com.example.A.one", state: "waiting", waitsFor: "Java class 'com.example.A'", hooked: 0, events: 0 },
-        { config: "hooks.yaml", target: "com.example.A.two", state: "waiting", waitsFor: "Java class 'com.example.A'", hooked: 0, events: 0 },
-        { config: "hooks.yaml", target: "com.example.B.three", state: "installed", waitsFor: "Java class 'com.example.B'", hooked: 1, events: 2 },
+        {
+          config: "hooks.yaml",
+          target: "com.example.A.one",
+          state: "waiting",
+          waitsFor: "Java class 'com.example.A'",
+          hooked: 0,
+          events: 0,
+          filtered: 0,
+        },
+        {
+          config: "hooks.yaml",
+          target: "com.example.A.two",
+          state: "waiting",
+          waitsFor: "Java class 'com.example.A'",
+          hooked: 0,
+          events: 0,
+          filtered: 0,
+        },
+        {
+          config: "hooks.yaml",
+          target: "com.example.B.three",
+          state: "installed",
+          waitsFor: "Java class 'com.example.B'",
+          hooked: 1,
+          events: 2,
+          filtered: 1,
+        },
       ]);
     });
 

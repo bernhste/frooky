@@ -11,6 +11,7 @@ import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTy
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
 import { HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
+import { countFilteredCall } from "../../shared/hook/hook";
 import { FilterMismatchError, formatHashCode, fromSource, plural } from "../../shared/utils";
 import { detectUnsafeContext } from "../../native/unsafeContext";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
@@ -161,6 +162,10 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       // copied on write: a call in progress keeps running the hooks it started with
       overload.hooks = [...overload.hooks, installedHook];
       logger.info(`Hooked ${target}(${hook.method.argumentTypes.map((t) => t.className ?? t.name).join(", ")})${fromSource(source)}`);
+      const { callerFilter } = hook.hookSettings;
+      if (callerFilter.length > 0) {
+        logger.debug(`Caller filter on ${target}: records calls with a Java caller matching ${callerFilter.join(", ")}`);
+      }
 
       countSuccessfulHooks++;
     }
@@ -204,7 +209,14 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
         settings: hook.retTypeSettings ?? hook.decoderSettings,
       });
     }
-    return { hook, target, inArgDecoders, outArgDecoders, retTypeDecoder, needsStackTrace: needsStackTrace(hook.hookSettings) };
+    return {
+      hook,
+      target,
+      inArgDecoders,
+      outArgDecoders,
+      retTypeDecoder,
+      needsStackTrace: needsStackTrace(hook.hookSettings) || hook.hookSettings.callerFilter.length > 0,
+    };
   }
 
   // Replaces the overload: every hook decodes its `in` args, the original method runs once, then every hook that
@@ -264,16 +276,15 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     }
   }
 
-  // null if the stackTraceFilter or an argFilter doesn't match, or decoding fails
+  // null if the callerFilter or an argFilter doesn't match, or decoding fails
   private enterHook(installedHook: InstalledJavaHook, args: Java.Wrapper[], unsafeContext?: UnsafeContext): JavaHookCall | null {
     const { hook, target, inArgDecoders } = installedHook;
     let stackTrace: HookStackTrace;
     try {
-      stackTrace = this.stackTrace.build(hook.hookSettings, undefined, unsafeContext);
+      stackTrace = this.stackTrace.build(hook.hookSettings, { unsafeContext, filterCallers: true });
     } catch (e) {
-      if (!(e instanceof FilterMismatchError)) {
-        logger.error(`Failed to build the stack trace of ${target}: ${e}`);
-      }
+      if (e instanceof FilterMismatchError) countFilteredCall(hook);
+      else logger.error(`Failed to build the stack trace of ${target}: ${e}`);
       return null;
     }
 
@@ -283,9 +294,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       try {
         decodedArgs.in = this.decodeArgs(args, inArgDecoders, logTarget);
       } catch (e) {
-        if (!(e instanceof FilterMismatchError)) {
-          logger.error(`Decoder error during 'onEnter' argument decoding of ${target}: ${e}`);
-        }
+        if (e instanceof FilterMismatchError) countFilteredCall(hook);
+        else logger.error(`Decoder error during 'onEnter' argument decoding of ${target}: ${e}`);
         return null;
       }
     }
@@ -310,9 +320,8 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       try {
         decodedArgs.out = this.decodeArgs(args, outArgDecoders, logTarget, decodedRetValue);
       } catch (e) {
-        if (!(e instanceof FilterMismatchError)) {
-          logger.error(`Decoder error during 'onLeave' argument decoding of ${target}: ${e}`);
-        }
+        if (e instanceof FilterMismatchError) countFilteredCall(hook);
+        else logger.error(`Decoder error during 'onLeave' argument decoding of ${target}: ${e}`);
         return;
       }
     }

@@ -216,12 +216,12 @@ describe("AndroidHookManager", () => {
 
   // These hook java.lang.Integer.reverse(int), which only the test calls, and revert their hooks.
   describe("registerHooks() / unregisterHooks()", () => {
-    // the stack trace limit tells apart which hooks ran; a hook with a stackTraceFilter never matches
+    // the stack trace limit tells apart which hooks ran; a hook with a callerFilter never matches
     function setup() {
       const calledLimits: number[] = [];
       const recordingStackTrace: PlatformStackTrace = {
         build: (settings: HookSettings) => {
-          if (settings.stackTraceFilter.length > 0) throw new FilterMismatchError();
+          if (settings.callerFilter.length > 0) throw new FilterMismatchError();
           calledLimits.push(settings.maxStackFrames);
           return { platformStackTrace: [], nativeStackTrace: [] };
         },
@@ -390,7 +390,7 @@ describe("AndroidHookManager", () => {
 
       it("records with the other hooks when one hook's filter does not match", async () => {
         const { manager, resolve, reverse, calledLimits, addEventToLog } = setup();
-        const filtered = await resolve(1, { stackTraceFilter: ["^never$"] });
+        const filtered = await resolve(1, { callerFilter: ["^never$"] });
         const unfiltered = await resolve(2);
 
         try {

@@ -3,9 +3,9 @@ import { z } from "zod";
 
 export const hookSettingsSchema = z.object({
     maxStackFrames: z.number().min(0),
-    stackTraceFilter: z.array(z.string()),
     nativeStackTrace: z.boolean(),
-    platformStackTrace: z.boolean()
+    platformStackTrace: z.boolean(),
+    callerFilter: z.array(z.string())
 });
 
 export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("hashCode"), z.literal("intentFlag"), z.literal("intentUriFlag"), z.literal("constant"), z.literal("flags"), z.literal("getters")]);

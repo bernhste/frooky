@@ -118,7 +118,7 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hookSettings: { maxStackFrames: 30, stackTraceFilter: ["^collection"] },
+          hookSettings: { maxStackFrames: 30, callerFilter: ["^collection"] },
           decoderSettings: { maxDepth: 30, maxItems: 30 },
           hooks: [
             {
@@ -136,7 +136,7 @@ describe("inputNativeHookCollection", () => {
         expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({
           ...DEFAULT_HOOK_SETTINGS,
           maxStackFrames: 40,
-          stackTraceFilter: ["^collection"],
+          callerFilter: ["^collection"],
         });
         expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,

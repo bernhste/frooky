@@ -44,17 +44,17 @@
               "type": "number",
               "minimum": 0
             },
-            "stackTraceFilter": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
             "nativeStackTrace": {
               "type": "boolean"
             },
             "platformStackTrace": {
               "type": "boolean"
+            },
+            "callerFilter": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             }
           }
         },
@@ -470,17 +470,17 @@
                               "type": "number",
                               "minimum": 0
                             },
-                            "stackTraceFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            },
                             "nativeStackTrace": {
                               "type": "boolean"
                             },
                             "platformStackTrace": {
                               "type": "boolean"
+                            },
+                            "callerFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           }
                         },
@@ -556,17 +556,17 @@
                     "type": "number",
                     "minimum": 0
                   },
-                  "stackTraceFilter": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
                   "nativeStackTrace": {
                     "type": "boolean"
                   },
                   "platformStackTrace": {
                     "type": "boolean"
+                  },
+                  "callerFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 }
               },
@@ -997,17 +997,17 @@
                               "type": "number",
                               "minimum": 0
                             },
-                            "stackTraceFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            },
                             "nativeStackTrace": {
                               "type": "boolean"
                             },
                             "platformStackTrace": {
                               "type": "boolean"
+                            },
+                            "callerFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           }
                         },
@@ -1358,17 +1358,17 @@
                               "type": "number",
                               "minimum": 0
                             },
-                            "stackTraceFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            },
                             "nativeStackTrace": {
                               "type": "boolean"
                             },
                             "platformStackTrace": {
                               "type": "boolean"
+                            },
+                            "callerFilter": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
                             }
                           }
                         },
@@ -1459,17 +1459,17 @@
                     "type": "number",
                     "minimum": 0
                   },
-                  "stackTraceFilter": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
                   "nativeStackTrace": {
                     "type": "boolean"
                   },
                   "platformStackTrace": {
                     "type": "boolean"
+                  },
+                  "callerFilter": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 }
               },

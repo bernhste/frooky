@@ -2,6 +2,7 @@ import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
+import { countFilteredCall } from "../../shared/hook/hook";
 import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
 import { describeNativeTarget, InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
@@ -9,6 +10,7 @@ import { EMPTY_STACK_TRACE, HookStackTrace, needsStackTrace, PlatformStackTrace,
 import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { detectUnsafeContext } from "../unsafeContext";
+import { NativeCallerFilter } from "../nativeCallerFilter";
 import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { NativeHook } from "./nativeHook";
@@ -28,11 +30,22 @@ type InstalledNativeHook = {
   hasFloatArgs: boolean;
   floatRetSlot: ReturnType<typeof planFloatRetTypeSlot>;
   needsStackTrace: boolean;
+  callerFilter?: NativeCallerFilter;
   // the same for every call
   hashCode: string;
 };
 
 type HookedFunction = { listener?: InvocationListener; hooks: InstalledNativeHook[] };
+
+// Whether a call from `returnAddress` passes the callerFilter of any of `hooks` (a hook without one passes).
+// Runs on every call of a hooked function, so a plain loop without a closure.
+function passesAnyCallerFilter(hooks: InstalledNativeHook[], returnAddress: NativePointer): boolean {
+  for (let i = 0; i < hooks.length; i++) {
+    const callerFilter = hooks[i].callerFilter;
+    if (!callerFilter || callerFilter.matches(returnAddress)) return true;
+  }
+  return false;
+}
 
 // what a hook captured in onEnter
 type NativeHookCall = {
@@ -176,6 +189,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
           newHookedFunction.listener = Interceptor.attach(hook.symbolAddress, this.createDispatcher(newHookedFunction));
         } catch (e) {
           logger.warn(`Failed to hook ${target}: ${e}`);
+          installedHook.callerFilter?.dispose();
           continue;
         }
         hookedFunction = newHookedFunction;
@@ -191,6 +205,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       hook.listener = hookedFunction.listener;
       this.installedHooks.add(hook);
       logger.info(`Hooked ${target} at ${hook.symbolAddress}${fromSource(source)}`);
+      if (installedHook.callerFilter) logger.debug(installedHook.callerFilter.describe());
       countSuccessfulHooks++;
     }
     return countSuccessfulHooks;
@@ -203,6 +218,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       const index = hookedFunction ? hookedFunction.hooks.findIndex((installedHook) => installedHook.hook === hook) : -1;
       if (!hookedFunction || index < 0) continue;
 
+      hookedFunction.hooks[index].callerFilter?.dispose();
       hookedFunction.hooks = hookedFunction.hooks.filter((_, i) => i !== index);
       hook.listener = undefined;
       if (!hookedFunction.hooks.some((installedHook) => installedHook.hook === hook)) this.installedHooks.delete(hook);
@@ -234,6 +250,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       hasFloatArgs: argSlots.some((slot) => slot.kind === "float"),
       floatRetSlot: planFloatRetTypeSlot(hook.retType),
       needsStackTrace: needsStackTrace(hook.hookSettings),
+      callerFilter: hook.hookSettings.callerFilter.length > 0 ? new NativeCallerFilter(hook.hookSettings.callerFilter, target) : undefined,
       hashCode: addressHashCode(hook.symbolAddress),
     };
   }
@@ -247,14 +264,23 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     return {
       onEnter: function (args: NativePointer[]) {
         this.calls = undefined;
+        // before anything else: on a hot function, the callerFilter drops most calls
+        const returnAddress = this.returnAddress;
+        const hooks = hookedFunction.hooks;
+        if (!passesAnyCallerFilter(hooks, returnAddress)) {
+          for (let i = 0; i < hooks.length; i++) countFilteredCall(hooks[i].hook);
+          return;
+        }
         const tid = enterHookCode();
         if (tid === undefined) return;
         try {
           const calls: NativeHookCall[] = [];
-          const hooks = hookedFunction.hooks;
-          const unsafeContext = hooks.some((installedHook) => installedHook.needsStackTrace) ? detectUnsafeContext(this.context) : undefined;
+          const context = this.context;
+          // detected at most once per call, and only for hooks whose caller filter passed
+          let unsafeContext: UnsafeContext | undefined | null = null;
+          const detectUnsafe = () => (unsafeContext === null ? (unsafeContext = detectUnsafeContext(context)) : unsafeContext);
           for (const installedHook of hooks) {
-            const call = hookManager.enterHook(installedHook, args, this.context, unsafeContext);
+            const call = hookManager.enterHook(installedHook, args, context, returnAddress, detectUnsafe);
             if (call) calls.push(call);
           }
           if (calls.length > 0) this.calls = calls;
@@ -263,10 +289,10 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
         }
       },
       onLeave: function (returnValue: InvocationReturnValue) {
-        // before anything else, which could set it
-        const errno = this.errno;
         const calls: NativeHookCall[] | undefined = this.calls;
         if (!calls) return;
+        // before running any code that could set it
+        const errno = this.errno;
         const tid = enterHookCode();
         if (tid === undefined) return;
         try {
@@ -280,14 +306,20 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     };
   }
 
-  // null if the stackTraceFilter or an argFilter doesn't match, or decoding fails
+  // null if the callerFilter or an argFilter doesn't match, or decoding fails
   private enterHook(
     installedHook: InstalledNativeHook,
     args: InvocationArguments,
     context: CpuContext,
-    unsafeContext?: UnsafeContext,
+    returnAddress: NativePointer,
+    detectUnsafe: () => UnsafeContext | undefined,
   ): NativeHookCall | null {
-    const { hook, target, inArgDecoders, outArgDecoders, argSlots, hasFloatArgs } = installedHook;
+    const { hook, target, inArgDecoders, outArgDecoders, argSlots, hasFloatArgs, callerFilter } = installedHook;
+    // first, as it is the cheapest check and drops most calls of a hot function
+    if (callerFilter && !callerFilter.matches(returnAddress)) {
+      countFilteredCall(hook);
+      return null;
+    }
     try {
       const call: NativeHookCall = { installedHook, logTarget: this.callLogTarget(target), argsIn: [], stackTrace: EMPTY_STACK_TRACE };
       if (hook.params) {
@@ -331,13 +363,16 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       }
 
       if (installedHook.needsStackTrace) {
-        call.stackTrace = this.stackTrace.build(hook.hookSettings, hook.hookSettings.nativeStackTrace ? context : undefined, unsafeContext);
+        call.stackTrace = this.stackTrace.build(hook.hookSettings, {
+          ctx: context,
+          unsafeContext: detectUnsafe(),
+          filterCallers: false,
+        });
       }
       return call;
     } catch (e) {
-      if (!(e instanceof FilterMismatchError)) {
-        logger.error(`Error during 'onEnter' of ${target}: ${e}`);
-      }
+      if (e instanceof FilterMismatchError) countFilteredCall(hook);
+      else logger.error(`Error during 'onEnter' of ${target}: ${e}`);
       return null;
     }
   }
@@ -364,9 +399,8 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
       this.frookyAgent.addEventToLog(new NativeHookEvent(hook, call.installedHook.hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook);
     } catch (e) {
-      if (!(e instanceof FilterMismatchError)) {
-        logger.error(`Error during 'onLeave' of ${target}: ${e}`);
-      }
+      if (e instanceof FilterMismatchError) countFilteredCall(hook);
+      else logger.error(`Error during 'onLeave' of ${target}: ${e}`);
     }
   }
 

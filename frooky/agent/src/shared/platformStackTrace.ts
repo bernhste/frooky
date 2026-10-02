@@ -26,26 +26,35 @@ export const EMPTY_STACK_TRACE: HookStackTrace = Object.freeze({
   nativeStackTrace: [],
 });
 
-export interface PlatformStackTrace {
-  // `unsafeContext` is the call's detectUnsafeContext() result. Throws FilterMismatchError if the
-  // stackTraceFilter doesn't match the captured frames.
-  build(settings: HookSettings, ctx?: CpuContext, unsafeContext?: UnsafeContext): HookStackTrace;
+// What a hook asks PlatformStackTrace.build() for, besides its HookSettings
+export interface StackTraceRequest {
+  // an Interceptor callback's `this.context`, for the native frames; none for Java hooks
+  ctx?: CpuContext;
+  // the call's detectUnsafeContext() result
+  unsafeContext?: UnsafeContext;
+  // whether to match the callerFilter against the Java stack: Java hooks only, native hooks match the direct caller
+  filterCallers: boolean;
 }
 
-// per stackTraceFilter array, which lives as long as its hook
+export interface PlatformStackTrace {
+  // Throws FilterMismatchError if `filterCallers` is set and the callerFilter doesn't match.
+  build(settings: HookSettings, request: StackTraceRequest): HookStackTrace;
+}
+
+// per filter array, which lives as long as its hook
 const filterCache = new WeakMap<string[], RegExp[]>();
 
 // patterns are validated when the hook file is loaded
-export function compileStackTraceFilter(stackTraceFilter: string[]): RegExp[] {
-  let regExps = filterCache.get(stackTraceFilter);
+export function compileCallerFilter(patterns: string[]): RegExp[] {
+  let regExps = filterCache.get(patterns);
   if (regExps === undefined) {
-    regExps = stackTraceFilter.map((pattern) => new RegExp(pattern));
-    filterCache.set(stackTraceFilter, regExps);
+    regExps = patterns.map((pattern) => new RegExp(pattern));
+    filterCache.set(patterns, regExps);
   }
   return regExps;
 }
 
 // Whether hooks with these settings build a stack trace on every call
 export function needsStackTrace(settings: HookSettings): boolean {
-  return settings.platformStackTrace || settings.nativeStackTrace || (settings.stackTraceFilter?.length ?? 0) > 0;
+  return settings.platformStackTrace || settings.nativeStackTrace;
 }

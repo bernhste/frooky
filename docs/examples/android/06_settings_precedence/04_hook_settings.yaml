@@ -15,7 +15,7 @@ settings:
   hookSettings:
     platformStackTrace: true
     maxStackFrames: 1
-    stackTraceFilter: ['^org\.owasp\.mastestapp']
+    callerFilter: ['^org\.owasp\.mastestapp']
   decoderSettings:
     maxItems: 10
 
@@ -36,6 +36,6 @@ hookCollection:
               - [java.lang.String, arg]
 
 # Expected event after pressing Start:
-#   stackTrace:        3 frames in platformStackTrace (hook: maxStackFrames 3); the stackTraceFilter keeps the event, as the first frame is in org.owasp.mastestapp
+#   stackTrace:        3 frames in platformStackTrace (hook: maxStackFrames 3); the callerFilter keeps the event, as org.owasp.mastestapp code calls receiveString
 #   argsIn[0].value:   "Welcome the first OW..."                (hook: maxItems 20)
 #   returnValue.value: "Welcome the first OW..."                (hook: maxItems 20)

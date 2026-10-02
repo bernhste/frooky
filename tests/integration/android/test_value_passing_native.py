@@ -601,48 +601,24 @@ class TestValuePassingNative:
         assert 0 < len(events[0]["stackTrace"]["platformStackTrace"]) <= limit
         assert 0 < len(events[0]["stackTrace"]["nativeStackTrace"]) <= limit
 
-    def test_stack_trace_filter_keeps_event_when_a_platform_frame_matches(self, run_frooky, find_matched_events):
-        """`stackTraceFilter` is an event-level gate, same as for Java hooks: if any captured frame
-        matches, the whole event is kept. The platform stack builder drops the native/JNI frames and
-        returns only the Java-side frames leading to the call (see androidStackTrace.ts) - the JNI entry
-        point and its Kotlin caller are both in the app's own package, so the filter matches."""
-        events = self._receive_int_events(run_frooky, find_matched_events, "{platformStackTrace: true, maxStackFrames: 10, stackTraceFilter: ['^org\\.owasp\\.mastestapp']}")
+    def test_caller_filter_keeps_event_when_the_caller_module_matches(self, run_frooky, find_matched_events):
+        """`callerFilter` on a native hook matches the module that called the function directly, here the JNI
+        method in the same library. It needs no stack trace, so the event has none."""
+        events = self._receive_int_events(run_frooky, find_matched_events, "{callerFilter: ['^libreceiveFundamentalValue\\.so$']}")
 
         assert len(events) == 1
-        assert events[0]["stackTrace"]["nativeStackTrace"] == []
+        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
 
-    def test_stack_trace_filter_keeps_event_when_a_native_frame_matches(self, run_frooky, find_matched_events):
-        """The filter also searches native frames, formatted as `<symbol> (<module>:<address>)`."""
-        events = self._receive_int_events(run_frooky, find_matched_events, "{nativeStackTrace: true, maxStackFrames: 10, stackTraceFilter: ['libreceiveFundamentalValue\\.so']}")
-
-        assert len(events) == 1
-        assert events[0]["stackTrace"]["platformStackTrace"] == []
-
-    def test_stack_trace_filter_drops_event_when_no_frame_matches(self, run_frooky, find_matched_events):
-        """If no captured native or platform frame matches any pattern, the whole event is dropped."""
-        events = self._receive_int_events(
-            run_frooky,
-            find_matched_events,
-            "{nativeStackTrace: true, platformStackTrace: true, maxStackFrames: 10, stackTraceFilter: ['^this\\.matches\\.nothing']}",
-            expect_events=False,
-        )
+    def test_caller_filter_drops_event_when_the_caller_module_does_not_match(self, run_frooky, find_matched_events):
+        """A call from any other module is dropped."""
+        events = self._receive_int_events(run_frooky, find_matched_events, "{callerFilter: ['^libc\\.so$']}", expect_events=False)
 
         assert events == []
 
-    def test_stack_trace_filter_does_not_search_disabled_traces(self, run_frooky, find_matched_events):
-        """A pattern matching only Java frames drops the event when only native frames are captured."""
-        events = self._receive_int_events(
-            run_frooky,
-            find_matched_events,
-            "{nativeStackTrace: true, maxStackFrames: 10, stackTraceFilter: ['^org\\.owasp\\.mastestapp']}",
-            expect_events=False,
-        )
-
-        assert events == []
-
-    def test_stack_trace_filter_drops_every_event_without_captured_frames(self, run_frooky, find_matched_events):
-        """A `stackTraceFilter` only searches captured frames: with no stack trace enabled nothing can match."""
-        events = self._receive_int_events(run_frooky, find_matched_events, "{stackTraceFilter: ['^org\\.owasp\\.mastestapp']}", expect_events=False)
+    def test_caller_filter_does_not_search_java_frames(self, run_frooky, find_matched_events):
+        """On a native hook, a pattern for the app's Java package matches nothing, although Java code called the
+        JNI method."""
+        events = self._receive_int_events(run_frooky, find_matched_events, "{callerFilter: ['^org\\.owasp\\.mastestapp']}", expect_events=False)
 
         assert events == []
 

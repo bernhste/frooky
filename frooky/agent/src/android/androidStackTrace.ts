@@ -1,7 +1,7 @@
 import Java from "frida-java-bridge";
 import { nativeStackFrames } from "../native/nativeStackTrace";
 import { HookSettings } from "../shared/frookySettings";
-import { compileStackTraceFilter, HookStackTrace, PlatformStackTrace, UnsafeContext } from "../shared/platformStackTrace";
+import { compileCallerFilter, HookStackTrace, PlatformStackTrace, StackTraceRequest } from "../shared/platformStackTrace";
 import { FilterMismatchError } from "../shared/utils";
 
 function formatJavaFrame(frame: Java.Frame): string {
@@ -14,63 +14,62 @@ function formatJavaFrame(frame: Java.Frame): string {
 let javaBacktraceState: "uninitialized" | "initializing" | "ready" = "uninitialized";
 
 export const AndroidStackTrace: PlatformStackTrace = {
-  build(settings: HookSettings, ctx?: CpuContext, unsafeContext?: UnsafeContext): HookStackTrace {
-    const { maxStackFrames: limit, stackTraceFilter, nativeStackTrace, platformStackTrace } = settings;
+  build(settings: HookSettings, request: StackTraceRequest): HookStackTrace {
+    const { maxStackFrames: limit, nativeStackTrace, platformStackTrace, callerFilter } = settings;
+    const { ctx, unsafeContext } = request;
+    const filterCallers = request.filterCallers && callerFilter.length > 0;
+    const wantsNativeFrames = nativeStackTrace && ctx !== undefined && limit > 0;
+    const wantsJavaFrames = platformStackTrace && limit > 0;
 
-    // no frames requested: skip the expensive native and Java backtraces
-    if ((!nativeStackTrace && !platformStackTrace) || limit <= 0) {
-      if (stackTraceFilter?.length) throw FilterMismatchError.INSTANCE;
+    // nothing requested: skip the expensive native and Java backtraces
+    if (!wantsNativeFrames && !wantsJavaFrames && !filterCallers) {
       return { platformStackTrace: [], nativeStackTrace: [] };
     }
 
     if (unsafeContext !== undefined && unsafeContext !== "before-ready") {
-      if (stackTraceFilter?.length) throw FilterMismatchError.INSTANCE;
+      if (filterCallers) throw FilterMismatchError.INSTANCE;
       return { platformStackTrace: [], nativeStackTrace: [], skipped: unsafeContext };
     }
 
-    const nativeFrames = nativeStackTrace && ctx ? nativeStackFrames(ctx, limit) : [];
+    // before the app's code runs, or on a thread without Java, no app frame can be on the Java stack
+    const canWalkJava = Java.available && unsafeContext !== "before-ready" && Java.vm.tryGetEnv() !== null;
+    if (filterCallers && !canWalkJava) throw FilterMismatchError.INSTANCE;
 
-    if (!platformStackTrace || !Java.available || unsafeContext === "before-ready" || Java.vm.tryGetEnv() === null) {
-      if (stackTraceFilter?.length) {
-        const regExps = compileStackTraceFilter(stackTraceFilter);
-        if (!nativeFrames.some((line) => regExps.some((regExp) => regExp.test(line)))) {
-          throw new FilterMismatchError();
-        }
-      }
-      const skipped = platformStackTrace && unsafeContext === "before-ready" ? unsafeContext : undefined;
-      return { platformStackTrace: [], nativeStackTrace: nativeFrames, ...(skipped && { skipped }) };
-    }
-
-    // Java.backtrace() ignores its limit option and walks the whole stack, so only the used frames are formatted
-    let javaStack: Java.Frame[] = [];
-
-    // not Java.perform(), which queues the callback until the app's class loader is set. The thread is already
-    // attached (tryGetEnv() above).
-    if (javaBacktraceState !== "initializing") {
-      const isFirstCall = javaBacktraceState === "uninitialized";
-      if (isFirstCall) javaBacktraceState = "initializing";
-      try {
-        Java.vm.perform(() => {
-          javaStack = Java.backtrace().frames;
-        });
-        javaBacktraceState = "ready";
-      } catch (_) {
-        if (isFirstCall) javaBacktraceState = "uninitialized";
+    const javaStack = canWalkJava && (wantsJavaFrames || filterCallers) ? walkJavaStack() : [];
+    if (filterCallers) {
+      const regExps = compileCallerFilter(callerFilter);
+      // the whole stack, as an app often calls the hooked method through libraries (e.g. app -> OkHttp -> Cipher),
+      // without the hooked method itself on top
+      const callers = javaStack.slice(1);
+      if (!callers.some((frame) => regExps.some((regExp) => regExp.test(`${frame.className}.${frame.methodName}`)))) {
+        throw FilterMismatchError.INSTANCE;
       }
     }
 
-    const javaFrames = javaStack.slice(0, limit).map(formatJavaFrame);
-
-    // with a limit, the filter only searches the captured frames, so app frames deep down the stack (e.g.
-    // framework code called from an app's onCreate) don't match.
-    if (stackTraceFilter && stackTraceFilter.length > 0) {
-      const regExps = compileStackTraceFilter(stackTraceFilter);
-      const matchesFilter = (line: string) => regExps.some((regExp) => regExp.test(line));
-      if (!javaFrames.some(matchesFilter) && !nativeFrames.some(matchesFilter)) {
-        throw new FilterMismatchError();
-      }
-    }
-
-    return { platformStackTrace: javaFrames, nativeStackTrace: nativeFrames };
+    const nativeFrames = wantsNativeFrames && ctx ? nativeStackFrames(ctx, limit) : [];
+    const javaFrames = wantsJavaFrames ? javaStack.slice(0, limit).map(formatJavaFrame) : [];
+    const skipped = wantsJavaFrames && unsafeContext === "before-ready" ? unsafeContext : undefined;
+    return { platformStackTrace: javaFrames, nativeStackTrace: nativeFrames, ...(skipped && { skipped }) };
   },
 };
+
+// The current thread's Java frames, innermost first. Empty while another thread initializes Java.backtrace(). The
+// thread must be attached to the VM (Java.vm.tryGetEnv()).
+function walkJavaStack(): Java.Frame[] {
+  // Java.backtrace() ignores its limit option and walks the whole stack
+  let javaStack: Java.Frame[] = [];
+  // not Java.perform(), which queues the callback until the app's class loader is set
+  if (javaBacktraceState !== "initializing") {
+    const isFirstCall = javaBacktraceState === "uninitialized";
+    if (isFirstCall) javaBacktraceState = "initializing";
+    try {
+      Java.vm.perform(() => {
+        javaStack = Java.backtrace().frames;
+      });
+      javaBacktraceState = "ready";
+    } catch (_) {
+      if (isFirstCall) javaBacktraceState = "uninitialized";
+    }
+  }
+  return javaStack;
+}

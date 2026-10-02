@@ -13,8 +13,8 @@ metadata:
 # Guardrails exercised:
 # - The first Java backtrace initializes the Java bridge; hooks that fire meanwhile skip the Java frames
 #   instead of recursing.
-# - `stackTraceFilter` on app frames (`^org\.owasp\.`): every call pays for the backtrace, but only calls
-#   with an app frame within the first 64 frames are sent.
+# - `callerFilter` on app frames (`^org\.owasp\.`): every call pays for a walk of the whole Java stack, but
+#   only calls with an app method on it are sent.
 # - `nativeStackTrace` is ignored for Java hooks (always []).
 #
 # Expected: the app crawls; startup may hit an ANR. Compare the Event Rate with level 3: a much lower rate
@@ -46,7 +46,7 @@ hookCollection:
   # Docs: https://developer.android.com/reference/java/lang/String#format(java.lang.String,%20java.lang.Object...)
   - javaClass: java.lang.String
     hookSettings:
-      stackTraceFilter: ['^org\.owasp\.']
+      callerFilter: ['^org\.owasp\.']
     hooks:
       - equals
       - format

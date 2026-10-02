@@ -16,7 +16,7 @@ settings:
     platformStackTrace: true
     nativeStackTrace: true
     maxStackFrames: 1
-    stackTraceFilter: ['^org\.owasp\.mastestapp']
+    callerFilter: ['^libreceiveString\.so$']
   decoderSettings:
     maxItems: 10
 
@@ -33,6 +33,6 @@ hookCollection:
         retType: "char *"
 
 # Expected event after pressing Start:
-#   stackTrace:        2 frames in platformStackTrace and nativeStackTrace (hook collection: maxStackFrames 2); the stackTraceFilter keeps the event, as the first platform frame is in org.owasp.mastestapp
+#   stackTrace:        2 frames in platformStackTrace and nativeStackTrace (hook collection: maxStackFrames 2); the callerFilter keeps the event, as libreceiveString.so calls receive_cstring
 #   argsIn[0].value:   "Welcome the fir..."                     (hook collection: maxItems 15)
 #   returnValue.value: "Welcome the fir..."                     (hook collection: maxItems 15)

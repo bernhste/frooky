@@ -14,7 +14,7 @@ metadata:
 # Guardrails exercised:
 # - One warning per hook: "Capturing stack traces on high-frequency libc function ...".
 # - Calls on an alternate signal stack (`sigaltstack`) skip the backtrace: their events have empty stack traces.
-# - `stackTraceFilter` on `close` never matches: every call pays for the full stack walk, and no event is sent.
+# - `callerFilter` on `close` never matches: every call is dropped before decoding and the stack walk.
 #
 # Known gap: no `platformStackTrace` on the libc functions. A Java stack trace enters the Java VM from inside
 # the call; with `write` this hangs the app during startup (ANR), as the caller can hold a lock that the VM
@@ -52,7 +52,7 @@ hookCollection:
           - [mode_t, mode]
       - symbol: close
         hookSettings:
-          stackTraceFilter: ['frooky-never-matches']
+          callerFilter: ['frooky-never-matches']
         retType: int
         params:
           - [int, fd, { decoder: fd }]

@@ -79,10 +79,10 @@ export function validateAndRepairHookSettings(settings: InputHookSettings): Hook
   const validHookSettings: HookSettings = { ...DEFAULT_HOOK_SETTINGS, ...settings };
 
   // an invalid pattern would throw on every intercepted call
-  const invalidPatterns = validHookSettings.stackTraceFilter.filter((pattern) => !isValidRegExp(pattern));
+  const invalidPatterns = validHookSettings.callerFilter.filter((pattern) => !isValidRegExp(pattern));
   if (invalidPatterns.length > 0) {
-    validHookSettings.stackTraceFilter = validHookSettings.stackTraceFilter.filter((pattern) => !invalidPatterns.includes(pattern));
-    logger.warn(`Hook setting 'stackTraceFilter' contains invalid regular expressions, which are ignored: ${invalidPatterns.join(", ")}`);
+    validHookSettings.callerFilter = validHookSettings.callerFilter.filter((pattern) => !invalidPatterns.includes(pattern));
+    logger.warn(`Hook setting 'callerFilter' contains invalid regular expressions, which are ignored: ${invalidPatterns.join(", ")}`);
   }
 
   logger.debug(`frooky hook settings are valid`);

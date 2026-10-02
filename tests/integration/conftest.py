@@ -317,7 +317,7 @@ def _wait_for_events(process, chunks, output_file_path):
 
 def _wait_after_click_with_no_events_expected(process, chunks):
     """For tests where the click should legitimately produce zero events (e.g. an event-level
-    stackTraceFilter that matches nothing): give the last batch time to arrive, without treating
+    callerFilter that matches nothing): give the last batch time to arrive, without treating
     an empty output.json as a failure."""
     time.sleep(FROOKY_EVENT_SETTLE)
     if process.poll() is not None:
@@ -341,7 +341,7 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, m
         """Launch target_app, attach frooky with hook_file_yaml, then click Start.
 
         Set expect_events=False for a hook file that's expected to legitimately produce zero
-        events (e.g. an event-level stackTraceFilter matching nothing) - otherwise the normal
+        events (e.g. an callerFilter matching nothing) - otherwise the normal
         "wait for the first event" step would time out waiting for something that never comes.
         """
         app_bundle_id = f"{target_app.replace('-', '_')}.frooky.target.app"

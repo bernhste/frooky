@@ -1,0 +1,29 @@
+metadata:
+  name: "Hook Settings (Android): callerFilter"
+  description: |
+    `callerFilter` only records a call if a method on its Java stack matches one of the regular expressions,
+    e.g. to keep the calls an SDK makes and drop those of the app's own code.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/05_hook_settings/02_caller_filter.yaml
+# See:    docs/additional-features.md#caller-filters
+#
+# What the filter matches:
+# - Each Java method on the stack as "<class>.<method>", without file and line.
+# - The whole stack, not only the direct caller, but not the hooked method itself.
+# - It needs no stack trace: `platformStackTrace` only decides whether the event contains the frames.
+
+hookCollection:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hookSettings:
+      callerFilter: ['^org\.owasp\.mastestapp\.ThirdPartySdk\.']
+    hooks:
+      # called directly by mastgTest ("button_click") and through ThirdPartySdk.flush ("sdk_flush")
+      - trackEvent
+
+# Expected events:
+#   trackEvent: only "sdk_flush". mastgTest is on the stack of both calls, so '^org\.owasp\.mastestapp\.MastgTest\.'
+#   would keep both.

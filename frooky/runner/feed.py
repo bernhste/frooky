@@ -113,11 +113,13 @@ _STATISTIC_STATES = {"installed": "hooked", "waiting": "waiting", "pending": "pe
 
 def format_hook_statistics(statistics: list[dict]) -> Table:
     """The table the `i` key prints: one row per hook declaration (see HookStatistic in FrookyAgent.ts), hooked ones
-    first, with the overloads or functions it hooks and their events, or the class or module it waits for."""
+    first, with the overloads or functions it hooks, their events and the calls their filters dropped, or the class
+    or module it waits for."""
     table = Table(box=None, padding=(0, 2), pad_edge=False, header_style="bold", title="Hook statistics", title_justify="left", title_style="bold")
     table.add_column("State", no_wrap=True)
     table.add_column("Hooks", justify="right")
     table.add_column("Events", justify="right")
+    table.add_column("Filtered", justify="right")
     table.add_column("Target", overflow="fold")
     table.add_column("File", no_wrap=True)
     table.add_column("Waits for", overflow="fold")
@@ -130,12 +132,13 @@ def format_hook_statistics(statistics: list[dict]) -> Table:
             Text(_STATISTIC_STATES.get(row["state"], row["state"]), style="" if installed else "bold gold1"),
             f"{row['hooked']:,}" if installed else "-",
             f"{row['events']:,}" if installed else "-",
+            f"{row.get('filtered', 0):,}" if installed else "-",
             row["target"],
             row["config"],
             row["waitsFor"] if waiting else "",
         )
     if not rows:
-        table.add_row("-", "-", "-", "no hooks loaded", "", "")
+        table.add_row("-", "-", "-", "-", "no hooks loaded", "", "")
     return table
 
 

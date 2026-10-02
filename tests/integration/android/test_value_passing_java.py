@@ -336,42 +336,30 @@ class TestValuePassingJava:
         assert len(events) == 1
         assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
 
-    def test_stack_trace_filter_keeps_event_when_a_frame_matches(self, run_frooky, find_matched_events):
-        """`stackTraceFilter` is an event-level gate: if any captured frame matches, the whole
-        (unfiltered) stack trace is kept - individual non-matching frames are not trimmed."""
-        events = self._receive_string_events(run_frooky, find_matched_events, "{platformStackTrace: true, maxStackFrames: 5, stackTraceFilter: ['^org\\.owasp\\.mastestapp']}")
+    def test_caller_filter_keeps_event_when_a_caller_matches(self, run_frooky, find_matched_events):
+        """`callerFilter` keeps the call if a method on the Java stack matches. It needs no stack trace, so the
+        event has none."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{callerFilter: ['^org\\.owasp\\.mastestapp\\.']}")
 
         assert len(events) == 1
-        platform_frames = events[0]["stackTrace"]["platformStackTrace"]
-        assert 0 < len(platform_frames) <= 5
-        assert any(frame.startswith("org.owasp.mastestapp") for frame in platform_frames)
+        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
 
-    def test_stack_trace_filter_drops_event_when_no_frame_matches(self, run_frooky, find_matched_events):
-        """If no captured frame matches any pattern, the whole event is dropped."""
-        events = self._receive_string_events(
-            run_frooky,
-            find_matched_events,
-            "{platformStackTrace: true, maxStackFrames: 5, stackTraceFilter: ['^this\\.matches\\.nothing']}",
-            expect_events=False,
-        )
+    def test_caller_filter_keeps_the_requested_stack_trace(self, run_frooky, find_matched_events):
+        """A kept event has the stack trace `platformStackTrace` asks for, whatever frames the filter matched."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{platformStackTrace: true, maxStackFrames: 2, callerFilter: ['^org\\.owasp\\.mastestapp\\.']}")
 
-        assert events == []
+        assert len(events) == 1
+        assert len(events[0]["stackTrace"]["platformStackTrace"]) == 2
 
-    def test_stack_trace_filter_only_searches_the_first_max_stack_frames(self, run_frooky, find_matched_events):
-        """With `maxStackFrames: 1` only the hooked method's own frame is searched, so a pattern that only
-        matches its callers drops the event."""
-        events = self._receive_string_events(
-            run_frooky,
-            find_matched_events,
-            "{platformStackTrace: true, maxStackFrames: 1, stackTraceFilter: ['^org\\.owasp\\.mastestapp\\.MainActivity']}",
-            expect_events=False,
-        )
+    def test_caller_filter_drops_event_when_no_caller_matches(self, run_frooky, find_matched_events):
+        """If no method on the Java stack matches any pattern, the whole event is dropped."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{callerFilter: ['^this\\.matches\\.nothing']}", expect_events=False)
 
         assert events == []
 
-    def test_stack_trace_filter_drops_every_event_without_captured_frames(self, run_frooky, find_matched_events):
-        """A `stackTraceFilter` only searches captured frames: with no stack trace enabled nothing can match."""
-        events = self._receive_string_events(run_frooky, find_matched_events, "{stackTraceFilter: ['^org\\.owasp\\.mastestapp']}", expect_events=False)
+    def test_caller_filter_does_not_match_the_hooked_method(self, run_frooky, find_matched_events):
+        """The hooked method is on top of the Java stack, but it isn't its own caller."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{callerFilter: ['^org\\.owasp\\.mastestapp\\.MastgTest\\.receiveString$']}", expect_events=False)
 
         assert events == []
 

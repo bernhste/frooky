@@ -12,11 +12,6 @@ export interface HookSettings {
   maxStackFrames: number;
 
   /**
-   * Regular expressions matched against stack frames. The event is only captured if at least one frame matches. Default: `[]`.
-   */
-  stackTraceFilter: string[];
-
-  /**
    * Whether to capture native (C/C++) stack frames. Default: `false`.
    */
   nativeStackTrace: boolean;
@@ -25,6 +20,13 @@ export interface HookSettings {
    * Whether to capture platform (managed runtime, e.g. Java) stack frames. Default: `false`.
    */
   platformStackTrace: boolean;
+
+  /**
+   * Regular expressions; the call is only captured if its caller matches one of them. Java hooks match the methods
+   * on the Java stack as `<class>.<method>`, e.g. `'^com\.myapp\.'`. Native hooks match the name of the module
+   * that called the function directly, e.g. `'^libapp\.so$'`. Default: `[]`.
+   */
+  callerFilter: string[];
 }
 
 /**

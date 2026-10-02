@@ -1,6 +1,6 @@
 # Additional Settings and Best Practices
 
-frooky supports two kinds of settings that can be used regardless of hook type: `hookSettings` (which configure stack traces and stack filtering, see [Stack Traces](#stack-traces)) and `decoderSettings` (which configure parameter and return value decoding, see [Decoders](./decoders.md)).
+frooky supports two kinds of settings that can be used regardless of hook type: `hookSettings` (which configure stack traces and caller filters, see [Stack Traces](#stack-traces) and [Caller Filters](#caller-filters)) and `decoderSettings` (which configure parameter and return value decoding, see [Decoders](./decoders.md)).
 
 <!-- TOC -->
 
@@ -10,8 +10,13 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
   - [General Settings](#general-settings)
   - [Skipped Stack Traces](#skipped-stack-traces)
   - [Platform vs. Native Stack Traces](#platform-vs-native-stack-traces)
-  - [Stack Trace Filtering](#stack-trace-filtering)
-  - [Dangerous Low-Level, Early, and High-Frequency Hooks](#dangerous-low-level-early-and-high-frequency-hooks)
+- [Caller Filters](#caller-filters)
+  - [Java Hooks](#java-hooks)
+  - [Native Hooks](#native-hooks)
+  - [Performance](#performance)
+  - [Pitfalls](#pitfalls)
+- [Dangerous Low-Level, Early, and High-Frequency Hooks](#dangerous-low-level-early-and-high-frequency-hooks)
+  - [Blocked Functions](#blocked-functions)
 - [Custom User Scripts](#custom-user-scripts)
 - [Hot-Reloading and Watch Mode](#hot-reloading-and-watch-mode)
   - [Watch Mode (`-w` / `--watch`)](#watch-mode--w----watch)
@@ -72,7 +77,7 @@ The examples in [`examples/android/06_settings_precedence/`](./examples/android/
 A Java method or native function can be hooked more than once, e.g. by two hook files that both hook `javax.crypto.Cipher.init`, or by two declarations in one file with different parameters, filters or settings. Every hook records its own event on each call, decoded with its own `params`, `retType`, `decoderSettings` and `hookSettings`. Java and native hooks behave the same:
 
 - The hooked method or function still runs once per call. Only the number of events changes.
-- Each hook applies its own filters. If one hook's `argFilter` or `stackTraceFilter` doesn't match, the other hooks still record the call.
+- Each hook applies its own filters. If one hook's `argFilter` or `callerFilter` doesn't match, the other hooks still record the call.
 - Removing a hook, e.g. by deleting it from a hook file while frooky runs with `--watch`, stops only that hook's events. The method or function is restored once no hook is left on it.
 - A declaration that is repeated identically in the same hook file is only hooked once.
 - The events of all hooks on one call carry the same [`hashCode`](./output.md): of the Java instance, or of the native function's address.
@@ -98,18 +103,18 @@ See [`examples/android/07_multiple_hooks/`](./examples/android/07_multiple_hooks
 
 ## Stack Traces
 
-Capturing stack traces provides visibility into the execution path leading up to a hooked method or function. All stack trace capture and filtering settings are declared under `hookSettings`.
+Capturing stack traces provides visibility into the execution path leading up to a hooked method or function. All stack trace and caller filter settings are declared under `hookSettings`.
 
 ### General Settings
 
-`hookSettings` controls how a hook captures and filters stack traces, independent of argument/return value decoding:
+`hookSettings` controls stack traces and which callers a hook records, independent of argument/return value decoding:
 
-| Setting              | Type       | Default | Description                                                                                                                                                                                                                                                                       |
-| -------------------- | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `maxStackFrames`     | `number`   | `5`     | Limits the number of frames captured per event, separately for the native and the platform stack trace. With a `stackTraceFilter`, it also limits how deep the filter searches.                                                                                                   |
-| `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames. Native hooks only: Java hooks have no native context and always capture an empty native stack trace.                                                                                                                              |
-| `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames. For a native hook, these are the Java frames that led to the native call, if it was called from Java.                                                                                           |
-| `stackTraceFilter`   | `string[]` | `[]`    | Regular expressions; the event is only captured if at least one captured stack frame matches one of them. Only the enabled stack traces are searched, so without `nativeStackTrace` or `platformStackTrace` every event is dropped. A match keeps the whole captured stack trace. |
+| Setting              | Type       | Default | Description                                                                                                                                                                                                                                                           |
+| -------------------- | ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxStackFrames`     | `number`   | `5`     | Limits the number of frames captured per event, separately for the native and the platform stack trace. It doesn't limit the caller filters.                                                                                                                          |
+| `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames. Native hooks only: Java hooks have no native context and always capture an empty native stack trace.                                                                                                                  |
+| `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames. For a native hook, these are the Java frames that led to the native call, if it was called from Java.                                                                               |
+| `callerFilter`       | `string[]` | `[]`    | Regular expressions; a call is only recorded if its caller matches one of them. Java hooks match the methods on the Java stack (e.g. `'^com\.myapp\.'`), native hooks the module of the direct caller (e.g. `'^libapp\.so$'`). See [Caller Filters](#caller-filters). |
 
 In the output events, captured stack traces appear in the `stackTrace` object with separate arrays for `platformStackTrace` and `nativeStackTrace` (see [Output Format](./output.md)):
 
@@ -145,7 +150,7 @@ Some calls happen where walking the stack can crash or hang the app. frooky dete
 }
 ```
 
-A hook with a `stackTraceFilter` drops these calls, as the filter can't be checked. With `before-ready`, the filter is checked against the native frames.
+A Java hook with a `callerFilter` drops these calls, as the filter can't be checked. This includes `before-ready`, when the app's own Java code hasn't run yet. A native hook's `callerFilter` needs no stack walk and is checked in every call.
 
 ### Platform vs. Native Stack Traces
 
@@ -170,71 +175,104 @@ frooky distinguishes between managed runtime frames and native C/C++ frames:
 
 See [`examples/android/05_hook_settings/01_platform_stack_trace.yaml`](./examples/android/05_hook_settings/01_platform_stack_trace.yaml) and [`examples/native/05_hook_settings/01_native_and_platform_stack_traces.yaml`](./examples/native/05_hook_settings/01_native_and_platform_stack_traces.yaml) for complete examples.
 
-### Stack Trace Filtering
+## Caller Filters
 
-Widely used methods (such as `android.util.Log`, `SharedPreferences`, or crypto APIs) generate significant event noise because framework services, background tasks, and third-party SDKs call them constantly.
+Widely used methods and functions (such as `SharedPreferences`, crypto APIs, or libc's `fopen` and `strstr`) generate a lot of noise, because the framework, system libraries and third-party SDKs call them constantly. `callerFilter` records a call only if it comes from code you are interested in, usually the app's own packages or native libraries. It is a list of regular expressions under `hookSettings`, and what it matches depends on the hook:
 
-To isolate calls originating from the target app, frooky can filter events using regular expressions on stack frames via `stackTraceFilter`.
+| Hook        | Matches                            | Searches               | Cost per call                  |
+| ----------- | ---------------------------------- | ---------------------- | ------------------------------ |
+| Java hook   | Java methods as `<class>.<method>` | The whole Java stack   | A walk of the whole Java stack |
+| Native hook | Module names, e.g. `libapp.so`     | The direct caller only | A few address comparisons      |
 
-**How stack trace filtering works:**
+A call that doesn't match is dropped before its values are decoded and before any stack trace is built. `callerFilter` doesn't need `nativeStackTrace` or `platformStackTrace`; those only decide what the recorded event contains. An empty list means no filter.
 
-- Each pattern is a regular expression tested against individual frame strings (e.g. `'^org\.owasp\.mastestapp'`).
-- Both `platformStackTrace` and `nativeStackTrace` frames are searched.
-- The filter only searches the captured frames up to `maxStackFrames`. For example, with `maxStackFrames: 1`, only the direct caller (or the hooked method itself on Java) is tested.
-- **Requires an enabled stack trace:** The filter inspects captured frames. If neither `platformStackTrace` nor `nativeStackTrace` is enabled, or if `maxStackFrames: 0`, every event is dropped.
-- **Whole-event retention:** If at least one frame matches any pattern in `stackTraceFilter`, the entire event is preserved along with all its captured frames and arguments. If no frames match, the event is discarded.
+A file-level `callerFilter` can mix both kinds of patterns, e.g. `['^com\.myapp\.', '^libapp\.so$']`: a package pattern never matches a module name, and a module pattern never matches a Java method.
 
-**Example: Filtering `SharedPreferences` to App Code**
+### Java Hooks
 
-The Android framework and its libraries use `SharedPreferences` internally. For example, `EncryptedSharedPreferences` (using Google Tink) calls `putString` when initializing keysets:
+For a Java hook, `callerFilter` searches the Java stack of the call for a matching method:
+
+- Each Java frame is matched as `<class>.<method>`, e.g. `org.owasp.mastestapp.MastgTest.mastgTest`, without file and line. A pattern on a package prefix (`'^org\.owasp\.mastestapp\.'`) selects an app's or SDK's code; a pattern on a method selects single call sites.
+- The whole Java stack is searched, not only the direct caller, and `maxStackFrames` doesn't limit it. A call the app makes through a library (e.g. the app → OkHttp → Conscrypt → `Cipher.init`) is recorded, because the app's method is further down the stack.
+- The hooked method itself, on top of the stack, isn't searched.
+- It walks the Java stack in every call, which costs as much as `platformStackTrace: true`. In the calls listed in [Skipped Stack Traces](#skipped-stack-traces) it can't be checked, and these calls are dropped.
+
+**Example:** record the `trackEvent` calls that go through an SDK:
 
 ```yaml
-javaClass: android.app.SharedPreferencesImpl$EditorImpl
+javaClass: org.owasp.mastestapp.MastgTest
 hookSettings:
-  platformStackTrace: true
-  stackTraceFilter: ["^org\\.owasp\\.mastestapp"]
+  callerFilter: ['^org\.owasp\.mastestapp\.ThirdPartySdk\.']
 hooks:
-  - putString
+  - trackEvent
 ```
 
-Without `stackTraceFilter`, frooky captures internal OS and library events such as:
+The app calls `trackEvent` directly from `mastgTest` and through `ThirdPartySdk.flush`. Only the second call is recorded. `'^org\.owasp\.mastestapp\.MastgTest\.'` would record both, as `mastgTest` is on the stack of both.
 
-```json
-{
-  "id": "169a35b1-da19-492f-a90c-74d7cc5bdb3a",
-  "timestamp": "2026-02-09T09:08:32.125Z",
-  "type": "hook-java",
-  "javaClassName": "android.app.SharedPreferencesImpl$EditorImpl",
-  "method": "putString",
-  "fieldType": { "fieldType": "instance" },
-  "stackTrace": {
-    "platformStackTrace": [
-      "android.app.SharedPreferencesImpl$EditorImpl.putString (Native Method)",
-      "com.google.crypto.tink.integration.android.SharedPrefKeysetWriter.write (SharedPrefKeysetWriter.java:70)",
-      "com.google.crypto.tink.KeysetHandle.writeWithAssociatedData (KeysetHandle.java:869)",
-      "com.google.crypto.tink.KeysetHandle.write (KeysetHandle.java:858)",
-      "com.google.crypto.tink.integration.android.AndroidKeysetManager$Builder.generateKeysetAndWriteToPrefs (AndroidKeysetManager.java:353)",
-      "com.google.crypto.tink.integration.android.AndroidKeysetManager$Builder.build (AndroidKeysetManager.java:292)",
-      "androidx.security.crypto.EncryptedSharedPreferences.create (EncryptedSharedPreferences.java:169)",
-      "androidx.security.crypto.EncryptedSharedPreferences.create (EncryptedSharedPreferences.java:131)"
-    ],
-    "nativeStackTrace": []
-  },
-  "argsIn": [
-    {
-      "type": "java.lang.String",
-      "name": "key",
-      "value": "__androidx_security_crypto_encrypted_prefs_key_keyset__"
-    }
-  ]
-}
+The same applies to library code the app uses: `EncryptedSharedPreferences` (Google Tink) calls `SharedPreferences.Editor.putString` when it creates its keyset. With `callerFilter: ['^org\.owasp\.mastestapp\.']`, that call is recorded if the app called `EncryptedSharedPreferences.create`. A `putString` of a framework component on its own thread has no app method on its stack and is dropped.
+
+### Native Hooks
+
+For a native hook, `callerFilter` checks the module of the call's return address, i.e. the module that called the function directly:
+
+- On arm64, `bl` stores the return address in the link register; on x86/x86_64, `call` pushes it onto the stack. frooky reads it when the function is entered, without a stack walk or symbol lookup.
+- frooky keeps the address ranges of the modules whose name matches a pattern, and updates them when such a module is loaded or unloaded. A call is recorded if its return address is inside one of these ranges. Before a matching module is loaded, no call is recorded.
+- The patterns are matched against module names (e.g. `libreceiveString.so`), not paths.
+- Java frames aren't searched: a native function that Java code calls through JNI has `libart.so`, the JNI method's library or JIT-compiled code as its caller.
+
+**Example:** record the files the app's own native library opens, and drop every `fopen` and `unlink` of ART, the framework and the system libraries:
+
+```yaml
+module: libc.so
+hookSettings:
+  callerFilter: ['^libreceiveString\.so$']
+hooks:
+  - symbol: fopen
+    retType: "void *"
+    params:
+      - ["const char *", pathname]
+      - ["const char *", mode]
+  - symbol: unlink
+    retType: [int, { decoder: errno }]
+    params:
+      - ["const char *", pathname]
 ```
 
-Because none of the stack frames match `^org\.owasp\.mastestapp`, this event is filtered out. Only calls originating from classes within `org.owasp.mastestapp` are recorded.
+| Caller                               | Return address in                         | Recorded |
+| ------------------------------------ | ----------------------------------------- | -------- |
+| `read_status()` → `fopen`            | `libreceiveString.so`                     | yes      |
+| `delete_cache()` → `unlink`          | `libreceiveString.so`                     | yes      |
+| ART or a framework library → `fopen` | e.g. `libart.so`, `libandroid_runtime.so` | no       |
 
-See [`examples/android/05_hook_settings/02_stack_trace_filter.yaml`](./examples/android/05_hook_settings/02_stack_trace_filter.yaml) and [`examples/native/05_hook_settings/02_stack_trace_filter.yaml`](./examples/native/05_hook_settings/02_stack_trace_filter.yaml) for full examples.
+To record native calls that the app's Java code causes, hook the Java API instead (e.g. `FileInputStream` instead of `open`), or capture `platformStackTrace` and filter the events afterwards.
 
-### Dangerous Low-Level, Early, and High-Frequency Hooks
+### Performance
+
+The figures below are orders of magnitude on an arm64 device, not measurements:
+
+| Per call                                           | Cost                                         |
+| -------------------------------------------------- | -------------------------------------------- |
+| An unhooked `memset` on a small buffer             | ~10 ns                                       |
+| Entering a hook's JavaScript code                  | ~2-5 µs, and the threads wait for each other |
+| `callerFilter` of a native hook                    | + well under 1 µs                            |
+| Decoding the values and sending the event          | + ~10-50 µs                                  |
+| Native stack trace                                 | + ~35 µs per frame to symbolize              |
+| Java stack trace, or `callerFilter` of a Java hook | + 100 µs to several ms                       |
+
+On a native hook, a call that `callerFilter` drops costs little more than entering the hook: no decoding, no stack walk, no check for [unsafe calls](#skipped-stack-traces), no event. That makes the filter worthwhile on functions such as `open` or `strstr`, which run hundreds or thousands of times per second.
+
+It doesn't make functions that run millions of times per second cheap, such as `malloc` or `memset`. The filter runs in JavaScript, so every call still enters the JavaScript engine and waits for the lock all hooks share. At a million calls per second, that alone takes seconds of CPU time per second.
+
+### Pitfalls
+
+- **Calls inside libc:** a native hook's `callerFilter` only sees the direct caller. When the app calls `fopen`, libc's `fopen` calls `open` itself, so the caller of that `open` is `libc.so`. Hook the function the app calls, here `fopen`. Adding `libc.so` to the filter records the calls of the whole process.
+- **Fortified calls:** apps built with `_FORTIFY_SOURCE` call checked variants for some functions, e.g. `__open_2` for `open` without a mode, or `__memset_chk` for `memset`. A hook on `open` doesn't see these calls, with or without a filter. Hook the variants as well.
+- **Inlined calls:** compilers replace small calls such as `memset(buf, 0, 16)` with a few instructions. These never reach libc and can't be hooked.
+- **Tail calls:** if a function ends with `return memset(...)`, the compiler can jump to `memset` instead of calling it. The return address then belongs to the caller's caller.
+
+See [`examples/android/05_hook_settings/02_caller_filter.yaml`](./examples/android/05_hook_settings/02_caller_filter.yaml) and [`examples/native/05_hook_settings/02_caller_filter.yaml`](./examples/native/05_hook_settings/02_caller_filter.yaml) for full examples.
+
+## Dangerous Low-Level, Early, and High-Frequency Hooks
 
 Capturing stack traces and hooking low-level primitives carries stability and recursion risks, especially on high-frequency libc functions such as `open`, `openat`, `close`, `read`, `write`, `mmap`, `mprotect`, `malloc`, `free`, `memcpy`, or `memset`:
 
@@ -255,8 +293,22 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 **Recommendations for low-level and high-frequency hooks:**
 
 1. **Keep stack traces disabled** on high-frequency libc functions (`nativeStackTrace: false`, `platformStackTrace: false`).
-2. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
-3. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
+2. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: ['^libapp\.so$']`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
+3. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
+4. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
+
+### Blocked Functions
+
+A hook on some low-level functions breaks the app, whatever the hook file says. frooky skips these hooks, or their stack traces, with a warning:
+
+| Function                                                 | Runtime | Blocked      | Why                                                                                                                                       |
+| -------------------------------------------------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | all     | hook         | Frida's Interceptor uses them itself: installing the hook hangs the app.                                                                  |
+| `dlopen` (`libdl.so`)                                    | all     | hook         | The linker picks the namespace by the caller's address, which the hook changes, so system libraries (e.g. graphics drivers) fail to load. |
+| `memset`, `clock_gettime` (`libc.so`)                    | V8      | hook         | V8 calls them itself while it runs a hook, which re-enters V8 and crashes the app (`SIGTRAP`). Use QuickJS to hook them.                  |
+| `sigprocmask` (`libc.so`)                                | all     | stack traces | The native stack walk crashes the app in it. A `callerFilter` still works, as it needs no stack walk.                                     |
+
+The list comes from hooking about 50 low-level libc and libdl functions on Android 15, with and without stack traces, under both runtimes. `android_dlopen_ext` and `dlsym` also depend on the caller's address but didn't break the test app, so they aren't blocked. Hooks declared with `offset` aren't checked.
 
 See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml), [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml) and [`examples/native/08_early_hooking/02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) for full examples.
 
@@ -325,15 +377,15 @@ frooky -U -f com.example.app -t 30 hooks.yaml
 
 ### Hook Statistics (`i` / `I` Key)
 
-While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not resolved, how many overloads or functions it hooks, and how many events these recorded so far.
+While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not resolved, how many overloads or functions it hooks, how many events these recorded so far, and how many calls their `callerFilter` or `argFilter`s dropped. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
 
 ```text
 Hook statistics
-State         Hooks  Events  Target                       File        Waits for
-hooked            3      41  javax.crypto.Cipher.init     hooks.yaml
-hooked            1   1,234  libc.so!open                 hooks.yaml
-waiting           -       -  com.example.Plugin.run       hooks.yaml  Java class 'com.example.Plugin'
-not resolved      -       -  libc.so!nope                 hooks.yaml
+State         Hooks  Events  Filtered  Target                       File        Waits for
+hooked            3      41         0  javax.crypto.Cipher.init     hooks.yaml
+hooked            1   1,234    56,789  libc.so!open                 hooks.yaml
+waiting           -       -         -  com.example.Plugin.run       hooks.yaml  Java class 'com.example.Plugin'
+not resolved      -       -         -  libc.so!nope                 hooks.yaml
 ```
 
 ## JavaScript Runtime: QuickJS vs. V8
@@ -356,7 +408,7 @@ frooky -U -f com.example.app --runtime v8 hooks.yaml
 
 **Limitations of V8:**
 
-- A hook on libc's `memset`, even an empty one, hangs or crashes the app (`SIGTRAP`) as soon as native code calls into JavaScript, e.g. when Android calls frooky's Java hooks. Use QuickJS to hook `memset`.
+- Hooks on libc's `memset` and `clock_gettime` are skipped, see [Blocked Functions](#blocked-functions).
 - The [Native Crash Reporter](#native-crash-reporter) is disabled.
 
 ## Native Crash Reporter

@@ -1,0 +1,41 @@
+metadata:
+  name: "Hook Settings (Native): callerFilter"
+  description: |
+    `callerFilter` only records a call if the module that called the function directly matches one of the
+    regular expressions, e.g. to keep the libc calls of the app's own library and drop those of the system.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/05_hook_settings/02_caller_filter.yaml
+# See:    docs/additional-features.md#caller-filters
+#
+# What the filter matches:
+# - The name of the module that contains the call's return address, e.g. "libreceiveString.so". It needs no
+#   stack trace and only compares addresses, so calls from other modules stay cheap.
+# - Only the direct caller: libc's fopen calls open itself, so a hook on open sees libc.so as the caller of
+#   read_status()'s file. Hook the function the app calls.
+
+hookCollection:
+  - module: libc.so
+    hookSettings:
+      callerFilter: ['^libreceiveString\.so$']
+    hooks:
+      # read_status() calls fopen once per "Start"
+      # Docs: https://www.man7.org/linux/man-pages/man3/fopen.3.html
+      - symbol: fopen
+        retType: "void *"
+        params:
+          - ["const char *", pathname]
+          - ["const char *", mode]
+      # delete_cache() calls unlink on a file that doesn't exist
+      # Docs: https://www.man7.org/linux/man-pages/man2/unlink.2.html
+      - symbol: unlink
+        retType: [int, { decoder: errno }]
+        params:
+          - ["const char *", pathname]
+
+# Expected events:
+#   fopen:  pathname "/proc/self/status", mode "r". No fopen of ART, the framework or a system library.
+#   unlink: pathname "/proc/self/frooky-missing-cache", returnValue {value: -1, errno: {number: 2, name: "ENOENT", ...}}

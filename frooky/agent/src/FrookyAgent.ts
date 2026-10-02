@@ -91,7 +91,7 @@ export type HookProgress = { hooked: number; pending: number; waiting: number; f
 
 // One hook declaration for the host's hook statistics (`i` key). `target` is e.g. `com.example.Foo.bar` or
 // `libfoo.so!open`, `waitsFor` the class or module it waits for, `hooked` how many overloads or functions it hooks,
-// and `events` how many events these recorded.
+// `events` how many events these recorded, and `filtered` how many calls their callerFilter or argFilters dropped.
 export type HookStatistic = {
   config: string;
   target: string;
@@ -99,6 +99,7 @@ export type HookStatistic = {
   waitsFor: string;
   hooked: number;
   events: number;
+  filtered: number;
 };
 
 // Installed hooks (one per overload or function), declarations waiting for their class or module, and
@@ -476,6 +477,7 @@ export class FrookyAgent {
           waitsFor: entry.waitsFor,
           hooked: entry.hookedCount ?? 0,
           events: (entry.hooks ?? []).reduce((count, hook) => count + (this.eventCounts.get(hook) ?? 0), 0),
+          filtered: (entry.hooks ?? []).reduce((count, hook) => count + (hook.filteredCalls ?? 0), 0),
         });
       }
     }

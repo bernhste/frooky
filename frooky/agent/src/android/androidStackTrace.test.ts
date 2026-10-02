@@ -1,5 +1,7 @@
 import Java from "frida-java-bridge";
 import { nativeStackFrames } from "../native/nativeStackTrace";
+import { DEFAULT_HOOK_SETTINGS } from "../shared/defaultValues";
+import { HookSettings } from "../shared/frookySettings";
 import { UnsafeContext } from "../shared/platformStackTrace";
 import { FilterMismatchError } from "../shared/utils";
 import { sleepMilliseconds } from "../shared/utils";
@@ -40,7 +42,9 @@ async function untilHooked(call: () => void, fired: () => boolean): Promise<void
   }
 }
 
-type Variant = { unsafeContext?: UnsafeContext; stackTraceFilter?: string[] };
+const settings: HookSettings = DEFAULT_HOOK_SETTINGS;
+
+type Variant = { unsafeContext?: UnsafeContext; callerFilter?: string[] };
 
 // calls a native function and returns what build() produced (or threw) for each variant, and what
 // nativeStackFrames() produced, all from inside the same hook call
@@ -48,12 +52,11 @@ async function buildInNativeHook(limit: number, variants: Variant[] = [{}]): Pro
   let result: { built: unknown[]; native: string[] } | undefined;
   const listener = Interceptor.attach(cm.identity, {
     onEnter() {
-      const built = variants.map(({ unsafeContext, stackTraceFilter = [] }) => {
+      const built = variants.map(({ unsafeContext, callerFilter = [] }) => {
         try {
           return AndroidStackTrace.build(
-            { maxStackFrames: limit, stackTraceFilter, nativeStackTrace: true, platformStackTrace: true },
-            this.context,
-            unsafeContext,
+            { ...settings, maxStackFrames: limit, nativeStackTrace: true, platformStackTrace: true, callerFilter },
+            { ctx: this.context, unsafeContext, filterCallers: true },
           );
         } catch (e) {
           return e;
@@ -77,12 +80,12 @@ async function buildInNativeHook(limit: number, variants: Variant[] = [{}]): Pro
 // one hook for the whole file: attaching to the same function again after a detach can take a long
 // time to be committed
 describe("AndroidStackTrace.build() in an unsafe context", () => {
-  it("captures no frames and names the reason, drops calls whose stackTraceFilter can't be checked, and captures only native frames before the app is ready", async () => {
+  it("captures no frames and names the reason, drops calls whose callerFilter can't be checked, and captures only native frames before the app is ready", async () => {
     const { built, native } = await buildInNativeHook(4, [
       { unsafeContext: "signal-stack" },
-      { unsafeContext: "in-linker", stackTraceFilter: [".*"] },
+      { unsafeContext: "in-linker", callerFilter: [".*"] },
       { unsafeContext: "before-ready" },
-      { unsafeContext: "before-ready", stackTraceFilter: ["^this-matches-no-frame$"] },
+      { unsafeContext: "before-ready", callerFilter: [".*"] },
     ]);
     const [signalStack, inLinkerFiltered, beforeReady, beforeReadyFiltered] = built;
     expect(signalStack).toEqual({ platformStackTrace: [], nativeStackTrace: [], skipped: "signal-stack" });
@@ -90,6 +93,34 @@ describe("AndroidStackTrace.build() in an unsafe context", () => {
     expect(native.length).toBeGreaterThan(0);
     expect(beforeReady).toEqual({ platformStackTrace: [], nativeStackTrace: native, skipped: "before-ready" });
     expect(beforeReadyFiltered instanceof FilterMismatchError).toBeTruthy();
+  });
+});
+
+describe("AndroidStackTrace.build() with a callerFilter", () => {
+  // on the main thread, which runs android.os.Looper.loop further down the stack
+  const build = (callerFilter: string[], filterCallers = true) =>
+    onMainThread(() => AndroidStackTrace.build({ ...settings, callerFilter }, { filterCallers }));
+  const dropped = async (callerFilter: string[]) =>
+    (await thrownBy(() => AndroidStackTrace.build({ ...settings, callerFilter }, { filterCallers: true }))) instanceof FilterMismatchError;
+
+  it("records a call with a matching method anywhere on the Java stack, without capturing frames", async () => {
+    expect(await build(["^android\\.os\\.Looper\\.loop$"])).toEqual({ platformStackTrace: [], nativeStackTrace: [] });
+  });
+
+  it("drops a call without a matching method", async () => {
+    expect(await dropped(["^this\\.matches\\.nothing$"])).toBe(true);
+  });
+
+  it("doesn't match the innermost frame, the hooked method of a Java hook", async () => {
+    const frames = await onMainThread(() =>
+      AndroidStackTrace.build({ ...settings, platformStackTrace: true, maxStackFrames: 1 }, { filterCallers: false }),
+    );
+    const innermost = frames.platformStackTrace[0].replace(/ \(.*$/, "").replace(/[.$]/g, "\\$&");
+    expect(await dropped([`^${innermost}$`])).toBe(true);
+  });
+
+  it("isn't checked without filterCallers", async () => {
+    expect(await build(["^this\\.matches\\.nothing$"], false)).toEqual({ platformStackTrace: [], nativeStackTrace: [] });
   });
 });
 

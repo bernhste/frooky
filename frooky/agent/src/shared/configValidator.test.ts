@@ -80,22 +80,22 @@ describe("configValidator", () => {
 
     it("fills in the default value for a missing property", () => {
       const incompleteInputHookSettings: InputHookSettings = {
-        stackTraceFilter: ["a", "b"],
+        callerFilter: ["a", "b"],
       };
       expect(validateAndRepairHookSettings(incompleteInputHookSettings)).toEqual({
         ...DEFAULT_HOOK_SETTINGS,
-        stackTraceFilter: ["a", "b"],
+        callerFilter: ["a", "b"],
       });
     });
 
     it("resets a property to its default and warns when it does not match the schema", () => {
       const incorrectInputHookSettings: InputHookSettings = {
         maxStackFrames: "incorrect" as unknown as number,
-        stackTraceFilter: ["a", "b"],
+        callerFilter: ["a", "b"],
       };
       expect(validateAndRepairHookSettings(incorrectInputHookSettings)).toEqual({
         ...DEFAULT_HOOK_SETTINGS,
-        stackTraceFilter: ["a", "b"],
+        callerFilter: ["a", "b"],
       });
 
       expect(warnSpy).toHaveBeenCalled();
@@ -104,15 +104,15 @@ describe("configValidator", () => {
       expect(message).toContain(`The value for 'maxStackFrames' was reset to the default: ${DEFAULT_HOOK_SETTINGS.maxStackFrames}`);
     });
 
-    it("drops invalid stackTraceFilter patterns and warns", () => {
+    it("drops invalid callerFilter patterns and warns", () => {
       const inputHookSettings: InputHookSettings = {
-        stackTraceFilter: ["^org\\.owasp\\.", "(unclosed", "[a-"],
+        callerFilter: ["^org\\.owasp\\.", "(unclosed", "[a-"],
       };
       expect(validateAndRepairHookSettings(inputHookSettings)).toEqual({
         ...DEFAULT_HOOK_SETTINGS,
-        stackTraceFilter: ["^org\\.owasp\\."],
+        callerFilter: ["^org\\.owasp\\."],
       });
-      expect(warnSpy).toHaveBeenCalledWith("Hook setting 'stackTraceFilter' contains invalid regular expressions, which are ignored: (unclosed, [a-");
+      expect(warnSpy).toHaveBeenCalledWith("Hook setting 'callerFilter' contains invalid regular expressions, which are ignored: (unclosed, [a-");
     });
 
     it("warns when the settings contain unknown properties", () => {
