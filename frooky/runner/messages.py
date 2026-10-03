@@ -10,14 +10,14 @@ from .output import OutputWriter
 def create_message_handler(
     output: OutputWriter,
     feed: Feed,
-    print_events: bool,
+    print_events: Callable[[], bool],
     on_event: Optional[Callable[[], None]] = None,
     on_progress: Optional[Callable[[dict], None]] = None,
     on_crash: Optional[Callable[[dict], None]] = None,
     on_batch: Optional[Callable[[], None]] = None,
 ):
     """Build the frooky agent's message callback: writes hook/log events to the output file
-    and optionally prints them to the feed, calling on_event after each event in a batch (or on_batch once per batch).
+    and prints them to the feed while print_events() returns True, calling on_event after each event in a batch (or on_batch once per batch).
     Hook resolving progress reports ({"frooky": "progress", "hooked": n, "resolving": n, "waiting": n, "notFound": n}) go to on_progress,
     crash reports ({"frooky": "crash", "type": ..., "address": ..., "backtrace": [...], "nativeHooks": [...]}) to on_crash."""
 
@@ -58,7 +58,7 @@ def create_message_handler(
             if on_batch:
                 on_batch()
 
-            if print_events:
+            if print_events():
                 for line in lines:
                     try:
                         event = json.loads(line)
@@ -77,7 +77,7 @@ def create_message_handler(
             if on_batch:
                 on_batch()
 
-            if print_events:
+            if print_events():
                 for event in payload:
                     feed.event(event)
             return

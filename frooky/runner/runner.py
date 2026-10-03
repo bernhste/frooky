@@ -48,6 +48,7 @@ class FrookyRunner:
         self._agent_crash: Optional[dict] = None
         self._reload_requested = threading.Event()
         self._statistics_requested = threading.Event()
+        self._print_events = options.print_events
         self._key_listener = KeyListener(self._on_key)
 
     def _stop_live_terminal(self):
@@ -65,8 +66,11 @@ class FrookyRunner:
         """Called on the key listener thread for every key press."""
         if key in ("r", "R"):
             self._reload_requested.set()
-        elif key in ("i", "I"):
+        elif key in ("s", "S"):
             self._statistics_requested.set()
+        elif key in ("e", "E"):
+            self._print_events = not self._print_events
+            self.feed.log("info", f"Printing events {'enabled' if self._print_events else 'disabled'}")
 
     def _print_hook_statistics(self) -> None:
         try:
@@ -217,7 +221,11 @@ class FrookyRunner:
 
         lines.append("")
         if self._key_listener.active:
-            lines.append("  Press R to reload the hook files and retry hooks that were not found, I for hook statistics, Ctrl+C to stop...")
+            lines.append("  Key     Function")
+            lines.append("  R       Reload the hook files and retry hooks that were not found")
+            lines.append("  S       Show hook statistics")
+            lines.append("  E       Show / hide events")
+            lines.append("  Ctrl+C  Stop")
         else:
             lines.append("  Press Ctrl+C to stop...")
         lines.append("")
@@ -302,7 +310,7 @@ class FrookyRunner:
                 create_message_handler(
                     self.output,
                     self.feed,
-                    self.options.print_events,
+                    lambda: self._print_events,
                     on_progress=self._on_progress,
                     on_crash=self._on_agent_crash,
                     on_batch=self._update_status_line,

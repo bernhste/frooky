@@ -245,9 +245,18 @@ class TestStatusBar:
         feed = self.make()
         bar = feed._status_bar
         bar.build(100.0, 100)
-        feed.status(2264 + 15, "libc.so: read")
+        feed.status(2264 + 6, "libc.so: read")
 
-        assert "Event Rate   7.5/s" in bar.build(102.0, 100).plain
+        assert "Event Rate   7.5/s" in bar.build(100.8, 100).plain
+
+    def test_drops_events_older_than_the_rate_window(self):
+        feed = self.make()
+        bar = feed._status_bar
+        bar.build(100.0, 100)
+        feed.status(2264 + 50, "libc.so: read")
+        bar.build(100.5, 100)
+
+        assert "Event Rate     0/s" in bar.build(101.6, 100).plain
 
     def test_does_not_wrap(self):
         feed, _buffer = make_feed()

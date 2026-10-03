@@ -170,8 +170,9 @@ class _StatusBar:
     LABEL_STYLE = "grey66 on grey23"
     VALUE_STYLE = "bold grey93 on grey23"
     SEPARATOR = "  │  "
-    # the event rate is averaged over this many seconds
-    RATE_WINDOW_SECONDS = 5.0
+    # the event rate is averaged over this many seconds; the agent sends events in batches every 100 ms,
+    # so shorter windows make the rate jump between batches
+    RATE_WINDOW_SECONDS = 1.0
     # values are right-aligned in fixed widths so the bar doesn't jump as they grow,
     # up to 999 hooks, 999,999 events and 1,000/s
     HOOKS_WIDTH = len("999")
@@ -188,7 +189,7 @@ class _StatusBar:
         while len(self._samples) > 1 and now - self._samples[0][0] > self.RATE_WINDOW_SECONDS:
             self._samples.popleft()
         since, count_then = self._samples[0]
-        return (count - count_then) / (now - since) if now - since >= 1 else 0.0
+        return (count - count_then) / (now - since) if now - since >= self.RATE_WINDOW_SECONDS / 2 else 0.0
 
     def _segments(self, segments: list[Text]) -> Text:
         text = Text(style=self.STYLE)

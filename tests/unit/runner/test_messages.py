@@ -11,7 +11,7 @@ class TestCreateMessageHandler:
     def test_logs_agent_error(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         feed = MagicMock()
-        on_message = create_message_handler(output, feed, print_events=False)
+        on_message = create_message_handler(output, feed, print_events=lambda: False)
 
         on_message({"type": "error", "description": "boom"}, None)
 
@@ -21,7 +21,7 @@ class TestCreateMessageHandler:
     def test_logs_non_send_non_error_messages(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         feed = MagicMock()
-        on_message = create_message_handler(output, feed, print_events=False)
+        on_message = create_message_handler(output, feed, print_events=lambda: False)
 
         on_message({"type": "foo"}, None)
 
@@ -33,7 +33,7 @@ class TestCreateMessageHandler:
     def test_non_list_payload_is_logged(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         feed = MagicMock()
-        on_message = create_message_handler(output, feed, print_events=False)
+        on_message = create_message_handler(output, feed, print_events=lambda: False)
 
         on_message({"type": "send", "payload": "not a list"}, None)
 
@@ -43,7 +43,7 @@ class TestCreateMessageHandler:
 
     def test_writes_list_payload_and_updates_status_from_native_symbol(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
-        on_message = create_message_handler(output, MagicMock(), print_events=False)
+        on_message = create_message_handler(output, MagicMock(), print_events=lambda: False)
         payload = [{"module": "libc.so", "symbol": "strcpy"}, {"module": "libc.so", "symbol": "memcpy"}]
 
         on_message({"type": "send", "payload": payload}, None)
@@ -56,7 +56,7 @@ class TestCreateMessageHandler:
 
     def test_writes_ndjson_string_payload_and_updates_status(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
-        on_message = create_message_handler(output, MagicMock(), print_events=False)
+        on_message = create_message_handler(output, MagicMock(), print_events=lambda: False)
         payload = '{"module": "libc.so", "symbol": "strcpy"}\n{"module": "libc.so", "symbol": "memcpy"}\n'
 
         on_message({"type": "send", "payload": payload}, None)
@@ -69,7 +69,7 @@ class TestCreateMessageHandler:
 
     def test_writes_list_payload_and_updates_status_from_java_method(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
-        on_message = create_message_handler(output, MagicMock(), print_events=False)
+        on_message = create_message_handler(output, MagicMock(), print_events=lambda: False)
         payload = [{"javaClassName": "com.example.Foo", "method": "bar"}]
 
         on_message({"type": "send", "payload": payload}, None)
@@ -80,7 +80,7 @@ class TestCreateMessageHandler:
     def test_calls_on_event_once_per_event(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         on_event = MagicMock()
-        on_message = create_message_handler(output, MagicMock(), print_events=False, on_event=on_event)
+        on_message = create_message_handler(output, MagicMock(), print_events=lambda: False, on_event=on_event)
         payload = [{"symbol": "a"}, {"symbol": "b"}]
 
         on_message({"type": "send", "payload": payload}, None)
@@ -90,7 +90,7 @@ class TestCreateMessageHandler:
     def test_calls_on_batch_once_per_batch(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         on_batch = MagicMock()
-        on_message = create_message_handler(output, MagicMock(), print_events=False, on_batch=on_batch)
+        on_message = create_message_handler(output, MagicMock(), print_events=lambda: False, on_batch=on_batch)
         payload = [{"symbol": "a"}, {"symbol": "b"}, {"symbol": "c"}]
 
         on_message({"type": "send", "payload": payload}, None)
@@ -101,7 +101,7 @@ class TestCreateMessageHandler:
         output = OutputWriter(tmp_path / "out.json")
         on_event = MagicMock()
         on_batch = MagicMock()
-        on_message = create_message_handler(output, MagicMock(), print_events=False, on_event=on_event, on_batch=on_batch)
+        on_message = create_message_handler(output, MagicMock(), print_events=lambda: False, on_event=on_event, on_batch=on_batch)
         payload = [{"symbol": "a"}, {"symbol": "b"}]
 
         on_message({"type": "send", "payload": payload}, None)
@@ -112,7 +112,7 @@ class TestCreateMessageHandler:
     def test_print_events_prints_each_event_to_the_feed(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         feed = MagicMock()
-        on_message = create_message_handler(output, feed, print_events=True)
+        on_message = create_message_handler(output, feed, print_events=lambda: True)
         payload = [{"module": "libc.so", "symbol": "strcpy"}]
 
         on_message({"type": "send", "payload": payload}, None)
@@ -122,7 +122,7 @@ class TestCreateMessageHandler:
     def test_events_are_not_printed_without_print_events(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         feed = MagicMock()
-        on_message = create_message_handler(output, feed, print_events=False)
+        on_message = create_message_handler(output, feed, print_events=lambda: False)
 
         on_message({"type": "send", "payload": [{"module": "libc.so", "symbol": "strcpy"}]}, None)
 
@@ -132,7 +132,7 @@ class TestCreateMessageHandler:
         output = OutputWriter(tmp_path / "out.json")
         feed = MagicMock()
         on_progress = MagicMock()
-        on_message = create_message_handler(output, feed, print_events=True, on_progress=on_progress)
+        on_message = create_message_handler(output, feed, print_events=lambda: True, on_progress=on_progress)
         progress = {"frooky": "progress", "hooked": 38, "resolving": 4}
 
         on_message({"type": "send", "payload": progress}, None)
@@ -145,7 +145,7 @@ class TestCreateMessageHandler:
         output = OutputWriter(tmp_path / "out.json")
         feed = MagicMock()
         on_crash = MagicMock()
-        on_message = create_message_handler(output, feed, print_events=True, on_crash=on_crash)
+        on_message = create_message_handler(output, feed, print_events=lambda: True, on_crash=on_crash)
         crash = {"frooky": "crash", "type": "abort", "address": "libc.so!abort+0xc0", "backtrace": [], "nativeHooks": []}
 
         on_message({"type": "send", "payload": crash}, None)

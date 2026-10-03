@@ -148,7 +148,7 @@ Notes on this example:
 
 ## Printing Events to the Terminal
 
-Pass `-e`/`--print-events` to `frooky` to also pretty-print each `hook-java`/`hook-native` event to the terminal as it's captured, in addition to writing it to the output file.
+Pass `-e`/`--print-events` to `frooky` to also pretty-print each `hook-java`/`hook-native` event to the terminal as it's captured, in addition to writing it to the output file. Press `e` or `E` while frooky runs to show or hide the events.
 
 ```sh
 $ frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/01_hook_by_name.yaml -e
@@ -164,7 +164,11 @@ $ frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_bas
                                               Output:  output.json
                                               Runtime: QuickJS
 
-  Press R to reload the hook files and retry hooks that were not found, I for hook statistics, Ctrl+C to stop...
+  Key     Function
+  R       Reload the hook files and retry hooks that were not found
+  S       Show hook statistics
+  E       Show / hide events
+  Ctrl+C  Stop
 
 ┌─ java (static) ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ time:         2026-09-16T20:24:24.094Z

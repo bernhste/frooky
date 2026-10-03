@@ -22,7 +22,8 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
   - [Watch Mode (`-w` / `--watch`)](#watch-mode--w----watch)
   - [Interactive Manual Reload (`r` / `R` Key)](#interactive-manual-reload-r--r-key)
 - [Dynamic Class and Module Resolution](#dynamic-class-and-module-resolution)
-  - [Hook Statistics (`i` / `I` Key)](#hook-statistics-i--i-key)
+  - [Hook Statistics (`s` / `S` Key)](#hook-statistics-s--s-key)
+  - [Show or Hide Events (`e` / `E` Key)](#show-or-hide-events-e--e-key)
 - [JavaScript Runtime: QuickJS vs. V8](#javascript-runtime-quickjs-vs-v8)
 - [Native Crash Reporter](#native-crash-reporter)
 
@@ -373,9 +374,9 @@ frooky waits for a class or native module that isn't loaded yet for as long as i
 
 Classes and modules that aren't loaded once the app has started are reported as waiting, in an info message (`-v`) and in the status bar, e.g. `# Hooks 38 (1 waiting)`. A misspelled class or module name shows up there too. Their hooks are still installed when they load. See [Resolve the Module or Class](./under-the-hood.md#resolve-the-module-or-class) in Under the Hood for how frooky is notified.
 
-### Hook Statistics (`i` / `I` Key)
+### Hook Statistics (`s` / `S` Key)
 
-While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not found, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, and how much time went into decoding the values of the recorded events. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
+While frooky is running in the terminal, pressing `s` or `S` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not found, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, and how much time went into decoding the values of the recorded events. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
 
 ```text
 Hook statistics
@@ -385,6 +386,10 @@ hooked                -   1,234    56,789  libc.so!open                 hooks.ya
 waiting               -       -         -  com.example.Plugin.run       hooks.yaml  Java class 'com.example.Plugin'
 not found             -       -         -  libc.so!nope                 hooks.yaml
 ```
+
+### Show or Hide Events (`e` / `E` Key)
+
+While frooky is running in the terminal, pressing `e` or `E` turns printing the captured events to the terminal on or off, as `-e`/`--print-events` does at startup. Events are written to the output file either way.
 
 ## JavaScript Runtime: QuickJS vs. V8
 
