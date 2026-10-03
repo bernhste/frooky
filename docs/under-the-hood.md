@@ -9,9 +9,8 @@ This page explains how frooky works internally: what happens to a hook from the 
 
 - [Overview](#overview)
 - [Life of a Hook](#life-of-a-hook)
-  - [Hook Initialization](#hook-initialization)
   - [Validation](#validation)
-  - [Normalization](#normalization)
+  - [Hook Initialization](#hook-initialization)
   - [Resolve the Module or Class](#resolve-the-module-or-class)
   - [Resolve the Symbol, Offset or Method](#resolve-the-symbol-offset-or-method)
   - [Resolve Declared or Runtime Decoders](#resolve-declared-or-runtime-decoders)
@@ -82,7 +81,7 @@ The host starts the agent and hands it the hook files over Frida's RPC. Everythi
 
 The host passes all hook files at once to `loadFrookyConfigs` (step 3 of the [overview](#overview)). The RPC call returns once the hook files are parsed and every hook that needs no event, i.e. neither `targetReady` nor a class or module that loads later, is resolved and installed. In spawn mode, the host resumes the app right after (step 11), so these hooks are in place before any of the app's code runs. The other hooks keep resolving after the call has returned.
 
-A **hook file** is one YAML file, which the host sends to the agent as a config, identified by its path. After [normalization](#normalization), each method (Java) or symbol or offset (native) in it is one **hook declaration**: diffs, [states](#hook-initialization) and the hook statistics count declarations. A declaration installs one **hook** per Java overload or native function. The **hook managers** resolve and install them: `AndroidHookManager` for Java hooks and `NativeHookManager` for native hooks.
+A **hook file** is one YAML file, which the host sends to the agent as a config, identified by its path. After normalization, each method (Java) or symbol or offset (native) in it is one **hook declaration**: diffs, [states](#hook-initialization) and the hook statistics count declarations. A declaration installs one **hook** per Java overload or native function. The **hook managers** resolve and install them: `AndroidHookManager` for Java hooks and `NativeHookManager` for native hooks.
 
 Each hook file is processed on its own, all of them concurrently. Its hook declarations are validated and normalized, compared with the previously loaded version of the file (see [Keeping Hooks Current](#keeping-hooks-current)), and the new, changed and retried ones are resolved and installed.
 
@@ -95,7 +94,7 @@ The hook-file format is described twice in TypeScript, once for the user and onc
 - **Input types** (the public interface, `Input*` in `frooky/agent/src/shared/inputParsing/`) describe what a hook file may contain. They are loose on purpose: most things can be written in several forms, e.g. a hook as just a method or symbol name or as an object, and settings can be left out. `npm run build:zodSchema` generates the Zod schemas in `zodSchemas/` from them, and `npm run build:jsonSchema` turns those into [`docs/schema/frooky-config.schema.json`](./schema/frooky-config.schema.json), which editors use to check and autocomplete hook files.
 - **Normalized types** (`JavaHookDeclaration` and `NativeHookDeclaration` in `frooky/agent/src/shared/hook/hookDeclaration.ts`, with `Param` and `RetType`) are what the rest of the agent works with. They are not part of the schemas. Each normalized hook declaration is self-contained and always has the same shape: it carries its class or module, its fully merged `hookSettings` and `decoderSettings`, and each parameter and return value carries its own merged decoder settings. The hook managers, decoders and the diff in [Keeping Hooks Current](#keeping-hooks-current) never need to look at the collection or the file's settings, and never handle shorthands.
 
-[Normalization](#normalization) turns one into the other. For example, a parameter (`InputParam`) can be written in five forms:
+Normalization turns one into the other. For example, a parameter (`InputParam`) can be written in five forms:
 
 ```yaml
 - module: libcrypto.so
@@ -129,7 +128,7 @@ decoderSettings: { maxDepth: 10, maxItems: 32 }
 Only the input is validated, against the Zod schemas generated from the input types. The normalized form is produced by frooky itself, and TypeScript guarantees its shape:
 
 - `validateAndRepairFrookyConfig()` checks the file's `metadata` and `settings`. Invalid metadata and unknown properties only cause a warning. An invalid setting is reset to its default, also with a warning, and an invalid regular expression in `callerFilter` is dropped. The settings of a hook collection are repaired the same way. A file without a `hookCollection` is skipped; the other files still load.
-- Each hook declaration is checked against its input schema (`inputJavaHookSchema` or `inputNativeHookSchema`) before it is [normalized](#normalization). An invalid declaration, including an invalid setting on the hook or one of its values, is dropped with a warning that names the invalid field; the other declarations of the file still load. A property the schema doesn't know, e.g. a misspelled `retTyp`, is ignored with a warning.
+- Each hook declaration is checked against its input schema (`inputJavaHookSchema` or `inputNativeHookSchema`) before it is normalized. An invalid declaration, including an invalid setting on the hook or one of its values, is dropped with a warning that names the invalid field; the other declarations of the file still load. A property the schema doesn't know, e.g. a misspelled `retTyp`, is ignored with a warning.
 
 **Source:** [`frooky/agent/src/shared/configValidator.ts`](../frooky/agent/src/shared/configValidator.ts), [`frooky/agent/src/shared/inputParsing/`](../frooky/agent/src/shared/inputParsing/), [`frooky/agent/src/shared/hook/hookDeclaration.ts`](../frooky/agent/src/shared/hook/hookDeclaration.ts)
 
@@ -155,7 +154,7 @@ flowchart LR
     ih --> installed(["installed"])
 ```
 
-Each [normalized](#normalization) hook declaration is initialized on its own: frooky resolves its module or class, then the method, symbol or offset in it, then the decoders for its values, and then installs its hooks: Frida's Interceptor for a native function, a replaced implementation for a Java method.
+Each normalized hook declaration is initialized on its own: frooky resolves its module or class, then the method, symbol or offset in it, then the decoders for its values, and then installs its hooks: Frida's Interceptor for a native function, a replaced implementation for a Java method.
 
 A hook declaration is in one of these states, shown in the status bar and the [hook statistics](./additional-features.md#hook-statistics-i--i-key):
 
@@ -168,40 +167,108 @@ A hook declaration is in one of these states, shown in the status bar and the [h
 
 **Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
 
-### Normalization
-
-The Java and native hook validators normalize each hook declaration, e.g. expand shorthands and merge the [settings](./additional-features.md#settings-precedence). They also check what the schema can't, e.g. decoder names, and warn about risky declarations, e.g. `early: true` on a Java hook (which is ignored) or on a high-frequency libc function without a `callerFilter`. Hooks on [blocked native functions](#blocked-native-functions) are dropped here.
-
-> TODO: more detail on the normalized form.
-
 **Source:** [`frooky/agent/src/android/hook/androidHookValidator.ts`](../frooky/agent/src/android/hook/androidHookValidator.ts), [`frooky/agent/src/native/hook/nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts)
 
 ### Resolve the Module or Class
 
-The Java and native declarations go to their hook managers in parallel. `resolveHooks()` returns one promise per declaration, which settles once its class or module is found and its hooks are installed, or once it is clear that the method or symbol doesn't exist.
+```mermaid
+flowchart LR
+    decl(( )) -->|class or module| loaded{"loaded?"}
+    loaded -->|yes| found(["found"])
+    loaded -->|no| watch["watch class loaders<br/>or the linker"]
+    watch -->|found by<br/>targetReady| found
+    watch -->|not found by<br/>targetReady| wait(["waiting"])
+    wait -->|the app loads it| found
+```
 
-frooky doesn't poll for classes and modules, and doesn't wait a fixed time for them. A class or module that is already loaded is found right away; native hooks without `early: true` then still wait for `targetReady`. For everything else, the hook managers are notified when the app loads code:
+The Java and native declarations go to their hook managers concurrently. Each hook manager groups the declarations by their class or module and looks each one up once, no matter how many hooks target it. frooky doesn't poll for classes and modules, and doesn't wait a fixed time for them: a class or module that isn't loaded yet is found when the app loads it.
 
-- **Native modules:** `NativeHookManager` attaches a Frida module observer (`Process.attachModuleObserver()`) when the first hook waits for a module. Its `onAdded` callback runs on the thread that loads the module, inside the linker, before the module's constructors and `JNI_OnLoad` run, and resolves the hooks that wait for that module.
-- **Java classes:** `JavaClassResolver` looks a class up in the default class loader first, which has the Android framework's classes. Other classes are looked up once in every class loader of the app at `targetReady`, and then in every new class loader: it watches the constructors of `BaseDexClassLoader` and its subclasses, which every class loader that reads dex files runs, and looks the class up while the class loader is created, before any of its classes are used. Wildcard patterns are matched against the class names in the class loader's dex files. With `classLoader`, it also watches that class loader's `loadClass()`, for custom class loaders that define classes themselves.
+A **Java class**, e.g. `javax.crypto.Cipher` or `org.owasp.mastestapp.MainActivity`, is looked up by `JavaClassResolver.find()`:
 
-So a declaration is only `resolving` until the lookups at `targetReady` have run. After that, it is `installed`, `not found`, or `waiting` for its class or module, which can load at any time while the app runs.
+1. In the default class loader with `Java.use()`. It has the Android framework's classes, also before the app runs, so a framework class is found right away.
+2. Otherwise at `targetReady`, in every class loader the app has by then (`Java.enumerateClassLoadersSync()`), e.g. the `PathClassLoader` with the app's own classes.
+3. Otherwise the declaration is `waiting`. Since step 1 missed, frooky watches the constructors of `BaseDexClassLoader` and its subclasses, which every class loader that reads dex files runs, and looks the class up in each new class loader while it is created, before any of its classes are used. This also catches class loaders created before `targetReady`.
 
-The hook managers report this explicitly. For each declaration, `resolveHooks()` returns either the result right away, if the first lookup decides it (its hooks, or `null` if the method, symbol or offset doesn't exist), or a promise that settles once the lookups at `targetReady` have run: with the result if they found the class or module, else with `{ waiting }`, a promise that settles once it loads. `FrookyAgent` installs the results it gets right away before `loadFrookyConfigs` returns, and marks a declaration `waiting` when its promise settles with `{ waiting }`. The details are in [Installing Java Hooks](#installing-java-hooks) and [Installing Native Hooks](#installing-native-hooks).
+A **native module**, e.g. `libc.so` or `libnative-lib.so`, is looked up by `NativeHookManager`:
 
-**Source:** [`frooky/agent/src/android/hook/javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts), [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts)
+1. In the loaded modules with `Process.findModuleByName()`. The system libraries, e.g. `libc.so`, are found right away.
+2. Otherwise frooky attaches a module observer (`Process.attachModuleObserver()`, once) and waits for a module with this name or path. Its `onAdded` callback runs on the thread that loads the module, inside the linker, before the module's constructors and `JNI_OnLoad` run.
+3. At `targetReady`, frooky doesn't look again, it only checks whether the observer has seen the module. If not, the declaration is `waiting` until it loads.
+
+As soon as the class or module is found, frooky resolves the [method, symbol or offset](#resolve-the-symbol-offset-or-method) in it, in the same callback: for a class loader or module that loads later, on the app's thread, before the app runs its code.
+
+**Source:** [`frooky/agent/src/android/hook/javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts), [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHooks()`, `whenModuleLoaded()`)
 
 ### Resolve the Symbol, Offset or Method
 
-A native symbol or offset is resolved as soon as its module is found, also when the hook then waits for `targetReady`, so a misspelled symbol fails right away. A symbol or offset that doesn't resolve settles as `not found`.
+```mermaid
+flowchart LR
+    found(["class or<br/>module found"]) --> java["Java: the method by name,<br/>then all its overloads"]
+    found --> native["native: the symbol in the<br/>exports, or base + offset"]
+    java -->|exists| hooks(["one hook per<br/>overload or function"])
+    native -->|exists| hooks
+    java -->|missing| nf(["not found"])
+    native -->|missing| nf
+```
 
-> TODO: Java methods and overloads (`resolveMethodHooks()`), and how symbols are looked up while a module loads.
+The method, symbol or offset is resolved as soon as its class or module is found. That's also true for a native hook that is then only installed at `targetReady`, so a misspelled name fails right away.
 
-**Source:** [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts), [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts)
+A **Java method** is resolved by `resolveMethodHooks()`:
+
+1. It looks up the method by name on the class (`javaClass[method]`). frida-java-bridge returns a method dispatcher with all overloads of that name.
+2. Without `overloads`, every overload is hooked, each as its own hook. Its parameters are built from the overload's argument types, e.g. `[B`, `int` or `java.lang.String`, each with the declaration's `decoderSettings`. The return type comes from the overload as well. So a Java hook needs no `params` or `retType` in the hook file.
+3. With `overloads`, only the declared ones are hooked (`method.overload(...types)`), with the parameters of the hook file. A declared overload that doesn't exist is skipped with a warning.
+
+A **native function** is resolved by `resolveHook()`:
+
+1. A `symbol` is looked up by `resolveSymbol()` in the module's exported (dynamic) symbols: with `findExportByName()` in a loaded module, and from the module's ELF exports (`enumerateExports()`, read once per module) in a module that is loading, as `getExportByName()` makes the linker abort the process while it loads the module.
+2. An `offset` is resolved by `resolveModuleOffset()` as `module.base + offset`. frooky only hooks the address if it is inside the module and executable, and, if Frida finds a section at that address, if the section's name starts with `.text`, `.plt`, `.init` or `.fini`. Otherwise it skips the hook with a warning, e.g. for an offset from another build of the library, which can point into data: the Interceptor would overwrite that data and crash the app.
+
+A method, symbol or offset that doesn't resolve, or a declaration whose `overloads` all don't exist, is logged as a warning, and the declaration is `not found`.
+
+**Source:** [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`resolveMethodHooks()`, `resolveOverloads()`), [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHook()`, `resolveSymbol()`, `resolveModuleOffset()`)
 
 ### Resolve Declared or Runtime Decoders
 
-> TODO
+```mermaid
+flowchart LR
+    value(["parameter or<br/>return value"]) --> type{"declared<br/>type"}
+    type -->|"e.g. int, String,<br/>char *, int *"| declared["declared decoder,<br/>fixed per hook"]
+    type -->|"Java object, e.g.<br/>java.lang.Object"| ref["ReferenceTypeDecoder"]
+    ref -->|"per value:<br/>runtime class"| runtime["runtime decoder: class,<br/>interface or toString()"]
+```
+
+Decoders are resolved when a hook is installed (`prepareHook()`, called by `registerHooks()`), once per hook and not per call: one decoder for each parameter and one for the return value. `JavaDecoderResolver` and `NativeDecoderResolver` pick each one from the value's declared type and its merged decoder settings.
+
+By default, without `decoder:`, the declared type decides. A **declared decoder** is fixed from then on. A **runtime decoder** is picked for each value while the hook runs, by the class of the object the app actually passes.
+
+A **Java value** gets a declared decoder by its declared type, i.e. the type of the overload's parameter or return value:
+
+| Declared type                             | Decoder                | Output                                                                                            |
+| ----------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------- |
+| A primitive, `void` or `java.lang.String` | `PrimitiveDecoder`     | The JSON value; a `long` is a decimal string to keep its 64-bit precision                         |
+| An array, e.g. `[B` (`byte[]`)            | `ArrayDecoder`         | The elements, up to `maxItems`                                                                    |
+| Any other class, e.g. `java.lang.Object`  | `ReferenceTypeDecoder` | Decoded by the runtime decoder of the object's class, see below                                   |
+| An interface, e.g. `java.util.Map`        | `ReferenceTypeDecoder` | Decoded by the runtime decoder of the object's class, e.g. `MapDecoder` for a `java.util.HashMap` |
+
+`ReferenceTypeDecoder` picks the decoder based on the runtime class when it decodes a value that isn't `null`, e.g. `java.util.HashMap` for a parameter declared as `java.util.Map`. The choice is cached by the class name (`$className`). On a cache miss, it gets the class with `getClass()` and takes the first of:
+
+1. The class decoder of the runtime class or of its nearest superclass with one, e.g. `IntentDecoder` for `android.content.Intent`, or `X509CertificateDecoder` and not `CertificateDecoder` for an X.509 certificate.
+2. The decoder of the most specific interface the class implements, e.g. `MapDecoder` for `java.util.HashMap`. If it implements several unrelated interfaces with a decoder, the order of the registry decides and frooky logs a warning.
+3. `toString()`, with `StringDecoder`.
+
+A **native value** only has its declared decoder: a native value is just a number or an address, with no runtime type to look at. Its declared type is the `type` in the hook file, which `parseNativeFridaType()` maps to a Frida type: it drops `const` and `volatile`, reads an array (`char *[]`) as a pointer, and knows the C and JNI names of the fundamental types, e.g. `uint8_t`, `long long` or `jint`.
+
+| Declared type                                                   | Decoder                  | Output                                                                                             |
+| --------------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------- |
+| A fundamental type, e.g. `int`, `size_t` or `jint`              | `NativeValueDecoder`     | The value; a 64-bit value is a decimal string                                                      |
+| A pointer to a fundamental type, e.g. `char *` or `int *`       | `NativeReferenceDecoder` | The value it points to: a string for `char *`, the number for `int *`, the address for `void *`    |
+| A pointer to UTF-16 units, e.g. `const jchar *` or `char16_t *` | `NativeUtf16Decoder`     | The string                                                                                         |
+| Anything else, e.g. `FILE *`, `struct stat *` or `pid_t`        | `NativeFallbackDecoder`  | The raw value in hex, e.g. `0x7b2c4a1f00`: the address for a pointer, the value itself for `pid_t` |
+
+`NativeDecoderResolver` checks for UTF-16 first: `jchar` is also a fundamental type (`uint16`), so `const jchar *` would otherwise be read as a pointer to one number.
+
+**Source:** [`frooky/agent/src/shared/hook/hookManager.ts`](../frooky/agent/src/shared/hook/hookManager.ts) (`resolveParamDecoders()`), [`frooky/agent/src/android/decoders/javaDecoderResolver.ts`](../frooky/agent/src/android/decoders/javaDecoderResolver.ts), [`frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts`](../frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts), [`frooky/agent/src/native/decoders/nativeDecoderResolver.ts`](../frooky/agent/src/native/decoders/nativeDecoderResolver.ts)
 
 ### Install the Hook
 
