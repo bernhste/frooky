@@ -9,7 +9,7 @@ This page explains how frooky works internally: what happens to a hook from the 
 
 - [Overview](#overview)
 - [Life of a Hook](#life-of-a-hook)
-  - [The Hook States](#the-hook-states)
+  - [Hook Initialization](#hook-initialization)
   - [Validation](#validation)
   - [Normalization](#normalization)
   - [Resolve the Module or Class](#resolve-the-module-or-class)
@@ -82,49 +82,44 @@ The host starts the agent and hands it the hook files over Frida's RPC. Everythi
 
 The host passes all hook files at once to `loadFrookyConfigs` (step 3 of the [overview](#overview)). The RPC call returns once the hook files are parsed and every hook that needs no event, i.e. neither `targetReady` nor a class or module that loads later, is resolved and installed. In spawn mode, the host resumes the app right after (step 11), so these hooks are in place before any of the app's code runs. The other hooks keep resolving after the call has returned.
 
-A **hook file** is one YAML file, which the host sends to the agent as a config, identified by its path. After [normalization](#normalization), each method (Java) or symbol or offset (native) in it is one **hook declaration**: diffs, [states](#the-hook-states) and the hook statistics count declarations. A declaration installs one **hook** per Java overload or native function. The **hook managers** resolve and install them: `AndroidHookManager` for Java hooks and `NativeHookManager` for native hooks.
+A **hook file** is one YAML file, which the host sends to the agent as a config, identified by its path. After [normalization](#normalization), each method (Java) or symbol or offset (native) in it is one **hook declaration**: diffs, [states](#hook-initialization) and the hook statistics count declarations. A declaration installs one **hook** per Java overload or native function. The **hook managers** resolve and install them: `AndroidHookManager` for Java hooks and `NativeHookManager` for native hooks.
 
 Each hook file is processed on its own, all of them concurrently. Its hook declarations are validated and normalized, compared with the previously loaded version of the file (see [Keeping Hooks Current](#keeping-hooks-current)), and the new, changed and retried ones are resolved and installed.
 
 **Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
 
-### The Hook States
+### Hook Initialization
 
 ```mermaid
-stateDiagram-v2
-    state "not found" as notFound
-    [*] --> resolving: new or changed declaration
-    resolving --> installed: class or module found,<br/>hooks installed
-    resolving --> notFound: method, symbol or offset<br/>doesn't exist
-    resolving --> waiting: class or module not loaded<br/>after the lookups at targetReady
-    waiting --> installed: class or module loads
-    waiting --> notFound: loads, but the method<br/>or symbol doesn't exist
-    notFound --> resolving: r key (retried)
-    resolving --> removed: declaration deleted<br/>from the hook file
-    waiting --> removed
-    installed --> removed: unregisterHooks()
-    notFound --> removed
-    removed --> [*]
+flowchart LR
+    subgraph resolving
+        rm["resolve the<br/>module or class"]
+        qm{"found?"}
+        rs["resolve the method,<br/>symbol or offset"]
+        qs{"found?"}
+        ih["resolve the decoders,<br/>install the hooks"]
+    end
+    start(( )) -->|normalized<br/>hook declaration| rm
+    rm --> qm
+    qm -->|yes| rs
+    qm -->|no| wait(["waiting"])
+    wait -->|module or<br/>class loads| rs
+    rs --> qs
+    qs -->|yes| ih
+    qs -->|no| nf(["not found"])
+    ih --> installed(["installed"])
 ```
 
-A declaration is in one of these states, shown in the status bar and the [hook statistics](./additional-features.md#hook-statistics-i--i-key):
+Each [normalized](#normalization) hook declaration is initialized on its own: frooky resolves its module or class, then the method, symbol or offset in it, then the decoders for its values, and then installs its hooks: Frida's Interceptor for a native function, a replaced implementation for a Java method.
 
-| State       | Meaning                                                                                         |
-| ----------- | ----------------------------------------------------------------------------------------------- |
-| `resolving` | Being looked up, or waiting for `targetReady`; only until the lookups at `targetReady` have run |
-| `waiting`   | Its class or module isn't loaded yet; installed as soon as it loads                             |
-| `installed` | Hooked (one hook per Java overload or native function), shown as `hooked`                       |
-| `not found` | Its class or module was found, but the method, overload, symbol or offset doesn't exist         |
+A hook declaration is in one of these states, shown in the status bar and the [hook statistics](./additional-features.md#hook-statistics-i--i-key):
 
-A declaration that is `resolving` or `waiting` when it is removed is dropped once it resolves: if its hooks were installed meanwhile, e.g. while its class or module loaded, they are unhooked again.
-
-Once `targetReady` has resolved, every class and module that is still resolving is looked up once (see [Resolve the Module or Class](#resolve-the-module-or-class)). Declarations that are still `resolving` after that become `waiting`, with one info message per class or module they wait for. There is no timeout: a class or module that isn't loaded at that point can only load later, and the hook managers are notified when it does.
-
-Then frooky logs a summary per hook file, e.g. `Loaded hooks.yaml: hooked 12 methods and 3 functions, 1 waiting`, and the status bar shows `Hooks ready`. Waiting hooks stay registered and are installed as soon as their class or module loads.
-
-A declaration is never `not found` because its class or module doesn't load: there is no timeout, so it stays `waiting` for as long as frooky runs and is resolved whenever the class or module loads. It only becomes `not found` once the class or module is there and the method, symbol or offset in it isn't, e.g. a misspelled method name, also when a `waiting` declaration's class loads later. Such a declaration is resolved again with the `r` key. If installing a resolved hook fails (`Failed to hook ...` in the log), the declaration still counts as `installed`, with that hook missing.
-
-The agent reports these counts to the host at most every 250 ms while they change, counting `resolving` and `waiting` per class or module.
+| State       | Meaning                                                                                                                                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resolving` | frooky is resolving its module or class, its method, symbol or offset, or the decoders for its values.                                                                       |
+| `waiting`   | Its module or class isn't loaded yet. frooky hooks the linkers and class loaders for these modules and classes. If they are loaded later, frooky will try to hook them then. |
+| `installed` | The hook is installed and ready to be called.                                                                                                                                |
+| `not found` | Its module or class is there, but the method, symbol or offset isn't. frooky doesn't look for it again.                                                                      |
 
 **Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
 
