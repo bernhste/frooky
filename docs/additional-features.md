@@ -134,15 +134,16 @@ Stack traces are disabled by default (`nativeStackTrace: false`, `platformStackT
 
 ### Skipped Stack Traces
 
-Some calls happen where walking the stack can crash or hang the app. frooky detects these per call and captures no stack trace for them. The `stackTrace` object then has a `skipped` field with the reason:
+Some calls happen where walking the stack can crash or hang the app. frooky detects these per call and leaves out the frames it can't capture safely. If requested frames are missing, the `stackTrace` object has a `skipped` field with the reason:
 
-| `skipped`      | Situation                                                                                                     | Why it's unsafe                                                                                                                                                                                   | Frames captured    |
-| -------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `signal-stack` | The call runs in a signal handler on an alternate signal stack (`sigaltstack`), which is usually only 32KB.   | A stack walk and symbolizing can overflow it and crash the app.                                                                                                                                   | none               |
-| `in-linker`    | The call happens inside `dlopen()`/`dlclose()` on this thread, e.g. in a library constructor or `JNI_OnLoad`. | The linker holds its lock and the module is only partly loaded. The stack walk needs that lock (`dl_iterate_phdr()`).                                                                             | none               |
-| `linker-busy`  | Another thread is inside `dlopen()`/`dlclose()`, e.g. while the app starts.                                   | That thread can hold the linker's lock while it waits in a hook (e.g. on `mmap` or `openat`) until frooky's agent is free. A stack walk here would wait for the linker's lock, and the app hangs. | none               |
-| `low-stack`    | Less than 64KB are left on the thread's stack. Native hooks only, as Java hooks have no CPU context to check. | A stack walk, symbolizing and the JavaScript engine's own frames can overflow the rest of the stack.                                                                                              | none               |
-| `before-ready` | The app's own code hasn't started yet (spawn mode, before `Java.perform()`).                                  | Entering the Java VM for the Java frames this early can hang the app.                                                                                                                             | native frames only |
+| `skipped`      | Situation                                                                                                     | Why it's unsafe                                                                                                                                                                                                                        | Frames captured                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `signal-stack` | The call runs in a signal handler on an alternate signal stack (`sigaltstack`), which is usually only 32KB.   | Symbolizing the native frames or walking the Java stack can overflow it and crash the app.                                                                                                                                             | none                                                                                |
+| `linker-busy`  | Another thread is inside `dlopen()`/`dlclose()`, e.g. while the app starts.                                   | That thread can hold the linker's lock while it waits until frooky's agent is free, e.g. in a hook in a library constructor. The accurate native stack walk would wait for the linker's lock (`dl_iterate_phdr()`), and the app hangs. | native frames from the fuzzy backtracer; Java frames from shortly after start-up on |
+| `low-stack`    | Less than 64KB are left on the thread's stack. Native hooks only, as Java hooks have no CPU context to check. | A stack walk, symbolizing and the JavaScript engine's own frames can overflow the rest of the stack.                                                                                                                                   | none                                                                                |
+| `before-ready` | The app's own code hasn't started yet (spawn mode, before `Java.perform()`).                                  | A native hook can run on a thread that is still attaching to the Java VM, and walking its Java stack crashes the app.                                                                                                                  | native hooks: native frames only; Java hooks: everything                            |
+
+At `linker-busy`, the `skipped` field is only set if the Java frames are missing. The native frames come from Frida's fuzzy backtracer, which scans the stack for values that look like return addresses and can include some that aren't, see [Stack Traces During Early Hooking](./under-the-hood.md#stack-traces-during-early-hooking). A call inside `dlopen()` on its own thread, e.g. in a library constructor, isn't affected and gets full stack traces.
 
 ```json
 "stackTrace": {
@@ -152,7 +153,7 @@ Some calls happen where walking the stack can crash or hang the app. frooky dete
 }
 ```
 
-A Java hook with a `callerFilter` drops these calls, as the filter can't be checked. This includes `before-ready`, when the app's own Java code hasn't run yet. A native hook's `callerFilter` needs no stack walk and is checked in every call.
+A Java hook with a `callerFilter` drops a call whose Java stack can't be walked, as the filter can't be checked, e.g. at `linker-busy` right after start-up. Before `targetReady` (`before-ready`), the filter is checked as usual. A native hook's `callerFilter` needs no stack walk and is checked in every call.
 
 ### Platform vs. Native Stack Traces
 
@@ -197,7 +198,7 @@ For a Java hook, `callerFilter` searches the Java stack of the call for a matchi
 - Each Java frame is matched as `<class>.<method>`, e.g. `org.owasp.mastestapp.MastgTest.mastgTest`, without file and line. A pattern on a package prefix (`'^org\.owasp\.mastestapp\.'`) selects an app's or SDK's code; a pattern on a method selects single call sites.
 - The whole Java stack is searched, not only the direct caller, and `maxStackFrames` doesn't limit it. A call the app makes through a library (e.g. the app → OkHttp → Conscrypt → `Cipher.init`) is recorded, because the app's method is further down the stack.
 - The hooked method itself, on top of the stack, isn't searched.
-- It walks the Java stack in every call, which costs as much as `platformStackTrace: true`. In the calls listed in [Skipped Stack Traces](#skipped-stack-traces) it can't be checked, and these calls are dropped.
+- It walks the Java stack in every call, which costs as much as `platformStackTrace: true`. In the calls in which the Java frames are left out, see [Skipped Stack Traces](#skipped-stack-traces), it can't be checked, and these calls are dropped.
 
 **Example:** record the `trackEvent` calls that go through an SDK:
 
@@ -311,9 +312,9 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 
 ### Blocked Functions
 
-Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_getspecific`, `dlopen` in `libdl.so`, and under V8 `memset` and `clock_gettime`. frooky doesn't install hooks on these functions (or, for `sigprocmask`, doesn't capture their stack traces) and logs a warning instead. See [Blocked Native Functions](./under-the-hood.md#danger-zone-blocked-native-functions) in Under the Hood for the full list and why each one is blocked.
+Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_getspecific`, `dlopen` in `libdl.so`, and under V8 `memset` and `clock_gettime`. frooky doesn't install hooks on these functions (or, for `sigprocmask`, and for `mmap` with `early: true` under V8, doesn't capture their stack traces) and logs a warning instead. See [Blocked Native Functions](./under-the-hood.md#danger-zone-blocked-native-functions) in Under the Hood for the full list and why each one is blocked.
 
-See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml), [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml) and [`examples/native/08_early_hooking/02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) for full examples.
+See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml), [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml), [`examples/native/08_early_hooking/02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) and [`examples/native/08_early_hooking/03_stack_traces_while_loading.yaml`](./examples/native/08_early_hooking/03_stack_traces_while_loading.yaml) for full examples.
 
 ## Custom User Scripts
 

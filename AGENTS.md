@@ -12,10 +12,9 @@ Two components, each with its own build and tests:
 Target platforms to support (keep cross-platform compatibility in mind so fixes on Linux x86_64 do not break macOS Apple Silicon / M1 environments and vice versa):
 
 - Android devices (ARM64)
-- Android Emulator (macOS ARM64, x86_64)
+- Android Emulator (macOS ARM64, x86_64 on Debian)
 - iOS devices (ARM64)
 - iOS Simulator (ARM64)
-- Linux x86_64 (Debian)
 
 ## Commands
 
@@ -45,6 +44,24 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 - **Always run `npm run test:android` when changing the agent** (`frooky/agent/`): runs TypeScript agent unit tests inside `com.google.android.dialer` on the device. Recompile first (`npm run build:dev:android` or `uv run compile-agent --dev`).
 - **Always run Python unit tests when changing Python host code** (`frooky/`, `tests/unit/`): run `uv run pytest tests/unit` (no device required) and check formatting/linting via `uv run ruff check . && uv run ruff format --check .`.
 - **Only run affected integration tests when agent or host changes**: integration tests (`pytest tests/integration/android`) use Appium and test apps; only run the specific tests affected by the change (e.g. `uv run pytest tests/integration/android -k <pattern>`) rather than the entire test suite.
+
+## Target Apps
+
+The integration tests and the examples in `docs/examples/` run against our own test apps in `tests/target-apps/android/<app>/` (`value-passing-java`, `value-passing-native`). Test frooky against these, not against system libraries or third-party apps: a situation a test needs (e.g. a call from a library constructor, a deep call chain, a class loader) belongs in a target app.
+
+- **Sources:** `MastgTest.kt`, `cpp/*.c` with `cpp/CMakeLists.txt`, `build.gradle.kts.*` and the app's `README.md`, which lists what each function or method is for. `<app>/build/` is a generated clone of the base app and `dist/` holds the APKs; both are gitignored, never edit them.
+- **Rebuild and reinstall with the Makefile** in `tests/target-apps/android`, never with Gradle or `adb` directly. `make install` only installs the last built APK, so build first, and uninstall the old app so nothing of the old build remains:
+
+  ```bash
+  cd tests/target-apps/android
+  make build TARGET_APP=<app>        # copies the sources into <app>/build/, runs Gradle, writes dist/<app>.apk
+  make uninstall TARGET_APP=<app>
+  make install TARGET_APP=<app>
+  # all apps: make build-all, make uninstall-all, make install-all; remove a build: make clean TARGET_APP=<app>
+  ```
+
+- **Adding a test situation:** add the method or function to the target app, with a comment on what it's for, and list it in the app's `README.md`. Then add or extend the example in `docs/examples/` with its `# Expected` events and the test in `tests/integration/android/test_examples.py` (see Conventions). Assert on the app's own values and frames, e.g. `JNI_OnLoad+0x... (libloadTime.so:...)` or `org.owasp.mastestapp.MastgTest...`, not on frames of the linker, ART or the Android framework, which differ between Android versions.
+- **After changing a native app**, check its functions' offsets with the `update-native-offsets` skill and run the integration tests of that app.
 
 ## Rules
 

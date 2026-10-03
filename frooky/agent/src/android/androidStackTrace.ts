@@ -14,6 +14,12 @@ function formatJavaFrame(frame: Java.Frame): string {
 let javaBacktraceState: "uninitialized" | "initializing" | "ready" = "uninitialized";
 
 export const AndroidStackTrace: PlatformStackTrace = {
+  // Builds the backtrace module before any hook needs it: the first Java.backtrace() needs the linker's lock, later
+  // ones don't, so Java frames can be captured at `linker-busy`
+  prepare() {
+    if (Java.available && javaBacktraceState === "uninitialized") walkJavaStack();
+  },
+
   build(settings: HookSettings, request: StackTraceRequest): HookStackTrace {
     const { maxStackFrames: limit, nativeStackTrace, platformStackTrace, callerFilter } = settings;
     const { ctx, unsafeContext } = request;
@@ -26,13 +32,19 @@ export const AndroidStackTrace: PlatformStackTrace = {
       return { platformStackTrace: [], nativeStackTrace: [] };
     }
 
-    if (unsafeContext !== undefined && unsafeContext !== "before-ready") {
+    // too little stack for symbolizing or a Java walk
+    if (unsafeContext === "signal-stack" || unsafeContext === "low-stack") {
       if (filterCallers) throw FilterMismatchError.INSTANCE;
       return { platformStackTrace: [], nativeStackTrace: [], skipped: unsafeContext };
     }
 
-    // before the app's code runs, or on a thread without Java, no app frame can be on the Java stack
-    const canWalkJava = Java.available && unsafeContext !== "before-ready" && Java.vm.tryGetEnv() !== null;
+    const linkerBusy = unsafeContext === "linker-busy";
+    // Before targetReady, a native hook can fire on a thread that is still attaching to the VM: tryGetEnv() already
+    // returns its JNIEnv, but walking its Java stack crashes the app. A Java hook's thread runs Java code, so it's
+    // attached. At `linker-busy`, only an initialized Java.backtrace() works without the linker's lock.
+    const javaBlocked = (unsafeContext === "before-ready" && ctx !== undefined) || (linkerBusy && javaBacktraceState !== "ready");
+    // on a thread without Java, no app frame can be on the Java stack
+    const canWalkJava = !javaBlocked && Java.available && Java.vm.tryGetEnv() !== null;
     if (filterCallers && !canWalkJava) throw FilterMismatchError.INSTANCE;
 
     const javaStack = canWalkJava && (wantsJavaFrames || filterCallers) ? walkJavaStack() : [];
@@ -46,9 +58,9 @@ export const AndroidStackTrace: PlatformStackTrace = {
       }
     }
 
-    const nativeFrames = wantsNativeFrames && ctx ? nativeStackFrames(ctx, limit) : [];
+    const nativeFrames = wantsNativeFrames && ctx ? nativeStackFrames(ctx, limit, linkerBusy) : [];
     const javaFrames = wantsJavaFrames ? javaStack.slice(0, limit).map(formatJavaFrame) : [];
-    const skipped = wantsJavaFrames && unsafeContext === "before-ready" ? unsafeContext : undefined;
+    const skipped = wantsJavaFrames && javaBlocked ? unsafeContext : undefined;
     return { platformStackTrace: javaFrames, nativeStackTrace: nativeFrames, ...(skipped && { skipped }) };
   },
 };

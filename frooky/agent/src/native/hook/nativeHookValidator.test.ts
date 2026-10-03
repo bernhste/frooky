@@ -333,6 +333,26 @@ describe("NativeHookValidator", () => {
         expect(messages.some((msg) => msg.includes("Capturing stack traces on high-frequency libc function 'read' in 'libc.so'"))).toBe(true);
       });
 
+      it("notes that early hooks get no Java frames before targetReady", () => {
+        const infoSpy = spyOn(logger, "info");
+        try {
+          const hooksWith = (hookSettings: InputNativeHookCollection["hookSettings"]) =>
+            validator.validateAndNormalizeHooks(
+              { hookCollection: [{ type: "native", module: "libapp.so", hooks: ["run"], hookSettings }] },
+              defaultSettings,
+            );
+          hooksWith({ early: true, platformStackTrace: true });
+          hooksWith({ early: true, nativeStackTrace: true });
+          hooksWith({ platformStackTrace: true });
+          const notes = infoSpy.mock.calls.map((call) => String(call[0])).filter((message) => message.includes("before-ready"));
+          expect(notes).toEqual([
+            "libapp.so!run has early: true and platformStackTrace: its calls before targetReady get native frames, but no Java frames (skipped: before-ready), as walking the Java stack of a thread that is still attaching to the Java VM crashes the app.",
+          ]);
+        } finally {
+          infoSpy.mockRestore();
+        }
+      });
+
       describe("blocked functions", () => {
         const warnings = () => warnSpy.mock.calls.map((call) => String(call[0]));
         const hooksOf = (module: string, hooks: InputNativeHookCollection["hooks"], hookSettings?: InputNativeHookCollection["hookSettings"]) =>
@@ -374,6 +394,28 @@ describe("NativeHookValidator", () => {
           expect(warnings()).toEqual([
             "No stack traces for native function 'sigprocmask' from module 'libc.so': the native stack walk crashes the app in it.",
           ]);
+        });
+
+        it("keeps a hook without stack traces only under the runtime and with the early setting they break in", () => {
+          const stackTraces = { nativeStackTrace: true, platformStackTrace: true };
+          const script = globalThis as unknown as { Script: { runtime: string } };
+          const originalScript = script.Script;
+          script.Script = { runtime: "V8" };
+          try {
+            const [early] = hooksOf("libc.so", ["mmap"], { ...stackTraces, early: true, callerFilter: ["^libapp\\.so$"] });
+            const [late] = hooksOf("libc.so", ["mmap"], stackTraces);
+            expect(early.hookSettings!.nativeStackTrace).toBe(false);
+            expect(early.hookSettings!.platformStackTrace).toBe(false);
+            expect(late.hookSettings!.nativeStackTrace).toBe(true);
+          } finally {
+            script.Script = originalScript;
+          }
+          expect(
+            hooksOf("libc.so", ["mmap"], { ...stackTraces, early: true, callerFilter: ["^libapp\\.so$"] })[0].hookSettings!.nativeStackTrace,
+          ).toBe(true);
+          expect(warnings()).toContain(
+            "No stack traces for native function 'mmap' from module 'libc.so': with early: true, a stack trace in it under V8 stops the app's start-up.",
+          );
         });
 
         it("keeps a hook with a callerFilter, which needs no stack walk", () => {

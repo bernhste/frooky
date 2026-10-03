@@ -1,6 +1,6 @@
 import { detectUnsafeContext, enterLinker, leaveLinker, markTargetReady, stackBounds, watchLinker } from "./unsafeContext";
 
-// NDK libraries the dialer doesn't load, one of them is loaded by the "in-linker" test
+// NDK libraries the dialer doesn't load, one of them is loaded by the dlopen() test
 const UNLOADED_LIBRARY_CANDIDATES = ["libsensorndk.so", "libtextclassifier_hash.so", "libneuralnetworks.so"];
 
 describe("detectUnsafeContext()", () => {
@@ -13,12 +13,40 @@ describe("detectUnsafeContext()", () => {
     expect(detectUnsafeContext({ sp } as CpuContext)).toBeUndefined();
   });
 
+  it("finds the stack of an app thread without the guard pages below it", () => {
+    // Frida hides its own threads' stacks from Process.findRangeByAddress(), so this runs on a new pthread
+    const libc = Process.getModuleByName("libc.so");
+    const cm = new CModule(
+      `
+      extern int pthread_create(void *, const void *, void *(*)(void *), void *);
+      extern int pthread_join(unsigned long, void **);
+      void run(void *(*fn)(void *)) {
+        unsigned long thread;
+        if (pthread_create(&thread, 0, fn, 0) == 0) pthread_join(thread, 0);
+      }
+      `,
+      { pthread_create: libc.getExportByName("pthread_create"), pthread_join: libc.getExportByName("pthread_join") },
+    );
+    let protection: string | undefined;
+    const onThread = new NativeCallback(
+      () => {
+        const bounds = stackBounds();
+        if (bounds) protection = Process.findRangeByAddress(bounds.low)?.protection;
+        return ptr(0);
+      },
+      "pointer",
+      ["pointer"],
+    );
+    new NativeFunction(cm.run, "void", ["pointer"])(onThread);
+    expect(protection).toBe("rw-");
+  });
+
   it("returns low-stack near the end of the thread's stack", () => {
     const bounds = stackBounds()!;
     expect(detectUnsafeContext({ sp: bounds.low.add(1024) } as CpuContext)).toBe("low-stack");
   });
 
-  it("returns in-linker while dlopen() runs on the thread", () => {
+  it("returns undefined inside dlopen() on the loading thread, which holds the linker's lock", () => {
     watchLinker();
     // onAdded runs inside the linker, on the thread that loads the module. A library that fails to load
     // still adds its dependencies first, e.g. libsensor.so for libsensorndk.so.
@@ -42,7 +70,7 @@ describe("detectUnsafeContext()", () => {
       observer.detach();
     }
     expect(detected.length).toBeGreaterThan(0);
-    expect(detected.every((reason) => reason === "in-linker")).toBeTruthy();
+    expect(detected.every((reason) => reason === undefined)).toBeTruthy();
     expect(detectUnsafeContext()).toBeUndefined();
   });
 

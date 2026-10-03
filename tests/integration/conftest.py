@@ -397,10 +397,11 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, m
 
 @pytest.fixture
 def run_frooky_spawn(platform, output_file_path, app_session, tmp_path):
-    def _run_frooky_spawn(hook_file_yaml, target_app):
+    def _run_frooky_spawn(hook_file_yaml, target_app, user_scripts=()):
         """Let frooky spawn target_app (-f) with hook_file_yaml, and collect the events of the app's startup.
 
-        No UI is triggered: this is for hooks on code that runs while the app starts."""
+        No UI is triggered: this is for hooks on code that runs while the app starts. `user_scripts` are
+        paths of Frida scripts loaded with -l before the agent."""
         app_bundle_id = f"{target_app.replace('-', '_')}.frooky.target.app"
 
         # stop the app, so frooky starts a fresh process
@@ -416,6 +417,7 @@ def run_frooky_spawn(platform, output_file_path, app_session, tmp_path):
                 *(["-U"] if platform == "android" else []),
                 "-f",
                 app_bundle_id,
+                *[arg for script in user_scripts for arg in ("-l", str(script))],
                 "-o",
                 str(output_file_path),
                 str(hook_path),

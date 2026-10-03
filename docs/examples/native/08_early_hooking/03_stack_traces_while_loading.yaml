@@ -1,0 +1,39 @@
+metadata:
+  name: "Early Hooking (Native): Stack Traces While a Library Loads"
+  description: |
+    Calls from a library's constructor run inside the linker, which holds its lock meanwhile. The
+    stack walk on the same thread doesn't wait for that lock, so these calls get full native and
+    Java stack traces, like the calls from JNI_OnLoad, which runs after the linker is done.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/loadTime.c, cpp/loadStage.c), which loads
+#         libloadStage.so and then libloadTime.so at startup. libloadTime.so calls report_load_stage while it loads.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/08_early_hooking/03_stack_traces_while_loading.yaml
+# See:    docs/under-the-hood.md#stack-traces-during-early-hooking
+#
+# The library loads after targetReady, from the app's first screen, so the Java frames are captured too. A
+# native hook's calls before targetReady get native frames only (skipped: before-ready).
+
+hookCollection:
+  - module: libloadStage.so
+    hookSettings:
+      early: true
+      nativeStackTrace: true
+      platformStackTrace: true
+      maxStackFrames: 10
+    hooks:
+      # const char *report_load_stage(const char *stage)
+      - symbol: report_load_stage
+        params:
+          - ["char *", stage]
+
+# Expected events, in this order, none with a `skipped` field. Between the app's frames are frames of the
+# linker, ART and java.lang.Runtime, which differ between Android versions:
+#   "constructor": nativeStackTrace   starts with "load_time_constructor+0x... (libloadTime.so:0x...)", the function
+#                                     that libloadTime.so's constructor calls, inside dlopen()
+#                  platformStackTrace contains "org.owasp.mastestapp.MastgTest.<clinit> (MastgTest.kt:...)", which
+#                                     calls System.loadLibrary("loadTime")
+#   "JNI_OnLoad":  nativeStackTrace   starts with "JNI_OnLoad+0x... (libloadTime.so:0x...)"
+#                  platformStackTrace contains "org.owasp.mastestapp.MastgTest.<clinit> (MastgTest.kt:...)"

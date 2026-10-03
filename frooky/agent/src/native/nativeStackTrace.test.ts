@@ -13,12 +13,12 @@ async function untilHooked(call: () => void, fired: () => boolean): Promise<void
   }
 }
 
-// calls a native function twice and returns the frames captured inside its hook
+// calls a native function twice and returns the frames captured inside its hook, accurate and fuzzy
 async function framesInNativeHook(limit: number): Promise<string[][]> {
   const results: string[][] = [];
   const listener = Interceptor.attach(cm.identity, {
     onEnter() {
-      results.push(nativeStackFrames(this.context, limit));
+      results.push(nativeStackFrames(this.context, limit), nativeStackFrames(this.context, limit, true));
     },
   });
   try {
@@ -39,11 +39,13 @@ async function framesInNativeHook(limit: number): Promise<string[][]> {
 // one hook for the whole file: attaching to the same function again after a detach can take a long
 // time to be committed
 describe("nativeStackFrames()", () => {
-  it("captures at most limit frames, formatted as 'symbol (module:address)', the same for repeated calls from the same site", async () => {
-    const [first, second] = await framesInNativeHook(2);
-    expect(first.length).toBeGreaterThan(0);
-    expect(first.length).toBeLessThan(3);
-    for (const frame of first) expect(/ \(.*:0x[0-9a-f]+\)$/.test(frame)).toBeTruthy();
+  it("captures at most limit frames, formatted as 'symbol (module:address)', the same for repeated calls from the same site, also with only the fuzzy backtracer", async () => {
+    const [first, fuzzy, second] = await framesInNativeHook(2);
+    for (const frames of [first, fuzzy]) {
+      expect(frames.length).toBeGreaterThan(0);
+      expect(frames.length).toBeLessThan(3);
+      for (const frame of frames) expect(/ \(.*:0x[0-9a-f]+\)$/.test(frame)).toBeTruthy();
+    }
     expect(second).toEqual(first);
   });
 });

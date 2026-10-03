@@ -7,6 +7,7 @@ import { FrookySettings } from "../../shared/frookySettings";
 import { NativeHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { HookValidator } from "../../shared/hook/hookValidator";
 import {
+  describeNativeTarget,
   InputNativeHookCollection,
   isNativeHookCollection,
   mergeNativeHookCollectionSettings,
@@ -58,6 +59,7 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
             }
           }
           warnOnHighFrequencyLibcHook(validatedHook);
+          noteEarlyPlatformStackTrace(validatedHook);
           normalizedNativeHooks.push(validatedHook);
         } catch (e) {
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
@@ -115,6 +117,8 @@ type BlockedFunction = {
   runtime?: ScriptRuntime;
   // the hook is kept without stack traces
   stackTraceOnly?: boolean;
+  // only for hooks with `early: true`, which run before targetReady
+  earlyOnly?: boolean;
 };
 
 // Functions a hook breaks the app on, whatever the hook file says. Measured on Android 15 (x86_64) with a hook on
@@ -136,12 +140,24 @@ export const BLOCKED_FUNCTIONS: BlockedFunction[] = [
     reason: "V8 calls it itself while it runs a hook, which re-enters V8 and crashes the app",
   },
   { module: "libc.so", symbol: "sigprocmask", stackTraceOnly: true, reason: "the native stack walk crashes the app in it" },
+  {
+    module: "libc.so",
+    symbol: "mmap",
+    runtime: "V8",
+    stackTraceOnly: true,
+    earlyOnly: true,
+    reason: "with early: true, a stack trace in it under V8 stops the app's start-up",
+  },
 ];
 
 export function findBlockedFunction(hook: NativeHookDeclaration): BlockedFunction | undefined {
   if (!hook.symbol) return undefined;
   return BLOCKED_FUNCTIONS.find(
-    (blocked) => blocked.symbol === hook.symbol && isModule(hook.module, blocked.module) && (!blocked.runtime || blocked.runtime === Script.runtime),
+    (blocked) =>
+      blocked.symbol === hook.symbol &&
+      isModule(hook.module, blocked.module) &&
+      (!blocked.runtime || blocked.runtime === Script.runtime) &&
+      (!blocked.earlyOnly || hook.hookSettings.early),
   );
 }
 
@@ -161,6 +177,14 @@ export function warnOnHighFrequencyLibcHook(hook: NativeHookDeclaration): void {
       `Early hooking enabled for high-frequency libc function '${hook.symbol}' in '${hook.module}' without a callerFilter. This can cause deadlocks or ANRs (Application Not Responding) during app bootstrap. Specify a callerFilter to restrict callers.`,
     );
   }
+}
+
+// A native hook's calls before targetReady get no Java frames, see AndroidStackTrace.build()
+export function noteEarlyPlatformStackTrace(hook: NativeHookDeclaration): void {
+  if (!hook.hookSettings.early || !hook.hookSettings.platformStackTrace) return;
+  logger.info(
+    `${describeNativeTarget(hook.module, hook)} has early: true and platformStackTrace: its calls before targetReady get native frames, but no Java frames (skipped: before-ready), as walking the Java stack of a thread that is still attaching to the Java VM crashes the app.`,
+  );
 }
 
 // errno is only set by the call, so `decoder: errno` only applies to the return value

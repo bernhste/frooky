@@ -17,10 +17,10 @@ export function markTargetReady(): void {
 export function detectUnsafeContext(ctx?: CpuContext): UnsafeContext | undefined {
   if (isOnSignalStack(ctx)) return "signal-stack";
   const tid = Process.getCurrentThreadId();
-  if ((linkerDepth.get(tid) ?? 0) > 0) return "in-linker";
-  // No thread enters the linker meanwhile: watchLinker()'s callbacks need the JS lock this call holds, and they run
-  // before the linker takes its own lock.
-  if (linkerDepth.size > 0) return "linker-busy";
+  // A thread inside the linker holds its lock, which is recursive, so its own stack walks don't wait for it. No other
+  // thread enters the linker meanwhile: watchLinker()'s callbacks need the JS lock this call holds, and they run before
+  // the linker takes its own lock.
+  if (linkerDepth.size > 0 && !linkerDepth.has(tid)) return "linker-busy";
   if (ctx && hasLowStack(tid, ctx.sp)) return "low-stack";
   if (!targetReady) return "before-ready";
   return undefined;
@@ -132,7 +132,7 @@ function hasLowStack(tid: number, sp: NativePointer): boolean {
   return sp.sub(bounds.low).compare(ptr(LOW_STACK_BYTES)) < 0;
 }
 
-// The current thread's stack from pthread_getattr_np(), or null if it's unknown
+// The current thread's usable stack, from pthread_getattr_np() without the guard pages, or null if it's unknown
 export function stackBounds(): StackBounds | null {
   if (pthreadFns === undefined) {
     pthreadFns = null;
@@ -160,8 +160,17 @@ export function stackBounds(): StackBounds | null {
     const result = pthreadFns.getstack(attr, addr, size);
     pthreadFns.destroy(attr);
     if (result !== 0) return null;
-    const low = addr.readPointer();
-    return { low, high: low.add(size.readPointer()) };
+    let low = addr.readPointer();
+    const high = low.add(size.readPointer());
+    // pthread_getattr_np() counts the guard pages below a thread's stack as stack, e.g. 20KB on Android 15 x86_64
+    for (
+      let range = Process.findRangeByAddress(low);
+      range !== null && range.protection === "---" && low.compare(high) < 0;
+      range = Process.findRangeByAddress(low)
+    ) {
+      low = range.base.add(range.size);
+    }
+    return { low, high };
   } catch (_) {
     return null;
   }

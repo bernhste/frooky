@@ -6,6 +6,8 @@ class MastgTest(private val context: Context) {
 
     companion object {
         init {
+            // before loadTime, which calls it while it loads
+            System.loadLibrary("loadStage")
             System.loadLibrary("receiveFundamentalValue")
             System.loadLibrary("receiveFundamentalReference")
             System.loadLibrary("receiveString")

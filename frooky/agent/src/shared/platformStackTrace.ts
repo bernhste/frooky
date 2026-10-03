@@ -1,23 +1,21 @@
 import { HookSettings } from "./frookySettings";
 
-// Why a hook call has no stack trace, see detectUnsafeContext()
+// Why a hook call's stack trace is incomplete or missing, see detectUnsafeContext()
 export type UnsafeContext =
-  // on an alternate signal stack (`sigaltstack`), typically 32KB, too small for a stack walk
+  // on an alternate signal stack (`sigaltstack`), typically 32KB: symbolizing or a Java walk can overflow it
   | "signal-stack"
-  // inside dlopen()/dlclose() on this thread: the linker holds its lock and the module is only partly loaded
-  | "in-linker"
-  // another thread is inside dlopen()/dlclose(): it can hold the linker's lock while it waits for the JS lock in a
-  // hook (e.g. on `mmap`), and the stack walk would wait for the linker's lock (dl_iterate_phdr())
+  // another thread is inside dlopen()/dlclose(): it can hold the linker's lock while it waits for the JS lock in a hook
+  // (e.g. in a library constructor), and the accurate backtracer needs the linker's lock (dl_iterate_phdr())
   | "linker-busy"
   // little stack left on the thread
   | "low-stack"
-  // before the app's code runs (spawn mode): only native frames are captured
+  // before the app's code runs (spawn mode): a native hook can fire on a thread that is still attaching to the VM
   | "before-ready";
 
 export interface HookStackTrace {
   platformStackTrace: string[];
   nativeStackTrace: string[];
-  // set when requested frames were not captured, e.g. `before-ready` has native but no platform frames
+  // set when requested frames were not captured, e.g. a native hook has native but no platform frames at `before-ready`
   skipped?: UnsafeContext;
 }
 
@@ -37,6 +35,8 @@ export interface StackTraceRequest {
 }
 
 export interface PlatformStackTrace {
+  // Called once at targetReady, on the agent's thread
+  prepare?(): void;
   // Throws FilterMismatchError if `filterCallers` is set and the callerFilter doesn't match.
   build(settings: HookSettings, request: StackTraceRequest): HookStackTrace;
 }

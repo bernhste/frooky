@@ -16,6 +16,7 @@ docs/parameter-declaration.md and docs/decoders.md.
 import re
 import struct
 import textwrap
+from pathlib import Path
 
 import frida
 import pytest
@@ -24,6 +25,7 @@ TARGET_APP = "value-passing-native"
 MODULE_VALUE = "libreceiveFundamentalValue.so"
 MODULE_REFERENCE = "libreceiveFundamentalReference.so"
 MODULE_STRING = "libreceiveString.so"
+SCRIPTS = Path(__file__).parent / "scripts"
 
 
 def _as_int(value):
@@ -718,3 +720,46 @@ class TestValuePassingNative:
 
         frooky.update_hook_file(hook_file("A", "B", "C"))
         assert recorded_by(frooky) == ["A", "B", "C"]
+
+    def test_hook_on_a_loading_library_records_its_constructor_while_another_thread_is_in_a_hook(self, run_frooky_spawn, find_matched_events):
+        """A hook on a function of a library that frooky installs while the library loads is active before its
+        constructor runs, also while another thread is in a hook callback, which keeps Frida from committing it."""
+        hook_file = textwrap.dedent("""\
+            hookCollection:
+              - module: libloadTime.so
+                hookSettings:
+                  early: true
+                hooks:
+                  - symbol: load_time_constructor
+                  - symbol: JNI_OnLoad
+        """)
+        run_frooky_spawn(hook_file, TARGET_APP, user_scripts=[SCRIPTS / "hold_interceptor_transaction.js"])
+
+        assert len(find_matched_events({"module": "libloadTime.so", "symbol": "load_time_constructor"})) == 1
+        assert len(find_matched_events({"module": "libloadTime.so", "symbol": "JNI_OnLoad"})) == 1
+
+    def test_native_stack_trace_on_another_thread_while_a_library_loads(self, run_frooky_spawn, find_matched_events):
+        """While frooky waits for its hooks on a loading library to be committed, another thread's hook still
+        captures native frames: the fuzzy backtracer, as the loading thread holds the linker's lock (`linker-busy`)."""
+        hook_file = textwrap.dedent("""\
+            hookCollection:
+              - module: libloadTime.so
+                hookSettings:
+                  early: true
+                hooks:
+                  - symbol: load_time_constructor
+              - module: libloadStage.so
+                hookSettings:
+                  early: true
+                  nativeStackTrace: true
+                hooks:
+                  - symbol: report_load_stage
+                    params:
+                      - ["char *", stage]
+        """)
+        run_frooky_spawn(hook_file, TARGET_APP, user_scripts=[SCRIPTS / "walk_stack_while_loading.js"])
+
+        assert len(find_matched_events({"module": "libloadTime.so", "symbol": "load_time_constructor"})) == 1
+        [other] = find_matched_events({"symbol": "report_load_stage", "argsIn": [{"value": "other-thread"}]})
+        assert len(other["stackTrace"]["nativeStackTrace"]) > 0
+        assert "skipped" not in other["stackTrace"]

@@ -193,6 +193,7 @@ export class FrookyAgent {
     this.targetReady = targetReady;
     void targetReady.then(() => {
       this.isTargetReady = true;
+      platformStackTrace.prepare?.();
       markTargetReady();
       logger.info("targetReady: the app's classes can be looked up, installing the hooks that waited for it");
     });

@@ -46,10 +46,12 @@ const settings: HookSettings = DEFAULT_HOOK_SETTINGS;
 
 type Variant = { unsafeContext?: UnsafeContext; callerFilter?: string[] };
 
+type HookResult = { built: unknown[]; native: string[]; fuzzy: string[] };
+
 // calls a native function and returns what build() produced (or threw) for each variant, and what
-// nativeStackFrames() produced, all from inside the same hook call
-async function buildInNativeHook(limit: number, variants: Variant[] = [{}]): Promise<{ built: unknown[]; native: string[] }> {
-  let result: { built: unknown[]; native: string[] } | undefined;
+// nativeStackFrames() produced with and without the accurate backtracer, all from inside the same hook call
+async function buildInNativeHook(limit: number, variants: Variant[] = [{}]): Promise<HookResult> {
+  let result: HookResult | undefined;
   const listener = Interceptor.attach(cm.identity, {
     onEnter() {
       const built = variants.map(({ unsafeContext, callerFilter = [] }) => {
@@ -62,7 +64,7 @@ async function buildInNativeHook(limit: number, variants: Variant[] = [{}]): Pro
           return e;
         }
       });
-      result = { built, native: nativeStackFrames(this.context, limit) };
+      result = { built, native: nativeStackFrames(this.context, limit), fuzzy: nativeStackFrames(this.context, limit, true) };
     },
   });
   try {
@@ -74,25 +76,52 @@ async function buildInNativeHook(limit: number, variants: Variant[] = [{}]): Pro
   } finally {
     listener.detach();
   }
-  return result ?? { built: [], native: [] };
+  return result ?? { built: [], native: [], fuzzy: [] };
 }
 
 // one hook for the whole file: attaching to the same function again after a detach can take a long
 // time to be committed
-describe("AndroidStackTrace.build() in an unsafe context", () => {
-  it("captures no frames and names the reason, drops calls whose callerFilter can't be checked, and captures only native frames before the app is ready", async () => {
-    const { built, native } = await buildInNativeHook(4, [
+describe("AndroidStackTrace.build() of a native hook in an unsafe context", () => {
+  it("captures no frames on a small stack, only fuzzy native frames while another thread is in the linker, and no Java frames before the app is ready", async () => {
+    AndroidStackTrace.prepare?.();
+    const { built, native, fuzzy } = await buildInNativeHook(4, [
       { unsafeContext: "signal-stack" },
-      { unsafeContext: "in-linker", callerFilter: [".*"] },
+      { unsafeContext: "low-stack", callerFilter: [".*"] },
+      { unsafeContext: "linker-busy" },
       { unsafeContext: "before-ready" },
       { unsafeContext: "before-ready", callerFilter: [".*"] },
     ]);
-    const [signalStack, inLinkerFiltered, beforeReady, beforeReadyFiltered] = built;
+    const [signalStack, lowStackFiltered, linkerBusy, beforeReady, beforeReadyFiltered] = built;
     expect(signalStack).toEqual({ platformStackTrace: [], nativeStackTrace: [], skipped: "signal-stack" });
-    expect(inLinkerFiltered instanceof FilterMismatchError).toBeTruthy();
+    expect(lowStackFiltered instanceof FilterMismatchError).toBeTruthy();
     expect(native.length).toBeGreaterThan(0);
+    expect(fuzzy.length).toBeGreaterThan(0);
+    // the Java walk is initialized by prepare(), so nothing is skipped
+    expect(linkerBusy).toEqual({ platformStackTrace: [], nativeStackTrace: fuzzy });
     expect(beforeReady).toEqual({ platformStackTrace: [], nativeStackTrace: native, skipped: "before-ready" });
     expect(beforeReadyFiltered instanceof FilterMismatchError).toBeTruthy();
+  });
+});
+
+describe("AndroidStackTrace.build() of a Java hook in an unsafe context", () => {
+  // like a Java hook: on the main thread, without a CPU context
+  const buildOnMainThread = (unsafeContext: UnsafeContext, callerFilter: string[] = []) =>
+    onMainThread(() =>
+      AndroidStackTrace.build({ ...settings, platformStackTrace: true, maxStackFrames: 2, callerFilter }, { unsafeContext, filterCallers: true }),
+    );
+
+  it("captures the Java frames and checks the callerFilter before the app is ready", async () => {
+    const beforeReady = await buildOnMainThread("before-ready");
+    expect(beforeReady.platformStackTrace.length).toBe(2);
+    expect(beforeReady.skipped).toBeUndefined();
+    expect((await buildOnMainThread("before-ready", ["^android\\.os\\.Looper\\.loop$"])).platformStackTrace.length).toBe(2);
+  });
+
+  it("captures the Java frames while another thread is in the linker, once the Java walk is initialized", async () => {
+    AndroidStackTrace.prepare?.();
+    const linkerBusy = await buildOnMainThread("linker-busy");
+    expect(linkerBusy.platformStackTrace.length).toBe(2);
+    expect(linkerBusy.skipped).toBeUndefined();
   });
 });
 

@@ -565,8 +565,21 @@ class TestNativeExamples:
     def test_calls_while_loading(self, run_frooky_spawn, find_matched_events):
         run_frooky_spawn(_example("native/08_early_hooking/02_calls_while_loading.yaml"), NATIVE_APP)
 
-        events = self._events(find_matched_events, "on_library_load", "libloadTime.so")
+        assert len(self._events(find_matched_events, "load_time_constructor", "libloadTime.so")) == 1
+        events = self._events(find_matched_events, "report_load_stage", "libloadStage.so")
         assert [event["argsIn"] for event in events] == [
             [{"type": "char *", "name": "stage", "value": "constructor"}],
             [{"type": "char *", "name": "stage", "value": "JNI_OnLoad"}],
         ]
+
+    def test_stack_traces_while_loading(self, run_frooky_spawn, find_matched_events):
+        run_frooky_spawn(_example("native/08_early_hooking/03_stack_traces_while_loading.yaml"), NATIVE_APP)
+
+        traces = {event["argsIn"][0]["value"]: event["stackTrace"] for event in self._events(find_matched_events, "report_load_stage", "libloadStage.so")}
+        assert set(traces) == {"constructor", "JNI_OnLoad"}
+        # only the app's frames: the linker's, ART's and java.lang.Runtime's differ between Android versions
+        for trace in traces.values():
+            assert "skipped" not in trace
+            assert any(frame.startswith(f"{MASTG_CLASS}.<clinit> ") for frame in trace["platformStackTrace"])
+        assert traces["constructor"]["nativeStackTrace"][0].startswith("load_time_constructor+0x")
+        assert traces["JNI_OnLoad"]["nativeStackTrace"][0].startswith("JNI_OnLoad+0x")

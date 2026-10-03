@@ -1,14 +1,16 @@
 metadata:
   name: "Early Hooking (Native): Calls While a Library Loads"
   description: |
-    A library can call its own functions while it loads, from a constructor or from JNI_OnLoad.
-    frooky hooks a library as soon as the linker loads it, before this code runs, so these calls
-    are recorded too.
+    A library can run code while it loads, from a constructor or from JNI_OnLoad, e.g. calls of its
+    own functions or into another library. frooky hooks a library as soon as the linker loads it,
+    before its constructors run, so these calls are recorded too.
   version: 1
   author: frooky dev
   platform: Android
 
-# Target: tests/target-apps/android/value-passing-native (cpp/loadTime.c), which loads libloadTime.so at startup.
+# Target: tests/target-apps/android/value-passing-native (cpp/loadTime.c, cpp/loadStage.c), which loads
+#         libloadStage.so and then libloadTime.so at startup. libloadTime.so's constructor calls its own
+#         load_time_constructor, which calls report_load_stage; JNI_OnLoad calls report_load_stage too.
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/08_early_hooking/02_calls_while_loading.yaml
 # See:    docs/additional-features.md#dynamic-class-and-module-resolution
 #
@@ -16,15 +18,25 @@ metadata:
 # pressing "Start", is hooked the same way when it loads.
 
 hookCollection:
+  # a function of the loading library itself, hooked before its constructor runs
   - module: libloadTime.so
     hookSettings:
       early: true
     hooks:
-      # const char *on_library_load(const char *stage)
-      - symbol: on_library_load
+      # void load_time_constructor(void)
+      - symbol: load_time_constructor
+
+  # a function of a library loaded before
+  - module: libloadStage.so
+    hookSettings:
+      early: true
+    hooks:
+      # const char *report_load_stage(const char *stage)
+      - symbol: report_load_stage
         params:
           - ["char *", stage]
 
-# Expected events, in this order:
-#   on_library_load: argsIn [{type: "char *", name: stage, value: "constructor"}]
-#   on_library_load: argsIn [{type: "char *", name: stage, value: "JNI_OnLoad"}]
+# Expected events:
+#   load_time_constructor: one event, without arguments
+#   report_load_stage:     argsIn [{type: "char *", name: stage, value: "constructor"}], then
+#                          argsIn [{type: "char *", name: stage, value: "JNI_OnLoad"}]

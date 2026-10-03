@@ -21,12 +21,13 @@ function formatNativeFrame(address: NativePointer): string {
   return frame;
 }
 
-// Up to `limit` native frames at `ctx` (an Interceptor callback's `this.context`), innermost first.
-export function nativeStackFrames(ctx: CpuContext, limit: number): string[] {
+// Up to `limit` native frames at `ctx` (an Interceptor callback's `this.context`), innermost first. `fuzzyOnly` skips the
+// accurate backtracer, which needs the linker's lock (dl_iterate_phdr()) for return addresses it hasn't unwound before.
+export function nativeStackFrames(ctx: CpuContext, limit: number, fuzzyOnly = false): string[] {
   try {
     // FUZZY also returns stack values that only look like return addresses, so it's only the fallback for
     // code without unwind information
-    let frames = backtrace(ctx, { backtracer: Backtracer.ACCURATE, limit });
+    let frames = fuzzyOnly ? [] : backtrace(ctx, { backtracer: Backtracer.ACCURATE, limit });
     if (frames.length === 0) frames = backtrace(ctx, { backtracer: Backtracer.FUZZY, limit });
     return frames.map(formatNativeFrame);
   } catch (_) {

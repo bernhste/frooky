@@ -21,6 +21,12 @@ import { MAX_FILTERED_ARGS, ModuleRange, NativeFilteredListener } from "./native
 // the most bytes the Interceptor overwrites at a hooked address (an absolute jump on x86_64 or arm64)
 const INTERCEPTOR_PATCH_BYTES = 16;
 
+// how long hooks installed while a module loads may wait to be committed, see waitUntilCommitted()
+const COMMIT_TIMEOUT_MS = 1000;
+
+// A function hooked for the first time while its module loads, with its code before the hook
+type PendingCommit = { address: NativePointer; code: ArrayBuffer };
+
 // A registered hook with what it uses on every call, resolved once
 type InstalledNativeHook = {
   hook: NativeHook;
@@ -93,6 +99,11 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   // called with a module once it loads, keyed by the name (or path) hooks declare it with
   private readonly moduleWaiters = new Map<string, ((module: Module) => void)[]>();
   private moduleObserver?: ModuleObserver;
+  // the functions hooked by the module observer's current callback, see waitUntilCommitted()
+  private pendingCommits: PendingCommit[] | null = null;
+  // cooperative, so a call gives up the JS lock. Resolved before the observer is attached: resolving it inside the
+  // linker would call dlsym() there.
+  private usleep?: NativeFunction<number, [number]>;
 
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
@@ -227,16 +238,38 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
 
   // Attached once and kept: attaching calls onAdded() for every loaded module.
   private observeModules(): void {
+    this.usleep ??= new NativeFunction(Process.getModuleByName("libc.so").getExportByName("usleep"), "int", ["uint"]);
     this.moduleObserver ??= Process.attachModuleObserver({
-      // runs on the thread that loads the module, inside the linker
+      // runs on the thread that loads the module, inside the linker, before its constructors
       onAdded: (module) => {
         const waiters = this.moduleWaiters.get(module.name) ?? this.moduleWaiters.get(module.path);
         if (!waiters) return;
         this.moduleWaiters.delete(module.name);
         this.moduleWaiters.delete(module.path);
-        for (const waiter of waiters) waiter(module);
+        this.pendingCommits = [];
+        try {
+          for (const waiter of waiters) waiter(module);
+        } finally {
+          const pending = this.pendingCommits;
+          this.pendingCommits = null;
+          this.waitUntilCommitted(pending, module.name);
+        }
       },
     });
+  }
+
+  // Frida commits Interceptor changes only once no thread is inside a hook callback. If another thread entered one
+  // while the hooks were installed here, the commit would come after the module's constructors ran, and their calls
+  // would be missed. Giving up the JS lock lets that thread finish, until the hooked functions' code is patched.
+  private waitUntilCommitted(pending: PendingCommit[], moduleName: string): void {
+    const start = Date.now();
+    while (pending.some(({ address, code }) => sameBytes(address.readByteArray(code.byteLength), code))) {
+      if (Date.now() - start >= COMMIT_TIMEOUT_MS) {
+        logger.warn(`Hooks on ${moduleName} may miss calls while it loads: another thread delayed them by over ${COMMIT_TIMEOUT_MS}ms`);
+        return;
+      }
+      this.usleep!(1000);
+    }
   }
 
   // Hooks that are already installed, e.g. by resolveHooks() while their module loaded, count as installed.
@@ -310,6 +343,11 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   // dispatcher. Throws if the Interceptor can't hook the function.
   private updateListener(hookedFunction: HookedFunction, target: string): void {
     const { hooks } = hookedFunction;
+    if (this.pendingCommits && !hookedFunction.listener) {
+      try {
+        this.pendingCommits.push({ address: hookedFunction.address, code: hookedFunction.address.readByteArray(INTERCEPTOR_PATCH_BYTES)! });
+      } catch (_) {}
+    }
     let reason = jsListenerReason(hooks);
     if (reason === undefined) {
       const argCount = Math.max(0, ...hooks.map((installedHook) => installedHook.hook.params?.length ?? 0));
@@ -629,4 +667,11 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
     }
     return address;
   }
+}
+
+function sameBytes(a: ArrayBuffer | null, b: ArrayBuffer): boolean {
+  if (a === null || a.byteLength !== b.byteLength) return false;
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  return x.every((byte, i) => byte === y[i]);
 }
