@@ -1,5 +1,5 @@
 metadata:
-  name: "Torture (Native) Level 1: Filtered Hot libc"
+  name: "Torture (Native) Level 1: Filtered High-Frequency libc Functions"
   description: |
     Hooks the busiest libc file functions with an `argFilter` that almost never matches. Every call pays
     for the trampoline and the decoding of the filtered value, but hardly any events are sent. This is the

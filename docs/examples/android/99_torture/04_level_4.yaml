@@ -1,5 +1,5 @@
 metadata:
-  name: "Torture (Android) Level 4: Stack Traces on Hot Methods"
+  name: "Torture (Android) Level 4: Stack Traces on High-Frequency Methods"
   description: |
     Level 3 with deep platform stack traces on every call. A Java backtrace walks the whole stack, even
     with a limit, so this costs the same on every call no matter how many frames are kept.

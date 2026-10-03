@@ -1,5 +1,5 @@
 metadata:
-  name: "Torture (Native) Level 2: Unfiltered Hot libc"
+  name: "Torture (Native) Level 2: Unfiltered High-Frequency libc Functions"
   description: |
     The functions of level 1 and the memory mapping calls, without any filter. Every file, socket, pipe and
     binder access of the app becomes an event, with decoded buffers, flags and file descriptors.

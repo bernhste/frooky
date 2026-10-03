@@ -1,7 +1,7 @@
 metadata:
-  name: "Torture (Native) Level 4: Stack Traces on Hot libc"
+  name: "Torture (Native) Level 4: Stack Traces on High-Frequency libc Functions"
   description: |
-    Deep native stack traces on every call of the hot libc file functions, and native and Java stack traces
+    Deep native stack traces on every call of the high-frequency libc file functions, and native and Java stack traces
     as deep as they go on the app's own functions. Symbolizing a native frame reads /proc/self/maps with the
     hooked `open` and `read`.
   version: 1

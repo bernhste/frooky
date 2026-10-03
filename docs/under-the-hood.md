@@ -435,7 +435,7 @@ These checks cover the known ways a stack walk crashes or hangs the app, not eve
 
 ## Caller Filters
 
-A hot function, e.g. `malloc`, is called mostly by code you aren't interested in: ART, the framework, system libraries and SDKs. A `callerFilter` drops these calls before frooky decodes any value, builds a stack trace or creates an event. A native hook's filter needs no stack walk, so it is also checked in the calls in which stack traces are skipped, e.g. inside a library constructor (`in-linker`) or before `targetReady`.
+A high-frequency function, e.g. `malloc`, is called mostly by code you aren't interested in: ART, the framework, system libraries and SDKs. A `callerFilter` drops these calls before frooky decodes any value, builds a stack trace or creates an event. A native hook's filter needs no stack walk, so it is also checked in the calls in which stack traces are skipped, e.g. inside a library constructor (`in-linker`) or before `targetReady`.
 
 `callerFilter` is a list of regular expressions, compiled once per hook (`new RegExp(pattern)`, not anchored). A plain string such as `libapp.so` therefore matches every name that contains it. What the expressions are matched against depends on the hook:
 

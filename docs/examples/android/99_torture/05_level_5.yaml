@@ -2,7 +2,7 @@ metadata:
   name: "Torture (Android) Level 5: The Runtime Itself"
   description: |
     Hooks the methods that frooky's own decoders and the Frida Java bridge call while handling a hook:
-    reflection, class loading, `Object.toString`/`hashCode`, `String.valueOf`. Hot arguments are decoded
+    reflection, class loading, `Object.toString`/`hashCode`, `String.valueOf`. Their arguments are decoded
     through their getters, as deep as they go. This level is expected to break something.
   version: 1
   author: frooky dev
@@ -16,7 +16,7 @@ metadata:
 #   decoding an object without a decoder calls its `toString()`. Both are hooked here.
 # - frooky watches `ClassLoader.loadClass()` itself to resolve classes that load late; here a hook file
 #   hooks it too, so frooky's own hook and the declared one share the method.
-# - `Method.invoke()` and `Class.forName()` are the reflection hot paths of the framework and of libraries.
+# - `Method.invoke()` and `Class.forName()` are the high-frequency reflection calls of the framework and of libraries.
 # - `maxDepth`/`maxItems` are the only bound on how much an argument decoded through its getters expands.
 # - `ArrayList.add()`, `StringBuilder.append()` and `StringBuilder.toString()` are called by the agent itself
 #   while it handles a Java hook, so hooking them recurses until the thread's stack overflows (SIGSEGV,

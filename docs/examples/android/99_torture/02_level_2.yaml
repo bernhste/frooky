@@ -1,9 +1,9 @@
 metadata:
-  name: "Torture (Android) Level 2: Filtered Hot Collections"
+  name: "Torture (Android) Level 2: Filtered High-Frequency Collections"
   description: |
     Hooks the collection and string methods that every Java and Kotlin line of code uses, with an
     `argFilter` that never matches. Every call is decoded to evaluate the filter, but no event is sent:
-    this is the bare cost of a Java hook on a hot method.
+    this is the bare cost of a Java hook on a high-frequency method.
   version: 1
   author: frooky dev
   platform: Android
