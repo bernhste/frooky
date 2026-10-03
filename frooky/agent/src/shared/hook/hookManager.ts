@@ -83,6 +83,16 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     });
   }
 
+  // The decoders of `params`, split by when they run: `in` before the call, `out` after it, `inout` in both
+  protected resolveArgDecoders(params: Param[] | undefined): { in: ParamDecoder<TValue>[]; out: ParamDecoder<TValue>[] } {
+    if (!params) return { in: [], out: [] };
+    const argDecoders = this.resolveParamDecoders(params);
+    return {
+      in: argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout"),
+      out: argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout"),
+    };
+  }
+
   private resolveDecoderArgSources(param: Param, params: Param[]): ParamDecoder<TValue>["decoderArgs"] {
     const decoderArgs = param.settings.decoderArgs;
     if (!decoderArgs) return undefined;

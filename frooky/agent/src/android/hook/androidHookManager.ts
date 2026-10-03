@@ -193,13 +193,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
 
   // resolves the decoders once per hook, not per call
   private prepareHook(hook: JavaHook, target: string): InstalledJavaHook {
-    let inArgDecoders: ParamDecoder<Java.Wrapper>[] = [];
-    let outArgDecoders: ParamDecoder<Java.Wrapper>[] = [];
-    if (hook.params) {
-      const argDecoders = this.resolveParamDecoders(hook.params);
-      inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
-      outArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout");
-    }
+    const argDecoders = this.resolveArgDecoders(hook.params);
     let retTypeDecoder: Decoder<Java.Wrapper> | undefined;
     if (hook.method.returnType.className) {
       retTypeDecoder = this.resolveRetTypeDecoder({
@@ -211,8 +205,8 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     return {
       hook,
       target,
-      inArgDecoders,
-      outArgDecoders,
+      inArgDecoders: argDecoders.in,
+      outArgDecoders: argDecoders.out,
       retTypeDecoder,
       needsStackTrace: needsStackTrace(hook.hookSettings) || hook.hookSettings.callerFilter.length > 0,
     };

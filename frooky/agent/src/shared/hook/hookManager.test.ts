@@ -67,6 +67,10 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     return this.resolveParamDecoders(params);
   }
 
+  public exposedResolveArgDecoders(params: Param[] | undefined): { in: ParamDecoder<TestValue>[]; out: ParamDecoder<TestValue>[] } {
+    return this.resolveArgDecoders(params);
+  }
+
   public exposedResolveRetTypeDecoder(retType: RetType): Decoder<TestValue> {
     return this.resolveRetTypeDecoder(retType);
   }
@@ -99,6 +103,32 @@ function makeParam(overrides: Partial<Param> = {}): Param {
 }
 
 describe("HookManager", () => {
+  describe("resolveArgDecoders()", () => {
+    it("splits the decoders into in and out, with inout params in both", () => {
+      const manager = createManager();
+      const params: Param[] = [
+        makeParam({ name: "a", direction: "in" }),
+        makeParam({ name: "b", direction: "out" }),
+        makeParam({ name: "c", direction: "inout" }),
+      ];
+
+      const { in: inDecoders, out: outDecoders } = manager.exposedResolveArgDecoders(params);
+
+      expect(inDecoders.map(({ name, argIndex }) => [name, argIndex])).toEqual([
+        ["a", 0],
+        ["c", 2],
+      ]);
+      expect(outDecoders.map(({ name, argIndex }) => [name, argIndex])).toEqual([
+        ["b", 1],
+        ["c", 2],
+      ]);
+    });
+
+    it("returns no decoders without params", () => {
+      expect(createManager().exposedResolveArgDecoders(undefined)).toEqual({ in: [], out: [] });
+    });
+  });
+
   describe("resolveParamDecoders()", () => {
     let warnSpy: Mock;
 

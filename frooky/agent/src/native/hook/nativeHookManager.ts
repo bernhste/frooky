@@ -14,6 +14,7 @@ import { detectUnsafeContext } from "../unsafeContext";
 import { NativeCallerFilter } from "../nativeCallerFilter";
 import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
+import { FindExport, resolveNativeHook } from "./nativeAddressResolver";
 import { NativeHook } from "./nativeHook";
 import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
 import { MAX_FILTERED_ARGS, ModuleRange, NativeFilteredListener } from "./nativeFilteredListener";
@@ -153,12 +154,8 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   }
 
   // FrookyAgent installs the hooks: right away with `early: true` or after targetReady, else once targetReady resolves
-  private resolveInLoadedModule(
-    inputHook: NativeHookDeclaration,
-    module: Module,
-    findExport: (symbol: string) => NativePointer | undefined,
-  ): Resolution<NativeHook[] | null> {
-    const hooks = this.resolveHook(inputHook, module, findExport);
+  private resolveInLoadedModule(inputHook: NativeHookDeclaration, module: Module, findExport: FindExport): Resolution<NativeHook[] | null> {
+    const hooks = resolveNativeHook(inputHook, module, findExport);
     if (!hooks || inputHook.hookSettings.early || this.frookyAgent.isTargetReady) return hooks;
     return this.targetReady().then(() => hooks);
   }
@@ -168,10 +165,10 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   private installWhileLoading(
     inputHook: NativeHookDeclaration,
     module: Module,
-    findExport: (symbol: string) => NativePointer | undefined,
+    findExport: FindExport,
     source?: string,
   ): NativeHook[] | null | Promise<NativeHook[] | null> {
-    const hooks = this.resolveHook(inputHook, module, findExport);
+    const hooks = resolveNativeHook(inputHook, module, findExport);
     if (!hooks) return null;
     if (inputHook.hookSettings.early || this.frookyAgent.isTargetReady) {
       this.registerHooks(hooks, source);
@@ -185,38 +182,6 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
 
   private targetReady(): Promise<void> {
     return this.frookyAgent.targetReady ?? Promise.resolve();
-  }
-
-  // null if the symbol or offset doesn't resolve
-  private resolveHook(
-    inputHook: NativeHookDeclaration,
-    module: Module,
-    findExport: (symbol: string) => NativePointer | undefined,
-  ): NativeHook[] | null {
-    const target = describeNativeTarget(inputHook.module, inputHook);
-    try {
-      const symbolAddress =
-        inputHook.symbol !== undefined
-          ? this.resolveSymbol(inputHook.symbol, module, findExport)
-          : this.resolveModuleOffset(inputHook.offset, module);
-      logger.debug(`Address of function ${target} found: ${symbolAddress}.`);
-      return [
-        {
-          module,
-          moduleName: module.name,
-          symbolName: inputHook.symbol,
-          offset: inputHook.offset,
-          symbolAddress,
-          params: inputHook.params,
-          retType: inputHook.retType,
-          hookSettings: inputHook.hookSettings,
-          decoderSettings: inputHook.decoderSettings,
-        },
-      ];
-    } catch (e) {
-      logger.warn(e instanceof Error ? e.message : String(e));
-      return null;
-    }
   }
 
   // Calls `onLoaded` with the module while the linker loads it, and resolves with its result
@@ -408,20 +373,14 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
 
   // resolves the decoders and argument slots once per hook, not per call
   private prepareHook(hook: NativeHook, target: string): InstalledNativeHook {
-    let inArgDecoders: ParamDecoder<NativePointer>[] = [];
-    let outArgDecoders: ParamDecoder<NativePointer>[] = [];
-    if (hook.params) {
-      const argDecoders = this.resolveParamDecoders(hook.params);
-      inArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "in" || argDecoder.direction === "inout");
-      outArgDecoders = argDecoders.filter((argDecoder) => argDecoder.direction === "out" || argDecoder.direction === "inout");
-    }
+    const argDecoders = this.resolveArgDecoders(hook.params);
     // float/double params and return values are in FP registers, not in args[]/returnValue
     const argSlots = planArgSlots(hook.params);
     return {
       hook,
       target,
-      inArgDecoders,
-      outArgDecoders,
+      inArgDecoders: argDecoders.in,
+      outArgDecoders: argDecoders.out,
       retTypeDecoder: hook.retType ? this.resolveRetTypeDecoder(hook.retType) : undefined,
       argSlots,
       hasFloatArgs: argSlots.some((slot) => slot.kind === "float"),
@@ -635,37 +594,6 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
         (name !== null && symbol.moduleName === hook.moduleName && functionName(DebugSymbol.fromAddress(hook.symbolAddress)) === name),
     );
     return hook ? describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset }) : undefined;
-  }
-
-  private resolveSymbol(symbol: string, module: Module, findExport: (symbol: string) => NativePointer | undefined): NativePointer {
-    const address = findExport(symbol);
-    if (!address) throw Error(`Skipping hook for '${symbol}'. This symbol does not exist in module '${module.name}'.`);
-    return address;
-  }
-
-  // `module.base + offset`. Throws unless the address is inside the module and in a code section: patching
-  // data, e.g. with an offset from another build of the library, crashes the app.
-  private resolveModuleOffset(offset: string, module: Module): NativePointer {
-    const target = `${module.name}+${offset}`;
-    const moduleOffset = ptr(offset);
-    if (moduleOffset.compare(ptr(module.size)) >= 0) {
-      throw Error(`Skipping hook for '${target}'. The offset is outside the module, which is only 0x${module.size.toString(16)} bytes large.`);
-    }
-    const address = module.base.add(offset);
-    const range = Process.findRangeByAddress(address);
-    if (!range || !range.protection.includes("x")) {
-      throw Error(
-        `Skipping hook for '${target}'. The address ${address} is not executable (${range ? range.protection : "unmapped"}); check that the offset is a function's virtual address minus the image base, not a file offset.`,
-      );
-    }
-    // small libraries often map .rodata, .dynsym etc. into the executable segment of .text
-    const section = module.enumerateSections().find((s) => address.compare(s.address) >= 0 && address.compare(s.address.add(s.size)) < 0);
-    if (section && !/^\.(text|plt|init|fini)/.test(section.name)) {
-      throw Error(
-        `Skipping hook for '${target}'. The offset points into the section '${section.name}', which holds data, not code; check that the offset is the function's address in this exact build and ABI of the library (e.g. from 'nm -D --defined-only ${module.name}').`,
-      );
-    }
-    return address;
   }
 }
 

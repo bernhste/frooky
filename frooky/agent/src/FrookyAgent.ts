@@ -11,138 +11,23 @@ import { LogEvent } from "./shared/event/logEvent";
 import { InputFrookyConfig } from "./shared/frookyConfig";
 import { Platform } from "./shared/frookyMetadata";
 import { FrookySettings } from "./shared/frookySettings";
+import { diffConfig, HookToResolve, LoadedHookEntry } from "./shared/hook/configDiff";
 import { filteredCallCount, Hook } from "./shared/hook/hook";
+import {
+  configLabel,
+  describeConfig,
+  describeInputHook,
+  describeLoad,
+  describeLookup,
+  HookProgress,
+  HookStatistic,
+  LoadSummary,
+} from "./shared/hook/hookDescriptions";
 import { HookManager, isWaiting, Resolution } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
-import { describeNativeTarget } from "./shared/inputParsing/inputNativeHookCollection";
 import { logger, LogLevel, LogTo } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
-import { plural, stableStringify } from "./shared/utils";
-
-// State of one normalized hook declaration. `target` is the hooked method or symbol, `lookup` the class
-// or module it waits for, `hooks` the resolved hooks (one per overload or function). A declaration whose class or
-// module isn't loaded once the lookups at targetReady have run is `waiting`: it is installed as soon as that loads.
-type LoadedHookEntry = {
-  state: "resolving" | "waiting" | "installed" | "notFound" | "removed";
-  target?: string;
-  lookup?: string;
-  // e.g. `Java class 'com.example.Foo'`, for HookStatistics
-  waitsFor: string;
-  hooks?: Hook[];
-  hookedCount?: number;
-};
-
-type HookToResolve = { inputHook: unknown; entry: LoadedHookEntry };
-
-// The host uses the hook file path as config id, e.g. `/tmp/hooks.yaml` -> `hooks.yaml`.
-function configLabel(configId: string): string {
-  return configId.split(/[\\/]/).pop() || configId;
-}
-
-// Names a config in log messages: the hook file name, else the metadata name.
-function describeConfig(inputFrookyConfig: InputFrookyConfig, configId?: string): string {
-  return configId !== undefined ? configLabel(configId) : (inputFrookyConfig.metadata?.name ?? "frooky config");
-}
-
-// The class or module a hook declaration waits for, e.g. `platform:com.example.Foo`.
-function lookupOf(kind: string, inputHook: unknown): string | undefined {
-  if (typeof inputHook !== "object" || inputHook === null) return undefined;
-  const hook = inputHook as { javaClass?: string; classLoader?: string; module?: string };
-  const lookup = hook.javaClass ?? hook.module;
-  if (!lookup) return undefined;
-  return hook.classLoader ? `${kind}:${lookup}@${hook.classLoader}` : `${kind}:${lookup}`;
-}
-
-// e.g. `Java class 'com.example.Foo'` or `Module 'libfoo.so'`
-function describeLookup(inputHook: unknown): string {
-  const hook = (typeof inputHook === "object" && inputHook !== null ? inputHook : {}) as {
-    javaClass?: string;
-    classLoader?: string;
-    module?: string;
-  };
-  if (hook.javaClass) return `Java class '${hook.javaClass}'${hook.classLoader ? ` from class loader '${hook.classLoader}'` : ""}`;
-  return `Module '${hook.module}'`;
-}
-
-// e.g. `com.example.Foo.bar` or `libfoo.so!open`
-function describeInputHook(inputHook: unknown): string {
-  const target = targetOf("", inputHook);
-  return target ? target.slice(1) : JSON.stringify(inputHook);
-}
-
-// The method or symbol a hook declaration targets, e.g. `platform:com.example.Foo.bar`. Changing other
-// properties (overloads, settings, ...) keeps the target, so a reload reports the declaration as updated.
-function targetOf(kind: string, inputHook: unknown): string | undefined {
-  if (typeof inputHook !== "object" || inputHook === null) return undefined;
-  const hook = inputHook as { javaClass?: string; method?: string; module?: string; symbol?: string; offset?: string };
-  if (hook.javaClass && hook.method) return `${kind}:${hook.javaClass}.${hook.method}`;
-  if (hook.module && (hook.symbol || hook.offset)) return `${kind}:${describeNativeTarget(hook.module, hook)}`;
-  return undefined;
-}
-
-// Reported to the host while hooks resolve: installed hooks (one per overload or function), classes and
-// modules still being looked up, classes and modules waited for after the lookups at targetReady, and declarations
-// whose method, symbol or offset wasn't found.
-export type HookProgress = { hooked: number; resolving: number; waiting: number; notFound: number };
-
-// One hook declaration for the host's hook statistics (`i` key). `target` is e.g. `com.example.Foo.bar` or
-// `libfoo.so!open`, `waitsFor` the class or module it waits for, `overloads` how many overloads a Java hook
-// declaration hooks (null for native hooks), `events` how many events these recorded, `filtered` how many calls their callerFilter or argFilters dropped, and
-// `decodeMs` the milliseconds spent decoding the values of the recorded events.
-export type HookStatistic = {
-  config: string;
-  target: string;
-  state: "resolving" | "waiting" | "installed" | "notFound";
-  waitsFor: string;
-  overloads: number | null;
-  events: number;
-  filtered: number;
-  decodeMs: number;
-};
-
-// Installed hooks (one per overload or function), declarations waiting for their class or module, and
-// declarations whose method, symbol or offset wasn't found.
-type HookedSummary = {
-  hookedMethods: number;
-  hookedFunctions: number;
-  waiting: number;
-  notFound: number;
-};
-
-// Counted in hook declarations, except for the HookedSummary counts.
-type LoadSummary = HookedSummary & {
-  added: number;
-  updated: number;
-  removed: number;
-  retried: number;
-  unchanged: number;
-};
-
-// e.g. `hooked 2 methods and 1 function, 1 waiting, 3 not found`
-export function describeHooked({ hookedMethods, hookedFunctions, waiting, notFound }: HookedSummary): string {
-  const hooked: string[] = [];
-  if (hookedMethods > 0) hooked.push(plural(hookedMethods, "method"));
-  if (hookedFunctions > 0) hooked.push(plural(hookedFunctions, "function"));
-  const parts = [hooked.length > 0 ? `hooked ${hooked.join(" and ")}` : "hooked nothing"];
-  if (waiting > 0) parts.push(`${waiting} waiting`);
-  if (notFound > 0) parts.push(`${notFound} not found`);
-  return parts.join(", ");
-}
-
-// e.g. `1 new, 1 updated, 1 removed, 3 unchanged; hooked 2 methods`. The part after the semicolon
-// covers the new, updated and retried declarations.
-export function describeLoad(summary: LoadSummary): string {
-  const { added, updated, removed, retried, unchanged } = summary;
-  const changes: string[] = [];
-  if (added > 0) changes.push(`${added} new`);
-  if (updated > 0) changes.push(`${updated} updated`);
-  if (removed > 0) changes.push(`${removed} removed`);
-  if (retried > 0) changes.push(`${retried} retried`);
-  if (changes.length === 0) return "no changes";
-  if (unchanged > 0) changes.push(`${unchanged} unchanged`);
-  const text = changes.join(", ");
-  return added + updated + retried > 0 ? `${text}; ${describeHooked(summary)}` : text;
-}
+import { plural } from "./shared/utils";
 
 // Loads hook configs, installs their hooks and collects the events.
 export class FrookyAgent {
@@ -274,72 +159,23 @@ export class FrookyAgent {
     logger.debug(`Validating 'native' hooks`);
     const validNativeHook = this.nativeHookValidator.validateAndNormalizeHooks(inputFrookyConfig, validatedFrookySettings);
 
-    // diff against the previously loaded version of this config
     const id = configId ?? `#${++this.anonymousConfigCount}`;
-    const previousEntries = this.loadedConfigs.get(id);
-    const entries = new Map<string, LoadedHookEntry>();
-    const platformToResolve: HookToResolve[] = [];
-    const nativeToResolve: HookToResolve[] = [];
-    const addedEntries: LoadedHookEntry[] = [];
-    let countUnchanged = 0;
-    let countRetried = 0;
-
-    const diff = (kind: string, inputHooks: unknown[], toResolve: HookToResolve[]) => {
-      for (const inputHook of inputHooks) {
-        const fingerprint = `${kind}:${stableStringify(inputHook)}`;
-        if (entries.has(fingerprint)) {
-          logger.debug(`Skipping duplicate hook declaration: ${fingerprint}`);
-          continue;
-        }
-        const previousEntry = previousEntries?.get(fingerprint);
-        if (previousEntry && !(retryNotFound && previousEntry.state === "notFound")) {
-          entries.set(fingerprint, previousEntry);
-          countUnchanged++;
-          continue;
-        }
-        // a retried hook keeps its entry, so it is not counted as removed below
-        const entry: LoadedHookEntry = previousEntry ?? {
-          state: "resolving",
-          target: targetOf(kind, inputHook),
-          lookup: lookupOf(kind, inputHook),
-          waitsFor: describeLookup(inputHook),
-        };
-        if (previousEntry) {
-          previousEntry.state = "resolving";
-          countRetried++;
-        } else {
-          addedEntries.push(entry);
-        }
-        entries.set(fingerprint, entry);
-        toResolve.push({ inputHook, entry });
-      }
-    };
-    diff("platform", validPlatformHooks, platformToResolve);
-    diff("native", validNativeHook, nativeToResolve);
-
-    // remove hooks that are no longer declared; resolving and waiting ones are dropped once they resolve
-    const removedTargets = new Map<string, number>();
-    let countRemoved = 0;
-    for (const [fingerprint, previousEntry] of previousEntries ?? []) {
-      if (entries.get(fingerprint) === previousEntry) continue;
-      if (previousEntry.state === "installed" && previousEntry.hooks) {
+    const { entries, platformToResolve, nativeToResolve, removedEntries, ...counts } = diffConfig(
+      this.loadedConfigs.get(id),
+      validPlatformHooks,
+      validNativeHook,
+      retryNotFound,
+    );
+    for (const { entry } of [...platformToResolve, ...nativeToResolve]) entry.state = "resolving";
+    // resolving and waiting hooks of removed declarations are dropped once they resolve
+    for (const { fingerprint, entry } of removedEntries) {
+      if (entry.state === "installed" && entry.hooks) {
         const manager = fingerprint.startsWith("native:") ? this.nativeHookManager : this.platformHookManger;
-        manager.unregisterHooks(previousEntry.hooks);
+        manager.unregisterHooks(entry.hooks);
       }
-      previousEntry.state = "removed";
-      countRemoved++;
-      if (previousEntry.target) removedTargets.set(previousEntry.target, (removedTargets.get(previousEntry.target) ?? 0) + 1);
+      entry.state = "removed";
     }
     this.loadedConfigs.set(id, entries);
-
-    // a declaration that replaced a removed one with the same target was updated, not added and removed
-    let countUpdated = 0;
-    for (const { target } of addedEntries) {
-      const removedCount = target ? (removedTargets.get(target) ?? 0) : 0;
-      if (removedCount === 0) continue;
-      removedTargets.set(target!, removedCount - 1);
-      countUpdated++;
-    }
 
     logger.info(
       `Parsed ${label}: ${plural(validPlatformHooks.length, `${this.platform} hook`)} and ${plural(validNativeHook.length, "native hook")}, ${platformToResolve.length + nativeToResolve.length} to resolve`,
@@ -354,11 +190,7 @@ export class FrookyAgent {
 
     const toResolve = [...platformToResolve, ...nativeToResolve];
     return {
-      added: addedEntries.length - countUpdated,
-      updated: countUpdated,
-      removed: countRemoved - countUpdated,
-      retried: countRetried,
-      unchanged: countUnchanged,
+      ...counts,
       hookedMethods: countSuccessfulPlatformHooks,
       hookedFunctions: countSuccessfulNativeHooks,
       waiting: toResolve.filter(({ entry }) => entry.state === "waiting").length,
