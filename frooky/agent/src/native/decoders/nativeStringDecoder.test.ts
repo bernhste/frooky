@@ -55,7 +55,7 @@ describe("NativeStringDecoder", () => {
       expect(makeDecoder().decode(buffer, lengthArg(3)).value).toBe("abc");
     });
 
-    it("should accept a length decoded as a decimal string (size_t on LP64)", () => {
+    it("should accept a length decoded as a decimal string (size_t)", () => {
       const buffer = writeBytes([0x61, 0x62, 0x63]);
       expect(makeDecoder().decode(buffer, lengthArg("2")).value).toBe("ab");
     });

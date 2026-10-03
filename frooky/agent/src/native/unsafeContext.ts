@@ -83,7 +83,7 @@ export function leaveLinker(tid: number): void {
 export function watchLinker(): void {
   if (watchingLinker || Process.platform !== "linux") return;
   watchingLinker = true;
-  const linker = Process.findModuleByName(Process.pointerSize === 8 ? "linker64" : "linker");
+  const linker = Process.findModuleByName("linker64");
   if (!linker) return;
   // libdl's dlopen(), android_dlopen_ext() and dlclose() call these; System.loadLibrary() goes through android_dlopen_ext()
   for (const symbol of ["__loader_dlopen", "__loader_android_dlopen_ext", "__loader_dlclose"]) {

@@ -10,22 +10,6 @@ const makeDecoder = (pointee: FridaFundamentalType, settings: DecoderSettings = 
 
 const lengthArg = (value: unknown): DecoderArgValues => ({ length: value });
 
-const writeWord = (ptr: NativePointer, value: number, signed: boolean): void => {
-  if (Process.pointerSize < 8) {
-    if (signed) {
-      ptr.writeS32(value);
-    } else {
-      ptr.writeU32(value);
-    }
-  } else if (signed) {
-    ptr.writeS64(value);
-  } else {
-    ptr.writeU64(value);
-  }
-};
-
-const expectedWord = (value: number): number | string => (Process.pointerSize < 8 ? value : value.toString());
-
 describe("NativeReferenceDecoder", () => {
   describe("decode()", () => {
     it("should decode bool true", () => {
@@ -76,28 +60,28 @@ describe("NativeReferenceDecoder", () => {
       expect(makeDecoder("uint32").decode(scratch)).toEqual({ type: "uint32*", value: 4000000000 });
     });
 
-    it("should decode ssize_t (4 bytes on ILP32, 8 bytes on LP64)", () => {
+    it("should decode ssize_t as a 64-bit decimal string", () => {
       const scratch = Memory.alloc(8);
-      writeWord(scratch, 42, true);
-      expect(makeDecoder("ssize_t").decode(scratch)).toEqual({ type: "ssize_t*", value: expectedWord(42) });
+      scratch.writeS64(-42);
+      expect(makeDecoder("ssize_t").decode(scratch)).toEqual({ type: "ssize_t*", value: "-42" });
     });
 
-    it("should decode long (4 bytes on ILP32, 8 bytes on LP64)", () => {
+    it("should decode long as a 64-bit decimal string", () => {
       const scratch = Memory.alloc(8);
-      writeWord(scratch, 100, true);
-      expect(makeDecoder("long").decode(scratch)).toEqual({ type: "long*", value: expectedWord(100) });
+      scratch.writeS64(100);
+      expect(makeDecoder("long").decode(scratch)).toEqual({ type: "long*", value: "100" });
     });
 
-    it("should decode size_t (4 bytes on ILP32, 8 bytes on LP64)", () => {
+    it("should decode size_t as a 64-bit decimal string", () => {
       const scratch = Memory.alloc(8);
-      writeWord(scratch, 1024, false);
-      expect(makeDecoder("size_t").decode(scratch)).toEqual({ type: "size_t*", value: expectedWord(1024) });
+      scratch.writeU64(1024);
+      expect(makeDecoder("size_t").decode(scratch)).toEqual({ type: "size_t*", value: "1024" });
     });
 
-    it("should decode ulong (4 bytes on ILP32, 8 bytes on LP64)", () => {
+    it("should decode ulong as a 64-bit decimal string", () => {
       const scratch = Memory.alloc(8);
-      writeWord(scratch, 999, false);
-      expect(makeDecoder("ulong").decode(scratch)).toEqual({ type: "ulong*", value: expectedWord(999) });
+      scratch.writeU64(999);
+      expect(makeDecoder("ulong").decode(scratch)).toEqual({ type: "ulong*", value: "999" });
     });
 
     it("should decode int64 as a decimal string to preserve full precision", () => {

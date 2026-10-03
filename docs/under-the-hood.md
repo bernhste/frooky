@@ -355,15 +355,15 @@ Native hooks wait for `targetReady` by default, as hooks during startup can dead
 
 A native hook without `early: true` is resolved as soon as its module is found, and installed once both its module is found and `targetReady` has resolved, whichever comes later:
 
-| Module                         | Resolved                           | Installed                                                                            |
-| ------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------ |
-| Already loaded, e.g. `libc.so` | Right away, before the app resumes | At `targetReady`                                                                     |
-| Loads before `targetReady`     | Inside the linker while it loads   | At `targetReady`; the module's constructors and `JNI_OnLoad` run unhooked            |
-| Loads after `targetReady`      | Inside the linker while it loads   | Right then, inside the linker, before the module's constructors and `JNI_OnLoad` run |
+| Module loaded in                                            | Resolved                                           | Installed                                                                                             |
+| ----------------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **1. Paused at spawn**, i.e. already loaded, e.g. `libc.so` | 1. Paused at spawn, right away                     | 3. `targetReady`                                                                                      |
+| **2. Resumed**                                              | 2. Resumed, inside the linker while it loads       | 3. `targetReady`; the module's constructors and `JNI_OnLoad` run unhooked                             |
+| **3. `targetReady`**                                        | 3. `targetReady`, inside the linker while it loads | 3. `targetReady`, right then inside the linker, before the module's constructors and `JNI_OnLoad` run |
 
-When attaching, `targetReady` has already resolved, so every native hook is installed as soon as its module is found.
+When attaching, the app is already in stage 3, so every native hook is installed as soon as its module is found.
 
-Java hooks don't wait: a class of the default class loader is hooked before the app is resumed, an app class at `targetReady` or while a new class loader that has it is created, which can be before `targetReady`.
+Java hooks don't wait: a class of the default class loader is hooked in stage 1, an app class in stage 3 at `targetReady`, or already in stage 2 while a new class loader that has it is created.
 
 **Source:**
 
@@ -372,12 +372,6 @@ Java hooks don't wait: a class of the default class loader is hooked before the 
 ### Danger Zone: Early Hooking
 
 Before `targetReady`, the runtime (ART) is still starting its own threads, and hooks on functions like `read` or `close` collide with them: the app can deadlock or stop responding (ANR).
-
-`early: true` skips the wait for `targetReady`. Use it for code that runs before `targetReady`, e.g. ELF constructors in `.init_array`, `JNI_OnLoad` of a library loaded at startup, or anti-tampering checks, and give a high-frequency function a `callerFilter`, see [Dangerous Low-Level, Early, and High-Frequency Hooks](./additional-features.md#dangerous-low-level-early-and-high-frequency-hooks) and the examples in [`08_early_hooking`](./examples/native/08_early_hooking/). `early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
-
-With `early: true`, a hook is installed as soon as its module is found: before the app is resumed (stage 1) if the module is already loaded, otherwise inside the linker while the module loads (stage 2), so its constructors and `JNI_OnLoad` run hooked.
-
-The validator warns about an `early: true` hook on a high-frequency libc function (e.g. `read`, `close`, `malloc`) without a `callerFilter`, which can deadlock the app or make it stop responding (ANR) during startup.
 
 ```mermaid
 sequenceDiagram
@@ -404,10 +398,26 @@ sequenceDiagram
     end
 ```
 
+`early: true` skips the wait for `targetReady`. Use it for code that runs before `targetReady`, e.g. ELF constructors in `.init_array`, `JNI_OnLoad` of a library loaded at startup, or anti-tampering checks, and give a high-frequency function a `callerFilter`, see [Dangerous Low-Level, Early, and High-Frequency Hooks](./additional-features.md#dangerous-low-level-early-and-high-frequency-hooks) and the examples in [`08_early_hooking`](./examples/native/08_early_hooking/). `early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
+
+A hook is installed as soon as its module is found: before the app is resumed (stage 1) if the module is already loaded, otherwise inside the linker while the module loads (stage 2), so its constructors and `JNI_OnLoad` run hooked.
+
+Stage 2 relies on Frida's module observer (`Process.attachModuleObserver()`), which calls back on the loading thread for every module the linker loads. frooky uses it like this:
+
+- `NativeHookManager` attaches one observer when the first hook waits for a module (`observeModules()`) and keeps it for the rest of the session.
+- Each waiting hook is registered under the module name (or path) it declares (`whenModuleLoaded()`). When a module with that name or path loads, the callback removes the waiting hooks and calls them.
+- They resolve the symbol or offset and, with `early: true` or after `targetReady`, install the hooks right there (`installWhileLoading()`).
+- Calls that the new hooks record on this thread until `dlopen()` returns get no stack trace (`in-linker`), see [Stack Traces During Early Hooking](#stack-traces-during-early-hooking).
+
+`NativeCallerFilter` attaches a second observer of its own, which keeps the address ranges of the caller filters current, see [Keeping the Module Ranges Current](#keeping-the-module-ranges-current).
+
+The validator warns about an `early: true` hook on a high-frequency libc function (e.g. `read`, `close`, `malloc`) without a `callerFilter`, which can deadlock the app or make it stop responding (ANR) during startup.
+
 **Sources:**
 
-- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`early`)
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`early`, `observeModules()`, `whenModuleLoaded()`, `installWhileLoading()`)
 - [`nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`warnOnHighFrequencyLibcHook()`)
+- [`Process.attachModuleObserver()`](https://frida.re/docs/javascript-api/#process) (Frida's module observer)
 
 ### Stack Traces During Early Hooking
 

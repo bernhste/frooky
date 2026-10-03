@@ -28,6 +28,12 @@ flowchart LR
 
 ## Installation
 
+Requirements:
+
+- Python 3.12 or later on the host
+- A device or emulator with `frida-server`
+- A 64-bit app process (`arm64` or `x86_64`). 32-bit processes are not supported, e.g. an app that ships only `armeabi-v7a` native libraries.
+
 Install the `frooky` CLI tool via uv or pip:
 
 ```bash

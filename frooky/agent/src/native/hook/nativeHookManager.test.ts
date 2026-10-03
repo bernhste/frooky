@@ -203,7 +203,7 @@ describe("NativeHookManager", () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
       const pending = await manager.resolveHooks([nativeHook(moduleName, symbol)]);
-      const module = Module.load(`/system/${Process.pointerSize === 8 ? "lib64" : "lib"}/${moduleName}`);
+      const module = Module.load(`/system/lib64/${moduleName}`);
 
       // no await since Module.load(): the hook was installed while the linker loaded the module
       expect(manager.describeHooksInModulesOf([module.base])).toEqual([`${moduleName}!${symbol}`]);

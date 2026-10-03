@@ -8,8 +8,8 @@ import { NativeDecoderResolver } from "./nativeDecoderResolver";
 const decode = (type: string, settings: Partial<DecoderSettings>, value: NativePointer) =>
   NativeDecoderResolver.resolveDecoder({ type, settings: { ...DEFAULT_DECODER_SETTINGS, ...settings } }).decode(value).value;
 
-// a negative int as the CPU passes it: sign-extended to the register size
-const negative = (n: number): NativePointer => (Process.pointerSize === 8 ? ptr(int64(n).toString()) : ptr(n >>> 0));
+// a negative int as the CPU passes it: sign-extended to 64 bits
+const negative = (n: number): NativePointer => ptr(int64(n).toString());
 
 describe("NativeEnumDecoder", () => {
   const constants = { MODE_A: 1, MODE_B: 2, ERROR: -1 };
@@ -69,7 +69,7 @@ describe("NativeFlagsDecoder", () => {
 
   it("only reads the bits of the declared type", () => {
     // an int's upper register bits are undefined
-    expect(decode("int", { decoder: "flags", constants }, Process.pointerSize === 8 ? ptr("0xffffffff00000001") : ptr(1))).toEqual(["READ"]);
+    expect(decode("int", { decoder: "flags", constants }, ptr("0xffffffff00000001"))).toEqual(["READ"]);
     expect(decode("uint8_t", { decoder: "flags", constants }, ptr(0x101))).toEqual(["READ"]);
   });
 
@@ -114,7 +114,7 @@ describe("NativeFlagsDecoder", () => {
 
   describe("preset tables per platform", () => {
     const flags = (name: NativeFlagsPresetName, platform: string, arch: string, bits: number) =>
-      decodeFlags(uint64(bits), presetConstants(name, platform, arch, 8)!);
+      decodeFlags(uint64(bits), presetConstants(name, platform, arch)!);
 
     it("has the open flags of Linux per architecture", () => {
       expect(flags("openFlags", "linux", "arm64", 0x4000)).toEqual(["O_RDONLY", "O_DIRECTORY"]);
@@ -131,14 +131,12 @@ describe("NativeFlagsDecoder", () => {
       expect(flags("mmapProt", "darwin", "arm64", 0x5)).toEqual(["PROT_READ", "PROT_EXEC"]);
       expect(flags("dlopenFlags", "darwin", "arm64", 0xa)).toEqual(["RTLD_NOW", "RTLD_GLOBAL"]);
       expect(flags("socketType", "darwin", "arm64", 0x1)).toEqual(["SOCK_STREAM"]);
-      expect(presetConstants("socketDomain", "darwin", "arm64", 8)!.constants.AF_INET6).toBe(30);
+      expect(presetConstants("socketDomain", "darwin", "arm64")!.constants.AF_INET6).toBe(30);
     });
 
-    it("has no values for 32-bit processes, other architectures and other platforms", () => {
-      expect(presetConstants("openFlags", "linux", "arm", 4)).toBeUndefined();
-      expect(presetConstants("openFlags", "linux", "ia32", 4)).toBeUndefined();
-      expect(presetConstants("openFlags", "linux", "mips", 8)).toBeUndefined();
-      expect(presetConstants("openFlags", "windows", "x64", 8)).toBeUndefined();
+    it("has no values for other architectures and other platforms", () => {
+      expect(presetConstants("openFlags", "linux", "mips")).toBeUndefined();
+      expect(presetConstants("openFlags", "windows", "x64")).toBeUndefined();
     });
   });
 });

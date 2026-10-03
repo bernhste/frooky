@@ -174,6 +174,11 @@ export class FrookyAgent {
     reportProgress?: (progress: HookProgress) => void,
     targetReady: Promise<void> = Promise.resolve(),
   ) {
+    if (Process.pointerSize !== 8) {
+      throw new Error(
+        `[!] frooky supports only 64-bit processes (arm64, x86_64), but this process is ${Process.arch} (${Process.pointerSize * 8}-bit). An app that ships only 32-bit native libraries runs as a 32-bit process.`,
+      );
+    }
     logger.setAgent(this);
     logger.setVerbosity(logLevel);
     logger.setLogTo(logTo);

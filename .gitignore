@@ -36,3 +36,5 @@ htmlcov/
 .idea/
 
 .claude
+# platform-check reports
+.platform-check/

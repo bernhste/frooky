@@ -3,6 +3,8 @@ name: Verify frooky host
 on:
   workflow_call:
   push:
+  # the host unit tests on all OS and Python versions; a push tests only Linux and Python 3.14
+  workflow_dispatch:
 
 permissions:
   contents: read

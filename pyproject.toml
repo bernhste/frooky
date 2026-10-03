@@ -7,7 +7,7 @@ name = "frooky"
 dynamic = ["version"]
 description = "Frida-powered hook runner based on YAML hook files."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 authors = [
@@ -19,8 +19,6 @@ classifiers = [
   "Natural Language :: English",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
@@ -78,7 +76,7 @@ addopts = "-v --strict-markers"
 
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 line-length = 320
 indent-width = 4
 

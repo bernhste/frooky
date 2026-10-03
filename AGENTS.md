@@ -24,6 +24,7 @@ uv run compile-agent --dev                 # build agent -> frooky/agent/dist/ag
 uv sync                                 # sync dependencies and install host in editable mode (.venv)
 uv run pytest tests/unit                # host unit tests, no device needed
 uv run ruff check . && uv run ruff format --check .   # Python lint/format (config in pyproject.toml)
+uv run scripts/platform_check.py       # all tests on the current host and device, writes a report (docs/develop.md)
 
 cd frooky/agent
 npm run build:dev:android               # rebuild agent only
@@ -55,7 +56,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 - **The hook-file format is the public API.** Any change to it must update the types, both generated schemas, `docs/*.md`, `docs/examples/`, and the README. Use the `change-hook-schema` skill.
 - **iOS is not implemented.** There is no `frooky/agent/src/ios/` and there are no iOS npm scripts. Don't claim or document iOS behavior without evidence in the source.
 - `.github/workflows/publish-host.yml` publishing is disabled. Don't re-enable it unless asked.
-- Use `npm ci`, not `npm install`, unless you are adding a dependency. CI uses Node 24 and Python 3.14; minimum Python is 3.10.
+- Use `npm ci`, not `npm install`, unless you are adding a dependency. CI uses Node 24 and Python 3.14; minimum Python is 3.12 (Ubuntu 24.04 LTS).
 - Use `git --no-pager` for git commands.
 - **No git commits/pushes:** Never run `git commit` or `git push`. Only inspect changes (`git status`, `git diff`). All staging, committing, and pushing is done by the user.
 

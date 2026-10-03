@@ -16,14 +16,6 @@ const decodeSigned64 = (raw: UInt64): string => {
   return `-${magnitude.toString()}`;
 };
 
-const decodeWord = (input: NativePointer, signed: boolean): number | string => {
-  if (Process.pointerSize < 8) {
-    return signed ? input.toInt32() : input.toUInt32();
-  }
-  const raw = uint64(input.toString());
-  return signed ? decodeSigned64(raw) : raw.toString();
-};
-
 // to reinterpret float/double bits
 const floatScratch = Memory.alloc(8);
 
@@ -47,13 +39,13 @@ const valueDecoders: Record<FridaFundamentalType, FundamentalValueDecoder> = {
   uint16: (input) => input.toInt32() & 0xffff,
   int: (input) => input.toInt32(),
   int32: (input) => input.toInt32(),
-  // pointer-sized: 32-bit or 64-bit depending on the target
-  ssize_t: (input) => decodeWord(input, true),
-  long: (input) => decodeWord(input, true),
+  // 64-bit, frooky only supports 64-bit processes
+  ssize_t: (input) => decodeSigned64(uint64(input.toString())),
+  long: (input) => decodeSigned64(uint64(input.toString())),
   uint: (input) => input.toUInt32(),
   uint32: (input) => input.toUInt32(),
-  size_t: (input) => decodeWord(input, false),
-  ulong: (input) => decodeWord(input, false),
+  size_t: (input) => uint64(input.toString()).toString(),
+  ulong: (input) => uint64(input.toString()).toString(),
   // 64-bit values are decimal strings, a JS number has only 53 bits of precision
   int64: (input) => decodeSigned64(uint64(input.toString())),
   uint64: (input) => uint64(input.toString()).toString(),

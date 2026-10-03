@@ -10,13 +10,6 @@ import { decodeNativeString } from "./nativeStringDecoder";
 // `length` is the role `length` in bytes, only passed for `void *`, `char *` and `unsigned char *`
 type ReferenceDecoder = (input: NativePointer, setting: DecoderSettings, length?: number) => any;
 
-const readWord = (input: NativePointer, signed: boolean): number | string => {
-  if (Process.pointerSize < 8) {
-    return signed ? input.readS32() : input.readU32();
-  }
-  return signed ? input.readS64().toString() : input.readU64().toString();
-};
-
 // Up to `maxItems` of `length` bytes as hex, ending with "..." if truncated.
 const readHex = (input: NativePointer, length: number, maxItems: number): string | null => {
   const rawBytes = input.readByteArray(Math.min(length, maxItems));
@@ -37,13 +30,13 @@ const referenceDecoders: Record<FridaFundamentalType, ReferenceDecoder> = {
   uint16: (input) => input.readU16(),
   int: (input) => input.readS32(),
   int32: (input) => input.readS32(),
-  // pointer-sized: 4 bytes on 32-bit, 8 bytes on 64-bit targets
-  ssize_t: (input) => readWord(input, true),
-  long: (input) => readWord(input, true),
+  // 64-bit, frooky only supports 64-bit processes
+  ssize_t: (input) => input.readS64().toString(),
+  long: (input) => input.readS64().toString(),
   uint: (input) => input.readU32(),
   uint32: (input) => input.readU32(),
-  size_t: (input) => readWord(input, false),
-  ulong: (input) => readWord(input, false),
+  size_t: (input) => input.readU64().toString(),
+  ulong: (input) => input.readU64().toString(),
   // 64-bit values are decimal strings, a JS number has only 53 bits of precision
   int64: (input) => input.readS64().toString(),
   uint64: (input) => input.readU64().toString(),

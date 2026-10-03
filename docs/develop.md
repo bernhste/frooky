@@ -183,3 +183,26 @@ frooky/agent/tests/
 ```
 
 To add a new test, create a `test-*.ts` file in the relevant platform folder and import it in `agent-runner.ts`.
+
+## Checking a New Platform
+
+To check frooky on a host OS, Android version or device it hasn't been tested on, run:
+
+```bash
+uv run scripts/platform_check.py
+```
+
+It records the host (OS, architecture, Python, Node, Frida) and the device (Android version, API level, architecture), builds the agent, and runs the host unit tests, the agent tests and the Android integration tests against the device that `frida -U` uses. The report is written to `.platform-check/<timestamp>/report.md`, together with the test results and the full log. Attach the folder to an issue or PR.
+
+- Requires a running `frida-server` that matches `frida --version`.
+- The integration tests also need Appium (`APPIUM_URL`) and the target apps (`make install-all` in `tests/target-apps/android`). Without them, the step is skipped and the report says why.
+- `--skip unit,agent,integration` skips steps, `-k <pattern>` runs only the matching integration tests.
+
+frooky only supports 64-bit app processes (`arm64`, `x86_64`). The agent refuses to start in a 32-bit process.
+
+### CI
+
+A push runs the tests on one configuration: Linux with Python 3.14 for the host unit tests, and an x86_64 emulator with API 34 for the agent and integration tests. To test the others, run the workflows manually under **Actions → Run workflow**:
+
+- **Verify frooky host**: host unit tests on Linux, macOS and Windows, each with Python 3.12 and 3.14.
+- **Test agent Android** and **Test host Android**: emulators with API 29, 31, 33, 34, 35 and 36, or the levels given as a JSON list, e.g. `["29", "36"]`.

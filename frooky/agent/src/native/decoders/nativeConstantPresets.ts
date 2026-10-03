@@ -142,15 +142,10 @@ type PresetName = NativeFlagsPresetName | NativeEnumPresetName;
 const PRESETS: Record<PresetName, Preset> = { openFlags, mmapProt, mmapFlags, dlopenFlags, socketDomain, socketType };
 
 // The constants of a preset, undefined where frooky has no values: other platforms than Android/Linux and
-// iOS/macOS, 32-bit processes, and other architectures than arm64 and x86_64 on Linux.
-export function presetConstants(
-  name: PresetName,
-  platform: string = Process.platform,
-  arch: string = Process.arch,
-  pointerSize: number = Process.pointerSize,
-): ConstantSet | undefined {
+// iOS/macOS, and other architectures than arm64 and x86_64 on Linux.
+export function presetConstants(name: PresetName, platform: string = Process.platform, arch: string = Process.arch): ConstantSet | undefined {
   const preset = PRESETS[name];
-  if (!preset || pointerSize !== 8) return undefined;
+  if (!preset) return undefined;
   if (platform === "darwin") return preset.darwin();
   if (platform === "linux" && (arch === "arm64" || arch === "x64")) return preset.linux(arch);
   return undefined;
@@ -161,7 +156,7 @@ export function resolvePreset(name: PresetName): ConstantSet | undefined {
   const constants = presetConstants(name);
   if (!constants) {
     logger.warn(
-      `decoder: ${name} has values for 64-bit Android and iOS, but this process is ${Process.platform} ${Process.arch} (${Process.pointerSize * 8}-bit). The value is decoded as a number.`,
+      `decoder: ${name} has values for Android and iOS on arm64 and x86_64, but this process is ${Process.platform} ${Process.arch}. The value is decoded as a number.`,
     );
   }
   return constants;

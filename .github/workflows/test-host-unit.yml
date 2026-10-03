@@ -8,7 +8,17 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    name: Host unit tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    # github.event_name is the caller's event: a push tests one configuration, other events all of them
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event_name == 'push' && '["ubuntu-24.04"]' || '["ubuntu-24.04", "macos-15", "windows-2025"]') }}
+        python: ${{ fromJSON(github.event_name == 'push' && '["3.14"]' || '["3.12", "3.14"]') }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -22,7 +32,7 @@ jobs:
         uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
-          python-version: "3.14"
+          python-version: ${{ matrix.python }}
 
       - name: Install dependencies
         run: uv sync --locked
@@ -38,11 +48,11 @@ jobs:
 
       - name: Summarize test results
         if: always()
-        run: python3 .github/scripts/summarize-test-results.py pytest test-results.jsonl "Host unit tests"
+        run: uv run python .github/scripts/summarize-test-results.py pytest test-results.jsonl "Host unit tests (${{ matrix.os }}, Python ${{ matrix.python }})"
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results
+          name: test-results-unit-${{ matrix.os }}-py${{ matrix.python }}
           path: test-results.jsonl

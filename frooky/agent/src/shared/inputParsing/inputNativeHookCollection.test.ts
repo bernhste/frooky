@@ -326,7 +326,7 @@ describe("inputNativeHookCollection", () => {
         expect(normalizeModuleOffset("0x0")).toBe("0x0");
       });
 
-      it("keeps an odd offset, which marks a Thumb function on 32-bit ARM", () => {
+      it("keeps an odd offset", () => {
         expect(normalizeModuleOffset("0x1a2b5")).toBe("0x1a2b5");
       });
 

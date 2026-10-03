@@ -77,24 +77,18 @@ describe("NativeValueDecoder", () => {
       expect(decoder.decode(ptr(1000))).toEqual({ type: "int32", value: 1000 });
     });
 
-    it("should decode ssize_t (word-sized: number on ILP32, decimal string on LP64)", () => {
+    it("should decode ssize_t as a 64-bit decimal string", () => {
       const decoder = makeDecoder("ssize_t");
-      const expected = Process.pointerSize < 8 ? 42 : "42";
-      expect(decoder.decode(ptr(42))).toEqual({ type: "ssize_t", value: expected });
+      expect(decoder.decode(ptr(42))).toEqual({ type: "ssize_t", value: "42" });
     });
 
-    it("should decode long (word-sized: number on ILP32, decimal string on LP64)", () => {
+    it("should decode long as a 64-bit decimal string", () => {
       const decoder = makeDecoder("long");
-      const expected = Process.pointerSize < 8 ? 100 : "100";
-      expect(decoder.decode(ptr(100))).toEqual({ type: "long", value: expected });
+      expect(decoder.decode(ptr(100))).toEqual({ type: "long", value: "100" });
     });
 
     it("should decode a negative long as two's complement", () => {
       const decoder = makeDecoder("long");
-      if (Process.pointerSize < 8) {
-        expect(decoder.decode(ptr(0x80000000))).toEqual({ type: "long", value: -2147483648 });
-        return;
-      }
       // 0xffffffff80000000 is -2147483648 sign-extended to 64 bits.
       expect(decoder.decode(ptr("0xffffffff80000000"))).toEqual({ type: "long", value: "-2147483648" });
     });
@@ -109,16 +103,14 @@ describe("NativeValueDecoder", () => {
       expect(decoder.decode(ptr(1000))).toEqual({ type: "uint32", value: 1000 });
     });
 
-    it("should decode size_t (word-sized: number on ILP32, decimal string on LP64)", () => {
+    it("should decode size_t as a 64-bit decimal string", () => {
       const decoder = makeDecoder("size_t");
-      const expected = Process.pointerSize < 8 ? 1024 : "1024";
-      expect(decoder.decode(ptr(1024))).toEqual({ type: "size_t", value: expected });
+      expect(decoder.decode(ptr(1024))).toEqual({ type: "size_t", value: "1024" });
     });
 
-    it("should decode ulong (word-sized: number on ILP32, decimal string on LP64)", () => {
+    it("should decode ulong as a 64-bit decimal string", () => {
       const decoder = makeDecoder("ulong");
-      const expected = Process.pointerSize < 8 ? 999 : "999";
-      expect(decoder.decode(ptr(999))).toEqual({ type: "ulong", value: expected });
+      expect(decoder.decode(ptr(999))).toEqual({ type: "ulong", value: "999" });
     });
 
     it("should decode int64 as a decimal string to preserve full precision", () => {

@@ -23,7 +23,7 @@ How frooky decodes the parameters and return values of native (C/C++) functions.
 A native value has no runtime type, so frooky decodes it by the type declared in the hook file (see [Native Hook Declaration](./native-hook-declaration.md)). frooky uses the first of these that applies:
 
 1. **`decoder` in the decoder settings.** A decoder you choose always wins.
-2. **A fundamental type** passed by value, such as `int`, `unsigned long`, `size_t`, `bool` or `double`, is decoded as that type. 64-bit integers, and on 64-bit devices also pointer-sized ones such as `size_t` and `long`, are decimal strings, since a JSON number can't hold every 64-bit value.
+2. **A fundamental type** passed by value, such as `int`, `unsigned long`, `size_t`, `bool` or `double`, is decoded as that type. 64-bit integers, including `long`, `size_t` and `ssize_t`, are decimal strings, since a JSON number can't hold every 64-bit value.
 3. **A pointer to a UTF-16 code unit**, such as `const jchar *` or `char16_t *`, is read as a UTF-16 string, see [UTF-16 Strings](#utf-16-strings).
 4. **A pointer to a fundamental type**, such as `int *` or `char **`, is read from memory, see [Pointers and Arrays](#pointers-and-arrays).
 5. **Any other type**, such as `SSL *` or `FILE *`, is shown as its raw value in hex, e.g. the address of a struct.
@@ -242,7 +242,7 @@ Each preset has two tables, and frooky picks the one for the platform of the app
 - **Android** (and Linux), arm64 and x86_64: the values of the Linux kernel and Bionic. The kernel keeps them stable, but a few `O_*` flags differ between arm64 and x86_64, e.g. `O_DIRECTORY`.
 - **iOS** (and macOS): the values of the XNU kernel and libSystem, which are the same on every architecture. They differ from Android's, e.g. `O_CREAT` is `0x200` instead of `0x40`, and some constants only exist on one platform, e.g. `SOCK_CLOEXEC` only on Android and `MAP_JIT` only on iOS. frooky doesn't hook iOS apps yet, so the iOS values aren't tested against an app.
 
-For 32-bit apps and other platforms, a preset logs a warning and the value is decoded as a number.
+On other platforms, a preset logs a warning and the value is decoded as a number.
 
 ```yaml
 module: libc.so
