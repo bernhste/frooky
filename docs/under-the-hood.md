@@ -14,20 +14,22 @@ This page explains how frooky works internally: what happens to a hook from the 
   - [Resolve the Module or Class](#resolve-the-module-or-class)
   - [Resolve the Symbol, Offset or Method](#resolve-the-symbol-offset-or-method)
   - [Resolve Declared or Runtime Decoders](#resolve-declared-or-runtime-decoders)
-  - [Install the Hook](#install-the-hook)
-- [Installing Java Hooks](#installing-java-hooks)
-- [Installing Native Hooks](#installing-native-hooks)
-- [Blocked Native Functions](#blocked-native-functions)
-- [Keeping Hooks Current](#keeping-hooks-current)
-- [Early Hooking](#early-hooking)
-  - [Stack Traces Before `targetReady`](#stack-traces-before-targetready)
+  - [Keeping Hooks Current](#keeping-hooks-current)
+- [Timing](#timing)
+  - [Stages](#stages)
+  - [Safe Default: Wait for `targetReady`](#safe-default-wait-for-targetready)
+  - [Danger Zone: Early Hooking](#danger-zone-early-hooking)
+  - [Stack Traces During Early Hooking](#stack-traces-during-early-hooking)
 - [Caller Filters](#caller-filters)
   - [The Path of a Native Call](#the-path-of-a-native-call)
   - [Which Listener a Function Gets](#which-listener-a-function-gets)
   - [Keeping the Module Ranges Current](#keeping-the-module-ranges-current)
   - [Caller Filters on Java Hooks](#caller-filters-on-java-hooks)
-- [Capture an Event](#capture-an-event)
-- [Collecting Events and Sending Them to the Host](#collecting-events-and-sending-them-to-the-host)
+- [Danger Zone: Blocked Native Functions](#danger-zone-blocked-native-functions)
+- [Collecting Events](#collecting-events)
+  - [Capture an Event](#capture-an-event)
+  - [Sending Event Batches to the Host](#sending-event-batches-to-the-host)
+- [Caching](#caching)
 
 <!-- /TOC -->
 
@@ -71,7 +73,7 @@ sequenceDiagram
     FA-->>Host: progress reports
 ```
 
-The host starts the agent and hands it the hook files over Frida's RPC. Everything after that, from validating the hook files to installing the hooks, happens inside the app's process. The agent sends three kinds of messages back: batches of events, progress reports for the status bar, and crash reports (see [Collecting Events and Sending Them to the Host](#collecting-events-and-sending-them-to-the-host)).
+The host starts the agent and hands it the hook files over Frida's RPC. Everything after that, from validating the hook files to installing the hooks, happens inside the app's process. The agent sends three kinds of messages back: batches of events, progress reports for the status bar, and crash reports (see [Sending Event Batches to the Host](#sending-event-batches-to-the-host)).
 
 **`targetReady`** is the moment the app's own classes can be looked up, because the Android runtime has the app's class loader. It is a promise in `FrookyAgent`, resolved by a `Java.perform()` callback. When spawning, `Java.perform()` queues its callback until the app process binds its application: frida-java-bridge hooks `ActivityThread.handleBindApplication()` and runs the callback on the app's main thread, before the app's `Application` class is created. When attaching, the application already exists and `targetReady` resolves right away. Native hooks without `early: true`, the lookups in the app's class loaders and stack traces all wait for it.
 
@@ -156,7 +158,7 @@ flowchart LR
 
 Each normalized hook declaration is initialized on its own: frooky resolves its module or class, then the method, symbol or offset in it, then the decoders for its values, and then installs its hooks: Frida's Interceptor for a native function, a replaced implementation for a Java method.
 
-A hook declaration is in one of these states, shown in the status bar and the [hook statistics](./additional-features.md#hook-statistics-i--i-key):
+A hook declaration is in one of these states, shown in the status bar and the [hook statistics](./additional-features.md#hook-statistics-s--s-key):
 
 | State       | Meaning                                                                                                                                                                      |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -270,112 +272,7 @@ A **native value** only has its declared decoder: a native value is just a numbe
 
 **Source:** [`frooky/agent/src/shared/hook/hookManager.ts`](../frooky/agent/src/shared/hook/hookManager.ts) (`resolveParamDecoders()`), [`frooky/agent/src/android/decoders/javaDecoderResolver.ts`](../frooky/agent/src/android/decoders/javaDecoderResolver.ts), [`frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts`](../frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts), [`frooky/agent/src/native/decoders/nativeDecoderResolver.ts`](../frooky/agent/src/native/decoders/nativeDecoderResolver.ts)
 
-### Install the Hook
-
-When spawning, the host waits with the resume until these hooks are installed: Java hooks on classes of the default class loader (e.g. the Android framework's) and native hooks with `early: true` on modules that are already loaded. Native hooks without `early: true` on modules that are already loaded are resolved by then, but only installed at `targetReady`. Everything else waits for `targetReady` or for its class or module.
-
-When a hook is installed decides which calls it can record: a call made before the hook is installed is missed. For an app that is spawned, the timing depends on the kind of hook, on whether its class or module is already loaded, and for native hooks on `early`. When attaching, `targetReady` has already resolved, so every hook is installed as soon as its class or module is found.
-
-| Hook                                                                 | Installed (spawn)                                                   |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Java, class in the default class loader (e.g. `javax.crypto.Cipher`) | Before the app is resumed                                           |
-| Java, class of the app or of a class loader created later            | At `targetReady`, or while the class loader that has it is created  |
-| Native, module already loaded (e.g. `libc.so`)                       | At `targetReady`                                                    |
-| Native, `early: true`, module already loaded                         | Before the app is resumed                                           |
-| Native, module loaded before `targetReady`                           | At `targetReady`, after the module's constructors and `JNI_OnLoad`  |
-| Native, `early: true`, module loaded before `targetReady`            | While the linker loads it, before its constructors and `JNI_OnLoad` |
-| Native, module loaded after `targetReady`                            | While the linker loads it, before its constructors and `JNI_OnLoad` |
-
-**Source:** [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts), [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts)
-
-## Installing Java Hooks
-
-Java hooks don't wait for `targetReady`: a class that the default class loader has is hooked right away (steps 3 and 4). A class that isn't found there is looked for in every class loader of the app at `targetReady`, and in every new `BaseDexClassLoader` (Path-, Dex-, InMemoryDex- and DelegateLastClassLoader) while it is created, before any of its code runs. See [Class Loaders](./java-hook-declaration.md#class-loaders).
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant FA as FrookyAgent
-    participant PM as AndroidHookManager
-    participant JCR as JavaClassResolver
-    participant CL as App's class loaders
-
-    FA->>PM: resolveHooks(Java declarations)
-    PM->>JCR: find(javaClass, classLoader), once per class
-
-    alt class name in the default class loader (e.g. javax.crypto.Cipher)
-        JCR->>JCR: Java.use(javaClass) finds the class
-        JCR-->>PM: onFound(classes, installNow = false)
-        PM->>PM: resolveMethodHooks(): methods and overloads
-    else not found yet, a wildcard pattern, or a classLoader
-        JCR->>CL: watch the constructors of BaseDexClassLoader<br/>and its subclasses (once)
-        Note over JCR: waits for targetReady
-        FA-)JCR: targetReady resolves (spawn: on the app's main thread)
-        JCR->>CL: look up the class in every existing class loader<br/>(wildcard: match the class names of their dex files)<br/>(classLoader: also watch its loadClass())
-        CL->>JCR: later: a new class loader is created,<br/>or a watched loadClass() runs
-        JCR->>JCR: look up the class or match the wildcards in it
-        JCR-->>PM: onFound(classes, installNow = true)
-        PM->>PM: resolveMethodHooks() and registerHooks() now,<br/>on the app's thread, before the class's code runs
-    end
-
-    PM-->>FA: hooks
-    FA->>PM: registerHooks(): replace the method implementations<br/>(already installed ones are only counted)
-```
-
-**Source:** [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts), [`frooky/agent/src/android/hook/javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts)
-
-## Installing Native Hooks
-
-By default, a native hook waits for `targetReady`, even if its module is loaded and its symbol resolves right away. The symbol or offset is still resolved as soon as the module is found, so a misspelled symbol fails right away. With `early: true`, it doesn't wait, see [Early Hooking](#early-hooking).
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant FA as FrookyAgent
-    participant NM as NativeHookManager
-    participant MO as Module observer
-    participant LK as Linker (app thread)
-
-    FA->>NM: resolveHooks(native declarations)
-
-    alt module already loaded (e.g. libc.so)
-        NM->>NM: resolve the symbol or offset
-        Note over NM: waits for targetReady
-        FA-)NM: targetReady resolves
-        NM-->>FA: hooks
-        FA->>NM: registerHooks(): Interceptor attached
-    else module not loaded yet
-        NM->>MO: wait for the module (observer attached once)
-        LK->>MO: later: onAdded(module), on the loading thread,<br/>before its constructors and JNI_OnLoad run
-        MO->>NM: resolve the symbol or offset (from the ELF exports)
-        alt targetReady has resolved
-            NM->>NM: registerHooks() now, inside the linker
-        else before targetReady
-            Note over NM: waits for targetReady,<br/>constructors and JNI_OnLoad run unhooked
-            FA-)NM: targetReady resolves
-            NM->>NM: registerHooks()
-        end
-        NM-->>FA: hooks
-        FA->>NM: registerHooks(): already installed, counted
-    end
-```
-
-**Source:** [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts)
-
-## Blocked Native Functions
-
-Hooking some low-level functions makes the app hang or crash, no matter which settings the hook uses. frooky doesn't install hooks on these functions (or, for `sigprocmask`, doesn't capture their stack traces) and logs a warning instead:
-
-| Function                                                 | Runtime | Blocked      | Why                                                                                                                                                                                                                                            |
-| -------------------------------------------------------- | ------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | all     | hook         | Frida's Interceptor uses them itself: installing the hook hangs the app.                                                                                                                                                                       |
-| `dlopen` (`libdl.so`)                                    | all     | hook         | The linker picks the namespace by the caller's address, which the hook changes, so system libraries (e.g. graphics drivers) fail to load.                                                                                                      |
-| `memset`, `clock_gettime` (`libc.so`)                    | V8      | hook         | V8 calls them itself while it runs a hook, which re-enters V8 and crashes the app (`SIGTRAP`). Use QuickJS to hook them.                                                                                                                       |
-| `sigprocmask` (`libc.so`)                                | all     | stack traces | Its calls come from ART's signal chain wrapper in `libsigchain.so`, and Frida's accurate stack walker crashes the app (`SIGSEGV`) when it walks from there, also after `targetReady`. A `callerFilter` still works, as it needs no stack walk. |
-
-**Source:** [`frooky/agent/src/native/hook/nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`BLOCKED_FUNCTIONS`)
-
-## Keeping Hooks Current
+### Keeping Hooks Current
 
 Every normalized declaration gets a fingerprint. On a [reload](./additional-features.md#hot-reloading-and-watch-mode), unchanged declarations keep their installed hooks, removed ones are unhooked, and only new, changed or retried ones are resolved. On the first load, every declaration is new and starts in the state `resolving`.
 
@@ -398,11 +295,11 @@ A changed declaration has a new fingerprint, so it is removed and added again: i
 
 **Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts) (diff), [`frooky/runner/watcher.py`](../frooky/runner/watcher.py) (watch mode), [`frooky/runner/runner.py`](../frooky/runner/runner.py) (`r` key)
 
-## Early Hooking
+## Timing
 
-Before `targetReady`, the runtime (ART) is still starting its own threads, and hooks on functions like `read` or `close` collide with them: the app can deadlock or stop responding (ANR). That's why native hooks wait by default.
+When a hook is installed decides which calls it can record: a call made before its hook is installed is missed.
 
-`early: true` skips this wait. Use it for code that runs before `targetReady`, e.g. ELF constructors in `.init_array`, `JNI_OnLoad` of a library loaded at startup, or anti-tampering checks, and give a high-frequency function a `callerFilter`, see [Dangerous Low-Level, Early, and High-Frequency Hooks](./additional-features.md#dangerous-low-level-early-and-high-frequency-hooks) and the examples in [`08_early_hooking`](./examples/native/08_early_hooking/). `early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
+### Stages
 
 A spawned app goes through three stages:
 
@@ -412,19 +309,33 @@ A spawned app goes through three stages:
 
 When attaching, the app is already in stage 3. What can be hooked in each stage:
 
-| Stage                  | Native hooks                                                                                          | Java hooks                                                          | Stack traces                |
-| ---------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------- |
-| **1. Paused at spawn** | ⚠️ Only with `early: true`, on modules that are already loaded (e.g. `libc.so`)                       | ✅ Classes of the default class loader (e.g. `javax.crypto.Cipher`) | ❌ Skipped (`before-ready`) |
-| **2. Resumed**         | ⚠️ Only with `early: true`, in the linker while a module loads, before `.init_array` and `JNI_OnLoad` | ⏳ App classes stay `resolving`                                     | ❌ Skipped (`before-ready`) |
-| **3. `targetReady`**   | ✅ Every waiting hook on a loaded module is installed                                                 | ✅ App classes are looked up in the app's class loaders             | ✅ Java and native          |
+| Stage                  | Native hooks                                                                                          | Java hooks                                                          | Stack traces                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------- |
+| **1. Paused at spawn** | ⚠️ Only with `early: true`, on modules that are already loaded (e.g. `libc.so`)                       | ✅ Classes of the default class loader (e.g. `javax.crypto.Cipher`) | ⚠️ Native frames only (`before-ready`) |
+| **2. Resumed**         | ⚠️ Only with `early: true`, in the linker while a module loads, before `.init_array` and `JNI_OnLoad` | ⏳ App classes stay `resolving`                                     | ⚠️ Native frames only (`before-ready`) |
+| **3. `targetReady`**   | ✅ Every waiting hook on a loaded module is installed                                                 | ✅ App classes are looked up in the app's class loaders             | ✅ Java and native                     |
 
-Independent of the stage:
+In every stage, frooky skips the stack trace of a call it detects as unsafe, see [Stack Traces During Early Hooking](#stack-traces-during-early-hooking).
 
-- ⚠️ An `early: true` hook on a high-frequency libc function (e.g. `read`, `close`, `malloc`) without a `callerFilter` can deadlock the app or make it stop responding (ANR) during startup. The validator warns about it.
-- ⚠️ Hot-path functions (e.g. `malloc`, `free`, `memcpy`) produce a lot of events. A `callerFilter` keeps only the calls of the modules you are interested in, see [Caller Filters](#caller-filters).
-- ❌ Stack traces are also skipped while any thread loads a library (`in-linker`, `linker-busy`), on a signal stack (`signal-stack`) and when little stack is left (`low-stack`), see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces).
+### Safe Default: Wait for `targetReady`
+
+Native hooks wait for `targetReady` by default, as hooks during startup can deadlock the app, see [Danger Zone: Early Hooking](#danger-zone-early-hooking).
+
+Java hooks don't wait: a class of the default class loader is hooked before the app is resumed, an app class once a class loader has it. A native hook without `early: true` is resolved as soon as its module is found, but only installed at `targetReady`:
+
+- On a module that is already loaded, e.g. `libc.so`, it is installed at `targetReady`.
+- On a module that loads before `targetReady`, the module's constructors and `JNI_OnLoad` run unhooked, and the hook is installed at `targetReady`.
+- On a module that loads after `targetReady`, it is installed inside the linker while the module loads, before its constructors and `JNI_OnLoad` run.
+
+### Danger Zone: Early Hooking
+
+Before `targetReady`, the runtime (ART) is still starting its own threads, and hooks on functions like `read` or `close` collide with them: the app can deadlock or stop responding (ANR).
+
+`early: true` skips the wait for `targetReady`. Use it for code that runs before `targetReady`, e.g. ELF constructors in `.init_array`, `JNI_OnLoad` of a library loaded at startup, or anti-tampering checks, and give a high-frequency function a `callerFilter`, see [Dangerous Low-Level, Early, and High-Frequency Hooks](./additional-features.md#dangerous-low-level-early-and-high-frequency-hooks) and the examples in [`08_early_hooking`](./examples/native/08_early_hooking/). `early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
 
 With `early: true`, a hook is installed as soon as its module is found: before the app is resumed (stage 1) if the module is already loaded, otherwise inside the linker while the module loads (stage 2), so its constructors and `JNI_OnLoad` run hooked.
+
+The validator warns about an `early: true` hook on a high-frequency libc function (e.g. `read`, `close`, `malloc`) without a `callerFilter`, which can deadlock the app or make it stop responding (ANR) during startup.
 
 ```mermaid
 sequenceDiagram
@@ -451,17 +362,46 @@ sequenceDiagram
     end
 ```
 
-**Source:** [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`early`), [`frooky/agent/src/native/unsafeContext.ts`](../frooky/agent/src/native/unsafeContext.ts) (linker watch, unsafe stack contexts)
+**Source:** [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`early`), [`frooky/agent/src/native/hook/nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`warnOnHighFrequencyLibcHook()`)
 
-### Stack Traces Before `targetReady`
+### Stack Traces During Early Hooking
 
-Until `targetReady`, `detectUnsafeContext()` returns `before-ready` and hooks record their calls without stack traces, Java and native. The same applies while a thread is loading a library (`in-linker`, `linker-busy`), so calls a hook records inside a constructor or `JNI_OnLoad` have no stack trace either. See [Skipped Stack Traces](./additional-features.md#skipped-stack-traces).
+A stack walk runs on the app's thread and stack, inside the hooked call. In some calls it can crash or hang the app, e.g. while the linker holds its lock. Instead of capturing no stack traces at all until `targetReady`, frooky checks every call that needs one and only skips the calls in which the walk is unsafe. So hooks with `early: true` can record native stack traces during startup.
+
+`detectUnsafeContext()` runs at most once per call, only if a hook of the function needs a stack trace, or for a Java hook a `callerFilter`. On a native hook, it only runs once the call has passed the hook's [caller filter](#caller-filters). It returns the first of these reasons, or none:
+
+| Reason         | How frooky detects it                                                                                                                                                | Captured                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `signal-stack` | `sigaltstack()` reports that the thread runs on its alternate signal stack, or the call's stack pointer is inside it. These stacks are small, usually 32KB.          | nothing                     |
+| `in-linker`    | This thread is inside `dlopen()` or `dlclose()`, e.g. in a library constructor or `JNI_OnLoad`. The linker holds its lock, which the stack walk needs.               | nothing                     |
+| `linker-busy`  | Another thread is inside `dlopen()` or `dlclose()`. It can hold the linker's lock while it waits for the agent in a hook, and a stack walk would wait for that lock. | nothing                     |
+| `low-stack`    | Less than 64KB are left between the call's stack pointer and the end of the thread's stack. Native hooks only, as Java hooks have no CPU context.                    | nothing                     |
+| `before-ready` | `targetReady` hasn't resolved yet. Entering the Java VM this early can hang the app.                                                                                 | native frames, no Java ones |
+
+How the checks stay cheap:
+
+- **Linker watch:** when the agent starts, before any hook is installed, `watchLinker()` hooks the linker's entry points `__loader_dlopen`, `__loader_android_dlopen_ext` and `__loader_dlclose` and counts the threads inside them. These entry points run before the linker takes its lock, so their callbacks never wait for the agent while holding it.
+- **Stack bounds:** `pthread_getattr_np()` is called once per thread, and its result is cached by thread ID. A stack pointer outside the cached bounds, e.g. of a new thread with a reused ID, looks the bounds up again.
+- **Native frames:** `Thread.backtrace()` with Frida's accurate backtracer, which stops after `maxStackFrames`. Only if it returns no frame, e.g. for code without unwind information, the fuzzy backtracer is used.
+
+The event's `stackTrace` gets a `skipped` field with the reason, see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces). A Java hook's `callerFilter` walks the Java stack, so it can't be checked in these calls and drops them, including `before-ready`. A native hook's `callerFilter` reads only the return address and is checked in every call.
+
+These checks cover the known ways a stack walk crashes or hangs the app, not every one. That's why the validator still warns about stack traces on high-frequency libc functions, and why stack traces of `sigprocmask` are [blocked](#danger-zone-blocked-native-functions).
+
+**Source:** [`frooky/agent/src/native/unsafeContext.ts`](../frooky/agent/src/native/unsafeContext.ts) (`detectUnsafeContext()`, `watchLinker()`), [`frooky/agent/src/android/androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts), [`frooky/agent/src/native/nativeStackTrace.ts`](../frooky/agent/src/native/nativeStackTrace.ts)
 
 ## Caller Filters
 
-A hook's [`callerFilter`](./additional-features.md#caller-filters) decides for every call whether the hook records it. Most calls of a hot function come from code you aren't interested in, so the filter mostly drops calls. What a dropped call costs depends on where the filter runs: in native code, or in JavaScript after Frida has entered the JS engine.
+A hot function, e.g. `malloc`, is called mostly by code you aren't interested in: ART, the framework, system libraries and SDKs. A `callerFilter` drops these calls before frooky decodes any value, builds a stack trace or creates an event. A native hook's filter needs no stack walk, so it is also checked in the calls in which stack traces are skipped, e.g. inside a library constructor (`in-linker`) or before `targetReady`.
 
-**Source:** [`frooky/agent/src/native/nativeCallerFilter.ts`](../frooky/agent/src/native/nativeCallerFilter.ts) (native `callerFilter` and its ranges), [`frooky/agent/src/native/hook/nativeFilteredListener.ts`](../frooky/agent/src/native/hook/nativeFilteredListener.ts) (`callerFilter` in native code), [`frooky/agent/src/android/androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts) (Java `callerFilter`)
+`callerFilter` is a list of regular expressions, compiled once per hook (`new RegExp(pattern)`, not anchored). A plain string such as `libapp.so` therefore matches every name that contains it. What the expressions are matched against depends on the hook:
+
+- **Native hooks:** the names of the loaded modules. frooky turns the matching modules into address ranges and compares the return address of each call with them, see [Keeping the Module Ranges Current](#keeping-the-module-ranges-current).
+- **Java hooks:** each frame of the Java stack as `<class>.<method>`, see [Caller Filters on Java Hooks](#caller-filters-on-java-hooks).
+
+See [Caller Filters](./additional-features.md#caller-filters) for how to write them, examples and pitfalls.
+
+**Source:** [`frooky/agent/src/native/nativeCallerFilter.ts`](../frooky/agent/src/native/nativeCallerFilter.ts) (native `callerFilter` and its ranges), [`frooky/agent/src/native/hook/nativeFilteredListener.ts`](../frooky/agent/src/native/hook/nativeFilteredListener.ts) (`callerFilter` in native code), [`frooky/agent/src/android/androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts) (Java `callerFilter`), [`frooky/agent/src/shared/platformStackTrace.ts`](../frooky/agent/src/shared/platformStackTrace.ts) (`compileCallerFilter()`)
 
 ### The Path of a Native Call
 
@@ -489,8 +429,6 @@ flowchart TD
     jsdrop --> orig
 ```
 
-The return address is read when the function is entered: on arm64 it is the link register, on x86 and x86_64 the top of the stack. No stack walk or symbol lookup is needed to filter.
-
 A function can have several hooks, e.g. from two hook files, with different filters. The listener lets a call through if any hook's filter matches it. `enterHooks()` then checks each hook's own `callerFilter` again, so each hook records only its own calls.
 
 Between `onEnter` and `onLeave`, the JS listener keeps a call's state on Frida's invocation context (`this`). The `NativeFilteredListener` stores a call ID in the Interceptor's per-call data instead, and JavaScript keeps the state in a map by that ID. A call with an ID of 0 never calls into JavaScript on leave.
@@ -506,7 +444,7 @@ A call that the `NativeFilteredListener` passes on reaches JavaScript through a 
 | don't decode `float` or `double` values | on x86_64 and arm64 they are in the FP registers, which are part of the CPU context                 |
 | have at most 16 params                  | the CModule passes up to 16 arguments on                                                            |
 
-Java stack traces (`platformStackTrace`), `argFilter`, `out` params, `errno` and the [checks for unsafe calls](./additional-features.md#skipped-stack-traces) work on both listeners. For the stack checks, the CModule passes an address on the calling thread's stack.
+Java stack traces (`platformStackTrace`), `argFilter`, `out` params, `errno` and the [checks for unsafe calls](#stack-traces-during-early-hooking) work on both listeners. For the stack checks, the CModule passes an address on the calling thread's stack.
 
 When hooks are added or removed, frooky checks the rules again and swaps the listener if needed, e.g. to the JS listener while a second hook file adds a hook with `nativeStackTrace: true` to the same function, and back once it's removed. With `-vv`, frooky logs which listener a function got and why:
 
@@ -515,9 +453,7 @@ DEBUG  Caller filter on libc.so!malloc: checked in JS, as a hook records native 
 DEBUG  Caller filter on libc.so!free: checked in native code
 ```
 
-If the CModule can't be compiled, every function falls back to the JS listener.
-
-The hook statistics (`i` key) count the calls dropped by either listener in the `Filtered` column.
+If the CModule can't be compiled, every function falls back to the JS listener. The hook statistics (`s` key) count the calls dropped by either listener in the `Filtered` column.
 
 ### Keeping the Module Ranges Current
 
@@ -546,18 +482,89 @@ Threads in the CModule read the table without a lock. `setRanges()` therefore ne
 
 ### Caller Filters on Java Hooks
 
-A Java hook has no native listener: frooky replaces the method's implementation with a JavaScript function, so every call enters JavaScript. Its `callerFilter` walks the Java stack and searches it for a matching method (see [Java Hooks](./additional-features.md#java-hooks)), which costs as much as recording `platformStackTrace`. A dropped call still runs the original method, without decoding or an event.
+A Java hook has no native listener: frooky replaces the method's implementation with a JavaScript function, so every call enters JavaScript. The dispatcher passes the call to `PlatformStackTrace.build()` with `filterCallers`, which walks the Java stack with `Java.backtrace()` and matches each frame except the hooked method itself on top. If no frame matches, the call is dropped: it still runs the original method, without decoding or an event.
 
-## Capture an Event
+The walk needs the Java VM, so the filter can't be checked before `targetReady`, on a thread that isn't attached to the VM, or in an [unsafe context](#stack-traces-during-early-hooking), and these calls are dropped. frida-java-bridge builds its backtrace code on the first `Java.backtrace()` and isn't safe if two threads do it at once, so while the first call builds it, other threads get an empty Java stack and their calls are dropped too.
 
-> TODO: what happens on a recorded call: decoding the arguments and the return value, stack traces, `argFilter`, the re-entry guard for hook code, and the Java dispatcher. Part of the native path is shown in [The Path of a Native Call](#the-path-of-a-native-call).
+## Danger Zone: Blocked Native Functions
 
-**Source:** [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts), [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts), [`frooky/agent/src/shared/hook/hookCodeGuard.ts`](../frooky/agent/src/shared/hook/hookCodeGuard.ts), [`frooky/agent/src/native/nativeStackTrace.ts`](../frooky/agent/src/native/nativeStackTrace.ts)
+Most risky hooks only need care, e.g. a `callerFilter` or no stack traces, and the validator warns about them. A few functions break the app however they are hooked, because Frida, the JavaScript engine or the stack walker depend on them themselves, or because hooking changes what they do. A warning wouldn't help there, so frooky drops hooks on these functions (or, for `sigprocmask`, their stack traces) while it [validates the hook file](#validation) and logs a warning instead:
 
-## Collecting Events and Sending Them to the Host
+| Function                                                 | Runtime | Blocked      | Why                                                                                                                                                                                                                                            |
+| -------------------------------------------------------- | ------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | all     | hook         | Frida's Interceptor uses them itself: installing the hook hangs the app.                                                                                                                                                                       |
+| `dlopen` (`libdl.so`)                                    | all     | hook         | The linker picks the namespace by the caller's address, which the hook changes, so system libraries (e.g. graphics drivers) fail to load.                                                                                                      |
+| `memset`, `clock_gettime` (`libc.so`)                    | V8      | hook         | V8 calls them itself while it runs a hook, which re-enters V8 and crashes the app (`SIGTRAP`). Use QuickJS to hook them.                                                                                                                       |
+| `sigprocmask` (`libc.so`)                                | all     | stack traces | Its calls come from ART's signal chain wrapper in `libsigchain.so`, and Frida's accurate stack walker crashes the app (`SIGSEGV`) when it walks from there, also after `targetReady`. A `callerFilter` still works, as it needs no stack walk. |
 
-Hooks don't send their events one by one. The agent collects them in a queue, and the event sender sends them as one NDJSON string per batch: as soon as 200 events are queued, and otherwise every 100 ms. Progress reports and crash reports are sent as separate JSON objects.
+The function is matched by its symbol and module, also if the hook names the module by path or without `.so`, e.g. `/apex/com.android.runtime/lib64/bionic/libc.so` or `libc`. The V8 entries only apply when the agent runs on V8. A hook by `offset:` on one of these functions isn't detected.
 
-On the host, the message handler writes every batch to `output.json` as it arrives, then updates the status bar and, with `-e`/`--print-events`, prints the events. Progress reports update the status bar's hook counts. See [Output Format](./output.md) for the events themselves.
+**Source:** [`frooky/agent/src/native/hook/nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`BLOCKED_FUNCTIONS`)
+
+## Collecting Events
+
+Hooks run on the app's threads, so recording a call must not wait for the host. A hook only decodes the call's values into a plain JavaScript object and adds it to a queue in the agent. Sending happens in batches, separately from the calls.
+
+### Capture an Event
+
+A recorded call goes through the same steps on both platforms. Only the hooks that pass their filters get to the next step:
+
+1. **Re-entry guard:** `enterHookCode()` marks the thread as running hook code. A hooked function or method that frooky's own code calls on this thread, e.g. `toString()` while decoding a Java object or `readlink` in `decoder: fd`, runs without its hooks, which would otherwise recurse until the stack overflows. Java and native hooks share the guard.
+2. **On enter:** the `callerFilter`, the `in` and `inout` arguments, decoded and checked against their `argFilter`, and the stack trace if the hook needs one, after checking for an [unsafe context](#stack-traces-during-early-hooking). A native hook decodes before it builds the stack trace. A Java hook builds the stack trace first, as its `callerFilter` walks the Java stack. For `out` arguments, the native hook copies the argument pointers, as Frida's arguments are only valid in `onEnter`. `float` and `double` arguments are read from the FP registers.
+3. **The original runs:** a native function returns to the Interceptor. A Java dispatcher calls the original method once for all hooks of the overload.
+4. **On leave:** the return value is decoded first, as an `out` argument with `decoderArgs: { length: $ret }` needs it, then the `out` and `inout` arguments, again checked against their `argFilter`. `errno` is read right after the call, before frooky's code can change it.
+5. **Event:** `addEventToLog()` creates the event (`NativeHookEvent` or `JavaHookEvent`) with the decoded values and the stack trace, pushes it to the event cache, and counts it and its decoding time for the [hook statistics](./additional-features.md#hook-statistics-s--s-key).
+
+A failing decoder drops the call with an error log, but never the app's call: the original function or method still runs and returns its value.
+
+**Source:** [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`enterHook()`, `leaveHook()`), [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`createDispatcher()`), [`frooky/agent/src/shared/hook/hookCodeGuard.ts`](../frooky/agent/src/shared/hook/hookCodeGuard.ts), [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts) (`addEventToLog()`)
+
+### Sending Event Batches to the Host
+
+```mermaid
+sequenceDiagram
+    participant H as Hook (app thread)
+    participant Q as Event cache
+    participant S as Event sender
+    participant Host
+
+    H->>Q: push(event)
+    alt 200 events queued
+        Q->>S: flush now, on the hook's thread
+    else every 100 ms
+        S->>Q: flush what is queued (timer)
+    end
+    S->>Host: send(): one NDJSON string per batch
+    Host->>Host: write to output.json,<br/>update the status bar, print (-e)
+```
+
+`startEventSender()` replaces the event cache's `push()`: as soon as 200 events are queued, the push sends them as one batch, and a timer sends whatever is queued every 100 ms. Each batch is one NDJSON string, one JSON object per line. Frida's `send()` only queues the message for the host, so the hook doesn't wait for it. If sending fails, the events go back to the front of the queue and are sent with the next batch.
+
+Progress reports (at most every 250 ms) and crash reports are separate messages. On the host, the message handler writes every batch to `output.json` as it arrives, then updates the status bar and, with `-e`/`--print-events`, prints the events. See [Output Format](./output.md) for the events themselves.
 
 **Source:** [`frooky/agent/src/shared/event/eventSender.ts`](../frooky/agent/src/shared/event/eventSender.ts) (event batches), [`frooky/runner/messages.py`](../frooky/runner/messages.py) (agent messages, `output.json`)
+
+## Caching
+
+A hook runs inside the app's call, often thousands of times per second, and every lookup it repeats there slows the app down. So frooky resolves what it can once, when the hook file is loaded or the hook is installed, and caches what can only be looked up while the hook runs, e.g. the decoder of a runtime class:
+
+| What                                                                              | Cached per                                   | Where                                         |
+| --------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------- |
+| Class or module lookup                                                            | class or module, for all hooks that name it  | `AndroidHookManager`, `NativeHookManager`     |
+| Exports of a module that is loading, read from its ELF                            | module                                       | `NativeHookManager`                           |
+| Decoders, `decoderArgs` sources and `argFilter` expressions                       | hook, when it is installed                   | `HookManager.resolveParamDecoders()`          |
+| Argument slots of `float` and `double` params, the hash code of a native function | hook, when it is installed                   | `NativeHookManager.prepareHook()`             |
+| `callerFilter` expressions                                                        | hook                                         | `compileCallerFilter()`, `NativeCallerFilter` |
+| Address ranges of the modules a native `callerFilter` matches                     | hook, updated when a module loads or unloads | `NativeCallerFilter`                          |
+| Runtime decoder of a Java object                                                  | runtime class                                | `ReferenceTypeDecoder`                        |
+| `java.lang.Class` of each interface in the decoder registry                       | interface                                    | `ReferenceTypeDecoder`                        |
+| Decoders of elements, keys and values                                             | runtime class, within one collection         | `IterableDecoder`, `MapDecoder`               |
+| Getters a `GetterDecoder` calls                                                   | class and getter prefixes                    | `decodeGetterValues()`                        |
+| Class wrappers and boxed primitive types of `Bundle` values                       | class                                        | `BundleDecoder`                               |
+| Symbol of a native stack frame (`DebugSymbol.fromAddress()`, ~35 µs)              | return address, up to 10,000                 | `nativeStackTrace.ts`                         |
+| Stack bounds of a thread, for `low-stack`                                         | thread ID, up to 4,096                       | `unsafeContext.ts`                            |
+| Class loaders already searched                                                    | class loader                                 | `JavaClassResolver`                           |
+
+Most caches live as long as the agent. The per-hook ones go with the hook when it is unhooked, e.g. on a [reload](#keeping-hooks-current). The two caches that grow with the app's addresses and threads are cleared once they reach their limit.
+
+**Source:** the files in the `Where` column

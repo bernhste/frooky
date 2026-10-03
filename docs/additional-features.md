@@ -311,7 +311,7 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 
 ### Blocked Functions
 
-Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_getspecific`, `dlopen` in `libdl.so`, and under V8 `memset` and `clock_gettime`. frooky doesn't install hooks on these functions (or, for `sigprocmask`, doesn't capture their stack traces) and logs a warning instead. See [Blocked Native Functions](./under-the-hood.md#blocked-native-functions) in Under the Hood for the full list and why each one is blocked.
+Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_getspecific`, `dlopen` in `libdl.so`, and under V8 `memset` and `clock_gettime`. frooky doesn't install hooks on these functions (or, for `sigprocmask`, doesn't capture their stack traces) and logs a warning instead. See [Blocked Native Functions](./under-the-hood.md#danger-zone-blocked-native-functions) in Under the Hood for the full list and why each one is blocked.
 
 See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml), [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml) and [`examples/native/08_early_hooking/02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) for full examples.
 
