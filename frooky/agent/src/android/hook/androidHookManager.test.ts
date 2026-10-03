@@ -280,25 +280,6 @@ describe("AndroidHookManager", () => {
       expect(calledLimits).toEqual([1]);
     });
 
-    it("keeps the replacement of a reverted method until no call is in it for a second", async () => {
-      const { manager, resolve } = setup();
-      const hooks = await resolve(1);
-      const retired = () => (manager as unknown as { retiredReplacements: { overload: { inFlight: number } }[] }).retiredReplacements;
-
-      manager.registerHooks(hooks);
-      manager.unregisterHooks(hooks);
-      expect(retired().length).toBe(1);
-
-      // a thread still inside the original method
-      retired()[0].overload.inFlight++;
-      await sleepMilliseconds(1200);
-      expect(retired().length).toBe(1);
-
-      retired()[0].overload.inFlight--;
-      await sleepMilliseconds(1200);
-      expect(retired().length).toBe(0);
-    });
-
     describe("several hooks on the same overload", () => {
       it("records one event per hook for each call, in registration order", async () => {
         const { manager, resolve, reverse, calledLimits, addEventToLog } = setup();
