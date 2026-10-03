@@ -77,7 +77,12 @@ The host starts the agent and hands it the hook files over Frida's RPC. Everythi
 
 **`targetReady`** is the moment the app's own classes can be looked up, because the Android runtime has the app's class loader. It is a promise in `FrookyAgent`, resolved by a `Java.perform()` callback. When spawning, `Java.perform()` queues its callback until the app process binds its application: frida-java-bridge hooks `ActivityThread.handleBindApplication()` and runs the callback on the app's main thread, before the app's `Application` class is created. When attaching, the application already exists and `targetReady` resolves right away. Native hooks without `early: true`, the lookups in the app's class loaders and stack traces all wait for it.
 
-**Source:** [`frooky/runner/runner.py`](../frooky/runner/runner.py) (attach or spawn, RPC calls, resume), [`frooky/agent/src/android/index.frooky.ts`](../frooky/agent/src/android/index.frooky.ts) (RPC exports, `targetReady`), [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
+**Sources:**
+
+- [`runner.py`](../frooky/runner/runner.py) (attach or spawn, RPC calls, resume)
+- [`index.frooky.ts`](../frooky/agent/src/android/index.frooky.ts) (RPC exports, `targetReady`)
+- [`FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
+- [`messages.py`](../frooky/runner/messages.py) (agent messages on the host)
 
 ## Life of a Hook
 
@@ -87,7 +92,9 @@ A **hook file** is one YAML file, which the host sends to the agent as a config,
 
 Each hook file is processed on its own, all of them concurrently. Its hook declarations are validated and normalized, compared with the previously loaded version of the file (see [Keeping Hooks Current](#keeping-hooks-current)), and the new, changed and retried ones are resolved and installed.
 
-**Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
+**Source:**
+
+- [`FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
 
 ### Validation
 
@@ -132,7 +139,13 @@ Only the input is validated, against the Zod schemas generated from the input ty
 - `validateAndRepairFrookyConfig()` checks the file's `metadata` and `settings`. Invalid metadata and unknown properties only cause a warning. An invalid setting is reset to its default, also with a warning, and an invalid regular expression in `callerFilter` is dropped. The settings of a hook collection are repaired the same way. A file without a `hookCollection` is skipped; the other files still load.
 - Each hook declaration is checked against its input schema (`inputJavaHookSchema` or `inputNativeHookSchema`) before it is normalized. An invalid declaration, including an invalid setting on the hook or one of its values, is dropped with a warning that names the invalid field; the other declarations of the file still load. A property the schema doesn't know, e.g. a misspelled `retTyp`, is ignored with a warning.
 
-**Source:** [`frooky/agent/src/shared/configValidator.ts`](../frooky/agent/src/shared/configValidator.ts), [`frooky/agent/src/shared/inputParsing/`](../frooky/agent/src/shared/inputParsing/), [`frooky/agent/src/shared/hook/hookDeclaration.ts`](../frooky/agent/src/shared/hook/hookDeclaration.ts)
+**Sources:**
+
+- [`configValidator.ts`](../frooky/agent/src/shared/configValidator.ts)
+- [`inputParsing/`](../frooky/agent/src/shared/inputParsing/)
+- [`hookDeclaration.ts`](../frooky/agent/src/shared/hook/hookDeclaration.ts)
+- [`androidHookValidator.ts`](../frooky/agent/src/android/hook/androidHookValidator.ts)
+- [`nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts)
 
 ### Hook Initialization
 
@@ -167,9 +180,9 @@ A hook declaration is in one of these states, shown in the status bar and the [h
 | `installed` | The hook is installed and ready to be called.                                                                                                                                |
 | `not found` | Its module or class is there, but the method, symbol or offset isn't. frooky doesn't look for it again.                                                                      |
 
-**Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
+**Source:**
 
-**Source:** [`frooky/agent/src/android/hook/androidHookValidator.ts`](../frooky/agent/src/android/hook/androidHookValidator.ts), [`frooky/agent/src/native/hook/nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts)
+- [`FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
 
 ### Resolve the Module or Class
 
@@ -199,7 +212,11 @@ A **native module**, e.g. `libc.so` or `libnative-lib.so`, is looked up by `Nati
 
 As soon as the class or module is found, frooky resolves the [method, symbol or offset](#resolve-the-symbol-offset-or-method) in it, in the same callback: for a class loader or module that loads later, on the app's thread, before the app runs its code.
 
-**Source:** [`frooky/agent/src/android/hook/javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts), [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHooks()`, `whenModuleLoaded()`)
+**Sources:**
+
+- [`androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`resolveHooks()`)
+- [`javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts) (`find()`)
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHooks()`, `whenModuleLoaded()`)
 
 ### Resolve the Symbol, Offset or Method
 
@@ -228,7 +245,10 @@ A **native function** is resolved by `resolveHook()`:
 
 A method, symbol or offset that doesn't resolve, or a declaration whose `overloads` all don't exist, is logged as a warning, and the declaration is `not found`.
 
-**Source:** [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`resolveMethodHooks()`, `resolveOverloads()`), [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHook()`, `resolveSymbol()`, `resolveModuleOffset()`)
+**Sources:**
+
+- [`androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`resolveMethodHooks()`, `resolveOverloads()`)
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHook()`, `resolveSymbol()`, `resolveModuleOffset()`)
 
 ### Resolve Declared or Runtime Decoders
 
@@ -270,7 +290,15 @@ A **native value** only has its declared decoder: a native value is just a numbe
 
 `NativeDecoderResolver` checks for UTF-16 first: `jchar` is also a fundamental type (`uint16`), so `const jchar *` would otherwise be read as a pointer to one number.
 
-**Source:** [`frooky/agent/src/shared/hook/hookManager.ts`](../frooky/agent/src/shared/hook/hookManager.ts) (`resolveParamDecoders()`), [`frooky/agent/src/android/decoders/javaDecoderResolver.ts`](../frooky/agent/src/android/decoders/javaDecoderResolver.ts), [`frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts`](../frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts), [`frooky/agent/src/native/decoders/nativeDecoderResolver.ts`](../frooky/agent/src/native/decoders/nativeDecoderResolver.ts)
+**Sources:**
+
+- [`hookManager.ts`](../frooky/agent/src/shared/hook/hookManager.ts) (`resolveParamDecoders()`)
+- [`javaDecoderResolver.ts`](../frooky/agent/src/android/decoders/javaDecoderResolver.ts)
+- [`ReferenceTypeDecoder.ts`](../frooky/agent/src/android/decoders/builtin/ReferenceTypeDecoder.ts)
+- [`androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`prepareHook()`)
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`prepareHook()`)
+- [`nativeDecoderResolver.ts`](../frooky/agent/src/native/decoders/nativeDecoderResolver.ts)
+- [`nativeFridaType.ts`](../frooky/agent/src/native/decoders/nativeFridaType.ts) (`parseNativeFridaType()`)
 
 ### Keeping Hooks Current
 
@@ -293,7 +321,11 @@ flowchart TD
 
 A changed declaration has a new fingerprint, so it is removed and added again: its old hooks are unhooked and its new version is resolved and installed. The summary counts such a pair with the same target (method or symbol) as `updated`.
 
-**Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts) (diff), [`frooky/runner/watcher.py`](../frooky/runner/watcher.py) (watch mode), [`frooky/runner/runner.py`](../frooky/runner/runner.py) (`r` key)
+**Sources:**
+
+- [`FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts) (diff)
+- [`watcher.py`](../frooky/runner/watcher.py) (watch mode)
+- [`runner.py`](../frooky/runner/runner.py) (`r` key)
 
 ## Timing
 
@@ -315,7 +347,7 @@ When attaching, the app is already in stage 3. What can be hooked in each stage:
 | **2. Resumed**         | ⚠️ Only with `early: true`, in the linker while a module loads, before `.init_array` and `JNI_OnLoad` | ⏳ App classes stay `resolving`                                     | ⚠️ Native frames only (`before-ready`) |
 | **3. `targetReady`**   | ✅ Every waiting hook on a loaded module is installed                                                 | ✅ App classes are looked up in the app's class loaders             | ✅ Java and native                     |
 
-In every stage, frooky skips the stack trace of a call it detects as unsafe, see [Stack Traces During Early Hooking](#stack-traces-during-early-hooking).
+Stack traces are off by default: a hook only captures them with `nativeStackTrace: true` or `platformStackTrace: true` (Java frames). In every stage, frooky skips the stack trace of a call it detects as unsafe, see [Stack Traces During Early Hooking](#stack-traces-during-early-hooking).
 
 ### Safe Default: Wait for `targetReady`
 
@@ -326,6 +358,10 @@ Java hooks don't wait: a class of the default class loader is hooked before the 
 - On a module that is already loaded, e.g. `libc.so`, it is installed at `targetReady`.
 - On a module that loads before `targetReady`, the module's constructors and `JNI_OnLoad` run unhooked, and the hook is installed at `targetReady`.
 - On a module that loads after `targetReady`, it is installed inside the linker while the module loads, before its constructors and `JNI_OnLoad` run.
+
+**Source:**
+
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveInLoadedModule()`, `installWhileLoading()`)
 
 ### Danger Zone: Early Hooking
 
@@ -362,13 +398,16 @@ sequenceDiagram
     end
 ```
 
-**Source:** [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`early`), [`frooky/agent/src/native/hook/nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`warnOnHighFrequencyLibcHook()`)
+**Sources:**
+
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`early`)
+- [`nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`warnOnHighFrequencyLibcHook()`)
 
 ### Stack Traces During Early Hooking
 
 A stack walk runs on the app's thread and stack, inside the hooked call. In some calls it can crash or hang the app, e.g. while the linker holds its lock. Instead of capturing no stack traces at all until `targetReady`, frooky checks every call that needs one and only skips the calls in which the walk is unsafe. So hooks with `early: true` can record native stack traces during startup.
 
-`detectUnsafeContext()` runs at most once per call, only if a hook of the function needs a stack trace, or for a Java hook a `callerFilter`. On a native hook, it only runs once the call has passed the hook's [caller filter](#caller-filters). It returns the first of these reasons, or none:
+`detectUnsafeContext()` runs once per call, if a hook needs a stack trace, or for a Java hook a `callerFilter`. On a native hook, it only runs once the call has passed the hook's [caller filter](#caller-filters). It returns the first of these reasons, or none:
 
 | Reason         | How frooky detects it                                                                                                                                                | Captured                    |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
@@ -388,7 +427,11 @@ The event's `stackTrace` gets a `skipped` field with the reason, see [Skipped St
 
 These checks cover the known ways a stack walk crashes or hangs the app, not every one. That's why the validator still warns about stack traces on high-frequency libc functions, and why stack traces of `sigprocmask` are [blocked](#danger-zone-blocked-native-functions).
 
-**Source:** [`frooky/agent/src/native/unsafeContext.ts`](../frooky/agent/src/native/unsafeContext.ts) (`detectUnsafeContext()`, `watchLinker()`), [`frooky/agent/src/android/androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts), [`frooky/agent/src/native/nativeStackTrace.ts`](../frooky/agent/src/native/nativeStackTrace.ts)
+**Sources:**
+
+- [`unsafeContext.ts`](../frooky/agent/src/native/unsafeContext.ts) (`detectUnsafeContext()`, `watchLinker()`)
+- [`androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts)
+- [`nativeStackTrace.ts`](../frooky/agent/src/native/nativeStackTrace.ts)
 
 ## Caller Filters
 
@@ -401,7 +444,12 @@ A hot function, e.g. `malloc`, is called mostly by code you aren't interested in
 
 See [Caller Filters](./additional-features.md#caller-filters) for how to write them, examples and pitfalls.
 
-**Source:** [`frooky/agent/src/native/nativeCallerFilter.ts`](../frooky/agent/src/native/nativeCallerFilter.ts) (native `callerFilter` and its ranges), [`frooky/agent/src/native/hook/nativeFilteredListener.ts`](../frooky/agent/src/native/hook/nativeFilteredListener.ts) (`callerFilter` in native code), [`frooky/agent/src/android/androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts) (Java `callerFilter`), [`frooky/agent/src/shared/platformStackTrace.ts`](../frooky/agent/src/shared/platformStackTrace.ts) (`compileCallerFilter()`)
+**Sources:**
+
+- [`nativeCallerFilter.ts`](../frooky/agent/src/native/nativeCallerFilter.ts) (native `callerFilter` and its ranges)
+- [`nativeFilteredListener.ts`](../frooky/agent/src/native/hook/nativeFilteredListener.ts) (`callerFilter` in native code)
+- [`androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts) (Java `callerFilter`)
+- [`platformStackTrace.ts`](../frooky/agent/src/shared/platformStackTrace.ts) (`compileCallerFilter()`)
 
 ### The Path of a Native Call
 
@@ -499,7 +547,9 @@ Most risky hooks only need care, e.g. a `callerFilter` or no stack traces, and t
 
 The function is matched by its symbol and module, also if the hook names the module by path or without `.so`, e.g. `/apex/com.android.runtime/lib64/bionic/libc.so` or `libc`. The V8 entries only apply when the agent runs on V8. A hook by `offset:` on one of these functions isn't detected.
 
-**Source:** [`frooky/agent/src/native/hook/nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`BLOCKED_FUNCTIONS`)
+**Source:**
+
+- [`nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`BLOCKED_FUNCTIONS`, `findBlockedFunction()`)
 
 ## Collecting Events
 
@@ -517,7 +567,14 @@ A recorded call goes through the same steps on both platforms. Only the hooks th
 
 A failing decoder drops the call with an error log, but never the app's call: the original function or method still runs and returns its value.
 
-**Source:** [`frooky/agent/src/native/hook/nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`enterHook()`, `leaveHook()`), [`frooky/agent/src/android/hook/androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`createDispatcher()`), [`frooky/agent/src/shared/hook/hookCodeGuard.ts`](../frooky/agent/src/shared/hook/hookCodeGuard.ts), [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts) (`addEventToLog()`)
+**Sources:**
+
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`enterHook()`, `leaveHook()`)
+- [`androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`createDispatcher()`)
+- [`hookManager.ts`](../frooky/agent/src/shared/hook/hookManager.ts) (`decodeArgs()`, `argFilter`)
+- [`nativeFloatArgs.ts`](../frooky/agent/src/native/hook/nativeFloatArgs.ts) (`float` and `double` in FP registers)
+- [`hookCodeGuard.ts`](../frooky/agent/src/shared/hook/hookCodeGuard.ts)
+- [`FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts) (`addEventToLog()`)
 
 ### Sending Event Batches to the Host
 
@@ -542,7 +599,12 @@ sequenceDiagram
 
 Progress reports (at most every 250 ms) and crash reports are separate messages. On the host, the message handler writes every batch to `output.json` as it arrives, then updates the status bar and, with `-e`/`--print-events`, prints the events. See [Output Format](./output.md) for the events themselves.
 
-**Source:** [`frooky/agent/src/shared/event/eventSender.ts`](../frooky/agent/src/shared/event/eventSender.ts) (event batches), [`frooky/runner/messages.py`](../frooky/runner/messages.py) (agent messages, `output.json`)
+**Sources:**
+
+- [`eventSender.ts`](../frooky/agent/src/shared/event/eventSender.ts) (event batches)
+- [`defaultValues.ts`](../frooky/agent/src/shared/defaultValues.ts) (`SEND_BATCH_SIZE`, `SEND_INTERVAL_MS`, `PROGRESS_INTERVAL_MS`)
+- [`index.frooky.ts`](../frooky/agent/src/android/index.frooky.ts) (progress and crash messages)
+- [`messages.py`](../frooky/runner/messages.py) (agent messages, `output.json`)
 
 ## Caching
 
