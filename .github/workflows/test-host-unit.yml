@@ -36,10 +36,9 @@ jobs:
       - name: Run host unit tests
         run: uv run pytest tests/unit --report-log=test-results.jsonl
 
-      - name: Summarize test result
+      - name: Summarize test results
         if: always()
-        run: |
-          jq -rn '[inputs | select(."$report_type" == "TestReport" and .when == "call")] | .[] | "- \(if .outcome == "passed" then "✅" elif .outcome == "failed" then "❌" else "⏭️" end) \(.nodeid) (\(.duration | . * 100 | round / 100)s)"' test-results.jsonl >> "$GITHUB_STEP_SUMMARY"
+        run: python3 .github/scripts/summarize-test-results.py pytest test-results.jsonl "Host unit tests"
 
       - name: Upload test results
         if: always()

@@ -70,6 +70,10 @@ jobs:
             echo "Run tests"
             pytest tests/integration/android --report-log=test-results-android.json
 
+      - name: Summarize test results
+        if: always()
+        run: python3 .github/scripts/summarize-test-results.py pytest test-results-android.json "Host integration tests (Android)"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
