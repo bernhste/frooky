@@ -353,11 +353,17 @@ Stack traces are off by default: a hook only captures them with `nativeStackTrac
 
 Native hooks wait for `targetReady` by default, as hooks during startup can deadlock the app, see [Danger Zone: Early Hooking](#danger-zone-early-hooking).
 
-Java hooks don't wait: a class of the default class loader is hooked before the app is resumed, an app class once a class loader has it. A native hook without `early: true` is resolved as soon as its module is found, but only installed at `targetReady`:
+A native hook without `early: true` is resolved as soon as its module is found, and installed once both its module is found and `targetReady` has resolved, whichever comes later:
 
-- On a module that is already loaded, e.g. `libc.so`, it is installed at `targetReady`.
-- On a module that loads before `targetReady`, the module's constructors and `JNI_OnLoad` run unhooked, and the hook is installed at `targetReady`.
-- On a module that loads after `targetReady`, it is installed inside the linker while the module loads, before its constructors and `JNI_OnLoad` run.
+| Module                         | Resolved                           | Installed                                                                            |
+| ------------------------------ | ---------------------------------- | ------------------------------------------------------------------------------------ |
+| Already loaded, e.g. `libc.so` | Right away, before the app resumes | At `targetReady`                                                                     |
+| Loads before `targetReady`     | Inside the linker while it loads   | At `targetReady`; the module's constructors and `JNI_OnLoad` run unhooked            |
+| Loads after `targetReady`      | Inside the linker while it loads   | Right then, inside the linker, before the module's constructors and `JNI_OnLoad` run |
+
+When attaching, `targetReady` has already resolved, so every native hook is installed as soon as its module is found.
+
+Java hooks don't wait: a class of the default class loader is hooked before the app is resumed, an app class at `targetReady` or while a new class loader that has it is created, which can be before `targetReady`.
 
 **Source:**
 
