@@ -12,21 +12,14 @@ import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { detectUnsafeContext } from "../unsafeContext";
 import { NativeCallerFilter } from "../nativeCallerFilter";
+import { NativeModuleWatcher } from "../nativeModuleWatcher";
 import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
 import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { FindExport, resolveNativeHook } from "./nativeAddressResolver";
 import { NativeHook } from "./nativeHook";
+import { NativeHookIndex } from "./nativeHookIndex";
 import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
 import { MAX_FILTERED_ARGS, ModuleRange, NativeFilteredListener } from "./nativeFilteredListener";
-
-// the most bytes the Interceptor overwrites at a hooked address (an absolute jump on x86_64 or arm64)
-const INTERCEPTOR_PATCH_BYTES = 16;
-
-// how long hooks installed while a module loads may wait to be committed, see waitUntilCommitted()
-const COMMIT_TIMEOUT_MS = 1000;
-
-// A function hooked for the first time while its module loads, with its code before the hook
-type PendingCommit = { address: NativePointer; code: ArrayBuffer };
 
 // A registered hook with what it uses on every call, resolved once
 type InstalledNativeHook = {
@@ -93,18 +86,12 @@ type NativeHookCall = {
 };
 
 export class NativeHookManager extends HookManager<NativeHookDeclaration, NativeHook, NativePointer> {
-  private installedHooks = new Set<NativeHook>();
+  // the installed hooks, for the crash reporter, see installCrashReporter()
+  public readonly hookIndex = new NativeHookIndex();
   // the hooks installed on a function, keyed by its address. Several configs can hook the same function and each
   // records its own event per call.
   private readonly hookedFunctions = new Map<string, HookedFunction>();
-  // called with a module once it loads, keyed by the name (or path) hooks declare it with
-  private readonly moduleWaiters = new Map<string, ((module: Module) => void)[]>();
-  private moduleObserver?: ModuleObserver;
-  // the functions hooked by the module observer's current callback, see waitUntilCommitted()
-  private pendingCommits: PendingCommit[] | null = null;
-  // cooperative, so a call gives up the JS lock. Resolved before the observer is attached: resolving it inside the
-  // linker would call dlsym() there.
-  private usleep?: NativeFunction<number, [number]>;
+  private readonly moduleWatcher = new NativeModuleWatcher();
 
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
@@ -138,7 +125,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
         continue;
       }
       let loaded = false;
-      const moduleHooks = this.whenModuleLoaded(moduleName, (module) => {
+      const moduleHooks = this.moduleWatcher.whenLoaded(moduleName, (module) => {
         loaded = true;
         // getExportByName() makes the linker abort the process while it loads `module`, reading the ELF doesn't
         let exports: Map<string, NativePointer> | undefined;
@@ -184,65 +171,12 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
     return this.frookyAgent.targetReady ?? Promise.resolve();
   }
 
-  // Calls `onLoaded` with the module while the linker loads it, and resolves with its result
-  private whenModuleLoaded<T>(moduleName: string, onLoaded: (module: Module) => T): Promise<T> {
-    logger.debug(`Waiting for native module ${moduleName} to load.`);
-    return new Promise((resolve, reject) => {
-      const waiter = (module: Module) => {
-        logger.debug(`Module '${moduleName}' loaded.`);
-        try {
-          resolve(onLoaded(module));
-        } catch (e) {
-          reject(e);
-        }
-      };
-      this.moduleWaiters.set(moduleName, [...(this.moduleWaiters.get(moduleName) ?? []), waiter]);
-      this.observeModules();
-    });
-  }
-
-  // Attached once and kept: attaching calls onAdded() for every loaded module.
-  private observeModules(): void {
-    this.usleep ??= new NativeFunction(Process.getModuleByName("libc.so").getExportByName("usleep"), "int", ["uint"]);
-    this.moduleObserver ??= Process.attachModuleObserver({
-      // runs on the thread that loads the module, inside the linker, before its constructors
-      onAdded: (module) => {
-        const waiters = this.moduleWaiters.get(module.name) ?? this.moduleWaiters.get(module.path);
-        if (!waiters) return;
-        this.moduleWaiters.delete(module.name);
-        this.moduleWaiters.delete(module.path);
-        this.pendingCommits = [];
-        try {
-          for (const waiter of waiters) waiter(module);
-        } finally {
-          const pending = this.pendingCommits;
-          this.pendingCommits = null;
-          this.waitUntilCommitted(pending, module.name);
-        }
-      },
-    });
-  }
-
-  // Frida commits Interceptor changes only once no thread is inside a hook callback. If another thread entered one
-  // while the hooks were installed here, the commit would come after the module's constructors ran, and their calls
-  // would be missed. Giving up the JS lock lets that thread finish, until the hooked functions' code is patched.
-  private waitUntilCommitted(pending: PendingCommit[], moduleName: string): void {
-    const start = Date.now();
-    while (pending.some(({ address, code }) => sameBytes(address.readByteArray(code.byteLength), code))) {
-      if (Date.now() - start >= COMMIT_TIMEOUT_MS) {
-        logger.warn(`Hooks on ${moduleName} may miss calls while it loads: another thread delayed them by over ${COMMIT_TIMEOUT_MS}ms`);
-        return;
-      }
-      this.usleep!(1000);
-    }
-  }
-
   // Hooks that are already installed, e.g. by resolveHooks() while their module loaded, count as installed.
   public registerHooks(hooks: NativeHook[], source?: string): number {
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
-      if (this.installedHooks.has(hook)) {
+      if (this.hookIndex.has(hook)) {
         countSuccessfulHooks++;
         continue;
       }
@@ -272,7 +206,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       if (alias) {
         logger.warn(`${target} is the same function as ${alias.target} (${hook.symbolAddress}): each call is recorded once per hook.`);
       }
-      this.installedHooks.add(hook);
+      this.hookIndex.add(hook);
       logger.info(`Hooked ${target} at ${hook.symbolAddress}${fromSource(source)}`);
       if (installedHook.callerFilter) logger.debug(installedHook.callerFilter.describe());
       countSuccessfulHooks++;
@@ -291,7 +225,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       keepNativeFilteredCalls(hook);
       hookedFunction.hooks = hookedFunction.hooks.filter((_, i) => i !== index);
       hook.listener = undefined;
-      if (!hookedFunction.hooks.some((installedHook) => installedHook.hook === hook)) this.installedHooks.delete(hook);
+      if (!hookedFunction.hooks.some((installedHook) => installedHook.hook === hook)) this.hookIndex.delete(hook);
       if (hookedFunction.hooks.length > 0) {
         // the remaining hooks may now fit a NativeFilteredListener
         this.tryUpdateListener(hookedFunction, hookedFunction.hooks[0].target);
@@ -308,11 +242,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   // dispatcher. Throws if the Interceptor can't hook the function.
   private updateListener(hookedFunction: HookedFunction, target: string): void {
     const { hooks } = hookedFunction;
-    if (this.pendingCommits && !hookedFunction.listener) {
-      try {
-        this.pendingCommits.push({ address: hookedFunction.address, code: hookedFunction.address.readByteArray(INTERCEPTOR_PATCH_BYTES)! });
-      } catch (_) {}
-    }
+    if (!hookedFunction.listener) this.moduleWatcher.beforePatch(hookedFunction.address);
     let reason = jsListenerReason(hooks);
     if (reason === undefined) {
       const argCount = Math.max(0, ...hooks.map((installedHook) => installedHook.hook.params?.length ?? 0));
@@ -563,43 +493,4 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       else logger.error(`Error during 'onLeave' of ${target}: ${e}`);
     }
   }
-
-  // Whether `address` is in a module with an installed hook. Called for every native exception, see
-  // installCrashReporter(), so it only compares addresses.
-  public isInHookedModule(address: NativePointer): boolean {
-    for (const hook of this.installedHooks) {
-      if (address.compare(hook.module.base) >= 0 && address.compare(hook.module.base.add(hook.module.size)) < 0) return true;
-    }
-    return false;
-  }
-
-  // The installed hooks (e.g. `libfoo.so+0x1a2b4`) in the modules that contain any of `addresses`.
-  public describeHooksInModulesOf(addresses: NativePointer[]): string[] {
-    const hooks = [...this.installedHooks].filter((hook) =>
-      addresses.some((address) => address.compare(hook.module.base) >= 0 && address.compare(hook.module.base.add(hook.module.size)) < 0),
-    );
-    return hooks.map((hook) => describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset }));
-  }
-
-  // The installed hook whose function contains `address`: `address` is in the bytes the Interceptor patched, or
-  // has the same symbol as the hook (e.g. `receive_utf8+0x3` and `receive_utf8`).
-  public describeHookedFunctionAt(address: NativePointer): string | undefined {
-    const functionName = (symbol: DebugSymbol) =>
-      symbol.name === null || symbol.name.startsWith("0x") ? null : symbol.name.replace(/\+0x[0-9a-f]+$/, "");
-    const symbol = DebugSymbol.fromAddress(address);
-    const name = functionName(symbol);
-    const hook = [...this.installedHooks].find(
-      (hook) =>
-        (address.compare(hook.symbolAddress) >= 0 && address.compare(hook.symbolAddress.add(INTERCEPTOR_PATCH_BYTES)) < 0) ||
-        (name !== null && symbol.moduleName === hook.moduleName && functionName(DebugSymbol.fromAddress(hook.symbolAddress)) === name),
-    );
-    return hook ? describeNativeTarget(hook.moduleName, { symbol: hook.symbolName, offset: hook.offset }) : undefined;
-  }
-}
-
-function sameBytes(a: ArrayBuffer | null, b: ArrayBuffer): boolean {
-  if (a === null || a.byteLength !== b.byteLength) return false;
-  const x = new Uint8Array(a);
-  const y = new Uint8Array(b);
-  return x.every((byte, i) => byte === y[i]);
 }

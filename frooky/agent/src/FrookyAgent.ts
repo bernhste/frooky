@@ -11,8 +11,8 @@ import { LogEvent } from "./shared/event/logEvent";
 import { InputFrookyConfig } from "./shared/frookyConfig";
 import { Platform } from "./shared/frookyMetadata";
 import { FrookySettings } from "./shared/frookySettings";
-import { diffConfig, HookToResolve, LoadedHookEntry } from "./shared/hook/configDiff";
-import { filteredCallCount, Hook } from "./shared/hook/hook";
+import { diffConfig, HookToResolve } from "./shared/hook/configDiff";
+import { Hook } from "./shared/hook/hook";
 import {
   configLabel,
   describeConfig,
@@ -24,6 +24,7 @@ import {
   LoadSummary,
 } from "./shared/hook/hookDescriptions";
 import { HookManager, isWaiting, Resolution } from "./shared/hook/hookManager";
+import { HookRegistry } from "./shared/hook/hookRegistry";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { logger, LogLevel, LogTo } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
@@ -37,13 +38,7 @@ export class FrookyAgent {
   private platformHookManger: HookManager<any, any, any>;
   private nativeHookValidator = new NativeHookValidator();
   private nativeHookManager: NativeHookManager;
-  // hooks of every loaded config, keyed by config id and then by the fingerprint of the normalized hook
-  private loadedConfigs = new Map<string, Map<string, LoadedHookEntry>>();
-  private readonly eventCounts = new WeakMap<Hook, number>();
-  // Summed Date.now() differences of whole milliseconds. Over many calls they add up to the real time, at a tenth of
-  // the cost of a high-resolution clock, which Frida only has as a NativeFunction call of clock_gettime().
-  private readonly decodeTimes = new WeakMap<Hook, number>();
-  private anonymousConfigCount = 0;
+  private readonly registry = new HookRegistry();
   private reportProgress?: (progress: HookProgress) => void;
   public readonly targetReady: Promise<void>; // resolves once the target's own code can be looked up (e.g. Java.perform())
   public isTargetReady = false;
@@ -89,7 +84,7 @@ export class FrookyAgent {
 
   // Sends a CrashReport when the process is about to die from a native exception, see installCrashReporter().
   public reportCrashes(report: (crash: CrashReport) => void): void {
-    installCrashReporter(this.nativeHookManager, report);
+    installCrashReporter(this.nativeHookManager.hookIndex, report);
   }
 
   // Loads configs concurrently. `configIds` are index-aligned with `inputFrookyConfigs`, see loadFrookyConfig().
@@ -120,7 +115,7 @@ export class FrookyAgent {
   // Declarations that were not found are retried if `retryNotFound` is set or their declaration changed. An invalid config keeps the
   // previous version. The diff runs before the first `await`, so consecutive calls apply in order.
   public async loadFrookyConfig(inputFrookyConfig: InputFrookyConfig, configId?: string, retryNotFound = false) {
-    const isReload = configId !== undefined && this.loadedConfigs.has(configId);
+    const isReload = configId !== undefined && this.registry.has(configId);
     const summary = await this.applyFrookyConfig(inputFrookyConfig, configId, retryNotFound);
     this.scheduleProgressReport();
     if (!summary) return;
@@ -143,7 +138,7 @@ export class FrookyAgent {
     try {
       validFrookyConfig = validateAndRepairFrookyConfig(inputFrookyConfig, this.platform);
     } catch (e) {
-      if (configId !== undefined && this.loadedConfigs.has(configId)) {
+      if (configId !== undefined && this.registry.has(configId)) {
         logger.warn(`Not reloaded ${configLabel(configId)}, keeping the previous version: ${e}`);
       } else {
         logger.warn(`Skipping frooky config: ${e}`);
@@ -159,9 +154,9 @@ export class FrookyAgent {
     logger.debug(`Validating 'native' hooks`);
     const validNativeHook = this.nativeHookValidator.validateAndNormalizeHooks(inputFrookyConfig, validatedFrookySettings);
 
-    const id = configId ?? `#${++this.anonymousConfigCount}`;
+    const id = this.registry.idOf(configId);
     const { entries, platformToResolve, nativeToResolve, removedEntries, ...counts } = diffConfig(
-      this.loadedConfigs.get(id),
+      this.registry.get(id),
       validPlatformHooks,
       validNativeHook,
       retryNotFound,
@@ -175,7 +170,7 @@ export class FrookyAgent {
       }
       entry.state = "removed";
     }
-    this.loadedConfigs.set(id, entries);
+    this.registry.set(id, entries);
 
     logger.info(
       `Parsed ${label}: ${plural(validPlatformHooks.length, `${this.platform} hook`)} and ${plural(validNativeHook.length, "native hook")}, ${platformToResolve.length + nativeToResolve.length} to resolve`,
@@ -303,20 +298,7 @@ export class FrookyAgent {
 
   // HookProgress across all loaded configs
   public hookProgress(): HookProgress {
-    let hooked = 0;
-    let notFound = 0;
-    // a declaration without a known class or module counts on its own
-    const resolvingLookups = new Set<unknown>();
-    const waitingLookups = new Set<unknown>();
-    for (const entries of this.loadedConfigs.values()) {
-      for (const entry of entries.values()) {
-        if (entry.state === "installed") hooked += entry.hookedCount ?? 0;
-        else if (entry.state === "resolving") resolvingLookups.add(entry.lookup ?? entry);
-        else if (entry.state === "waiting") waitingLookups.add(entry.lookup ?? entry);
-        else if (entry.state === "notFound") notFound++;
-      }
-    }
-    return { hooked, resolving: resolvingLookups.size, waiting: waitingLookups.size, notFound };
+    return this.registry.progress();
   }
 
   // Reports HookProgress to the host at most once per PROGRESS_INTERVAL_MS. The progress is read when the
@@ -334,30 +316,11 @@ export class FrookyAgent {
   // hookStatistics()
   public addEventToLog(event: LogEvent | HookEvent, hook?: Hook, decodeMs: number = 0): void {
     this.eventCache.push(event);
-    if (hook) {
-      this.eventCounts.set(hook, (this.eventCounts.get(hook) ?? 0) + 1);
-      this.decodeTimes.set(hook, (this.decodeTimes.get(hook) ?? 0) + decodeMs);
-    }
+    if (hook) this.registry.countEvent(hook, decodeMs);
   }
 
   // Every hook declaration of the loaded configs, see HookStatistic
   public hookStatistics(): HookStatistic[] {
-    const statistics: HookStatistic[] = [];
-    for (const [configId, entries] of this.loadedConfigs) {
-      for (const [fingerprint, entry] of entries) {
-        if (entry.state === "removed") continue;
-        statistics.push({
-          config: configLabel(configId),
-          target: entry.target ? entry.target.slice(entry.target.indexOf(":") + 1) : fingerprint,
-          state: entry.state,
-          waitsFor: entry.waitsFor,
-          overloads: entry.target?.startsWith("platform:") ? (entry.hookedCount ?? 0) : null,
-          events: (entry.hooks ?? []).reduce((count, hook) => count + (this.eventCounts.get(hook) ?? 0), 0),
-          filtered: (entry.hooks ?? []).reduce((count, hook) => count + filteredCallCount(hook), 0),
-          decodeMs: (entry.hooks ?? []).reduce((ms, hook) => ms + (this.decodeTimes.get(hook) ?? 0), 0),
-        });
-      }
-    }
-    return statistics;
+    return this.registry.statistics();
   }
 }

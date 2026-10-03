@@ -19,7 +19,7 @@ export interface CrashFrame {
   hook?: string;
 }
 
-// implemented by NativeHookManager
+// implemented by NativeHookIndex
 export interface CrashHookLookup {
   isInHookedModule(address: NativePointer): boolean;
   describeHooksInModulesOf(addresses: NativePointer[]): string[];

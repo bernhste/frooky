@@ -15,3 +15,6 @@ export interface NativeHook extends Hook {
   // set while the hook is installed
   listener?: InvocationListener;
 }
+
+// the most bytes the Interceptor overwrites at a hooked address (an absolute jump on x86_64 or arm64)
+export const INTERCEPTOR_PATCH_BYTES = 16;

@@ -206,9 +206,9 @@ describe("NativeHookManager", () => {
       const module = Module.load(`/system/lib64/${moduleName}`);
 
       // no await since Module.load(): the hook was installed while the linker loaded the module
-      expect(manager.describeHooksInModulesOf([module.base])).toEqual([`${moduleName}!${symbol}`]);
-      expect(manager.isInHookedModule(module.base)).toBe(true);
-      expect(manager.isInHookedModule(module.base.add(module.size))).toBe(false);
+      expect(manager.hookIndex.describeHooksInModulesOf([module.base])).toEqual([`${moduleName}!${symbol}`]);
+      expect(manager.hookIndex.isInHookedModule(module.base)).toBe(true);
+      expect(manager.hookIndex.isInHookedModule(module.base.add(module.size))).toBe(false);
       const hooks = await eventually(pending[0]);
       expect(hooks![0].symbolAddress.toString()).toBe(module.getExportByName(symbol).toString());
       expect(manager.registerHooks(hooks!)).toBe(1);
