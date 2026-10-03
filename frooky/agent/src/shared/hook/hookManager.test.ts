@@ -9,7 +9,7 @@ import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError } from "../utils";
 import { Hook } from "./hook";
-import { HookManager, ParamDecoder } from "./hookManager";
+import { HookManager, ParamDecoder, Resolution } from "./hookManager";
 
 function createFakeFrookyAgent(targetReady: Promise<void> = Promise.resolve()): FrookyAgent {
   return { addEventToLog: (_event: LogEvent) => {}, targetReady } as unknown as FrookyAgent;
@@ -53,7 +53,7 @@ const fakeStackTrace: PlatformStackTrace = {
 
 // exposes HookManager's protected members
 class TestHookManager extends HookManager<unknown, Hook, TestValue> {
-  public async resolveHooks(): Promise<Promise<Hook[] | null>[]> {
+  public async resolveHooks(): Promise<Resolution<Hook[] | null>[]> {
     return [];
   }
 

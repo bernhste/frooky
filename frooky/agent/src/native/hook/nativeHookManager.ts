@@ -3,7 +3,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { countFilteredCall, filteredCallCount } from "../../shared/hook/hook";
-import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
+import { DecodedArgs, HookManager, ParamDecoder, Resolution, Waiting } from "../../shared/hook/hookManager";
 import { describeNativeTarget, InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { EMPTY_STACK_TRACE, HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
@@ -97,10 +97,12 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
   }
 
-  // Native hooks default to waiting for FrookyAgent.targetReady before installation to ensure
-  // stability during early process bootstrap. Hooks with `early: true` are installed immediately or inside
-  // the linker before constructors and JNI_OnLoad run.
-  public async resolveHooks(inputHooks: InputNativeHookNormalized[], source?: string): Promise<Promise<NativeHook[] | null>[]> {
+  // Native hooks wait for FrookyAgent.targetReady before they are installed, to keep the app stable while it starts.
+  // Hooks with `early: true` are installed right away, or inside the linker before the module's constructors and
+  // JNI_OnLoad run. The Resolution of a hook on a loaded module is its hooks, or a promise of them if it waits for
+  // targetReady. The Resolution of a hook on a module that isn't loaded is decided at targetReady: its hooks if the
+  // module loaded by then, else Waiting.
+  public async resolveHooks(inputHooks: InputNativeHookNormalized[], source?: string): Promise<Resolution<NativeHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "native hook")} in ${plural(new Set(inputHooks.map((h) => h.module)).size, "module")}${fromSource(source)}`,
     );
@@ -113,28 +115,64 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     const hookIndicesByModule = new Map<string, number[]>();
     inputHooks.forEach((inputHook, i) => hookIndicesByModule.set(inputHook.module, [...(hookIndicesByModule.get(inputHook.module) ?? []), i]));
 
-    const results: Promise<NativeHook[] | null>[] = new Array(inputHooks.length);
+    const results: Resolution<NativeHook[] | null>[] = new Array(inputHooks.length);
     for (const [moduleName, hookIndices] of hookIndicesByModule) {
-      const moduleHooks = this.whenModuleLoaded(moduleName, (module, isLoading) => {
+      const loadedModule = Process.findModuleByName(moduleName);
+      if (loadedModule) {
+        logger.debug(`Module '${moduleName}' already loaded.`);
+        const findExport = (symbol: string) => loadedModule.findExportByName(symbol) ?? undefined;
+        for (const i of hookIndices) results[i] = this.resolveInLoadedModule(inputHooks[i], loadedModule, findExport);
+        continue;
+      }
+      let loaded = false;
+      const moduleHooks = this.whenModuleLoaded(moduleName, (module) => {
+        loaded = true;
         // getExportByName() makes the linker abort the process while it loads `module`, reading the ELF doesn't
         let exports: Map<string, NativePointer> | undefined;
-        const findExport = isLoading
-          ? (symbol: string) => (exports ??= new Map(module.enumerateExports().map((e) => [e.name, e.address]))).get(symbol)
-          : (symbol: string) => module.findExportByName(symbol) ?? undefined;
-        return hookIndices.map(async (i) => {
-          const inputHook = inputHooks[i];
-          const hooks = this.resolveHook(inputHook, module, findExport);
-          if (!hooks) return null;
-          if (!inputHook.hookSettings?.early) {
-            await (this.frookyAgent.targetReady ?? Promise.resolve());
-          }
-          if (isLoading) this.registerHooks(hooks, source);
-          return hooks;
-        });
+        const findExport = (symbol: string) => (exports ??= new Map(module.enumerateExports().map((e) => [e.name, e.address]))).get(symbol);
+        return hookIndices.map((i) => this.installWhileLoading(inputHooks[i], module, findExport, source));
       });
-      hookIndices.forEach((hookIndex, j) => (results[hookIndex] = moduleHooks.then((hooks) => hooks[j])));
+      hookIndices.forEach((hookIndex, j) => {
+        const hooks = moduleHooks.then((moduleResults) => moduleResults[j]);
+        results[hookIndex] = this.targetReady().then<NativeHook[] | null | Waiting<NativeHook[] | null>>(() => (loaded ? hooks : { waiting: hooks }));
+      });
     }
     return results;
+  }
+
+  // FrookyAgent installs the hooks: right away with `early: true` or after targetReady, else once targetReady resolves
+  private resolveInLoadedModule(
+    inputHook: InputNativeHookNormalized,
+    module: Module,
+    findExport: (symbol: string) => NativePointer | undefined,
+  ): Resolution<NativeHook[] | null> {
+    const hooks = this.resolveHook(inputHook, module, findExport);
+    if (!hooks || inputHook.hookSettings?.early || this.frookyAgent.isTargetReady) return hooks;
+    return this.targetReady().then(() => hooks);
+  }
+
+  // Runs inside the linker while it loads `module`: installs the hooks there with `early: true` or after targetReady,
+  // else once targetReady resolves
+  private installWhileLoading(
+    inputHook: InputNativeHookNormalized,
+    module: Module,
+    findExport: (symbol: string) => NativePointer | undefined,
+    source?: string,
+  ): NativeHook[] | null | Promise<NativeHook[] | null> {
+    const hooks = this.resolveHook(inputHook, module, findExport);
+    if (!hooks) return null;
+    if (inputHook.hookSettings?.early || this.frookyAgent.isTargetReady) {
+      this.registerHooks(hooks, source);
+      return hooks;
+    }
+    return this.targetReady().then(() => {
+      this.registerHooks(hooks, source);
+      return hooks;
+    });
+  }
+
+  private targetReady(): Promise<void> {
+    return this.frookyAgent.targetReady ?? Promise.resolve();
   }
 
   // null if the symbol or offset doesn't resolve
@@ -169,20 +207,14 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     }
   }
 
-  // Calls `onLoaded` with the module once it is loaded, or right away if it already is, and resolves with its result.
-  // `isLoading` is set while the linker loads the module.
-  private whenModuleLoaded<T>(moduleName: string, onLoaded: (module: Module, isLoading: boolean) => T): Promise<T> {
-    const loadedModule = Process.findModuleByName(moduleName);
-    if (loadedModule) {
-      logger.debug(`Module '${moduleName}' already loaded.`);
-      return Promise.resolve(onLoaded(loadedModule, false));
-    }
+  // Calls `onLoaded` with the module while the linker loads it, and resolves with its result
+  private whenModuleLoaded<T>(moduleName: string, onLoaded: (module: Module) => T): Promise<T> {
     logger.debug(`Waiting for native module ${moduleName} to load.`);
     return new Promise((resolve, reject) => {
       const waiter = (module: Module) => {
         logger.debug(`Module '${moduleName}' loaded.`);
         try {
-          resolve(onLoaded(module, true));
+          resolve(onLoaded(module));
         } catch (e) {
           reject(e);
         }

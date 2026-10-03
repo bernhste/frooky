@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { Resolution, Waiting } from "../../shared/hook/hookManager";
 import { logger } from "../../shared/logger";
 import { plural, wildcardPatternToRegExp } from "../../shared/utils";
 
@@ -51,9 +52,22 @@ export class JavaClassResolver {
     private readonly targetReady: () => Promise<void>,
   ) {}
 
-  // Resolves with the result of `onFound` once `javaClass` is found, which can be at any time while the app runs.
-  find<T>(javaClass: string, classLoader: string | undefined, onFound: OnClassesFound<T>): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
+  // The result of `onFound` for the classes of `javaClass`: right away if the default class loader has the class, else a
+  // Resolution decided once the lookups at targetReady have run. A class found later, at any time while the app runs,
+  // settles its Waiting.
+  find<T>(javaClass: string, classLoader: string | undefined, onFound: OnClassesFound<T>): Resolution<T> {
+    // most classes are in the default class loader, also before the app runs
+    if (!javaClass.includes("*") && !classLoader) {
+      const javaClassWrapper = this.use(javaClass);
+      if (javaClassWrapper) {
+        logger.debug(`Java class '${javaClass}' resolved.`);
+        return onFound([javaClassWrapper], false);
+      }
+    }
+
+    return new Promise<T | Waiting<T>>((resolve, reject) => {
+      // set once the lookups at targetReady haven't found the class
+      let later: { resolve: (result: T) => void; reject: (reason: unknown) => void } | undefined;
       const lookup: Lookup = {
         javaClass,
         pattern: javaClass.includes("*") ? wildcardPatternToRegExp(javaClass) : undefined,
@@ -61,21 +75,16 @@ export class JavaClassResolver {
         found: (classes, installNow) => {
           this.lookups.delete(lookup);
           try {
-            resolve(onFound(classes, installNow));
+            (later?.resolve ?? resolve)(onFound(classes, installNow));
           } catch (e) {
-            reject(e);
+            (later?.reject ?? reject)(e);
           }
         },
       };
-
-      // most classes are in the default class loader, also before the app runs
-      if (!lookup.pattern && !classLoader) {
-        const javaClassWrapper = this.use(javaClass);
-        if (javaClassWrapper) {
-          logger.debug(`Java class '${javaClass}' resolved.`);
-          return lookup.found([javaClassWrapper], false);
-        }
-      }
+      const stopLookingUp = () => {
+        if (this.lookups.has(lookup))
+          resolve({ waiting: new Promise<T>((resolveLater, rejectLater) => (later = { resolve: resolveLater, reject: rejectLater })) });
+      };
 
       logger.debug(`Waiting for Java class '${javaClass}'${classLoader ? ` from class loader '${classLoader}'` : ""}.`);
       this.lookups.add(lookup);
@@ -84,12 +93,17 @@ export class JavaClassResolver {
       void this.targetReady().then(() => {
         if (!this.lookups.has(lookup)) return;
         if (classLoader) this.watchLoaderClass(classLoader);
-        if (!this.lookups.has(lookup)) return;
         if (!lookup.pattern) {
-          this.findInLoaders(lookup, this.existingLoaders());
+          if (this.lookups.has(lookup)) this.findInLoaders(lookup, this.existingLoaders());
+          stopLookingUp();
         } else if (!classLoader) {
           // reads the names of every class in the app, so not on the app's main thread
-          setTimeout(() => this.matchPatterns(this.existingLoaders(), true), 0);
+          setTimeout(() => {
+            this.matchPatterns(this.existingLoaders(), true);
+            stopLookingUp();
+          }, 0);
+        } else {
+          stopLookingUp();
         }
       });
     });

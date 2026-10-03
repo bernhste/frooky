@@ -6,7 +6,7 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
-import { DecodedArgs, HookManager, ParamDecoder } from "../../shared/hook/hookManager";
+import { DecodedArgs, HookManager, mapResolution, ParamDecoder, Resolution } from "../../shared/hook/hookManager";
 import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
 import { logger } from "../../shared/logger";
@@ -77,7 +77,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
   // A hook on a class that isn't found yet is installed as soon as a class loader has it, before its code runs,
   // see JavaClassResolver. resolveHooks() resolves its promise afterwards, see registerHooks().
-  async resolveHooks(inputHooks: InputJavaHookNormalized[], source?: string): Promise<Promise<JavaHook[] | null>[]> {
+  async resolveHooks(inputHooks: InputJavaHookNormalized[], source?: string): Promise<Resolution<JavaHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "Java hook")} in ${plural(new Set(inputHooks.map((h) => h.javaClass)).size, "class", "classes")}${fromSource(source)}`,
     );
@@ -89,7 +89,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
       hookIndicesByClass.set(key, [...(hookIndicesByClass.get(key) ?? []), i]);
     });
 
-    const results: Promise<JavaHook[] | null>[] = new Array(inputHooks.length);
+    const results: Resolution<JavaHook[] | null>[] = new Array(inputHooks.length);
     for (const hookIndices of hookIndicesByClass.values()) {
       const { javaClass, classLoader } = inputHooks[hookIndices[0]];
       const classHooks = this.classResolver.find(javaClass, classLoader, (javaClasses, installNow) =>
@@ -99,7 +99,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
           return hooks;
         }),
       );
-      hookIndices.forEach((hookIndex, j) => (results[hookIndex] = classHooks.then((hooks) => hooks[j])));
+      hookIndices.forEach((hookIndex, j) => (results[hookIndex] = mapResolution(classHooks, (hooks) => hooks[j])));
     }
     return results;
   }

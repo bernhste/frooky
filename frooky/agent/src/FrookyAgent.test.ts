@@ -323,12 +323,20 @@ describe("FrookyAgent", () => {
     // never resolves, so class A stays resolving instead of waiting
     const notReady = new Promise<void>(() => {});
 
-    // resolves class B at once and leaves class A unresolved until the returned function is called
-    function setupWithPendingClass(reportProgress?: (progress: HookProgress) => void, targetReady?: Promise<void>) {
+    // a targetReady that resolves when `markReady()` is called
+    function controlledTargetReady(): { targetReady: Promise<void>; markReady: () => void } {
+      let markReady: () => void = () => {};
+      const targetReady = new Promise<void>((resolve) => (markReady = resolve));
+      return { targetReady, markReady: () => markReady() };
+    }
+
+    // finds class B right away; class A isn't loaded at targetReady and waits until the returned function is called
+    function setupWithPendingClass(reportProgress?: (progress: HookProgress) => void, targetReady: Promise<void> = Promise.resolve()) {
       const rawManager = fakeResolvingHookManager();
       let resolveClassA: (hooks: Hook[] | null) => void = () => {};
       const classA = new Promise<Hook[] | null>((resolve) => (resolveClassA = resolve));
-      rawManager.resolveHooks.mockImplementationOnce(async () => [classA, classA, Promise.resolve([fakeHook()])]);
+      const classALookup = targetReady.then(() => ({ waiting: classA }));
+      rawManager.resolveHooks.mockImplementationOnce(async () => [classALookup, classALookup, [fakeHook()]]);
       const validator = fakePlatformHookValidator([hookA1, hookA2, hookB]);
       const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>, reportProgress, targetReady);
       return { agent, rawManager, validator, resolveClassA: (hooks: Hook[] | null) => resolveClassA(hooks) };
@@ -407,7 +415,8 @@ describe("FrookyAgent", () => {
     });
 
     it("counts installed hooks and the classes still being looked up", async () => {
-      const { agent, resolveClassA } = setupWithPendingClass(undefined, notReady);
+      const { targetReady, markReady } = controlledTargetReady();
+      const { agent, resolveClassA } = setupWithPendingClass(undefined, targetReady);
 
       const loading = agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
       await new Promise((r) => setTimeout(r, 10));
@@ -415,6 +424,7 @@ describe("FrookyAgent", () => {
       expect(agent.hookProgress()).toEqual({ hooked: 1, resolving: 1, waiting: 0, notFound: 0 });
 
       resolveClassA(null);
+      markReady();
       await loading;
 
       expect(agent.hookProgress()).toEqual({ hooked: 1, resolving: 0, waiting: 0, notFound: 2 });
@@ -433,7 +443,8 @@ describe("FrookyAgent", () => {
     });
 
     it("resolves loadFrookyConfigs() once the hooks that need no event are installed, without waiting for targetReady", async () => {
-      const { agent, rawManager, resolveClassA } = setupWithPendingClass(undefined, notReady);
+      const { targetReady, markReady } = controlledTargetReady();
+      const { agent, rawManager, resolveClassA } = setupWithPendingClass(undefined, targetReady);
 
       await agent.loadFrookyConfigs([makeConfig()], ["hooks.yaml"]);
 
@@ -442,6 +453,7 @@ describe("FrookyAgent", () => {
       expect(summaryLogs()).toEqual([]);
 
       resolveClassA([fakeHook()]);
+      markReady();
       await new Promise((r) => setTimeout(r, 10));
 
       expect(agent.hookProgress()).toEqual({ hooked: 3, resolving: 0, waiting: 0, notFound: 0 });
@@ -461,11 +473,13 @@ describe("FrookyAgent", () => {
 
     it("reports the progress, throttled, ending with nothing resolving", async () => {
       const reports: HookProgress[] = [];
-      const { agent, resolveClassA } = setupWithPendingClass((progress) => reports.push(progress), notReady);
+      const { targetReady, markReady } = controlledTargetReady();
+      const { agent, resolveClassA } = setupWithPendingClass((progress) => reports.push(progress), targetReady);
 
       const loading = agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
       await new Promise((r) => setTimeout(r, PROGRESS_INTERVAL_MS + 50));
       resolveClassA([fakeHook()]);
+      markReady();
       await loading;
       await new Promise((r) => setTimeout(r, PROGRESS_INTERVAL_MS + 50));
 

@@ -28,6 +28,24 @@ export type DecodedArgs = {
   out?: DecodedValue[];
 };
 
+// A hook declaration whose class or module isn't loaded yet: `waiting` settles once that loads
+export type Waiting<T> = { waiting: Promise<T> };
+
+// What resolveHooks() knows about a hook declaration: the result right away if the first lookup decides it, else a
+// promise that settles once the lookups at targetReady have run, with the result if they found the class or module,
+// else with Waiting. The result is the declaration's hooks, or null if its method, symbol or offset doesn't exist.
+export type Resolution<T> = T | Promise<T | Waiting<T>>;
+
+export function isWaiting<T>(value: T | Waiting<T>): value is Waiting<T> {
+  return typeof value === "object" && value !== null && !Array.isArray(value) && "waiting" in value;
+}
+
+// `resolution` with `project` applied to its result, also to one that comes later
+export function mapResolution<T, U>(resolution: Resolution<T>, project: (result: T) => U): Resolution<U> {
+  if (!(resolution instanceof Promise)) return project(resolution as T);
+  return resolution.then((result) => (isWaiting(result) ? { waiting: result.waiting.then(project) } : project(result)));
+}
+
 export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   private callCount = 0;
 
@@ -37,10 +55,9 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     protected readonly frookyAgent: FrookyAgent,
   ) {}
 
-  // Returns one promise per input hook (index-aligned), resolving to its hooks or null if it failed. A hook on a
-  // class or module that isn't loaded yet stays pending until it loads, and is installed while it loads, before
-  // its code runs (see registerHooks()). `source` names the hook file in log messages.
-  public abstract resolveHooks(inputHooks: TInputHook[], source?: string): Promise<Promise<THooks[] | null>[]>;
+  // Returns one Resolution per input hook (index-aligned). A hook on a class or module that isn't loaded yet is
+  // installed while it loads, before its code runs (see registerHooks()). `source` names the hook file in log messages.
+  public abstract resolveHooks(inputHooks: TInputHook[], source?: string): Promise<Resolution<THooks[] | null>[]>;
   // Returns how many hooks are installed: hooks that resolveHooks() already installed count as installed,
   // failures are logged and skipped.
   public abstract registerHooks(hooks: THooks[], source?: string): number;

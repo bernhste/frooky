@@ -12,7 +12,7 @@ import { InputFrookyConfig } from "./shared/frookyConfig";
 import { Platform } from "./shared/frookyMetadata";
 import { FrookySettings } from "./shared/frookySettings";
 import { filteredCallCount, Hook } from "./shared/hook/hook";
-import { HookManager } from "./shared/hook/hookManager";
+import { HookManager, isWaiting, Resolution } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { describeNativeTarget } from "./shared/inputParsing/inputNativeHookCollection";
 import { logger, LogLevel, LogTo } from "./shared/logger";
@@ -361,10 +361,10 @@ export class FrookyAgent {
   }
 
   // Resolves and installs hooks and returns how many were installed once each hook is installed, not found, or waiting
-  // for its class or module after the lookups at targetReady. A waiting hook is installed whenever that loads. A hook whose
-  // entry was removed while it resolved (the config was reloaded) is not installed, or unhooked again. `source`
-  // names the hook file in log messages. Adds a promise to `initializing`, before the first `await`, that resolves
-  // once the hooks that need no event are installed or not found.
+  // for its class or module after the lookups at targetReady. A waiting hook is installed whenever that loads. A hook
+  // whose entry was removed while it resolved (the config was reloaded) is not installed, or unhooked again. `source`
+  // names the hook file in log messages. Adds a promise to `initializing`, before the first `await`, that resolves once
+  // the hooks the first lookup decided are installed or not found.
   private async resolveAndRegisterHooks(
     manager: HookManager<any, any, any>,
     hooksToResolve: HookToResolve[],
@@ -376,9 +376,9 @@ export class FrookyAgent {
     let markInitialized: () => void = () => {};
     initializing?.push(new Promise<void>((resolve) => (markInitialized = resolve)));
 
-    let hookPromises: Promise<Hook[] | null>[];
+    let resolutions: Resolution<Hook[] | null>[];
     try {
-      hookPromises = await manager.resolveHooks(
+      resolutions = await manager.resolveHooks(
         hooksToResolve.map((hookToResolve) => hookToResolve.inputHook),
         source,
       );
@@ -393,46 +393,59 @@ export class FrookyAgent {
     }
 
     let countSuccessfulHooks = 0;
-    const settled = hookPromises.map((hookPromise, i) => {
-      const { inputHook, entry } = hooksToResolve[i];
-      return hookPromise.then(
-        (hooks) => {
-          if (entry.state === "removed") {
-            // hooks are installed while their class or module loads, see HookManager.resolveHooks()
-            if (hooks) manager.unregisterHooks(hooks);
-            return;
+    const install = ({ entry }: HookToResolve, hooks: Hook[] | null) => {
+      if (entry.state === "removed") {
+        // hooks are installed while their class or module loads, see HookManager.resolveHooks()
+        if (hooks) manager.unregisterHooks(hooks);
+        return;
+      }
+      this.scheduleProgressReport();
+      if (!hooks) {
+        entry.state = "notFound";
+        return;
+      }
+      const hookedCount = manager.registerHooks(hooks, source);
+      countSuccessfulHooks += hookedCount;
+      entry.hooks = hooks;
+      entry.hookedCount = hookedCount;
+      entry.state = "installed";
+    };
+    const reject = ({ inputHook, entry }: HookToResolve, reason: unknown) => {
+      if (entry.state !== "resolving" && entry.state !== "waiting") return;
+      entry.state = "notFound";
+      logger.warn(`Failed to hook ${describeInputHook(inputHook)} (${source}): ${reason instanceof Error ? reason.message : String(reason)}`);
+      this.scheduleProgressReport();
+    };
+
+    // installs what the first lookup decided right away, the rest once the lookups at targetReady have run; resolves
+    // with the hooks that still wait for their class or module then
+    const lookedUp = resolutions.map((resolution, i): HookToResolve | undefined | Promise<HookToResolve | undefined> => {
+      const hookToResolve = hooksToResolve[i];
+      if (!(resolution instanceof Promise)) {
+        install(hookToResolve, resolution as Hook[] | null);
+        return undefined;
+      }
+      return resolution.then(
+        (result) => {
+          if (!isWaiting(result)) {
+            install(hookToResolve, result);
+            return undefined;
           }
-          this.scheduleProgressReport();
-          if (!hooks) {
-            entry.state = "notFound";
-            return;
-          }
-          const hookedCount = manager.registerHooks(hooks, source);
-          countSuccessfulHooks += hookedCount;
-          entry.hooks = hooks;
-          entry.hookedCount = hookedCount;
-          entry.state = "installed";
+          void result.waiting.then(
+            (hooks) => install(hookToResolve, hooks),
+            (reason) => reject(hookToResolve, reason),
+          );
+          return hookToResolve;
         },
         (reason) => {
-          if (entry.state !== "resolving" && entry.state !== "waiting") return;
-          entry.state = "notFound";
-          logger.warn(`Failed to hook ${describeInputHook(inputHook)} (${source}): ${reason instanceof Error ? reason.message : String(reason)}`);
-          this.scheduleProgressReport();
+          reject(hookToResolve, reason);
+          return undefined;
         },
       );
     });
-    // A hook that needs no event settles, and is installed, in promise callbacks, which all run before the setTimeout()
-    void Promise.race([Promise.all(settled), new Promise((resolve) => setTimeout(resolve, 0))]).then(markInitialized);
-    await Promise.race([Promise.all(settled), this.afterTargetReadyLookups().then(() => this.reportWaiting(hooksToResolve))]);
+    markInitialized();
+    this.reportWaiting((await Promise.all(lookedUp)).filter((hookToResolve) => hookToResolve !== undefined));
     return countSuccessfulHooks;
-  }
-
-  // Resolves once the lookups at targetReady have run: classes in the app's class loaders, wildcard patterns (matched
-  // in a setTimeout() scheduled before this one) and native hooks that waited for targetReady. A class or module not
-  // found by then can only load later, which the hook managers are notified of.
-  private async afterTargetReadyLookups(): Promise<void> {
-    await this.targetReady;
-    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
   // Marks the hooks that are still resolving as waiting, and logs once per class or module they wait for
