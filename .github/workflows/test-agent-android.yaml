@@ -67,6 +67,7 @@ jobs:
             echo "Preparing scripts"
             chmod +x .github/scripts/android/prep-device.sh
             chmod +x .github/scripts/android/install-frida-server.sh
+            chmod +x .github/scripts/android/run-agent-tests.sh
 
             echo "Starting adb as root"
             .github/scripts/android/prep-device.sh
@@ -75,7 +76,7 @@ jobs:
             .github/scripts/android/install-frida-server.sh
 
             echo "Run tests"
-            cd frooky/agent && npm run test:android -- -o test-results-agent-android.json
+            .github/scripts/android/run-agent-tests.sh
 
       - name: Summarize test results
         if: always()
@@ -86,4 +87,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results-agent-android-api${{ matrix.api-level }}
-          path: frooky/agent/test-results-agent-android.json
+          path: |
+            frooky/agent/test-results-agent-android.json
+            frooky/agent/logcat-agent-android.txt
+          if-no-files-found: ignore
