@@ -30,6 +30,9 @@ function resolveClassMembers(factory: Java.ClassFactory): void {
   stringClass.isInstance(null);
 }
 
+// How long a reverted replacement must see no call before it is released, see RetiredReplacement
+const RETIRED_REPLACEMENT_IDLE_MS = 1000;
+
 export type FieldType = {
   fieldType: "static" | "instance";
 };
@@ -45,7 +48,18 @@ type InstalledJavaHook = {
 };
 
 // `observers` run after the original method, e.g. JavaClassResolver's on new class loaders
-type HookedOverload = { method: Java.Method; hooks: InstalledJavaHook[]; observers: MethodObserver[] };
+// `inFlight`: calls currently in the dispatcher, `finished`: calls that left it, see RetiredReplacement
+type HookedOverload = { method: Java.Method; hooks: InstalledJavaHook[]; observers: MethodObserver[]; inFlight: number; finished: number };
+
+// The replacement of a reverted overload, kept until no thread can be inside it. Setting `implementation = null`
+// drops frida-java-bridge's only reference to the replacement's cloned ArtMethod and NativeCallback, but a thread
+// in the original method (which can block for any time), waiting for the JS lock, or returning through ART's
+// GenericJniMethodEnd still uses both, and a GC in between crashes it with SEGV_MAPERR in GenericJniMethodEnd.
+// Hot methods such as StringBuilder.append() are called by many threads at once, so unhooking them hits this.
+// Released once no call is in flight and none finished for RETIRED_REPLACEMENT_IDLE_MS, which covers the short
+// path from the dispatcher back through ART.
+// `finished`: the overload's `finished` count at the last check
+type RetiredReplacement = { overload: HookedOverload; replacement: unknown; finished: number };
 
 // what a hook captured before the original method ran
 // `logTarget`: see callLogTarget()
@@ -70,6 +84,8 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
   private readonly hookedOverloads = new Map<string, HookedOverload>();
   // the ClassFactory of every hooked class, see resolveClassMembers()
   private readonly preparedFactories = new Set<Java.ClassFactory>();
+  private retiredReplacements: RetiredReplacement[] = [];
+  private releaseScheduled = false;
 
   // A hook on a class that isn't found yet is installed as soon as a class loader has it, before its code runs,
   // see JavaClassResolver. resolveHooks() resolves its promise afterwards, see registerHooks().
@@ -116,7 +132,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
         resolveClassMembers(factory);
         this.preparedFactories.add(factory);
       }
-      const newOverload: HookedOverload = { method, hooks: [], observers: [] };
+      const newOverload: HookedOverload = { method, hooks: [], observers: [], inFlight: 0, finished: 0 };
       newOverload.method.implementation = this.createDispatcher(newOverload);
       overload = newOverload;
       this.hookedOverloads.set(key, overload);
@@ -167,12 +183,30 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
 
       this.hookedOverloads.delete(key);
       try {
+        const replacement = overload.method.implementation;
         // null reverts the method to its original implementation
         overload.method.implementation = null;
+        this.retiredReplacements.push({ overload, replacement, finished: overload.finished });
+        this.scheduleRetiredRelease();
       } catch (e) {
         logger.warn(`Failed to unhook ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
       }
     }
+  }
+
+  private scheduleRetiredRelease(): void {
+    if (this.releaseScheduled) return;
+    this.releaseScheduled = true;
+    setTimeout(() => {
+      this.releaseScheduled = false;
+      this.retiredReplacements = this.retiredReplacements.filter((retired) => {
+        const { inFlight, finished } = retired.overload;
+        const idle = inFlight === 0 && finished === retired.finished;
+        retired.finished = finished;
+        return !idle;
+      });
+      if (this.retiredReplacements.length > 0) this.scheduleRetiredRelease();
+    }, RETIRED_REPLACEMENT_IDLE_MS);
   }
 
   // resolves the decoders once per hook, not per call
@@ -196,51 +230,62 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     };
   }
 
-  // Replaces the overload: every hook decodes its `in` args, the original method runs once, then every hook that
-  // passed its filters decodes its `out` args and return value and logs its event. A call made by hook code
-  // (see hookCodeGuard.ts) only runs the original method and the observers.
+  // Replaces the overload with dispatch(), counting the calls in it for RetiredReplacement
   private createDispatcher(overload: HookedOverload): Java.MethodImplementation {
     const hookManager = this;
     return function (this: Java.Wrapper, ...args: Java.Wrapper[]) {
-      const enterTid = enterHookCode();
-      if (enterTid === undefined) {
-        const returnValue = overload.method.apply(this, args);
-        hookManager.runObservers(overload, this, args, returnValue);
-        return returnValue;
-      }
-      const calls: JavaHookCall[] = [];
+      overload.inFlight++;
       try {
-        const hooks = overload.hooks;
-        const unsafeContext = hooks.some((installedHook) => installedHook.needsStackTrace) ? detectUnsafeContext() : undefined;
-        for (const installedHook of hooks) {
-          const call = hookManager.enterHook(installedHook, args, unsafeContext);
-          if (call) calls.push(call);
-        }
+        return hookManager.dispatch(overload, this, args);
       } finally {
-        leaveHookCode(enterTid);
+        overload.inFlight--;
+        overload.finished++;
       }
-
-      let returnValue;
-      try {
-        returnValue = overload.method.apply(this, args);
-      } catch (e) {
-        // observed methods such as ClassLoader.loadClass() throw as part of their normal work
-        if (overload.hooks.length > 0) logger.error(`Error during execution of hooked method: ${e}`);
-        throw e; // the app handles its own exception
-      }
-
-      const leaveTid = enterHookCode();
-      if (leaveTid === undefined) return returnValue;
-      try {
-        hookManager.runObservers(overload, this, args, returnValue);
-        for (const call of calls) {
-          hookManager.leaveHook(call, this, args, returnValue);
-        }
-      } finally {
-        leaveHookCode(leaveTid);
-      }
-      return returnValue;
     };
+  }
+
+  // Every hook decodes its `in` args, the original method runs once, then every hook that passed its filters decodes
+  // its `out` args and return value and logs its event. A call made by hook code (see hookCodeGuard.ts) only runs the
+  // original method and the observers.
+  private dispatch(overload: HookedOverload, instance: Java.Wrapper, args: Java.Wrapper[]): any {
+    const enterTid = enterHookCode();
+    if (enterTid === undefined) {
+      const returnValue = overload.method.apply(instance, args);
+      this.runObservers(overload, instance, args, returnValue);
+      return returnValue;
+    }
+    const calls: JavaHookCall[] = [];
+    try {
+      const hooks = overload.hooks;
+      const unsafeContext = hooks.some((installedHook) => installedHook.needsStackTrace) ? detectUnsafeContext() : undefined;
+      for (const installedHook of hooks) {
+        const call = this.enterHook(installedHook, args, unsafeContext);
+        if (call) calls.push(call);
+      }
+    } finally {
+      leaveHookCode(enterTid);
+    }
+
+    let returnValue;
+    try {
+      returnValue = overload.method.apply(instance, args);
+    } catch (e) {
+      // observed methods such as ClassLoader.loadClass() throw as part of their normal work
+      if (overload.hooks.length > 0) logger.error(`Error during execution of hooked method: ${e}`);
+      throw e; // the app handles its own exception
+    }
+
+    const leaveTid = enterHookCode();
+    if (leaveTid === undefined) return returnValue;
+    try {
+      this.runObservers(overload, instance, args, returnValue);
+      for (const call of calls) {
+        this.leaveHook(call, instance, args, returnValue);
+      }
+    } finally {
+      leaveHookCode(leaveTid);
+    }
+    return returnValue;
   }
 
   private runObservers(overload: HookedOverload, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any): void {
