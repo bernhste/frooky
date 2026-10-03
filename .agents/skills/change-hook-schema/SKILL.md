@@ -19,7 +19,7 @@ The hook-file format is frooky's public API. A change is only complete when ever
 | Native hook declarations | `frooky/agent/src/shared/inputParsing/inputNativeHookCollection.ts` |
 | Params / retType shorthands | `frooky/agent/src/shared/inputParsing/inputDecodableTypes.ts` |
 
-Input types allow shorthands. Every new shorthand needs a matching branch in the `normalize*` function in the same file, so that internal code only ever sees the normalized object form. Add a case to the neighboring `*.test.ts`.
+Input types allow shorthands and partial settings (`InputHookSettings`, `InputDecoderSettings`). Never use a normalized type (`HookSettings`, `DecoderSettings`, `Param`, `RetType`) in an input type, or the schema requires fields hook files leave out. Every new shorthand needs a matching branch in the `normalize*` function in the same file, so that internal code only ever sees the normalized form in `frooky/agent/src/shared/hook/hookDeclaration.ts`. Add a case to the neighboring `*.test.ts`. A new field of the hook declaration also goes into `hookDeclaration.ts`.
 
 If you add a new source file with types, register it in `frooky/agent/ts-to-zod.config.mjs`.
 
@@ -31,7 +31,7 @@ npm run build:zodSchema    # -> src/shared/inputParsing/zodSchemas/*.zod.ts
 npm run build:jsonSchema   # -> docs/schema/frooky-config.schema.json
 ```
 
-`scripts/generateJsonSchema.ts` post-processes the JSON schema. It strips the internal `type` discriminator, the inherited `javaClass`/`module` on individual hooks, and the `required` lists on settings objects. It detects settings objects by their exact key sets (`decoderSettingsKeys`, `hookSettingsKeys`), so **if you add a decoder or hook setting, add its key to those lists**. Otherwise every settings object becomes "required" in the schema and real hook files fail validation.
+`scripts/generateJsonSchema.ts` post-processes the JSON schema: it strips the internal `type` discriminator from the hook collections and offers each collection only the decoder names of its platform.
 
 ## 3. Wire up runtime behavior
 

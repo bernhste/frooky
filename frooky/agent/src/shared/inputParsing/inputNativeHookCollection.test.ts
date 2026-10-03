@@ -3,7 +3,7 @@ import { DecoderSettings, FrookySettings } from "../frookySettings";
 import { InputParam, normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
 import {
   InputNativeHookCollection,
-  InputNativeHookNormalized,
+  InputNativeHookDetails,
   isNativeHookCollection,
   normalizeModuleOffset,
   normalizeNativeHookCollection,
@@ -100,7 +100,6 @@ describe("inputNativeHookCollection", () => {
           hooks: [
             {
               symbol: "malloc",
-              module: "libc.so",
               hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 },
               decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
             },
@@ -109,8 +108,8 @@ describe("inputNativeHookCollection", () => {
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 });
-        expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
+        expect(result.hooks[0].hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 });
+        expect(result.hooks[0].decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
       });
 
       it("merges the hook's own settings on top of the collection's, instead of replacing them wholesale", () => {
@@ -123,22 +122,21 @@ describe("inputNativeHookCollection", () => {
           hooks: [
             {
               symbol: "malloc",
-              module: "libc.so",
               // intentionally only overrides one field of each settings object
               hookSettings: { maxStackFrames: 40 },
               decoderSettings: { maxDepth: 40 },
-            } as InputNativeHookNormalized,
+            } as InputNativeHookDetails,
           ],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({
+        expect(result.hooks[0].hookSettings).toEqual({
           ...DEFAULT_HOOK_SETTINGS,
           maxStackFrames: 40,
           callerFilter: ["^collection"],
         });
-        expect((result.hooks[0] as InputNativeHookNormalized).decoderSettings).toEqual({
+        expect(result.hooks[0].decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
           maxDepth: 40,
           maxItems: 30,
@@ -150,12 +148,12 @@ describe("inputNativeHookCollection", () => {
           type: "native",
           module: "libc.so",
           hookSettings: { maxStackFrames: 30 },
-          hooks: [{ symbol: "malloc", module: "libc.so" }],
+          hooks: [{ symbol: "malloc" }],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 30 });
+        expect(result.hooks[0].hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 30 });
       });
 
       it("uses the hook's own (merged) decoderSettings, not just the collection's, to normalize that hook's params and retType", () => {
@@ -166,7 +164,6 @@ describe("inputNativeHookCollection", () => {
           hooks: [
             {
               symbol: "memcpy",
-              module: "libc.so",
               decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
               params: ["void *"],
               retType: "void *",
@@ -175,7 +172,7 @@ describe("inputNativeHookCollection", () => {
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
-        const hook = result.hooks[0] as InputNativeHookNormalized;
+        const hook = result.hooks[0];
 
         expect(hook.params?.[0]).toEqual(normalizeInputParams(["void *"], { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 })[0]);
         expect(hook.retType).toEqual(normalizeInputRetType("void *", { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 }));
@@ -183,22 +180,8 @@ describe("inputNativeHookCollection", () => {
     });
 
     describe("hook normalization", () => {
-      it("normalizes a plain symbol string into a full InputNativeHookNormalized", () => {
+      it("normalizes a plain symbol string into a full NativeHookDeclaration", () => {
         const hookCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["malloc"] };
-
-        const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
-
-        expect(result.hooks).toEqual([
-          { symbol: "malloc", module: "libc.so", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
-        ]);
-      });
-
-      it("normalizes an object-form hook, always using the hook collection's module", () => {
-        const hookCollection: InputNativeHookCollection = {
-          type: "native",
-          module: "libc.so",
-          hooks: [{ symbol: "malloc", module: "libwrong.so" }],
-        };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
@@ -212,12 +195,12 @@ describe("inputNativeHookCollection", () => {
         const withoutRetType: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hooks: [{ symbol: "read", module: "libc.so", params }],
+          hooks: [{ symbol: "read", params }],
         };
         const withRetType: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hooks: [{ symbol: "read", module: "libc.so", params, retType: "ssize_t" }],
+          hooks: [{ symbol: "read", params, retType: "ssize_t" }],
         };
 
         expect(() => normalizeNativeHookCollection(withoutRetType, defaultSettings)).toThrow("needs the hook to declare a 'retType'");
@@ -228,7 +211,7 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hooks: [{ symbol: "memcpy", module: "libc.so", params: ["void *", "void *", "size_t"] }],
+          hooks: [{ symbol: "memcpy", params: ["void *", "void *", "size_t"] }],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
@@ -246,48 +229,48 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hooks: [{ symbol: "malloc", module: "libc.so", retType: "void *" }],
+          hooks: [{ symbol: "malloc", retType: "void *" }],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).retType).toEqual(normalizeInputRetType("void *", DEFAULT_DECODER_SETTINGS));
+        expect(result.hooks[0].retType).toEqual(normalizeInputRetType("void *", DEFAULT_DECODER_SETTINGS));
       });
 
       it("leaves retType undefined when the hook does not declare one", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hooks: [{ symbol: "malloc", module: "libc.so" }],
+          hooks: [{ symbol: "malloc" }],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).retType).toBeUndefined();
+        expect(result.hooks[0].retType).toBeUndefined();
       });
 
       it("leaves params undefined when the hook does not declare any", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hooks: [{ symbol: "malloc", module: "libc.so" }],
+          hooks: [{ symbol: "malloc" }],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputNativeHookNormalized).params).toBeUndefined();
+        expect(result.hooks[0].params).toBeUndefined();
       });
 
       it("normalizes multiple hooks, preserving order", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libc.so",
-          hooks: ["malloc", { symbol: "free", module: "libc.so" }],
+          hooks: ["malloc", { symbol: "free" }],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
-        expect(result.hooks.map((hook) => (hook as InputNativeHookNormalized).symbol)).toEqual(["malloc", "free"]);
+        expect(result.hooks.map((hook) => hook.symbol)).toEqual(["malloc", "free"]);
       });
 
       it("normalizes a [symbol, decoderSettings] tuple, merging its decoderSettings on top of the collection's", () => {
@@ -315,7 +298,7 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = {
           type: "native",
           module: "libfoo.so",
-          hooks: [{ offset: "0x1a2b4", module: "libfoo.so" }],
+          hooks: [{ offset: "0x1a2b4" }],
         };
 
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
@@ -330,22 +313,6 @@ describe("inputNativeHookCollection", () => {
             decoderSettings: DEFAULT_DECODER_SETTINGS,
           },
         ]);
-      });
-
-      it("throws for a hook with both symbol and offset", () => {
-        const hookCollection = {
-          type: "native",
-          module: "libfoo.so",
-          hooks: [{ symbol: "foo", offset: "0x1a2b4", module: "libfoo.so" }],
-        } as unknown as InputNativeHookCollection;
-
-        expect(() => normalizeNativeHookCollection(hookCollection, defaultSettings)).toThrow("exactly one of `symbol` or `offset`");
-      });
-
-      it("throws for a hook with neither symbol nor offset", () => {
-        const hookCollection = { type: "native", module: "libfoo.so", hooks: [{ module: "libfoo.so" }] } as unknown as InputNativeHookCollection;
-
-        expect(() => normalizeNativeHookCollection(hookCollection, defaultSettings)).toThrow("exactly one of `symbol` or `offset`");
       });
     });
 

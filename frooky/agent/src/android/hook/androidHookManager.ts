@@ -3,12 +3,10 @@ import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { DecodedArgs, HookManager, mapResolution, ParamDecoder, Resolution } from "../../shared/hook/hookManager";
-import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
-import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
+import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { logger } from "../../shared/logger";
 import { HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
 import { countFilteredCall } from "../../shared/hook/hook";
@@ -57,7 +55,7 @@ type HookedOverload = { method: Java.Method; hooks: InstalledJavaHook[]; observe
 type JavaHookCall = { installedHook: InstalledJavaHook; logTarget: string; stackTrace: HookStackTrace; decodedArgs: DecodedArgs; decodeMs: number };
 
 // Resolves and installs hooks on Java methods.
-export class AndroidHookManager extends HookManager<InputJavaHookNormalized, JavaHook, Java.Wrapper> {
+export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHook, Java.Wrapper> {
   private readonly classResolver: JavaClassResolver;
 
   constructor(platformStackTrace: PlatformStackTrace, frookyAgent: FrookyAgent) {
@@ -77,7 +75,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
 
   // A hook on a class that isn't found yet is installed as soon as a class loader has it, before its code runs,
   // see JavaClassResolver. resolveHooks() resolves its promise afterwards, see registerHooks().
-  async resolveHooks(inputHooks: InputJavaHookNormalized[], source?: string): Promise<Resolution<JavaHook[] | null>[]> {
+  async resolveHooks(inputHooks: JavaHookDeclaration[], source?: string): Promise<Resolution<JavaHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "Java hook")} in ${plural(new Set(inputHooks.map((h) => h.javaClass)).size, "class", "classes")}${fromSource(source)}`,
     );
@@ -105,7 +103,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
   }
 
   // null if the method or none of its declared overloads exists in any of `javaClasses`
-  private resolveMethodHooks(javaClasses: Java.Wrapper[], inputHook: InputJavaHookNormalized): JavaHook[] | null {
+  private resolveMethodHooks(javaClasses: Java.Wrapper[], inputHook: JavaHookDeclaration): JavaHook[] | null {
     const hooks: JavaHook[] = [];
     for (const javaClass of javaClasses) {
       try {
@@ -352,7 +350,7 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     }, []);
   }
 
-  private resolveMethod(javaClass: Java.Wrapper, inputHook: InputJavaHookNormalized): Java.MethodDispatcher {
+  private resolveMethod(javaClass: Java.Wrapper, inputHook: JavaHookDeclaration): Java.MethodDispatcher {
     const resolvedMethod = javaClass[inputHook.method];
     if (resolvedMethod) {
       return resolvedMethod;
@@ -361,22 +359,22 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     }
   }
 
-  private resolveOverloads(method: Java.MethodDispatcher, inputHook: InputJavaHookNormalized): JavaHook[] {
+  private resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDeclaration): JavaHook[] {
     const result: JavaHook[] = [];
     const declaringClass = method.holder.$className;
     if (inputHook.overloads?.length) {
       // only the declared overloads
       for (const overload of inputHook.overloads) {
-        const normalizedParams: Param[] = normalizeInputParams(overload.params).map((param: Param) => ({ ...param, declaringClass }));
-        const paramTypes: string[] = normalizedParams.map((param: Param) => param.type);
+        const params: Param[] = overload.params.map((param) => ({ ...param, declaringClass }));
+        const paramTypes: string[] = params.map((param) => param.type);
         try {
           result.push({
             methodName: method.methodName,
             method: method.overload(...paramTypes),
-            params: normalizedParams,
-            hookSettings: inputHook.hookSettings ?? DEFAULT_HOOK_SETTINGS,
-            decoderSettings: inputHook.decoderSettings ?? DEFAULT_DECODER_SETTINGS,
-            retTypeSettings: overload.retType as DecoderSettings | undefined,
+            params,
+            hookSettings: inputHook.hookSettings,
+            decoderSettings: inputHook.decoderSettings,
+            retTypeSettings: overload.retType,
           });
         } catch (e) {
           logger.warn(`Skipping overload for method '${inputHook.method}(${paramTypes})'. The overload does not exist.`);
@@ -385,13 +383,13 @@ export class AndroidHookManager extends HookManager<InputJavaHookNormalized, Jav
     } else {
       // all overloads
       for (const javaMethod of method.overloads) {
-        const params: Param[] = this.buildParamsFromArgumentTypes(javaMethod.argumentTypes, inputHook.decoderSettings!, declaringClass);
+        const params: Param[] = this.buildParamsFromArgumentTypes(javaMethod.argumentTypes, inputHook.decoderSettings, declaringClass);
         result.push({
           methodName: method.methodName,
           method: javaMethod,
           params: params,
-          hookSettings: inputHook.hookSettings ?? DEFAULT_HOOK_SETTINGS,
-          decoderSettings: inputHook.decoderSettings ?? DEFAULT_DECODER_SETTINGS,
+          hookSettings: inputHook.hookSettings,
+          decoderSettings: inputHook.decoderSettings,
         });
       }
     }

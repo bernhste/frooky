@@ -1,7 +1,8 @@
 import Java from "frida-java-bridge";
 import { FrookyAgent } from "../../FrookyAgent";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
-import { InputJavaHookNormalized } from "../../shared/inputParsing/inputJavaHookCollection";
+import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
+import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
 import { HookSettings } from "../../shared/frookySettings";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError, formatHashCode, sleepMilliseconds } from "../../shared/utils";
@@ -48,7 +49,7 @@ function identityHashCode(object: Java.Wrapper): number {
   return Java.use("java.lang.System").identityHashCode(object);
 }
 
-function javaHook(javaClass: string, method: string): InputJavaHookNormalized {
+function javaHook(javaClass: string, method: string): JavaHookDeclaration {
   return { javaClass, method, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
 }
 
@@ -205,12 +206,12 @@ describe("AndroidHookManager", () => {
     it("carries an overload's retType decoder settings onto the resolved JavaHook", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
       const retTypeSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "hashCode" as const };
-      const hook: InputJavaHookNormalized = {
+      const hook: JavaHookDeclaration = {
         javaClass: "java.lang.String",
         method: "indexOf",
         hookSettings: DEFAULT_HOOK_SETTINGS,
         decoderSettings: DEFAULT_DECODER_SETTINGS,
-        overloads: [{ params: ["int"], retType: retTypeSettings }],
+        overloads: [{ params: normalizeInputParams(["int"]), retType: retTypeSettings }],
       };
 
       const results = await resultsOf(await manager.resolveHooks([hook]));
@@ -222,12 +223,12 @@ describe("AndroidHookManager", () => {
 
     it("leaves retTypeSettings undefined when an overload does not declare a retType", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
-      const hook: InputJavaHookNormalized = {
+      const hook: JavaHookDeclaration = {
         javaClass: "java.lang.String",
         method: "indexOf",
         hookSettings: DEFAULT_HOOK_SETTINGS,
         decoderSettings: DEFAULT_DECODER_SETTINGS,
-        overloads: [{ params: ["int"] }],
+        overloads: [{ params: normalizeInputParams(["int"]) }],
       };
 
       const results = await resultsOf(await manager.resolveHooks([hook]));
@@ -252,7 +253,7 @@ describe("AndroidHookManager", () => {
       };
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
       const manager = new AndroidHookManager(recordingStackTrace, agent);
-      const declare = (maxStackFrames: number, hookSettings: Partial<HookSettings> = {}): InputJavaHookNormalized => ({
+      const declare = (maxStackFrames: number, hookSettings: Partial<HookSettings> = {}): JavaHookDeclaration => ({
         ...javaHook("java.lang.Integer", "reverse"),
         hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames, ...hookSettings },
       });
@@ -457,7 +458,7 @@ describe("AndroidHookManager", () => {
       it("records the same hashCode, the instance's, from every hook", async () => {
         const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
         const manager = new AndroidHookManager(stackTrace, agent);
-        const declare = (): InputJavaHookNormalized => javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet");
+        const declare = (): JavaHookDeclaration => javaHook("java.util.concurrent.atomic.AtomicInteger", "incrementAndGet");
         const [first, second] = (await resultsOf(await manager.resolveHooks([declare(), declare()]))) as JavaHook[][];
         const counter = Java.use("java.util.concurrent.atomic.AtomicInteger").$new(0);
 

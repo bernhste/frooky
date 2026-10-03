@@ -1,6 +1,7 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
+import { JavaHookDeclaration, JavaOverloadDeclaration } from "../hook/hookDeclaration";
 import { InputParam, InputRetTypeSettings, normalizeInputParams, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
@@ -26,13 +27,7 @@ export interface InputOverload {
  *
  * @public
  */
-export type InputJavaHookNormalized = {
-  /** Fully qualified class name. Inherited from the hook collection. */
-  javaClass: string;
-
-  /** Custom class loader to look the class up in. Inherited from the hook collection. */
-  classLoader?: string;
-
+export interface InputJavaHookDetails {
   /** Method name. Use `$init` for constructors. */
   method: string;
 
@@ -40,18 +35,18 @@ export type InputJavaHookNormalized = {
   overloads?: InputOverload[];
 
   /** Hook settings for this method. Override the collection's settings. */
-  hookSettings?: HookSettings;
+  hookSettings?: InputHookSettings;
 
   /** Decoder settings for this method. Override the collection's settings. */
-  decoderSettings?: DecoderSettings;
-};
+  decoderSettings?: InputDecoderSettings;
+}
 
 /**
  * A Java method hook: a method name, a `[method, decoderSettings]` tuple, or a detailed declaration.
  *
  * @public
  */
-export type InputJavaHook = string | [string, DecoderSettings] | InputJavaHookNormalized;
+export type InputJavaHook = string | [string, InputDecoderSettings] | InputJavaHookDetails;
 
 /**
  * Collection of hooks on methods of one Java class.
@@ -88,47 +83,46 @@ export function isJavaHookScope(hookScopeInput: object): hookScopeInput is Input
   return "javaClass" in hookScopeInput;
 }
 
-function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSettings): InputOverload {
+function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSettings): JavaOverloadDeclaration {
   return {
-    ...overload,
     params: normalizeInputParams(overload.params, decoderSettings),
-    retType: overload.retType ? normalizeInputRetTypeSettings(overload.retType, decoderSettings) : undefined,
+    ...(overload.retType && { retType: normalizeInputRetTypeSettings(overload.retType, decoderSettings) }),
   };
 }
 
-// Normalizes one hook with the merged collection settings. Throws on an invalid param, so validators can
-// skip a single hook.
+// Normalizes one hook, validated against the input schema, with the merged collection settings. Throws on an invalid
+// param, so validators can skip a single hook.
 export function normalizeJavaHook(
   javaClass: string,
-  method: InputJavaHook,
+  inputHook: InputJavaHook,
   hookSettings: HookSettings,
   decoderSettings: DecoderSettings,
   classLoader?: string,
-): InputJavaHookNormalized {
+): JavaHookDeclaration {
   const inherited = classLoader === undefined ? { javaClass } : { javaClass, classLoader };
-  if (typeof method === "string") {
-    return { ...inherited, method: method, hookSettings: hookSettings, decoderSettings: decoderSettings };
+  if (typeof inputHook === "string") {
+    return { ...inherited, method: inputHook, hookSettings, decoderSettings };
   }
 
-  if (Array.isArray(method)) {
-    const [methodName, methodDecoderSettings] = method;
+  if (Array.isArray(inputHook)) {
+    const [method, methodDecoderSettings] = inputHook;
     return {
       ...inherited,
-      method: methodName,
-      hookSettings: hookSettings,
+      method,
+      hookSettings,
       decoderSettings: validateAndRepairDecoderSettings({ ...decoderSettings, ...methodDecoderSettings }),
     };
   }
 
-  const mergedHookSettings = method.hookSettings ? validateAndRepairHookSettings({ ...hookSettings, ...method.hookSettings }) : hookSettings;
-  const mergedDecoderSettings = method.decoderSettings
-    ? validateAndRepairDecoderSettings({ ...decoderSettings, ...method.decoderSettings })
+  const mergedHookSettings = inputHook.hookSettings ? validateAndRepairHookSettings({ ...hookSettings, ...inputHook.hookSettings }) : hookSettings;
+  const mergedDecoderSettings = inputHook.decoderSettings
+    ? validateAndRepairDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
     : decoderSettings;
 
   return {
-    ...method,
     ...inherited,
-    overloads: method.overloads?.map((overload: InputOverload) => normalizeOverload(overload, mergedDecoderSettings)),
+    method: inputHook.method,
+    ...(inputHook.overloads && { overloads: inputHook.overloads.map((overload) => normalizeOverload(overload, mergedDecoderSettings)) }),
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
   };
@@ -152,15 +146,18 @@ export function mergeJavaHookCollectionSettings(
   return { hookSettings, decoderSettings };
 }
 
-export function normalizeJavaHookCollection(hookCollection: InputJavaHookCollection, settings: FrookySettings): InputJavaHookCollection {
+// The collection with its merged settings and its hooks normalized
+export function normalizeJavaHookCollection(
+  hookCollection: InputJavaHookCollection,
+  settings: FrookySettings,
+): Omit<InputJavaHookCollection, "hooks"> & { hooks: JavaHookDeclaration[]; hookSettings: HookSettings; decoderSettings: DecoderSettings } {
   const { hookSettings, decoderSettings } = mergeJavaHookCollectionSettings(hookCollection, settings);
-
   return {
     ...hookCollection,
-    hooks: hookCollection.hooks.map((hook: InputJavaHook) =>
+    hooks: hookCollection.hooks.map((hook) =>
       normalizeJavaHook(hookCollection.javaClass, hook, hookSettings, decoderSettings, hookCollection.classLoader),
     ),
-    hookSettings: hookSettings,
-    decoderSettings: decoderSettings,
+    hookSettings,
+    decoderSettings,
   };
 }

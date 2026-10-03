@@ -1,7 +1,8 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
-import { InputJavaHookCollection } from "../../shared/inputParsing/inputJavaHookCollection";
+import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
+import { InputJavaHookCollection, InputJavaHookDetails } from "../../shared/inputParsing/inputJavaHookCollection";
 import { InputNativeHookCollection } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { AndroidHookValidator } from "./androidHookValidator";
@@ -55,7 +56,7 @@ describe("AndroidHookValidator", () => {
       expect(validator.validateAndNormalizeHooks(config, defaultSettings)).toEqual([]);
     });
 
-    it("normalizes a plain method-name hook into a full InputJavaHookNormalized", () => {
+    it("normalizes a plain method-name hook into a full JavaHookDeclaration", () => {
       const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: ["bar"] };
       const config: InputFrookyConfig = { hookCollection: [javaCollection] };
 
@@ -123,7 +124,7 @@ describe("AndroidHookValidator", () => {
       const javaCollection: InputJavaHookCollection = {
         type: "java",
         javaClass: "com.example.Foo",
-        hooks: ["foo", { javaClass: "com.example.Foo", method: "bar", overloads: [{ params: [["int", "fd", { decoder: "fd" }]] }] }],
+        hooks: ["foo", { method: "bar", overloads: [{ params: [["int", "fd", { decoder: "fd" }]] }] }],
       };
 
       const result = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
@@ -133,11 +134,28 @@ describe("AndroidHookValidator", () => {
       expect(message).toContain("decoder 'fd' is no Java decoder. The Java decoders are: string, hashCode,");
     });
 
+    it("warns about an unknown property and still installs the hook", () => {
+      const javaCollection: InputJavaHookCollection = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: [{ method: "bar", overloads: [{ params: ["int"], retTyp: { maxDepth: 2 } }] } as unknown as InputJavaHookDetails],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["bar"]);
+      expect(result[0].overloads?.[0]).toEqual({ params: normalizeInputParams(["int"]) });
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain(
+        "Hook for java method 'bar' from class 'com.example.Foo' contains unknown properties, which are ignored: overloads[0].retTyp",
+      );
+    });
+
     it("still validates the remaining java hook collections after one collection contained an unnormalizable hook", () => {
       const brokenCollection: InputJavaHookCollection = {
         type: "java",
         javaClass: "com.example.Foo",
-        hooks: [{ javaClass: "com.example.Foo", method: "bad", overloads: [{ params: [123 as unknown as string] }] }],
+        hooks: [{ method: "bad", overloads: [{ params: [123 as unknown as string] }] }],
       };
       const healthyCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Bar", hooks: ["baz"] };
       const config: InputFrookyConfig = { hookCollection: [brokenCollection, healthyCollection] };
@@ -181,4 +199,3 @@ describe("AndroidHookValidator", () => {
     });
   });
 });
-

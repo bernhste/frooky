@@ -88,6 +88,51 @@ Each hook file is processed on its own, all of them concurrently. Its hook decla
 
 **Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
 
+### Validation
+
+The hook-file format is described twice in TypeScript, once for the user and once for the code that processes it:
+
+- **Input types** (the public interface, `Input*` in `frooky/agent/src/shared/inputParsing/`) describe what a hook file may contain. They are loose on purpose: most things can be written in several forms, e.g. a hook as just a method or symbol name or as an object, and settings can be left out. `npm run build:zodSchema` generates the Zod schemas in `zodSchemas/` from them, and `npm run build:jsonSchema` turns those into [`docs/schema/frooky-config.schema.json`](./schema/frooky-config.schema.json), which editors use to check and autocomplete hook files.
+- **Normalized types** (`JavaHookDeclaration` and `NativeHookDeclaration` in `frooky/agent/src/shared/hook/hookDeclaration.ts`, with `Param` and `RetType`) are what the rest of the agent works with. They are not part of the schemas. Each normalized hook declaration is self-contained and always has the same shape: it carries its class or module, its fully merged `hookSettings` and `decoderSettings`, and each parameter and return value carries its own merged decoder settings. The hook managers, decoders and the diff in [Keeping Hooks Current](#keeping-hooks-current) never need to look at the collection or the file's settings, and never handle shorthands.
+
+[Normalization](#normalization) turns one into the other. For example, a parameter (`InputParam`) can be written in five forms:
+
+```yaml
+- module: libcrypto.so
+  decoderSettings:
+    maxItems: 32
+  hooks:
+    - symbol: EVP_EncryptInit_ex
+      params:
+        - "EVP_CIPHER_CTX *"                               # type only
+        - ["const EVP_CIPHER *", cipher]                   # type + name
+        - ["ENGINE *", { maxDepth: 2 }]                    # type + settings
+        - ["const unsigned char *", key, { maxItems: 16 }] # type + name + settings
+        - { type: "const unsigned char *", name: iv }      # object
+```
+
+After normalization, every parameter is a `Param` object with its `type`, its `name` if it has one, its `direction` and its complete decoder `settings`: the defaults, overridden by the file's settings, the collection's, the hook's and finally the parameter's own. The hook itself has inherited its `module` and has its complete settings:
+
+```yaml
+module: libcrypto.so
+symbol: EVP_EncryptInit_ex
+params:
+  - { type: "EVP_CIPHER_CTX *", direction: in, settings: { maxDepth: 10, maxItems: 32 } }
+  - { type: "const EVP_CIPHER *", name: cipher, direction: in, settings: { maxDepth: 10, maxItems: 32 } }
+  - { type: "ENGINE *", direction: in, settings: { maxDepth: 2, maxItems: 32 } }
+  - { type: "const unsigned char *", name: key, direction: in, settings: { maxDepth: 10, maxItems: 16 } }
+  - { type: "const unsigned char *", name: iv, direction: in, settings: { maxDepth: 10, maxItems: 32 } }
+hookSettings: { maxStackFrames: 5, nativeStackTrace: false, platformStackTrace: false, callerFilter: [], early: false }
+decoderSettings: { maxDepth: 10, maxItems: 32 }
+```
+
+Only the input is validated, against the Zod schemas generated from the input types. The normalized form is produced by frooky itself, and TypeScript guarantees its shape:
+
+- `validateAndRepairFrookyConfig()` checks the file's `metadata` and `settings`. Invalid metadata and unknown properties only cause a warning. An invalid setting is reset to its default, also with a warning, and an invalid regular expression in `callerFilter` is dropped. The settings of a hook collection are repaired the same way. A file without a `hookCollection` is skipped; the other files still load.
+- Each hook declaration is checked against its input schema (`inputJavaHookSchema` or `inputNativeHookSchema`) before it is [normalized](#normalization). An invalid declaration, including an invalid setting on the hook or one of its values, is dropped with a warning that names the invalid field; the other declarations of the file still load. A property the schema doesn't know, e.g. a misspelled `retTyp`, is ignored with a warning.
+
+**Source:** [`frooky/agent/src/shared/configValidator.ts`](../frooky/agent/src/shared/configValidator.ts), [`frooky/agent/src/shared/inputParsing/`](../frooky/agent/src/shared/inputParsing/), [`frooky/agent/src/shared/hook/hookDeclaration.ts`](../frooky/agent/src/shared/hook/hookDeclaration.ts)
+
 ### Hook Initialization
 
 ```mermaid
@@ -122,17 +167,6 @@ A hook declaration is in one of these states, shown in the status bar and the [h
 | `not found` | Its module or class is there, but the method, symbol or offset isn't. frooky doesn't look for it again.                                                                      |
 
 **Source:** [`frooky/agent/src/FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
-
-### Validation
-
-The hook file is checked against Zod schemas, generated from the TypeScript types of the hook-file format:
-
-- `validateAndRepairFrookyConfig()` checks the file's `metadata` and `settings`. Invalid metadata and unknown properties only cause a warning. An invalid setting is reset to its default, also with a warning, and an invalid regular expression in `callerFilter` is dropped. A file without a `hookCollection` is skipped; the other files still load.
-- Each hook declaration is checked against its own schema after [normalization](#normalization). An invalid declaration is dropped with a warning; the other declarations of the file still load.
-
-> TODO: more detail, e.g. which errors repair and which drop.
-
-**Source:** [`frooky/agent/src/shared/configValidator.ts`](../frooky/agent/src/shared/configValidator.ts), [`frooky/agent/src/shared/inputParsing/zodSchemas/`](../frooky/agent/src/shared/inputParsing/zodSchemas/)
 
 ### Normalization
 

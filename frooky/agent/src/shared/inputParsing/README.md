@@ -34,15 +34,15 @@ hookCollection:
 
 These are all valid ways which give the user flexibility. But internally it introduces complexity when working with the different types.
 
-We therefore only use objects internally (e.g. `{method: "getKeyPair"}` or `{ type: "ENGINE *", name: "impl" }`).
+We therefore only use normalized objects internally: `JavaHookDeclaration` and `NativeHookDeclaration` in [`../hook/hookDeclaration.ts`](../hook/hookDeclaration.ts), with `Param` and `RetType` objects and complete settings (e.g. `{ type: "ENGINE *", name: "impl", direction: "in", settings: { maxDepth: 10, maxItems: 100 } }`).
 
-The types in this folder are therefore extending the internally used types for YAML parsing.
+The types in this folder describe the YAML only. They don't reuse the normalized types, which require fields that hook files leave out.
 
 ## Zod Schemas
 
 This folder contains **automatically** generated [zod schemas](./zodSchemas) via [zod](https://zod.dev/).
 
-They are used to validate the frooky configuration during initialization.
+They are used to validate the frooky configuration during initialization: the settings, and each hook declaration before it is normalized.
 
 Run `npm run build:zodSchema` to build them manually.
 

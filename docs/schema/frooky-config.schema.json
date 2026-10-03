@@ -226,9 +226,6 @@
                     {
                       "type": "object",
                       "properties": {
-                        "javaClass": {
-                          "type": "string"
-                        },
                         "method": {
                           "type": "string"
                         },
@@ -319,7 +316,22 @@
                                                 "type": "string"
                                               }
                                             },
-                                            "direction": {}
+                                            "direction": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "const": "in"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "const": "out"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "const": "inout"
+                                                }
+                                              ]
+                                            }
                                           }
                                         }
                                       ],
@@ -391,7 +403,22 @@
                                                 "type": "string"
                                               }
                                             },
-                                            "direction": {}
+                                            "direction": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "const": "in"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "const": "out"
+                                                },
+                                                {
+                                                  "type": "string",
+                                                  "const": "inout"
+                                                }
+                                              ]
+                                            }
                                           }
                                         }
                                       ],
@@ -399,7 +426,93 @@
                                       "minItems": 3,
                                       "maxItems": 3
                                     },
-                                    {}
+                                    {
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
+                                        },
+                                        "direction": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "const": "in"
+                                            },
+                                            {
+                                              "type": "string",
+                                              "const": "out"
+                                            },
+                                            {
+                                              "type": "string",
+                                              "const": "inout"
+                                            }
+                                          ]
+                                        },
+                                        "settings": {
+                                          "type": "object",
+                                          "properties": {
+                                            "maxDepth": {
+                                              "type": "number",
+                                              "minimum": 1
+                                            },
+                                            "maxItems": {
+                                              "type": "number",
+                                              "minimum": 1
+                                            },
+                                            "decoder": {
+                                              "type": "string",
+                                              "enum": [
+                                                "string",
+                                                "hashCode",
+                                                "intentFlag",
+                                                "intentUriFlag",
+                                                "constant",
+                                                "flags",
+                                                "getters"
+                                              ]
+                                            },
+                                            "decoderArgs": {
+                                              "type": "object",
+                                              "properties": {
+                                                "length": {
+                                                  "type": [
+                                                    "string",
+                                                    "number"
+                                                  ]
+                                                },
+                                                "offset": {
+                                                  "type": [
+                                                    "string",
+                                                    "number"
+                                                  ]
+                                                }
+                                              }
+                                            },
+                                            "constants": {
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "number"
+                                              }
+                                            },
+                                            "argFilter": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
+                                            }
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "type"
+                                      ]
+                                    }
                                   ]
                                 }
                               },
@@ -734,734 +847,1128 @@
                       "maxItems": 2
                     },
                     {
-                      "type": "object",
-                      "properties": {
-                        "module": {
-                          "type": "string"
-                        },
-                        "params": {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "array",
-                                "items": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "string"
-                                  }
-                                ],
-                                "additionalItems": false,
-                                "minItems": 2,
-                                "maxItems": 2
-                              },
-                              {
-                                "type": "array",
-                                "items": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "maxDepth": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "maxItems": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "decoder": {
-                                        "type": "string",
-                                        "enum": [
-                                          "string",
-                                          "utf16",
-                                          "errno",
-                                          "fd",
-                                          "enum",
-                                          "flags",
-                                          "nullTerminated",
-                                          "openFlags",
-                                          "mmapProt",
-                                          "mmapFlags",
-                                          "dlopenFlags",
-                                          "socketType",
-                                          "socketDomain"
-                                        ]
-                                      },
-                                      "decoderArgs": {
-                                        "type": "object",
-                                        "properties": {
-                                          "length": {
-                                            "type": [
-                                              "string",
-                                              "number"
-                                            ]
-                                          },
-                                          "offset": {
-                                            "type": [
-                                              "string",
-                                              "number"
-                                            ]
-                                          }
-                                        }
-                                      },
-                                      "constants": {
-                                        "type": "object",
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "additionalProperties": {
-                                          "type": "number"
-                                        }
-                                      },
-                                      "argFilter": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "direction": {}
-                                    }
-                                  }
-                                ],
-                                "additionalItems": false,
-                                "minItems": 2,
-                                "maxItems": 2
-                              },
-                              {
-                                "type": "array",
-                                "items": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "maxDepth": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "maxItems": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "decoder": {
-                                        "type": "string",
-                                        "enum": [
-                                          "string",
-                                          "utf16",
-                                          "errno",
-                                          "fd",
-                                          "enum",
-                                          "flags",
-                                          "nullTerminated",
-                                          "openFlags",
-                                          "mmapProt",
-                                          "mmapFlags",
-                                          "dlopenFlags",
-                                          "socketType",
-                                          "socketDomain"
-                                        ]
-                                      },
-                                      "decoderArgs": {
-                                        "type": "object",
-                                        "properties": {
-                                          "length": {
-                                            "type": [
-                                              "string",
-                                              "number"
-                                            ]
-                                          },
-                                          "offset": {
-                                            "type": [
-                                              "string",
-                                              "number"
-                                            ]
-                                          }
-                                        }
-                                      },
-                                      "constants": {
-                                        "type": "object",
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "additionalProperties": {
-                                          "type": "number"
-                                        }
-                                      },
-                                      "argFilter": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "direction": {}
-                                    }
-                                  }
-                                ],
-                                "additionalItems": false,
-                                "minItems": 3,
-                                "maxItems": 3
-                              },
-                              {}
-                            ]
-                          }
-                        },
-                        "retType": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "params": {
                               "type": "array",
-                              "items": [
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "string"
+                                      }
+                                    ],
+                                    "additionalItems": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "maxDepth": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "maxItems": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "decoder": {
+                                            "type": "string",
+                                            "enum": [
+                                              "string",
+                                              "utf16",
+                                              "errno",
+                                              "fd",
+                                              "enum",
+                                              "flags",
+                                              "nullTerminated",
+                                              "openFlags",
+                                              "mmapProt",
+                                              "mmapFlags",
+                                              "dlopenFlags",
+                                              "socketType",
+                                              "socketDomain"
+                                            ]
+                                          },
+                                          "decoderArgs": {
+                                            "type": "object",
+                                            "properties": {
+                                              "length": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              },
+                                              "offset": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          "constants": {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "direction": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "const": "in"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "const": "out"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "const": "inout"
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "additionalItems": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "maxDepth": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "maxItems": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "decoder": {
+                                            "type": "string",
+                                            "enum": [
+                                              "string",
+                                              "utf16",
+                                              "errno",
+                                              "fd",
+                                              "enum",
+                                              "flags",
+                                              "nullTerminated",
+                                              "openFlags",
+                                              "mmapProt",
+                                              "mmapFlags",
+                                              "dlopenFlags",
+                                              "socketType",
+                                              "socketDomain"
+                                            ]
+                                          },
+                                          "decoderArgs": {
+                                            "type": "object",
+                                            "properties": {
+                                              "length": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              },
+                                              "offset": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          "constants": {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "direction": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "const": "in"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "const": "out"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "const": "inout"
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "additionalItems": false,
+                                    "minItems": 3,
+                                    "maxItems": 3
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "direction": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "const": "in"
+                                          },
+                                          {
+                                            "type": "string",
+                                            "const": "out"
+                                          },
+                                          {
+                                            "type": "string",
+                                            "const": "inout"
+                                          }
+                                        ]
+                                      },
+                                      "settings": {
+                                        "type": "object",
+                                        "properties": {
+                                          "maxDepth": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "maxItems": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "decoder": {
+                                            "type": "string",
+                                            "enum": [
+                                              "string",
+                                              "utf16",
+                                              "errno",
+                                              "fd",
+                                              "enum",
+                                              "flags",
+                                              "nullTerminated",
+                                              "openFlags",
+                                              "mmapProt",
+                                              "mmapFlags",
+                                              "dlopenFlags",
+                                              "socketType",
+                                              "socketDomain"
+                                            ]
+                                          },
+                                          "decoderArgs": {
+                                            "type": "object",
+                                            "properties": {
+                                              "length": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              },
+                                              "offset": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          "constants": {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            "retType": {
+                              "anyOf": [
                                 {
                                   "type": "string"
                                 },
                                 {
-                                  "type": "object",
-                                  "properties": {
-                                    "maxDepth": {
-                                      "type": "number",
-                                      "minimum": 1
+                                  "type": "array",
+                                  "items": [
+                                    {
+                                      "type": "string"
                                     },
-                                    "maxItems": {
-                                      "type": "number",
-                                      "minimum": 1
-                                    },
-                                    "decoder": {
-                                      "type": "string",
-                                      "enum": [
-                                        "string",
-                                        "utf16",
-                                        "errno",
-                                        "fd",
-                                        "enum",
-                                        "flags",
-                                        "nullTerminated",
-                                        "openFlags",
-                                        "mmapProt",
-                                        "mmapFlags",
-                                        "dlopenFlags",
-                                        "socketType",
-                                        "socketDomain"
-                                      ]
-                                    },
-                                    "decoderArgs": {
+                                    {
                                       "type": "object",
                                       "properties": {
-                                        "length": {
-                                          "type": [
+                                        "maxDepth": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "maxItems": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "decoder": {
+                                          "type": "string",
+                                          "enum": [
                                             "string",
-                                            "number"
+                                            "utf16",
+                                            "errno",
+                                            "fd",
+                                            "enum",
+                                            "flags",
+                                            "nullTerminated",
+                                            "openFlags",
+                                            "mmapProt",
+                                            "mmapFlags",
+                                            "dlopenFlags",
+                                            "socketType",
+                                            "socketDomain"
                                           ]
                                         },
-                                        "offset": {
-                                          "type": [
-                                            "string",
-                                            "number"
-                                          ]
+                                        "decoderArgs": {
+                                          "type": "object",
+                                          "properties": {
+                                            "length": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            },
+                                            "offset": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "constants": {
+                                          "type": "object",
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "additionalProperties": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "argFilter": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
                                         }
                                       }
+                                    }
+                                  ],
+                                  "additionalItems": false,
+                                  "minItems": 2,
+                                  "maxItems": 2
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string"
                                     },
-                                    "constants": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "settings": {
                                       "type": "object",
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "additionalProperties": {
-                                        "type": "number"
-                                      }
-                                    },
-                                    "argFilter": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string"
+                                      "properties": {
+                                        "maxDepth": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "maxItems": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "decoder": {
+                                          "type": "string",
+                                          "enum": [
+                                            "string",
+                                            "utf16",
+                                            "errno",
+                                            "fd",
+                                            "enum",
+                                            "flags",
+                                            "nullTerminated",
+                                            "openFlags",
+                                            "mmapProt",
+                                            "mmapFlags",
+                                            "dlopenFlags",
+                                            "socketType",
+                                            "socketDomain"
+                                          ]
+                                        },
+                                        "decoderArgs": {
+                                          "type": "object",
+                                          "properties": {
+                                            "length": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            },
+                                            "offset": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "constants": {
+                                          "type": "object",
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "additionalProperties": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "argFilter": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        }
                                       }
                                     }
-                                  }
+                                  },
+                                  "required": [
+                                    "type"
+                                  ]
                                 }
-                              ],
-                              "additionalItems": false,
-                              "minItems": 2,
-                              "maxItems": 2
-                            },
-                            {}
-                          ]
-                        },
-                        "hookSettings": {
-                          "type": "object",
-                          "properties": {
-                            "maxStackFrames": {
-                              "type": "number",
-                              "minimum": 0
-                            },
-                            "nativeStackTrace": {
-                              "type": "boolean"
-                            },
-                            "platformStackTrace": {
-                              "type": "boolean"
-                            },
-                            "callerFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            },
-                            "early": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        "decoderSettings": {
-                          "type": "object",
-                          "properties": {
-                            "maxDepth": {
-                              "type": "number",
-                              "minimum": 1
-                            },
-                            "maxItems": {
-                              "type": "number",
-                              "minimum": 1
-                            },
-                            "decoder": {
-                              "type": "string",
-                              "enum": [
-                                "string",
-                                "utf16",
-                                "errno",
-                                "fd",
-                                "enum",
-                                "flags",
-                                "nullTerminated",
-                                "openFlags",
-                                "mmapProt",
-                                "mmapFlags",
-                                "dlopenFlags",
-                                "socketType",
-                                "socketDomain"
                               ]
                             },
-                            "decoderArgs": {
+                            "hookSettings": {
                               "type": "object",
                               "properties": {
-                                "length": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
+                                "maxStackFrames": {
+                                  "type": "number",
+                                  "minimum": 0
                                 },
-                                "offset": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
+                                "nativeStackTrace": {
+                                  "type": "boolean"
+                                },
+                                "platformStackTrace": {
+                                  "type": "boolean"
+                                },
+                                "callerFilter": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "early": {
+                                  "type": "boolean"
                                 }
                               }
                             },
-                            "constants": {
+                            "decoderSettings": {
                               "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {
-                                "type": "number"
+                              "properties": {
+                                "maxDepth": {
+                                  "type": "number",
+                                  "minimum": 1
+                                },
+                                "maxItems": {
+                                  "type": "number",
+                                  "minimum": 1
+                                },
+                                "decoder": {
+                                  "type": "string",
+                                  "enum": [
+                                    "string",
+                                    "utf16",
+                                    "errno",
+                                    "fd",
+                                    "enum",
+                                    "flags",
+                                    "nullTerminated",
+                                    "openFlags",
+                                    "mmapProt",
+                                    "mmapFlags",
+                                    "dlopenFlags",
+                                    "socketType",
+                                    "socketDomain"
+                                  ]
+                                },
+                                "decoderArgs": {
+                                  "type": "object",
+                                  "properties": {
+                                    "length": {
+                                      "type": [
+                                        "string",
+                                        "number"
+                                      ]
+                                    },
+                                    "offset": {
+                                      "type": [
+                                        "string",
+                                        "number"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "constants": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "type": "number"
+                                  }
+                                },
+                                "argFilter": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
                               }
                             },
-                            "argFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            }
-                          }
-                        },
-                        "symbol": {
-                          "type": "string"
-                        },
-                        "offset": {
-                          "not": {}
-                        }
-                      },
-                      "required": [
-                        "symbol"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "module": {
-                          "type": "string"
-                        },
-                        "params": {
-                          "type": "array",
-                          "items": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "array",
-                                "items": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "string"
-                                  }
-                                ],
-                                "additionalItems": false,
-                                "minItems": 2,
-                                "maxItems": 2
-                              },
-                              {
-                                "type": "array",
-                                "items": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "maxDepth": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "maxItems": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "decoder": {
-                                        "type": "string",
-                                        "enum": [
-                                          "string",
-                                          "utf16",
-                                          "errno",
-                                          "fd",
-                                          "enum",
-                                          "flags",
-                                          "nullTerminated",
-                                          "openFlags",
-                                          "mmapProt",
-                                          "mmapFlags",
-                                          "dlopenFlags",
-                                          "socketType",
-                                          "socketDomain"
-                                        ]
-                                      },
-                                      "decoderArgs": {
-                                        "type": "object",
-                                        "properties": {
-                                          "length": {
-                                            "type": [
-                                              "string",
-                                              "number"
-                                            ]
-                                          },
-                                          "offset": {
-                                            "type": [
-                                              "string",
-                                              "number"
-                                            ]
-                                          }
-                                        }
-                                      },
-                                      "constants": {
-                                        "type": "object",
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "additionalProperties": {
-                                          "type": "number"
-                                        }
-                                      },
-                                      "argFilter": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "direction": {}
-                                    }
-                                  }
-                                ],
-                                "additionalItems": false,
-                                "minItems": 2,
-                                "maxItems": 2
-                              },
-                              {
-                                "type": "array",
-                                "items": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "type": "object",
-                                    "properties": {
-                                      "maxDepth": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "maxItems": {
-                                        "type": "number",
-                                        "minimum": 1
-                                      },
-                                      "decoder": {
-                                        "type": "string",
-                                        "enum": [
-                                          "string",
-                                          "utf16",
-                                          "errno",
-                                          "fd",
-                                          "enum",
-                                          "flags",
-                                          "nullTerminated",
-                                          "openFlags",
-                                          "mmapProt",
-                                          "mmapFlags",
-                                          "dlopenFlags",
-                                          "socketType",
-                                          "socketDomain"
-                                        ]
-                                      },
-                                      "decoderArgs": {
-                                        "type": "object",
-                                        "properties": {
-                                          "length": {
-                                            "type": [
-                                              "string",
-                                              "number"
-                                            ]
-                                          },
-                                          "offset": {
-                                            "type": [
-                                              "string",
-                                              "number"
-                                            ]
-                                          }
-                                        }
-                                      },
-                                      "constants": {
-                                        "type": "object",
-                                        "propertyNames": {
-                                          "type": "string"
-                                        },
-                                        "additionalProperties": {
-                                          "type": "number"
-                                        }
-                                      },
-                                      "argFilter": {
-                                        "type": "array",
-                                        "items": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "direction": {}
-                                    }
-                                  }
-                                ],
-                                "additionalItems": false,
-                                "minItems": 3,
-                                "maxItems": 3
-                              },
-                              {}
-                            ]
-                          }
-                        },
-                        "retType": {
-                          "anyOf": [
-                            {
+                            "symbol": {
                               "type": "string"
                             },
-                            {
+                            "offset": {
+                              "not": {}
+                            }
+                          },
+                          "required": [
+                            "symbol"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "params": {
                               "type": "array",
-                              "items": [
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "string"
+                                      }
+                                    ],
+                                    "additionalItems": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "maxDepth": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "maxItems": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "decoder": {
+                                            "type": "string",
+                                            "enum": [
+                                              "string",
+                                              "utf16",
+                                              "errno",
+                                              "fd",
+                                              "enum",
+                                              "flags",
+                                              "nullTerminated",
+                                              "openFlags",
+                                              "mmapProt",
+                                              "mmapFlags",
+                                              "dlopenFlags",
+                                              "socketType",
+                                              "socketDomain"
+                                            ]
+                                          },
+                                          "decoderArgs": {
+                                            "type": "object",
+                                            "properties": {
+                                              "length": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              },
+                                              "offset": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          "constants": {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "direction": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "const": "in"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "const": "out"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "const": "inout"
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "additionalItems": false,
+                                    "minItems": 2,
+                                    "maxItems": 2
+                                  },
+                                  {
+                                    "type": "array",
+                                    "items": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "object",
+                                        "properties": {
+                                          "maxDepth": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "maxItems": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "decoder": {
+                                            "type": "string",
+                                            "enum": [
+                                              "string",
+                                              "utf16",
+                                              "errno",
+                                              "fd",
+                                              "enum",
+                                              "flags",
+                                              "nullTerminated",
+                                              "openFlags",
+                                              "mmapProt",
+                                              "mmapFlags",
+                                              "dlopenFlags",
+                                              "socketType",
+                                              "socketDomain"
+                                            ]
+                                          },
+                                          "decoderArgs": {
+                                            "type": "object",
+                                            "properties": {
+                                              "length": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              },
+                                              "offset": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          "constants": {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "direction": {
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "const": "in"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "const": "out"
+                                              },
+                                              {
+                                                "type": "string",
+                                                "const": "inout"
+                                              }
+                                            ]
+                                          }
+                                        }
+                                      }
+                                    ],
+                                    "additionalItems": false,
+                                    "minItems": 3,
+                                    "maxItems": 3
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "type": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "direction": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "const": "in"
+                                          },
+                                          {
+                                            "type": "string",
+                                            "const": "out"
+                                          },
+                                          {
+                                            "type": "string",
+                                            "const": "inout"
+                                          }
+                                        ]
+                                      },
+                                      "settings": {
+                                        "type": "object",
+                                        "properties": {
+                                          "maxDepth": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "maxItems": {
+                                            "type": "number",
+                                            "minimum": 1
+                                          },
+                                          "decoder": {
+                                            "type": "string",
+                                            "enum": [
+                                              "string",
+                                              "utf16",
+                                              "errno",
+                                              "fd",
+                                              "enum",
+                                              "flags",
+                                              "nullTerminated",
+                                              "openFlags",
+                                              "mmapProt",
+                                              "mmapFlags",
+                                              "dlopenFlags",
+                                              "socketType",
+                                              "socketDomain"
+                                            ]
+                                          },
+                                          "decoderArgs": {
+                                            "type": "object",
+                                            "properties": {
+                                              "length": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              },
+                                              "offset": {
+                                                "type": [
+                                                  "string",
+                                                  "number"
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          "constants": {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
+                                          }
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "type"
+                                    ]
+                                  }
+                                ]
+                              }
+                            },
+                            "retType": {
+                              "anyOf": [
                                 {
                                   "type": "string"
                                 },
                                 {
-                                  "type": "object",
-                                  "properties": {
-                                    "maxDepth": {
-                                      "type": "number",
-                                      "minimum": 1
+                                  "type": "array",
+                                  "items": [
+                                    {
+                                      "type": "string"
                                     },
-                                    "maxItems": {
-                                      "type": "number",
-                                      "minimum": 1
-                                    },
-                                    "decoder": {
-                                      "type": "string",
-                                      "enum": [
-                                        "string",
-                                        "utf16",
-                                        "errno",
-                                        "fd",
-                                        "enum",
-                                        "flags",
-                                        "nullTerminated",
-                                        "openFlags",
-                                        "mmapProt",
-                                        "mmapFlags",
-                                        "dlopenFlags",
-                                        "socketType",
-                                        "socketDomain"
-                                      ]
-                                    },
-                                    "decoderArgs": {
+                                    {
                                       "type": "object",
                                       "properties": {
-                                        "length": {
-                                          "type": [
+                                        "maxDepth": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "maxItems": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "decoder": {
+                                          "type": "string",
+                                          "enum": [
                                             "string",
-                                            "number"
+                                            "utf16",
+                                            "errno",
+                                            "fd",
+                                            "enum",
+                                            "flags",
+                                            "nullTerminated",
+                                            "openFlags",
+                                            "mmapProt",
+                                            "mmapFlags",
+                                            "dlopenFlags",
+                                            "socketType",
+                                            "socketDomain"
                                           ]
                                         },
-                                        "offset": {
-                                          "type": [
-                                            "string",
-                                            "number"
-                                          ]
+                                        "decoderArgs": {
+                                          "type": "object",
+                                          "properties": {
+                                            "length": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            },
+                                            "offset": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "constants": {
+                                          "type": "object",
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "additionalProperties": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "argFilter": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
                                         }
                                       }
+                                    }
+                                  ],
+                                  "additionalItems": false,
+                                  "minItems": 2,
+                                  "maxItems": 2
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "type": {
+                                      "type": "string"
                                     },
-                                    "constants": {
+                                    "name": {
+                                      "type": "string"
+                                    },
+                                    "settings": {
                                       "type": "object",
-                                      "propertyNames": {
-                                        "type": "string"
-                                      },
-                                      "additionalProperties": {
-                                        "type": "number"
-                                      }
-                                    },
-                                    "argFilter": {
-                                      "type": "array",
-                                      "items": {
-                                        "type": "string"
+                                      "properties": {
+                                        "maxDepth": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "maxItems": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "decoder": {
+                                          "type": "string",
+                                          "enum": [
+                                            "string",
+                                            "utf16",
+                                            "errno",
+                                            "fd",
+                                            "enum",
+                                            "flags",
+                                            "nullTerminated",
+                                            "openFlags",
+                                            "mmapProt",
+                                            "mmapFlags",
+                                            "dlopenFlags",
+                                            "socketType",
+                                            "socketDomain"
+                                          ]
+                                        },
+                                        "decoderArgs": {
+                                          "type": "object",
+                                          "properties": {
+                                            "length": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            },
+                                            "offset": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            }
+                                          }
+                                        },
+                                        "constants": {
+                                          "type": "object",
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "additionalProperties": {
+                                            "type": "number"
+                                          }
+                                        },
+                                        "argFilter": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        }
                                       }
                                     }
-                                  }
+                                  },
+                                  "required": [
+                                    "type"
+                                  ]
                                 }
-                              ],
-                              "additionalItems": false,
-                              "minItems": 2,
-                              "maxItems": 2
-                            },
-                            {}
-                          ]
-                        },
-                        "hookSettings": {
-                          "type": "object",
-                          "properties": {
-                            "maxStackFrames": {
-                              "type": "number",
-                              "minimum": 0
-                            },
-                            "nativeStackTrace": {
-                              "type": "boolean"
-                            },
-                            "platformStackTrace": {
-                              "type": "boolean"
-                            },
-                            "callerFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            },
-                            "early": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        "decoderSettings": {
-                          "type": "object",
-                          "properties": {
-                            "maxDepth": {
-                              "type": "number",
-                              "minimum": 1
-                            },
-                            "maxItems": {
-                              "type": "number",
-                              "minimum": 1
-                            },
-                            "decoder": {
-                              "type": "string",
-                              "enum": [
-                                "string",
-                                "utf16",
-                                "errno",
-                                "fd",
-                                "enum",
-                                "flags",
-                                "nullTerminated",
-                                "openFlags",
-                                "mmapProt",
-                                "mmapFlags",
-                                "dlopenFlags",
-                                "socketType",
-                                "socketDomain"
                               ]
                             },
-                            "decoderArgs": {
+                            "hookSettings": {
                               "type": "object",
                               "properties": {
-                                "length": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
+                                "maxStackFrames": {
+                                  "type": "number",
+                                  "minimum": 0
                                 },
-                                "offset": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
+                                "nativeStackTrace": {
+                                  "type": "boolean"
+                                },
+                                "platformStackTrace": {
+                                  "type": "boolean"
+                                },
+                                "callerFilter": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "early": {
+                                  "type": "boolean"
                                 }
                               }
                             },
-                            "constants": {
+                            "decoderSettings": {
                               "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {
-                                "type": "number"
+                              "properties": {
+                                "maxDepth": {
+                                  "type": "number",
+                                  "minimum": 1
+                                },
+                                "maxItems": {
+                                  "type": "number",
+                                  "minimum": 1
+                                },
+                                "decoder": {
+                                  "type": "string",
+                                  "enum": [
+                                    "string",
+                                    "utf16",
+                                    "errno",
+                                    "fd",
+                                    "enum",
+                                    "flags",
+                                    "nullTerminated",
+                                    "openFlags",
+                                    "mmapProt",
+                                    "mmapFlags",
+                                    "dlopenFlags",
+                                    "socketType",
+                                    "socketDomain"
+                                  ]
+                                },
+                                "decoderArgs": {
+                                  "type": "object",
+                                  "properties": {
+                                    "length": {
+                                      "type": [
+                                        "string",
+                                        "number"
+                                      ]
+                                    },
+                                    "offset": {
+                                      "type": [
+                                        "string",
+                                        "number"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "constants": {
+                                  "type": "object",
+                                  "propertyNames": {
+                                    "type": "string"
+                                  },
+                                  "additionalProperties": {
+                                    "type": "number"
+                                  }
+                                },
+                                "argFilter": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
                               }
                             },
-                            "argFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
+                            "offset": {
+                              "type": [
+                                "string",
+                                "number"
+                              ]
+                            },
+                            "symbol": {
+                              "not": {}
                             }
-                          }
-                        },
-                        "offset": {
-                          "type": [
-                            "string",
-                            "number"
+                          },
+                          "required": [
+                            "offset"
                           ]
-                        },
-                        "symbol": {
-                          "not": {}
                         }
-                      },
-                      "required": [
-                        "offset"
                       ]
                     }
                   ]

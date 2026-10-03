@@ -1,9 +1,28 @@
 import { validateAndRepairDecoderSettings } from "../configValidator";
-import { Direction, Param, Decodable as RetType } from "../decoders/decodable";
+import { Direction, Param, RetType } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_DECODE_AT } from "../defaultValues";
 import { DecoderSettings } from "../frookySettings";
 import { DECODER_ARG_ROLES, DecoderArgRole, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
 import { InputDecoderSettings, InputParamSettings } from "./inputSettings";
+
+/**
+ * A parameter declared as an object.
+ *
+ * @public
+ */
+export interface InputParamObject {
+  /** Declared type, e.g. `int`, `java.lang.String`, `[B` or `char *`. */
+  type: string;
+
+  /** Name shown for the value in events. */
+  name?: string;
+
+  /** When the parameter is decoded. Default: `"in"`. */
+  direction?: Direction;
+
+  /** Decoder settings for this parameter. Override the hook's settings. */
+  settings?: InputDecoderSettings;
+}
 
 /**
  * A parameter in a hook file, normalized to a {@link Param}.
@@ -18,51 +37,41 @@ import { InputDecoderSettings, InputParamSettings } from "./inputSettings";
  *
  * @public
  */
-export type InputParam = string | [string, string] | [string, InputParamSettings] | [string, string, InputParamSettings] | Param;
+export type InputParam = string | [string, string] | [string, InputParamSettings] | [string, string, InputParamSettings] | InputParamObject;
 
-function normalizeInputParam(input: InputParam, decoderSettings?: DecoderSettings): Param {
-  const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
-
-  // the param's own settings override the merged file, group and hook settings field by field
-  const toParam = (type: string, name?: string, direction?: Direction, paramSettings?: Partial<DecoderSettings>): Param => ({
+function normalizeInputParam(input: InputParam, decoderSettings: DecoderSettings): Param {
+  // the param's own settings override the merged file, collection and hook settings field by field
+  const toParam = (type: string, name?: string, direction?: Direction, paramSettings?: InputDecoderSettings): Param => ({
     type,
     ...(name !== undefined && { name }),
     direction: direction ?? DEFAULT_DECODE_AT,
-    settings: paramSettings ? validateAndRepairDecoderSettings({ ...mergedSettings, ...paramSettings }) : mergedSettings,
+    settings: paramSettings ? validateAndRepairDecoderSettings({ ...decoderSettings, ...paramSettings }) : decoderSettings,
   });
 
   // Case 1: Type only - "java.lang.String"
   if (typeof input === "string") {
     return toParam(input);
-  } else if (Array.isArray(input)) {
+  }
+  if (Array.isArray(input)) {
     // Case 2: Type + name - ["java.lang.String", "value"]
     if (input.length === 2 && typeof input[1] === "string") {
-      const [type, name] = input;
-      return toParam(type, name);
+      return toParam(input[0], input[1]);
     }
     // Case 3: Type + settings - ["[I", { direction: "in", maxDepth: 5 }]
-    if (input.length === 2 && typeof input[1] === "object") {
+    if (input.length === 2) {
       const [type, { direction, ...paramSettings }] = input as [string, InputParamSettings];
       return toParam(type, undefined, direction, paramSettings);
     }
     // Case 4: Type + name + settings - ["[B", "encryptedOutput", { direction: "in", maxItems: 32 }]
-    if (input.length === 3) {
-      const [type, name, { direction, ...paramSettings }] = input as [string, string, InputParamSettings];
-      return toParam(type, name, direction, paramSettings);
-    }
-  } else if (typeof input === "object" && input !== null && typeof input.type === "string") {
-    // Case 5: Object - { type: "java.lang.String", name: "action" }
-    const { type, name, direction, settings } = input as Partial<Param> & { type: string };
-    return toParam(type, name, direction, settings);
+    const [type, name, { direction, ...paramSettings }] = input as [string, string, InputParamSettings];
+    return toParam(type, name, direction, paramSettings);
   }
-  throw new Error(`Unrecognized InputParam format: ${JSON.stringify(input)}`);
+  // Case 5: Object - { type: "java.lang.String", name: "action" }
+  return toParam(input.type, input.name, input.direction, input.settings);
 }
 
 // Throws unless the `decoderArgs` of every parameter are valid, see validateDecoderArgs().
-export function normalizeInputParams(inputs: InputParam[], decoderSettings?: DecoderSettings): Param[] {
-  if (!Array.isArray(inputs)) {
-    throw new Error(`Expected 'params' to be an array, but received ${inputs === undefined ? "undefined" : typeof inputs}.`);
-  }
+export function normalizeInputParams(inputs: InputParam[], decoderSettings: DecoderSettings = DEFAULT_DECODER_SETTINGS): Param[] {
   const params = inputs.map((input) => normalizeInputParam(input, decoderSettings));
   params.forEach((param, paramIndex) => validateDecoderArgs(param, paramIndex, params));
   return params;
@@ -148,6 +157,22 @@ export function validateDecoderNames(settings: (Partial<DecoderSettings> | undef
 }
 
 /**
+ * A return type declared as an object.
+ *
+ * @public
+ */
+export interface InputRetTypeObject {
+  /** Declared type, e.g. `int` or `char *`. */
+  type: string;
+
+  /** Name shown for the value in events. */
+  name?: string;
+
+  /** Decoder settings for the return value. Override the hook's settings. */
+  settings?: InputDecoderSettings;
+}
+
+/**
  * A return type in a hook file, normalized to a {@link RetType}.
  *
  * | Case | Form                    | Example                                                      |
@@ -158,27 +183,22 @@ export function validateDecoderNames(settings: (Partial<DecoderSettings> | undef
  *
  * @public
  */
-export type InputRetType = string | [string, Partial<DecoderSettings>] | RetType;
+export type InputRetType = string | [string, InputDecoderSettings] | InputRetTypeObject;
 
-export function normalizeInputRetType(input: InputRetType, decoderSettings?: DecoderSettings): RetType {
-  const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
-
-  const validatedMergedSettings = validateAndRepairDecoderSettings(mergedSettings);
-
+export function normalizeInputRetType(input: InputRetType, decoderSettings: DecoderSettings = DEFAULT_DECODER_SETTINGS): RetType {
   // Case 1: Type only - "int"
   if (typeof input === "string") {
-    return { type: input, settings: validatedMergedSettings };
-  } else if (Array.isArray(input)) {
-    // Case 2: Type + decoder settings - ["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]
-    const [type, inlineSettings] = input as [string, Partial<DecoderSettings>];
-    rejectRetTypeDecoderArgs(inlineSettings);
-    return { type, settings: { ...validatedMergedSettings, ...inlineSettings } };
-  } else if (typeof input === "object") {
-    // Case 3: Object
-    rejectRetTypeDecoderArgs(input.settings);
-    return input;
+    return { type: input, settings: decoderSettings };
   }
-  throw new Error(`Unrecognized InputRetType format: ${JSON.stringify(input)}`);
+  // Case 2: Type + decoder settings - ["android.database.sqlite.SQLiteCursor", { maxItems: 10 }]
+  // Case 3: Object - { type: int, settings: { maxDepth: 5 } }
+  const { type, name, settings } = Array.isArray(input) ? { type: input[0], name: undefined, settings: input[1] } : input;
+  rejectRetTypeDecoderArgs(settings);
+  return {
+    type,
+    ...(name !== undefined && { name }),
+    settings: settings ? validateAndRepairDecoderSettings({ ...decoderSettings, ...settings }) : decoderSettings,
+  };
 }
 
 /**
@@ -193,12 +213,10 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings?: Dec
  */
 export type InputRetTypeSettings = InputDecoderSettings;
 
-export function normalizeInputRetTypeSettings(input: InputRetTypeSettings, decoderSettings?: DecoderSettings): DecoderSettings {
-  const mergedSettings = decoderSettings ? { ...DEFAULT_DECODER_SETTINGS, ...decoderSettings } : DEFAULT_DECODER_SETTINGS;
-
-  if (typeof input === "object" && input !== null && !Array.isArray(input) && !("type" in input)) {
-    rejectRetTypeDecoderArgs(input);
-    return validateAndRepairDecoderSettings({ ...mergedSettings, ...input });
-  }
-  throw new Error(`Unrecognized InputRetTypeSettings format: ${JSON.stringify(input)}`);
+export function normalizeInputRetTypeSettings(
+  input: InputRetTypeSettings,
+  decoderSettings: DecoderSettings = DEFAULT_DECODER_SETTINGS,
+): DecoderSettings {
+  rejectRetTypeDecoderArgs(input);
+  return validateAndRepairDecoderSettings({ ...decoderSettings, ...input });
 }

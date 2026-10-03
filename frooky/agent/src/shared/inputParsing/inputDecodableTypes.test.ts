@@ -1,7 +1,6 @@
 import { Decodable as RetType, Param } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../defaultValues";
 import {
-  InputRetTypeSettings,
   normalizeInputParams,
   normalizeInputRetType,
   normalizeInputRetTypeSettings,
@@ -9,6 +8,7 @@ import {
   validateDecoderNames,
 } from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
+import { inputParamSchema, inputRetTypeSettingsSchema } from "./zodSchemas/inputDecodableTypes.zod";
 
 describe("inputDecodableTypes", () => {
   describe("normalizeInputParams(), param formats", () => {
@@ -60,12 +60,8 @@ describe("inputDecodableTypes", () => {
       });
     });
 
-    it("should throw for an object without a type", () => {
-      expect(() => normalizeInputParams([{ name: "action" } as unknown as Param])).toThrow("Unrecognized InputParam format");
-    });
-
-    it("should throw when inputs is not an array", () => {
-      expect(() => normalizeInputParams(undefined as unknown as Param[])).toThrow("Expected 'params' to be an array");
+    it("is rejected by the schema for an object without a type", () => {
+      expect(inputParamSchema.safeParse({ name: "action" }).success).toBe(false);
     });
   });
 
@@ -207,19 +203,9 @@ describe("inputDecodableTypes", () => {
       });
     });
 
-    it("rejects a plain type string", () => {
-      expect(() => normalizeInputRetTypeSettings("int" as unknown as InputRetTypeSettings)).toThrow("Unrecognized InputRetTypeSettings format");
-    });
-
-    it("rejects a [type, decoderSettings] tuple", () => {
-      expect(() => normalizeInputRetTypeSettings(["int", { maxItems: 10 }] as unknown as InputRetTypeSettings)).toThrow(
-        "Unrecognized InputRetTypeSettings format",
-      );
-    });
-
-    it("rejects an object with a type property", () => {
-      const retType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 30 } };
-      expect(() => normalizeInputRetTypeSettings(retType as unknown as InputRetTypeSettings)).toThrow("Unrecognized InputRetTypeSettings format");
+    it("is rejected by the schema for a type declaration", () => {
+      expect(inputRetTypeSettingsSchema.safeParse("int").success).toBe(false);
+      expect(inputRetTypeSettingsSchema.safeParse(["int", { maxItems: 10 }]).success).toBe(false);
     });
   });
 });

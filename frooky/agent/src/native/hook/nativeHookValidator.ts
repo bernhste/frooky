@@ -1,43 +1,45 @@
-import { Param, RetType } from "../../shared/decoders/decodable";
+import { Param } from "../../shared/decoders/decodable";
 import z from "zod";
 
+import { validateInputHook } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
+import { NativeHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { HookValidator } from "../../shared/hook/hookValidator";
 import {
   InputNativeHookCollection,
-  InputNativeHookNormalized,
   isNativeHookCollection,
   mergeNativeHookCollectionSettings,
   normalizeNativeHook,
 } from "../../shared/inputParsing/inputNativeHookCollection";
-import { inputNativeHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
+import { inputNativeHookSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
 import { logger } from "../../shared/logger";
 import { validateDecoderArgRoles, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
 import { acceptedNativeDecoderArgs, NATIVE_DECODER_NAMES } from "../decoders/nativeDecoderResolver";
 
-export class NativeHookValidator implements HookValidator<InputNativeHookNormalized, InputNativeHookCollection> {
-  validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputNativeHookNormalized[] {
+export class NativeHookValidator implements HookValidator<NativeHookDeclaration, InputNativeHookCollection> {
+  validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): NativeHookDeclaration[] {
     const nativeHookCollections = this.getPlatformHookCollections(inputFrookyConfig);
-    const normalizedNativeHooks: InputNativeHookNormalized[] = [];
+    const normalizedNativeHooks: NativeHookDeclaration[] = [];
 
     for (const nativeHookCollection of nativeHookCollections) {
       const { hookSettings, decoderSettings } = mergeNativeHookCollectionSettings(nativeHookCollection, settings);
       for (const inputNativeHook of nativeHookCollection.hooks) {
+        const target = describeNativeFunction(inputNativeHook);
         try {
-          const normalizedNativeHook = normalizeNativeHook(inputNativeHook, nativeHookCollection.module, hookSettings, decoderSettings);
-          validateDecoderArgRoles(normalizedNativeHook.params as Param[] | undefined, acceptedNativeDecoderArgs);
+          const validInputHook = validateInputHook(
+            inputNativeHookSchema,
+            inputNativeHook,
+            `native ${target} from module '${nativeHookCollection.module}'`,
+          );
+          let validatedHook = normalizeNativeHook(validInputHook, nativeHookCollection.module, hookSettings, decoderSettings);
+          validateDecoderArgRoles(validatedHook.params, acceptedNativeDecoderArgs);
           validateDecoderNames(
-            [
-              normalizedNativeHook.decoderSettings,
-              (normalizedNativeHook.retType as RetType | undefined)?.settings,
-              ...((normalizedNativeHook.params as Param[] | undefined) ?? []).map((p) => p.settings),
-            ],
+            [validatedHook.decoderSettings, validatedHook.retType?.settings, ...(validatedHook.params ?? []).map((p) => p.settings)],
             NATIVE_DECODER_NAMES,
             "native",
           );
-          rejectErrnoOnParams(normalizedNativeHook.params as Param[] | undefined);
-          let validatedHook = inputNativeHookNormalizedSchema.parse(normalizedNativeHook);
+          rejectErrnoOnParams(validatedHook.params);
           const blocked = findBlockedFunction(validatedHook);
           if (blocked) {
             const { hookSettings: settings } = validatedHook;
@@ -48,7 +50,7 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
               );
               continue;
             }
-            if (settings && (settings.nativeStackTrace || settings.platformStackTrace)) {
+            if (settings.nativeStackTrace || settings.platformStackTrace) {
               logger.warn(
                 `No stack traces for native function '${validatedHook.symbol}' from module '${nativeHookCollection.module}': ${blocked.reason}.`,
               );
@@ -58,10 +60,6 @@ export class NativeHookValidator implements HookValidator<InputNativeHookNormali
           warnOnHighFrequencyLibcHook(validatedHook);
           normalizedNativeHooks.push(validatedHook);
         } catch (e) {
-          const symbol =
-            typeof inputNativeHook === "string" ? inputNativeHook : Array.isArray(inputNativeHook) ? inputNativeHook[0] : inputNativeHook.symbol;
-          const offset = typeof inputNativeHook === "object" && !Array.isArray(inputNativeHook) ? inputNativeHook.offset : undefined;
-          const target = symbol !== undefined ? `function '${symbol}'` : offset !== undefined ? `function at offset '${offset}'` : "function";
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
           logger.warn(
             `Skipping hook for native ${target} from module '${nativeHookCollection.module}' due to an invalid declaration:\n${validationError}`,
@@ -140,25 +138,25 @@ export const BLOCKED_FUNCTIONS: BlockedFunction[] = [
   { module: "libc.so", symbol: "sigprocmask", stackTraceOnly: true, reason: "the native stack walk crashes the app in it" },
 ];
 
-export function findBlockedFunction(hook: InputNativeHookNormalized): BlockedFunction | undefined {
+export function findBlockedFunction(hook: NativeHookDeclaration): BlockedFunction | undefined {
   if (!hook.symbol) return undefined;
   return BLOCKED_FUNCTIONS.find(
     (blocked) => blocked.symbol === hook.symbol && isModule(hook.module, blocked.module) && (!blocked.runtime || blocked.runtime === Script.runtime),
   );
 }
 
-export function warnOnHighFrequencyLibcHook(hook: InputNativeHookNormalized): void {
+export function warnOnHighFrequencyLibcHook(hook: NativeHookDeclaration): void {
   if (!hook.symbol || !isLibcModule(hook.module) || !HIGH_FREQUENCY_LIBC_SYMBOLS.has(hook.symbol)) {
     return;
   }
 
-  if (hook.hookSettings?.nativeStackTrace || hook.hookSettings?.platformStackTrace) {
+  if (hook.hookSettings.nativeStackTrace || hook.hookSettings.platformStackTrace) {
     logger.warn(
       `Capturing stack traces on high-frequency libc function '${hook.symbol}' in '${hook.module}' can cause recursive stack unwinding or crashes. Keep stack traces disabled for low-level functions.`,
     );
   }
 
-  if (hook.hookSettings?.early && (!hook.hookSettings.callerFilter || hook.hookSettings.callerFilter.length === 0)) {
+  if (hook.hookSettings.early && hook.hookSettings.callerFilter.length === 0) {
     logger.warn(
       `Early hooking enabled for high-frequency libc function '${hook.symbol}' in '${hook.module}' without a callerFilter. This can cause deadlocks or ANRs (Application Not Responding) during app bootstrap. Specify a callerFilter to restrict callers.`,
     );
@@ -173,4 +171,13 @@ function rejectErrnoOnParams(params: Param[] | undefined): void {
       `decoder: errno on '${param.name ?? param.type}' is only supported on the return value, e.g. 'retType: [int, { decoder: errno }]'.`,
     );
   }
+}
+
+// e.g. `function 'open'` or `function at offset '0x1a2b4'`, for a hook declaration that may not be valid yet
+function describeNativeFunction(inputHook: unknown): string {
+  if (typeof inputHook === "string") return `function '${inputHook}'`;
+  if (Array.isArray(inputHook)) return `function '${inputHook[0]}'`;
+  const { symbol, offset } = (inputHook ?? {}) as { symbol?: unknown; offset?: unknown };
+  if (symbol !== undefined) return `function '${symbol}'`;
+  return offset !== undefined ? `function at offset '${offset}'` : "function";
 }

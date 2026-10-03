@@ -1,57 +1,57 @@
-import { Param } from "../../shared/decoders/decodable";
-import { validateDecoderArgRoles, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
 import { acceptedJavaDecoderArgs, javaDecoderNames } from "../decoders/javaDecoderResolver";
 import z from "zod";
+import { validateInputHook } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
+import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { HookValidator } from "../../shared/hook/hookValidator";
+import { validateDecoderArgRoles, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
 import {
   InputJavaHookCollection,
-  InputJavaHookNormalized,
   isJavaHookScope,
   mergeJavaHookCollectionSettings,
   normalizeJavaHook,
 } from "../../shared/inputParsing/inputJavaHookCollection";
-import { inputJavaHookNormalizedSchema } from "../../shared/inputParsing/zodSchemas/inputJavaHookCollection.zod";
+import { inputJavaHookSchema } from "../../shared/inputParsing/zodSchemas/inputJavaHookCollection.zod";
 import { logger } from "../../shared/logger";
 
-export class AndroidHookValidator implements HookValidator<InputJavaHookNormalized, InputJavaHookCollection> {
-  validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): InputJavaHookNormalized[] {
+export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, InputJavaHookCollection> {
+  validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): JavaHookDeclaration[] {
     const javaHookCollections = this.getPlatformHookCollections(inputFrookyConfig);
-    const normalizedJavaHooks: InputJavaHookNormalized[] = [];
+    const normalizedJavaHooks: JavaHookDeclaration[] = [];
 
     for (const javaHookCollection of javaHookCollections) {
       const { hookSettings, decoderSettings } = mergeJavaHookCollectionSettings(javaHookCollection, settings);
       for (const inputJavaHook of javaHookCollection.hooks) {
+        const method = describeJavaMethod(inputJavaHook);
         try {
+          const validInputHook = validateInputHook(
+            inputJavaHookSchema,
+            inputJavaHook,
+            `java method '${method}' from class '${javaHookCollection.javaClass}'`,
+          );
           const normalizedJavaHook = normalizeJavaHook(
             javaHookCollection.javaClass,
-            inputJavaHook,
+            validInputHook,
             hookSettings,
             decoderSettings,
             javaHookCollection.classLoader,
           );
-          normalizedJavaHook.overloads?.forEach((overload) => validateDecoderArgRoles(overload.params as Param[], acceptedJavaDecoderArgs));
+          const overloads = normalizedJavaHook.overloads ?? [];
+          overloads.forEach((overload) => validateDecoderArgRoles(overload.params, acceptedJavaDecoderArgs));
           validateDecoderNames(
-            [
-              normalizedJavaHook.decoderSettings,
-              ...(normalizedJavaHook.overloads ?? []).flatMap((overload) => [
-                overload.retType,
-                ...(overload.params as Param[]).map((p) => p.settings),
-              ]),
-            ],
+            [normalizedJavaHook.decoderSettings, ...overloads.flatMap((overload) => [overload.retType, ...overload.params.map((p) => p.settings)])],
             javaDecoderNames(),
             "Java",
           );
-          if (normalizedJavaHook.hookSettings?.early) {
+          if (normalizedJavaHook.hookSettings.early) {
             logger.warn(
               `Early hooking ('early: true') is not supported for Java method '${normalizedJavaHook.method}' from class '${javaHookCollection.javaClass}' because Java hooks require the Android runtime (ART) to be initialized.`,
             );
             normalizedJavaHook.hookSettings = { ...normalizedJavaHook.hookSettings, early: false };
           }
-          normalizedJavaHooks.push(inputJavaHookNormalizedSchema.parse(normalizedJavaHook));
+          normalizedJavaHooks.push(normalizedJavaHook);
         } catch (e) {
-          const method = typeof inputJavaHook === "string" ? inputJavaHook : Array.isArray(inputJavaHook) ? inputJavaHook[0] : inputJavaHook.method;
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
           logger.warn(
             `Skipping hook for java method '${method}' from class '${javaHookCollection.javaClass}' due to an invalid declaration:\n${validationError}`,
@@ -72,4 +72,11 @@ export class AndroidHookValidator implements HookValidator<InputJavaHookNormaliz
     }
     return platformHookCollection;
   }
+}
+
+// The method name of a hook declaration that may not be valid yet, for messages.
+function describeJavaMethod(inputHook: unknown): string {
+  if (typeof inputHook === "string") return inputHook;
+  if (Array.isArray(inputHook)) return String(inputHook[0]);
+  return String((inputHook as { method?: unknown } | null)?.method);
 }

@@ -2,6 +2,7 @@ import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from 
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
 import { RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
+import { NativeHookDeclaration } from "../hook/hookDeclaration";
 import { InputParam, InputRetType, normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
@@ -11,9 +12,6 @@ import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
  * @public
  */
 export interface InputNativeHookBase {
-  /** Module that contains the function. Inherited from the hook collection. */
-  module: string;
-
   /** Parameters of the function, in order. */
   params?: InputParam[];
 
@@ -21,10 +19,10 @@ export interface InputNativeHookBase {
   retType?: InputRetType;
 
   /** Hook settings for this function. Override the collection's settings. */
-  hookSettings?: HookSettings;
+  hookSettings?: InputHookSettings;
 
   /** Decoder settings for this function. Override the collection's settings. */
-  decoderSettings?: DecoderSettings;
+  decoderSettings?: InputDecoderSettings;
 }
 
 /**
@@ -61,14 +59,14 @@ export interface InputNativeOffsetHook extends InputNativeHookBase {
  *
  * @public
  */
-export type InputNativeHookNormalized = InputNativeSymbolHook | InputNativeOffsetHook;
+export type InputNativeHookDetails = InputNativeSymbolHook | InputNativeOffsetHook;
 
 /**
  * A native function hook: a symbol name, a `[symbol, decoderSettings]` tuple, or a detailed declaration.
  *
  * @public
  */
-export type InputNativeHook = string | [string, DecoderSettings] | InputNativeHookNormalized;
+export type InputNativeHook = string | [string, InputDecoderSettings] | InputNativeHookDetails;
 
 /**
  * Collection of hooks on functions of one native module.
@@ -97,31 +95,21 @@ export function isNativeHookCollection(inputHookScope: object): inputHookScope i
   return "module" in inputHookScope && !("javaClass" in inputHookScope) && !("objcClass" in inputHookScope);
 }
 
-// Normalizes one hook with the merged collection settings. Throws on an invalid param, retType or offset, or
-// unless exactly one of `symbol` and `offset` is set, so validators can skip a single hook.
+// Normalizes one hook, validated against the input schema, with the merged collection settings. Throws on an invalid
+// param, retType or offset, so validators can skip a single hook.
 export function normalizeNativeHook(
   inputHook: InputNativeHook,
-  moduleName: string,
+  module: string,
   hookSettings: HookSettings,
   decoderSettings: DecoderSettings,
-): InputNativeHookNormalized {
+): NativeHookDeclaration {
   if (typeof inputHook === "string") {
-    return {
-      symbol: inputHook,
-      module: moduleName,
-      hookSettings: hookSettings,
-      decoderSettings: decoderSettings,
-    };
+    return { symbol: inputHook, module, hookSettings, decoderSettings };
   }
 
   if (Array.isArray(inputHook)) {
     const [symbol, hookDecoderSettings] = inputHook;
-    return {
-      symbol: symbol,
-      module: moduleName,
-      hookSettings: hookSettings,
-      decoderSettings: validateAndRepairDecoderSettings({ ...decoderSettings, ...hookDecoderSettings }),
-    };
+    return { symbol, module, hookSettings, decoderSettings: validateAndRepairDecoderSettings({ ...decoderSettings, ...hookDecoderSettings }) };
   }
 
   const mergedHookSettings = inputHook.hookSettings ? validateAndRepairHookSettings({ ...hookSettings, ...inputHook.hookSettings }) : hookSettings;
@@ -129,15 +117,9 @@ export function normalizeNativeHook(
     ? validateAndRepairDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
     : decoderSettings;
 
-  const hasSymbol = inputHook.symbol !== undefined;
-  const hasModuleOffset = inputHook.offset !== undefined;
-  if (hasSymbol === hasModuleOffset) {
-    throw new Error("A native hook needs exactly one of `symbol` or `offset`.");
-  }
-  const target = hasSymbol ? { symbol: inputHook.symbol! } : { offset: normalizeModuleOffset(inputHook.offset!) };
-
-  const params = inputHook.params ? normalizeInputParams(inputHook.params, mergedDecoderSettings) : undefined;
-  const retType = inputHook.retType ? normalizeInputRetType(inputHook.retType, mergedDecoderSettings) : undefined;
+  const target = inputHook.symbol !== undefined ? { symbol: inputHook.symbol } : { offset: normalizeModuleOffset(inputHook.offset) };
+  const params = inputHook.params && normalizeInputParams(inputHook.params, mergedDecoderSettings);
+  const retType = inputHook.retType && normalizeInputRetType(inputHook.retType, mergedDecoderSettings);
   // Java hooks know their return type by reflection, a native hook only from its declaration
   if (!retType && params?.some((param) => Object.values(param.settings.decoderArgs ?? {}).includes(RETURN_VALUE_DECODER_ARG))) {
     throw new Error(`decoderArgs: '${RETURN_VALUE_DECODER_ARG}' needs the hook to declare a 'retType', to decode the return value.`);
@@ -145,9 +127,9 @@ export function normalizeNativeHook(
 
   return {
     ...target,
-    module: moduleName,
-    params,
-    retType,
+    module,
+    ...(params && { params }),
+    ...(retType && { retType }),
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
   };
@@ -195,15 +177,16 @@ export function mergeNativeHookCollectionSettings(
   return { hookSettings, decoderSettings };
 }
 
-export function normalizeNativeHookCollection(hookCollection: InputNativeHookCollection, settings: FrookySettings): InputNativeHookCollection {
+// The collection with its merged settings and its hooks normalized
+export function normalizeNativeHookCollection(
+  hookCollection: InputNativeHookCollection,
+  settings: FrookySettings,
+): Omit<InputNativeHookCollection, "hooks"> & { hooks: NativeHookDeclaration[]; hookSettings: HookSettings; decoderSettings: DecoderSettings } {
   const { hookSettings, decoderSettings } = mergeNativeHookCollectionSettings(hookCollection, settings);
-
   return {
     ...hookCollection,
-    hooks: hookCollection.hooks.map((inputHook: InputNativeHook) =>
-      normalizeNativeHook(inputHook, hookCollection.module, hookSettings, decoderSettings),
-    ),
-    hookSettings: hookSettings,
-    decoderSettings: decoderSettings,
+    hooks: hookCollection.hooks.map((inputHook) => normalizeNativeHook(inputHook, hookCollection.module, hookSettings, decoderSettings)),
+    hookSettings,
+    decoderSettings,
   };
 }

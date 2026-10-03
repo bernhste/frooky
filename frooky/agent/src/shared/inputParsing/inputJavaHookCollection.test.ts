@@ -1,7 +1,8 @@
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings } from "../frookySettings";
 import { normalizeInputParams } from "./inputDecodableTypes";
-import { InputJavaHookCollection, InputJavaHookNormalized, isJavaHookScope, normalizeJavaHookCollection } from "./inputJavaHookCollection";
+import { InputJavaHookCollection, InputJavaHookDetails, isJavaHookScope, normalizeJavaHookCollection } from "./inputJavaHookCollection";
+import { inputJavaHookSchema } from "./zodSchemas/inputJavaHookCollection.zod";
 
 describe("inputJavaHookCollection", () => {
   describe("isJavaHookScope()", () => {
@@ -89,7 +90,6 @@ describe("inputJavaHookCollection", () => {
           decoderSettings: { maxDepth: 30 },
           hooks: [
             {
-              javaClass: "com.example.Foo",
               method: "bar",
               hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 },
               decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
@@ -99,8 +99,8 @@ describe("inputJavaHookCollection", () => {
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 });
-        expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
+        expect(result.hooks[0].hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 });
+        expect(result.hooks[0].decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 });
       });
 
       it("merges the hook's own settings on top of the collection's, instead of replacing them wholesale", () => {
@@ -112,23 +112,22 @@ describe("inputJavaHookCollection", () => {
           decoderSettings: { maxDepth: 30, maxItems: 30 },
           hooks: [
             {
-              javaClass: "com.example.Foo",
               method: "bar",
               // intentionally only overrides one field of each settings object
               hookSettings: { maxStackFrames: 40 },
               decoderSettings: { maxDepth: 40 },
-            } as InputJavaHookNormalized,
+            } as InputJavaHookDetails,
           ],
         };
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({
+        expect(result.hooks[0].hookSettings).toEqual({
           ...DEFAULT_HOOK_SETTINGS,
           maxStackFrames: 40,
           callerFilter: ["^collection"],
         });
-        expect((result.hooks[0] as InputJavaHookNormalized).decoderSettings).toEqual({
+        expect(result.hooks[0].decoderSettings).toEqual({
           ...DEFAULT_DECODER_SETTINGS,
           maxDepth: 40,
           maxItems: 30,
@@ -140,12 +139,12 @@ describe("inputJavaHookCollection", () => {
           type: "java",
           javaClass: "com.example.Foo",
           hookSettings: { maxStackFrames: 30 },
-          hooks: [{ javaClass: "com.example.Foo", method: "bar" }],
+          hooks: [{ method: "bar" }],
         };
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
-        expect((result.hooks[0] as InputJavaHookNormalized).hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 30 });
+        expect(result.hooks[0].hookSettings).toEqual({ ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 30 });
       });
 
       it("uses the hook's own (merged) decoderSettings, not just the collection's, to normalize that hook's overloads", () => {
@@ -155,7 +154,6 @@ describe("inputJavaHookCollection", () => {
           decoderSettings: { maxDepth: 30 },
           hooks: [
             {
-              javaClass: "com.example.Foo",
               method: "bar",
               decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
               overloads: [{ params: ["int"] }],
@@ -164,29 +162,15 @@ describe("inputJavaHookCollection", () => {
         };
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
-        const hook = result.hooks[0] as InputJavaHookNormalized;
+        const hook = result.hooks[0];
 
         expect(hook.overloads?.[0].params[0]).toEqual(normalizeInputParams(["int"], { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 })[0]);
       });
     });
 
     describe("hook normalization", () => {
-      it("normalizes a plain method name string into a full InputJavaHookNormalized", () => {
+      it("normalizes a plain method name string into a full JavaHookDeclaration", () => {
         const hookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: ["bar"] };
-
-        const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
-
-        expect(result.hooks).toEqual([
-          { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
-        ]);
-      });
-
-      it("normalizes an object-form hook, always using the hook collection's javaClass", () => {
-        const hookCollection: InputJavaHookCollection = {
-          type: "java",
-          javaClass: "com.example.Foo",
-          hooks: [{ javaClass: "com.example.WrongClass", method: "bar" }],
-        };
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
@@ -201,7 +185,6 @@ describe("inputJavaHookCollection", () => {
           javaClass: "com.example.Foo",
           hooks: [
             {
-              javaClass: "com.example.Foo",
               method: "bar",
               overloads: [{ params: ["int", "java.lang.String"] }],
             },
@@ -230,7 +213,6 @@ describe("inputJavaHookCollection", () => {
           decoderSettings: { maxDepth: 30 },
           hooks: [
             {
-              javaClass: "com.example.Foo",
               method: "bar",
               overloads: [{ params: ["int"], retType: { decoder: "hashCode" } }],
             },
@@ -238,7 +220,7 @@ describe("inputJavaHookCollection", () => {
         };
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
-        const hook = result.hooks[0] as InputJavaHookNormalized;
+        const hook = result.hooks[0];
 
         expect(hook.overloads?.[0].retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "hashCode" });
       });
@@ -247,76 +229,31 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          hooks: [{ javaClass: "com.example.Foo", method: "bar", overloads: [{ params: ["int"] }] }],
+          hooks: [{ method: "bar", overloads: [{ params: ["int"] }] }],
         };
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
-        const hook = result.hooks[0] as InputJavaHookNormalized;
+        const hook = result.hooks[0];
 
         expect(hook.overloads?.[0].retType).toBeUndefined();
       });
 
-      describe("rejects type declarations in retType", () => {
-        it("rejects a plain type string", () => {
-          const hookCollection = {
-            type: "java",
-            javaClass: "com.example.Foo",
-            decoderSettings: { maxDepth: 30 },
-            hooks: [{ javaClass: "com.example.Foo", method: "bar", overloads: [{ params: ["int"], retType: "int" }] }],
-          };
-
-          expect(() => normalizeJavaHookCollection(hookCollection as unknown as InputJavaHookCollection, defaultSettings)).toThrow(
-            "Unrecognized InputRetTypeSettings format",
-          );
-        });
-
-        it("rejects a [type, decoderSettings] tuple", () => {
-          const hookCollection = {
-            type: "java",
-            javaClass: "com.example.Foo",
-            hooks: [
-              {
-                javaClass: "com.example.Foo",
-                method: "bar",
-                overloads: [{ params: ["int"], retType: ["int", { decoder: "hashCode" }] }],
-              },
-            ],
-          };
-
-          expect(() => normalizeJavaHookCollection(hookCollection as unknown as InputJavaHookCollection, defaultSettings)).toThrow(
-            "Unrecognized InputRetTypeSettings format",
-          );
-        });
-
-        it("rejects an object with a type property", () => {
-          const hookCollection = {
-            type: "java",
-            javaClass: "com.example.Foo",
-            hooks: [
-              {
-                javaClass: "com.example.Foo",
-                method: "bar",
-                overloads: [{ params: ["int"], retType: { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "hashCode" } } }],
-              },
-            ],
-          };
-
-          expect(() => normalizeJavaHookCollection(hookCollection as unknown as InputJavaHookCollection, defaultSettings)).toThrow(
-            "Unrecognized InputRetTypeSettings format",
-          );
-        });
+      it("is rejected by the schema for a type declaration in an overload's retType", () => {
+        for (const retType of ["int", ["int", { decoder: "hashCode" }]]) {
+          expect(inputJavaHookSchema.safeParse({ method: "bar", overloads: [{ params: ["int"], retType }] }).success).toBe(false);
+        }
       });
 
       it("normalizes multiple hooks, preserving order", () => {
         const hookCollection: InputJavaHookCollection = {
           type: "java",
           javaClass: "com.example.Foo",
-          hooks: ["bar", { javaClass: "com.example.Foo", method: "baz" }],
+          hooks: ["bar", { method: "baz" }],
         };
 
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
-        expect(result.hooks.map((hook) => (hook as InputJavaHookNormalized).method)).toEqual(["bar", "baz"]);
+        expect(result.hooks.map((hook) => hook.method)).toEqual(["bar", "baz"]);
       });
 
       it("normalizes a [method, decoderSettings] tuple, merging its decoderSettings on top of the collection's", () => {

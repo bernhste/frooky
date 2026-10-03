@@ -4,7 +4,8 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { countFilteredCall, filteredCallCount } from "../../shared/hook/hook";
 import { DecodedArgs, HookManager, ParamDecoder, Resolution, Waiting } from "../../shared/hook/hookManager";
-import { describeNativeTarget, InputNativeHookNormalized } from "../../shared/inputParsing/inputNativeHookCollection";
+import { NativeHookDeclaration } from "../../shared/hook/hookDeclaration";
+import { describeNativeTarget } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { EMPTY_STACK_TRACE, HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
 import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
@@ -84,7 +85,7 @@ type NativeHookCall = {
   decodeMs: number;
 };
 
-export class NativeHookManager extends HookManager<InputNativeHookNormalized, NativeHook, NativePointer> {
+export class NativeHookManager extends HookManager<NativeHookDeclaration, NativeHook, NativePointer> {
   private installedHooks = new Set<NativeHook>();
   // the hooks installed on a function, keyed by its address. Several configs can hook the same function and each
   // records its own event per call.
@@ -102,11 +103,11 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
   // JNI_OnLoad run. The Resolution of a hook on a loaded module is its hooks, or a promise of them if it waits for
   // targetReady. The Resolution of a hook on a module that isn't loaded is decided at targetReady: its hooks if the
   // module loaded by then, else Waiting.
-  public async resolveHooks(inputHooks: InputNativeHookNormalized[], source?: string): Promise<Resolution<NativeHook[] | null>[]> {
+  public async resolveHooks(inputHooks: NativeHookDeclaration[], source?: string): Promise<Resolution<NativeHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "native hook")} in ${plural(new Set(inputHooks.map((h) => h.module)).size, "module")}${fromSource(source)}`,
     );
-    const earlyCount = inputHooks.filter((inputHook) => inputHook.hookSettings?.early).length;
+    const earlyCount = inputHooks.filter((inputHook) => inputHook.hookSettings.early).length;
     if (earlyCount > 0 && !this.frookyAgent.isTargetReady) {
       logger.info(`Early hooking: installing ${plural(earlyCount, "native hook")} with 'early: true' before targetReady${fromSource(source)}`);
     }
@@ -142,26 +143,26 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
   // FrookyAgent installs the hooks: right away with `early: true` or after targetReady, else once targetReady resolves
   private resolveInLoadedModule(
-    inputHook: InputNativeHookNormalized,
+    inputHook: NativeHookDeclaration,
     module: Module,
     findExport: (symbol: string) => NativePointer | undefined,
   ): Resolution<NativeHook[] | null> {
     const hooks = this.resolveHook(inputHook, module, findExport);
-    if (!hooks || inputHook.hookSettings?.early || this.frookyAgent.isTargetReady) return hooks;
+    if (!hooks || inputHook.hookSettings.early || this.frookyAgent.isTargetReady) return hooks;
     return this.targetReady().then(() => hooks);
   }
 
   // Runs inside the linker while it loads `module`: installs the hooks there with `early: true` or after targetReady,
   // else once targetReady resolves
   private installWhileLoading(
-    inputHook: InputNativeHookNormalized,
+    inputHook: NativeHookDeclaration,
     module: Module,
     findExport: (symbol: string) => NativePointer | undefined,
     source?: string,
   ): NativeHook[] | null | Promise<NativeHook[] | null> {
     const hooks = this.resolveHook(inputHook, module, findExport);
     if (!hooks) return null;
-    if (inputHook.hookSettings?.early || this.frookyAgent.isTargetReady) {
+    if (inputHook.hookSettings.early || this.frookyAgent.isTargetReady) {
       this.registerHooks(hooks, source);
       return hooks;
     }
@@ -177,7 +178,7 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
 
   // null if the symbol or offset doesn't resolve
   private resolveHook(
-    inputHook: InputNativeHookNormalized,
+    inputHook: NativeHookDeclaration,
     module: Module,
     findExport: (symbol: string) => NativePointer | undefined,
   ): NativeHook[] | null {
@@ -186,21 +187,21 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
       const symbolAddress =
         inputHook.symbol !== undefined
           ? this.resolveSymbol(inputHook.symbol, module, findExport)
-          : this.resolveModuleOffset(String(inputHook.offset), module);
+          : this.resolveModuleOffset(inputHook.offset, module);
       logger.debug(`Address of function ${target} found: ${symbolAddress}.`);
       return [
         {
           module,
           moduleName: module.name,
           symbolName: inputHook.symbol,
-          offset: inputHook.offset === undefined ? undefined : String(inputHook.offset),
+          offset: inputHook.offset,
           symbolAddress,
           params: inputHook.params,
           retType: inputHook.retType,
           hookSettings: inputHook.hookSettings,
           decoderSettings: inputHook.decoderSettings,
         },
-      ] as NativeHook[];
+      ];
     } catch (e) {
       logger.warn(e instanceof Error ? e.message : String(e));
       return null;

@@ -14,6 +14,12 @@ export default [
   },
 
   {
+    name: "decodable",
+    input: "src/shared/decoders/decodable.ts",
+    output: "src/shared/inputParsing/zodSchemas/decodable.zod.ts",
+  },
+
+  {
     name: "logger",
     input: "src/shared/logger.ts",
     output: "src/shared/inputParsing/zodSchemas/logger.zod.ts",

@@ -135,3 +135,33 @@ export function validateMetadata(metadata: FrookyMetadata, platform: Platform) {
   }
   logger.debug(`frooky meta data are valid`);
 }
+
+// Checks a hook declaration from a hook file against its input schema. Throws if it doesn't match, and warns about
+// properties the schema doesn't know (e.g. a misspelled `retTyp`), which parsing drops.
+export function validateInputHook<T>(schema: z.ZodType<T>, inputHook: unknown, label: string): T {
+  const result = schema.safeParse(inputHook);
+  if (!result.success) {
+    throw new Error(z.prettifyError(result.error));
+  }
+  const unknownProperties = droppedKeys(inputHook, result.data);
+  if (unknownProperties.length > 0) {
+    logger.warn(`Hook for ${label} contains unknown properties, which are ignored: ${unknownProperties.join(", ")}`);
+  }
+  return result.data;
+}
+
+// Paths of the keys in `input` that are missing in `parsed`, e.g. `params[1].nmae`.
+function droppedKeys(input: unknown, parsed: unknown, path = ""): string[] {
+  if (Array.isArray(input) && Array.isArray(parsed)) {
+    return input.flatMap((item, i) => droppedKeys(item, parsed[i], `${path}[${i}]`));
+  }
+  if (!isPlainObject(input) || !isPlainObject(parsed)) return [];
+  return Object.keys(input).flatMap((key) => {
+    const keyPath = path ? `${path}.${key}` : key;
+    return key in parsed ? droppedKeys(input[key], parsed[key], keyPath) : [keyPath];
+  });
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
