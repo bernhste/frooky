@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       api-levels:
-        description: 'Android API levels as a JSON list, e.g. ["29", "36"]. Empty: all.'
+        description: "Comma-separated Android API levels, e.g. 36 or 29, 36. Empty: all."
         default: ""
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api-level: ${{ fromJSON(github.event_name == 'push' && '["34"]' || inputs.api-levels || '["29", "31", "33", "34", "35", "36"]') }}
+        api-level: ${{ fromJSON(github.event_name == 'push' && '[34]' || inputs.api-levels && format('[{0}]', inputs.api-levels) || '[29, 31, 33, 34, 35, 36]') }}
     needs:
       - build-host
       - build-target-apps-android
