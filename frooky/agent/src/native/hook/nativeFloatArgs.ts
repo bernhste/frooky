@@ -90,3 +90,17 @@ export function readFloatArgBits(context: CpuContext, slot: FloatArgSlot): Nativ
 
   return null;
 }
+
+// The value of every param for its decoder, by position, for a hook with float/double params. With separate FP
+// registers, args[] only holds the general-purpose registers, so float/double values are read from the FP registers.
+export function collectArgs(args: InvocationArguments | NativePointer[], context: CpuContext, argSlots: NativeArgSlot[]): NativePointer[] {
+  const separateFloatLanes = usesSeparateFloatRegisterFile();
+  const collected: NativePointer[] = new Array(argSlots.length);
+  for (let i = 0; i < argSlots.length; i++) {
+    const slot = argSlots[i];
+    if (!separateFloatLanes) collected[i] = args[i];
+    else if (slot.kind === "float") collected[i] = readFloatArgBits(context, slot) ?? ptr(0);
+    else collected[i] = args[slot.argIndex];
+  }
+  return collected;
+}

@@ -8,13 +8,13 @@ import { NativeHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { describeNativeTarget } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { EMPTY_STACK_TRACE, HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
-import { FilterMismatchError, fromSource, plural } from "../../shared/utils";
+import { fromSource, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { detectUnsafeContext } from "../unsafeContext";
 import { NativeCallerFilter } from "../nativeCallerFilter";
 import { NativeModuleWatcher } from "../nativeModuleWatcher";
 import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
-import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
+import { collectArgs, planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 import { FindExport, resolveNativeHook } from "./nativeAddressResolver";
 import { NativeHook } from "./nativeHook";
 import { NativeHookIndex } from "./nativeHookIndex";
@@ -404,24 +404,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
     try {
       const call: NativeHookCall = { installedHook, logTarget: this.callLogTarget(target), argsIn: [], stackTrace: EMPTY_STACK_TRACE, decodeMs: 0 };
       if (hook.params) {
-        let effectiveArgs: NativePointer[];
-        const separateFloatLanes = usesSeparateFloatRegisterFile();
-        if (hasFloatArgs) {
-          // args[] only holds general-purpose registers, float/double params are read from FP registers
-          effectiveArgs = new Array(hook.params.length);
-          for (let i = 0; i < hook.params.length; i++) {
-            const slot = argSlots[i];
-            if (slot.kind === "float" && separateFloatLanes) {
-              effectiveArgs[i] = readFloatArgBits(context, slot) ?? ptr(0);
-            } else if (slot.kind === "float") {
-              effectiveArgs[i] = args[i];
-            } else {
-              effectiveArgs[i] = separateFloatLanes ? args[slot.argIndex] : args[i];
-            }
-          }
-        } else {
-          effectiveArgs = args as unknown as NativePointer[];
-        }
+        const effectiveArgs = hasFloatArgs ? collectArgs(args, context, argSlots) : (args as unknown as NativePointer[]);
 
         if (inArgDecoders.length > 0) {
           const decodeStart = Date.now();
@@ -454,8 +437,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       }
       return call;
     } catch (e) {
-      if (e instanceof FilterMismatchError) countFilteredCall(hook);
-      else logger.error(`Error during 'onEnter' of ${target}: ${e}`);
+      this.reportHookError(hook, e, `Error during 'onEnter' of ${target}`);
       return null;
     }
   }
@@ -489,8 +471,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
         decodeMs,
       );
     } catch (e) {
-      if (e instanceof FilterMismatchError) countFilteredCall(hook);
-      else logger.error(`Error during 'onLeave' of ${target}: ${e}`);
+      this.reportHookError(hook, e, `Error during 'onLeave' of ${target}`);
     }
   }
 }

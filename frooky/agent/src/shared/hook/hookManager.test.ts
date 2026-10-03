@@ -3,12 +3,12 @@ import { Decoder } from "../decoders/baseDecoder";
 import { Decodable, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
-import { DEFAULT_DECODER_SETTINGS } from "../defaultValues";
+import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { LogEvent } from "../event/logEvent";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError } from "../utils";
-import { Hook } from "./hook";
+import { filteredCallCount, Hook } from "./hook";
 import { HookManager, ParamDecoder, Resolution } from "./hookManager";
 
 function createFakeFrookyAgent(targetReady: Promise<void> = Promise.resolve()): FrookyAgent {
@@ -71,6 +71,10 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     return this.resolveArgDecoders(params);
   }
 
+  public exposedReportHookError(hook: Hook, e: unknown, message: string): void {
+    this.reportHookError(hook, e, message);
+  }
+
   public exposedResolveRetTypeDecoder(retType: RetType): Decoder<TestValue> {
     return this.resolveRetTypeDecoder(retType);
   }
@@ -103,6 +107,36 @@ function makeParam(overrides: Partial<Param> = {}): Param {
 }
 
 describe("HookManager", () => {
+  describe("reportHookError()", () => {
+    let errorSpy: Mock;
+
+    beforeEach(() => {
+      errorSpy = spyOn(logger, "error");
+    });
+
+    afterEach(() => {
+      errorSpy.mockRestore();
+    });
+
+    it("counts a FilterMismatchError as a filtered call without logging it", () => {
+      const hook: Hook = { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
+
+      createManager().exposedReportHookError(hook, new FilterMismatchError(), "Error during 'onEnter' of foo");
+
+      expect(filteredCallCount(hook)).toBe(1);
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it("logs any other error with the message", () => {
+      const hook: Hook = { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
+
+      createManager().exposedReportHookError(hook, new Error("boom"), "Error during 'onEnter' of foo");
+
+      expect(filteredCallCount(hook)).toBe(0);
+      expect(errorSpy).toHaveBeenCalledWith("Error during 'onEnter' of foo: Error: boom");
+    });
+  });
+
   describe("resolveArgDecoders()", () => {
     it("splits the decoders into in and out, with inout params in both", () => {
       const manager = createManager();

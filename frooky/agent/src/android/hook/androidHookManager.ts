@@ -1,19 +1,17 @@
 import Java from "frida-java-bridge";
 import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
-import { Param } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
-import { DecoderSettings } from "../../shared/frookySettings";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { DecodedArgs, HookManager, mapResolution, ParamDecoder, Resolution } from "../../shared/hook/hookManager";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { logger } from "../../shared/logger";
 import { HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
-import { countFilteredCall } from "../../shared/hook/hook";
-import { FilterMismatchError, formatHashCode, fromSource, plural } from "../../shared/utils";
+import { formatHashCode, fromSource, plural } from "../../shared/utils";
 import { detectUnsafeContext } from "../../native/unsafeContext";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { JavaHook } from "./javaHook";
+import { resolveMethodHooks } from "./javaMethodResolver";
 import { JavaClassResolver, MethodObserver } from "./javaClassResolver";
 import { JavaHookEvent } from "./javaHookEvent";
 
@@ -92,7 +90,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       const { javaClass, classLoader } = inputHooks[hookIndices[0]];
       const classHooks = this.classResolver.find(javaClass, classLoader, (javaClasses, installNow) =>
         hookIndices.map((i) => {
-          const hooks = this.resolveMethodHooks(javaClasses, inputHooks[i]);
+          const hooks = resolveMethodHooks(javaClasses, inputHooks[i]);
           if (hooks && installNow) this.registerHooks(hooks, source);
           return hooks;
         }),
@@ -100,20 +98,6 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       hookIndices.forEach((hookIndex, j) => (results[hookIndex] = mapResolution(classHooks, (hooks) => hooks[j])));
     }
     return results;
-  }
-
-  // null if the method or none of its declared overloads exists in any of `javaClasses`
-  private resolveMethodHooks(javaClasses: Java.Wrapper[], inputHook: JavaHookDeclaration): JavaHook[] | null {
-    const hooks: JavaHook[] = [];
-    for (const javaClass of javaClasses) {
-      try {
-        const method = this.resolveMethod(javaClass, inputHook);
-        hooks.push(...this.resolveOverloads(method, inputHook));
-      } catch (e) {
-        logger.warn(e instanceof Error ? e.message : String(e));
-      }
-    }
-    return hooks.length > 0 ? hooks : null;
   }
 
   // Runs `observer` after every call of `method`, next to the hooks installed on it
@@ -276,8 +260,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     try {
       stackTrace = this.stackTrace.build(hook.hookSettings, { unsafeContext, filterCallers: true });
     } catch (e) {
-      if (e instanceof FilterMismatchError) countFilteredCall(hook);
-      else logger.error(`Failed to build the stack trace of ${target}: ${e}`);
+      this.reportHookError(hook, e, `Failed to build the stack trace of ${target}`);
       return null;
     }
 
@@ -288,8 +271,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       try {
         decodedArgs.in = this.decodeArgs(args, inArgDecoders, logTarget);
       } catch (e) {
-        if (e instanceof FilterMismatchError) countFilteredCall(hook);
-        else logger.error(`Decoder error during 'onEnter' argument decoding of ${target}: ${e}`);
+        this.reportHookError(hook, e, `Decoder error during 'onEnter' argument decoding of ${target}`);
         return null;
       }
     }
@@ -315,8 +297,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       try {
         decodedArgs.out = this.decodeArgs(args, outArgDecoders, logTarget, decodedRetValue);
       } catch (e) {
-        if (e instanceof FilterMismatchError) countFilteredCall(hook);
-        else logger.error(`Decoder error during 'onLeave' argument decoding of ${target}: ${e}`);
+        this.reportHookError(hook, e, `Decoder error during 'onLeave' argument decoding of ${target}`);
         return;
       }
     }
@@ -326,68 +307,6 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     // identityHashCode() runs no app code, unlike an overridden hashCode(), and stays the same while the object mutates
     const hashCode = fieldType.fieldType === "instance" ? formatHashCode(getJavaSystem().identityHashCode(instance)) : undefined;
     this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook, decodeMs);
-  }
-
-  private buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {
-    return argTypes.reduce((params: Param[], type: Java.Type) => {
-      if (type.className) {
-        params.push({
-          type: type.className,
-          direction: "in",
-          declaringClass,
-          settings: decoderSettings,
-        });
-      } else {
-        logger.warn(`No Frida type name for the VM type ${type.name} found.`);
-      }
-      return params;
-    }, []);
-  }
-
-  private resolveMethod(javaClass: Java.Wrapper, inputHook: JavaHookDeclaration): Java.MethodDispatcher {
-    const resolvedMethod = javaClass[inputHook.method];
-    if (resolvedMethod) {
-      return resolvedMethod;
-    } else {
-      throw Error(`Skipping hook for '${inputHook.method}'. This method does not exist in class '${javaClass.$className}'.`);
-    }
-  }
-
-  private resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDeclaration): JavaHook[] {
-    const result: JavaHook[] = [];
-    const declaringClass = method.holder.$className;
-    if (inputHook.overloads?.length) {
-      // only the declared overloads
-      for (const overload of inputHook.overloads) {
-        const params: Param[] = overload.params.map((param) => ({ ...param, declaringClass }));
-        const paramTypes: string[] = params.map((param) => param.type);
-        try {
-          result.push({
-            methodName: method.methodName,
-            method: method.overload(...paramTypes),
-            params,
-            hookSettings: inputHook.hookSettings,
-            decoderSettings: inputHook.decoderSettings,
-            retTypeSettings: overload.retType,
-          });
-        } catch (e) {
-          logger.warn(`Skipping overload for method '${inputHook.method}(${paramTypes})'. The overload does not exist.`);
-        }
-      }
-    } else {
-      // all overloads
-      for (const javaMethod of method.overloads) {
-        const params: Param[] = this.buildParamsFromArgumentTypes(javaMethod.argumentTypes, inputHook.decoderSettings, declaringClass);
-        result.push({
-          methodName: method.methodName,
-          method: javaMethod,
-          params: params,
-          hookSettings: inputHook.hookSettings,
-          decoderSettings: inputHook.decoderSettings,
-        });
-      }
-    }
-    return result;
   }
 
   private buildFieldType(instance: Java.Wrapper): FieldType {

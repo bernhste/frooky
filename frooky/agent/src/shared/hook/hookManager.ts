@@ -7,7 +7,7 @@ import { DecoderArgRole, DecoderArgValues, RETURN_VALUE_DECODER_ARG } from "../d
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError, previewValue } from "../utils";
-import { Hook } from "./hook";
+import { countFilteredCall, Hook } from "./hook";
 
 export type ParamDecoder<TValue> = {
   decoder: Decoder<TValue>;
@@ -81,6 +81,12 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
       );
       return paramDecoder;
     });
+  }
+
+  // Counts a call that a callerFilter or argFilter dropped (FilterMismatchError), logs any other error as `message: e`
+  protected reportHookError(hook: THooks, e: unknown, message: string): void {
+    if (e instanceof FilterMismatchError) countFilteredCall(hook);
+    else logger.error(`${message}: ${e}`);
   }
 
   // The decoders of `params`, split by when they run: `in` before the call, `out` after it, `inout` in both

@@ -1,6 +1,6 @@
 import { Param } from "../../shared/decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
-import { planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
+import { collectArgs, planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
 
 const param = (type: string): Param => ({ type, direction: "in", settings: DEFAULT_DECODER_SETTINGS });
 
@@ -126,5 +126,28 @@ describe("readFloatArgBits", () => {
   it("returns null for a context with no recognizable float register at all", () => {
     const context = { eax: ptr(0) } as unknown as CpuContext;
     expect(readFloatArgBits(context, { fpIndex: 0, byteLength: 4 })).toBeNull();
+  });
+});
+
+describe("collectArgs", () => {
+  it("reads float/double params from the FP registers and the others from args[] by their int position", () => {
+    // f(int a, double b, int c): args[] holds a and c, b is in the first FP register
+    const slots = planArgSlots([param("int"), param("double"), param("int")]);
+    const context = { pc: ptr(0), sp: ptr(0), xmm0: xmmBufferFor(2.5, 8) } as unknown as CpuContext;
+
+    const collected = collectArgs([ptr(1), ptr(3)], context, slots);
+
+    expect(collected.map((value) => value.toString())).toEqual([
+      ptr(1).toString(),
+      readFloatArgBits(context, { fpIndex: 0, byteLength: 8 })!.toString(),
+      ptr(3).toString(),
+    ]);
+  });
+
+  it("reads a float param past the FP argument registers as 0", () => {
+    const slots = planArgSlots(Array.from({ length: 9 }, () => param("float")));
+    const context = { pc: ptr(0), sp: ptr(0) } as unknown as CpuContext;
+
+    expect(collectArgs([], context, slots)[8].toString()).toBe(ptr(0).toString());
   });
 });
