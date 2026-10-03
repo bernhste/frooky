@@ -22,7 +22,6 @@ class TestRunnerOptions:
         assert options.user_scripts == []
         assert options.agent_option_verbose is False
         assert options.agent_option_very_verbose is False
-        assert options.agent_option_resolver_timeout is None
         assert options.print_events is False
         assert options.runtime is None
 

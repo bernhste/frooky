@@ -1,6 +1,6 @@
 import Java from "frida-java-bridge";
 import { FrookyAgent } from "../FrookyAgent";
-import { DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "../shared/defaultValues";
+import { DEFAULT_SETTING_LOG_TO } from "../shared/defaultValues";
 import { InputFrookyConfig } from "../shared/frookyConfig";
 import { AndroidStackTrace } from "./androidStackTrace";
 import { AndroidHookManager } from "./hook/androidHookManager";
@@ -21,7 +21,6 @@ const frookyAgent = new FrookyAgent(
   AndroidStackTrace,
   "debug",
   DEFAULT_SETTING_LOG_TO,
-  DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
   undefined,
   new Promise((resolve) => Java.perform(() => resolve())),
 );

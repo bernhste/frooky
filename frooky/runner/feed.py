@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import math
 import queue
 import re
 import threading
-import time
 from collections import deque
 from datetime import datetime
-from typing import Callable, Optional
+from typing import Optional
 
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.live import Live
@@ -60,58 +58,50 @@ def normalize_level(level: str) -> str:
 
 class HookStatus:
     """The hooks segment of the status bar, e.g.
-    `Resolving hooks: 38 hooked, 4 pending (3s)`, then `# Hooks 38 (1 waiting, 2 not resolved)`.
+    `Resolving hooks: 38 hooked, 4 resolving`, then `# Hooks 38 (1 waiting, 2 not found)`.
 
     It is busy (the bar shows a spinner) until the agent's first progress report and while anything
-    is pending. After the report delay (-t), the agent reports classes and modules that haven't loaded
-    as waiting: their hooks are installed whenever they load. The countdown restarts whenever resolving
-    starts again, e.g. on a reload, and is recomputed on every redraw.
+    is resolving. Once the lookups at the target's start (targetReady) have run, the agent reports classes
+    and modules that haven't loaded as waiting: their hooks are installed whenever they load.
     """
 
-    def __init__(self, timeout_seconds: float, clock: Callable[[], float] = time.monotonic):
+    def __init__(self):
         self.hooked = 0
-        self.pending = 0
+        self.resolving = 0
         self.waiting = 0
-        self.failed = 0
+        self.not_found = 0
         self._reported = False
-        self._timeout_seconds = timeout_seconds
-        self._clock = clock
-        self._deadline = clock() + timeout_seconds
 
-    def update(self, hooked: int, pending: int, failed: int = 0, waiting: int = 0) -> None:
-        if pending > 0 and self._reported and self.pending == 0:
-            self._deadline = self._clock() + self._timeout_seconds
+    def update(self, hooked: int, resolving: int, not_found: int = 0, waiting: int = 0) -> None:
         self.hooked = hooked
-        self.pending = pending
+        self.resolving = resolving
         self.waiting = waiting
-        self.failed = failed
+        self.not_found = not_found
         self._reported = True
 
     @property
     def busy(self) -> bool:
-        return not self._reported or self.pending > 0
+        return not self._reported or self.resolving > 0
 
     def describe(self) -> str:
         if not self._reported:
             return "Loading hooks..."
-        if self.pending == 0:
+        if self.resolving == 0:
             return ", ".join([f"Hooks ready: {self.hooked:,} hooked", *self.describe_unhooked()])
-        text = f"Resolving hooks: {self.hooked:,} hooked, {self.pending:,} pending"
-        seconds_left = math.ceil(self._deadline - self._clock())
-        return f"{text} ({seconds_left}s)" if seconds_left > 0 else text
+        return f"Resolving hooks: {self.hooked:,} hooked, {self.resolving:,} resolving"
 
     def describe_unhooked(self) -> list[str]:
-        """e.g. `["1 waiting", "2 not resolved"]`"""
+        """e.g. `["1 waiting", "2 not found"]`"""
         parts = []
         if self.waiting:
             parts.append(f"{self.waiting:,} waiting")
-        if self.failed:
-            parts.append(f"{self.failed:,} not resolved")
+        if self.not_found:
+            parts.append(f"{self.not_found:,} not found")
         return parts
 
 
 # the agent's HookStatistic states, in the order the hook statistics list them
-_STATISTIC_STATES = {"installed": "hooked", "waiting": "waiting", "pending": "pending", "failed": "not resolved"}
+_STATISTIC_STATES = {"installed": "hooked", "waiting": "waiting", "resolving": "resolving", "notFound": "not found"}
 
 
 def format_hook_statistics(statistics: list[dict]) -> Table:
@@ -127,7 +117,7 @@ def format_hook_statistics(statistics: list[dict]) -> Table:
     table.add_column("Decoding time (sum)", justify="right")
     table.add_column("Target", overflow="fold")
     table.add_column("File", no_wrap=True)
-    any_waiting = any(row["state"] in ("waiting", "pending") for row in statistics)
+    any_waiting = any(row["state"] in ("waiting", "resolving") for row in statistics)
     if any_waiting:
         table.add_column("Waits for", overflow="fold")
     order = list(_STATISTIC_STATES)
@@ -136,7 +126,7 @@ def format_hook_statistics(statistics: list[dict]) -> Table:
     file_styles = {config: ACCENT_STYLES[i % len(ACCENT_STYLES)] for i, config in enumerate(sorted({row["config"] for row in rows}))}
     for row in rows:
         installed = row["state"] == "installed"
-        waiting = row["state"] in ("waiting", "pending")
+        waiting = row["state"] in ("waiting", "resolving")
         cells = [
             Text(_STATISTIC_STATES.get(row["state"], row["state"]), style="" if installed else "bold gold1"),
             f"{row['overloads']:,}" if installed and row.get("overloads") is not None else "-",

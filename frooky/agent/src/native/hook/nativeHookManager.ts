@@ -97,13 +97,17 @@ export class NativeHookManager extends HookManager<InputNativeHookNormalized, Na
     super(NativeDecoderResolver, platformStackTrace, frookyAgent);
   }
 
-  // Native hooks default to waiting for FrookyAgent.targetReady (platformReady) before installation to ensure
+  // Native hooks default to waiting for FrookyAgent.targetReady before installation to ensure
   // stability during early process bootstrap. Hooks with `early: true` are installed immediately or inside
   // the linker before constructors and JNI_OnLoad run.
   public async resolveHooks(inputHooks: InputNativeHookNormalized[], source?: string): Promise<Promise<NativeHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "native hook")} in ${plural(new Set(inputHooks.map((h) => h.module)).size, "module")}${fromSource(source)}`,
     );
+    const earlyCount = inputHooks.filter((inputHook) => inputHook.hookSettings?.early).length;
+    if (earlyCount > 0 && !this.frookyAgent.isTargetReady) {
+      logger.info(`Early hooking: installing ${plural(earlyCount, "native hook")} with 'early: true' before targetReady${fromSource(source)}`);
+    }
 
     // each module is looked up once, no matter how many hooks target it
     const hookIndicesByModule = new Map<string, number[]>();

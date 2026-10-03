@@ -28,9 +28,8 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
     # frooky agent options group
     agent_options = parser.add_argument_group("frooky agent options")
-    agent_options.add_argument("-v", action="store_true", help="also show info logs from the frooky agent: target, hook file parsing and hook resolving (warnings and errors are always shown).")
+    agent_options.add_argument("-v", action="store_true", help="also show info logs from the frooky agent: its phases, hook file parsing and hook resolving (warnings and errors are always shown).")
     agent_options.add_argument("-vv", action="store_true", help="also show info and debug logs from the frooky agent, e.g. hook file contents and resolved decoders.")
-    agent_options.add_argument("-t", "--resolver-timeout", metavar="SECONDS", type=int, default=5, help="Seconds after the app starts until classes and modules that haven't loaded are reported as waiting; their hooks are still installed when they load (default: 5)")
     agent_options.add_argument(
         "--runtime",
         choices=["qjs", "v8"],
@@ -131,7 +130,6 @@ def _build_runner_options(args: argparse.Namespace, hook_paths: list[Path], scri
         user_scripts=script_paths,
         agent_option_verbose=args.v,
         agent_option_very_verbose=args.vv,
-        agent_option_resolver_timeout=args.resolver_timeout,
         print_events=args.print_events,
         watch=args.watch,
         runtime=args.runtime,
@@ -145,9 +143,6 @@ def main() -> int:
         sys.exit(1)
 
     args = parser.parse_args()
-
-    if args.resolver_timeout <= 0:
-        raise argparse.ArgumentTypeError(f"--resolver-timeout ({args.resolver_timeout}) is not a positive integer")
 
     _validate_agent_dist()
     _validate_device_selection(parser, args)

@@ -45,16 +45,16 @@ class TestUpdateStatusLine:
 
 class TestOnProgress:
     def test_updates_the_hook_status_in_the_status_bar(self, tmp_path):
-        runner = make_runner(tmp_path, agent_option_resolver_timeout=5)
+        runner = make_runner(tmp_path)
         try:
             runner.feed.console.width = 140
             runner.feed.hook_status(runner._hook_status)
             runner.feed.status(0, "Waiting for events...")
 
-            runner._on_progress({"frooky": "progress", "hooked": 30, "pending": 4})
+            runner._on_progress({"frooky": "progress", "hooked": 30, "resolving": 4})
             assert "Resolving hooks: 30 hooked" in runner.feed.render_status_bar().plain
 
-            runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0})
+            runner._on_progress({"frooky": "progress", "hooked": 38, "resolving": 0})
             assert runner.feed.render_status_bar().plain.startswith(" # Hooks  38  │  Last Event ")
         finally:
             runner._stop_live_terminal()
@@ -62,15 +62,15 @@ class TestOnProgress:
 
 class TestOnProgressWithoutTerminal:
     def test_logs_hooks_ready_once_resolving_is_done(self, tmp_path):
-        runner = make_runner(tmp_path, agent_option_resolver_timeout=5)
+        runner = make_runner(tmp_path)
         try:
             runner.feed.log = MagicMock()
 
-            runner._on_progress({"frooky": "progress", "hooked": 30, "pending": 4, "failed": 0})
-            runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0, "failed": 1})
-            runner._on_progress({"frooky": "progress", "hooked": 38, "pending": 0, "failed": 1})
+            runner._on_progress({"frooky": "progress", "hooked": 30, "resolving": 4, "notFound": 0})
+            runner._on_progress({"frooky": "progress", "hooked": 38, "resolving": 0, "notFound": 1})
+            runner._on_progress({"frooky": "progress", "hooked": 38, "resolving": 0, "notFound": 1})
 
-            runner.feed.log.assert_called_once_with("info", "Hooks ready: 38 hooked, 1 not resolved")
+            runner.feed.log.assert_called_once_with("info", "Hooks ready: 38 hooked, 1 not found")
         finally:
             runner._stop_live_terminal()
 
@@ -418,7 +418,7 @@ class TestRunWatch:
         self._run_editing(monkeypatch, runner, [lambda: runner._on_key("r")])
 
         script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": []}, True)
-        assert "Reloading hook files and retrying unresolved hooks..." in capsys.readouterr().out
+        assert "Reloading hook files and retrying hooks that were not found..." in capsys.readouterr().out
 
     def test_r_picks_up_file_changes_without_watch(self, monkeypatch, tmp_path):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)

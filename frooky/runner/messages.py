@@ -18,7 +18,7 @@ def create_message_handler(
 ):
     """Build the frooky agent's message callback: writes hook/log events to the output file
     and optionally prints them to the feed, calling on_event after each event in a batch (or on_batch once per batch).
-    Hook resolving progress reports ({"frooky": "progress", "hooked": n, "pending": n, "waiting": n, "failed": n}) go to on_progress,
+    Hook resolving progress reports ({"frooky": "progress", "hooked": n, "resolving": n, "waiting": n, "notFound": n}) go to on_progress,
     crash reports ({"frooky": "crash", "type": ..., "address": ..., "backtrace": [...], "nativeHooks": [...]}) to on_crash."""
 
     def on_message(message, data):

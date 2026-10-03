@@ -164,7 +164,7 @@ $ frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_bas
                                               Output:  output.json
                                               Runtime: QuickJS
 
-  Press R to reload the hook files and retry failed hooks, I for hook statistics, Ctrl+C to stop...
+  Press R to reload the hook files and retry hooks that were not found, I for hook statistics, Ctrl+C to stop...
 
 ┌─ java (static) ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ time:         2026-09-16T20:24:24.094Z

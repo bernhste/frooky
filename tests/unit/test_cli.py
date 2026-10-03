@@ -1,6 +1,5 @@
 """Tests for CLI functionality such as parameter parsing and command validation."""
 
-import argparse
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -45,7 +44,6 @@ class TestArgumentParsing:
         assert args.hooks == ["hooks.yaml"]
         assert args.output == "output.json"
         assert args.print_events is False
-        assert args.resolver_timeout == 5
         assert args.user_scripts == []
         assert args.v is False
         assert args.vv is False
@@ -67,21 +65,6 @@ class TestArgumentParsing:
         args = parser.parse_args(["-F", "-l", "one.js", "-l", "two.js", "hooks.yaml"])
 
         assert args.user_scripts == ["one.js", "two.js"]
-
-    def test_resolver_timeout_is_parsed_as_int(self):
-        parser = build_parser()
-        args = parser.parse_args(["-F", "-t", "10", "hooks.yaml"])
-
-        assert args.resolver_timeout == 10
-        assert isinstance(args.resolver_timeout, int)
-
-    def test_resolver_timeout_rejects_non_integer(self, capsys):
-        parser = build_parser()
-        with pytest.raises(SystemExit) as exc_info:
-            parser.parse_args(["-F", "-t", "not-a-number", "hooks.yaml"])
-
-        assert exc_info.value.code == 2
-        assert "resolver-timeout" in capsys.readouterr().err.lower()
 
     def test_runtime_choices(self):
         parser = build_parser()
@@ -192,14 +175,6 @@ class TestMain:
         assert exc_info.value.code == 1
         assert "usage" in capsys.readouterr().out.lower()
 
-    def test_rejects_non_positive_resolver_timeout(self, monkeypatch, tmp_path):
-        hooks_file = tmp_path / "hooks.yaml"
-        hooks_file.write_text("category: TEST\nhooks: []\n")
-        monkeypatch.setattr("sys.argv", ["frooky", "-F", "-t", "0", str(hooks_file)])
-
-        with pytest.raises(argparse.ArgumentTypeError, match="resolver-timeout"):
-            main()
-
     def test_rejects_multiple_device_selectors(self, monkeypatch, tmp_path, capsys):
         hooks_file = tmp_path / "hooks.yaml"
         hooks_file.write_text("category: TEST\nhooks: []\n")
@@ -272,8 +247,6 @@ class TestMain:
                 str(script_file),
                 "-o",
                 str(output_path),
-                "-t",
-                "9",
                 "-e",
                 str(hooks_file),
             ],
@@ -288,6 +261,5 @@ class TestMain:
         assert options.user_scripts == [script_file.resolve()]
         assert options.output_path == Path(str(output_path))
         assert options.attach_pid == 4321
-        assert options.agent_option_resolver_timeout == 9
         assert options.print_events is True
         stub_runner.return_value.run.assert_called_once()

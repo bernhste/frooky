@@ -1,10 +1,5 @@
 import { describeHooked, describeLoad, FrookyAgent, HookProgress } from "./FrookyAgent";
-import {
-  DEFAULT_DECODER_SETTINGS,
-  DEFAULT_HOOK_SETTINGS,
-  DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
-  PROGRESS_INTERVAL_MS,
-} from "./shared/defaultValues";
+import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS, PROGRESS_INTERVAL_MS } from "./shared/defaultValues";
 import { stopEventSender } from "./shared/event/eventSender";
 import { InputFrookyConfig } from "./shared/frookyConfig";
 import { countFilteredCall, Hook } from "./shared/hook/hook";
@@ -58,7 +53,7 @@ function createAgent(
   validator: HookValidator<any, any>,
   manager: HookManager<any, any, any>,
   reportProgress?: (progress: HookProgress) => void,
-  reportDelaySeconds: number = DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
+  targetReady: Promise<void> = Promise.resolve(),
 ): { agent: FrookyAgent; manager: HookManager<any, any, any> } {
   const agent = new FrookyAgent(
     "Android",
@@ -67,8 +62,8 @@ function createAgent(
     fakeStackTrace,
     "none", // keep the constructor's own logging quiet; we assert on logger.* directly below
     "console",
-    reportDelaySeconds,
     reportProgress,
+    targetReady,
   );
   return { agent, manager };
 }
@@ -130,7 +125,7 @@ describe("FrookyAgent", () => {
 
       expect(rawManager.registerHooks).toHaveBeenCalledTimes(1);
       expect(rawManager.registerHooks).toHaveBeenCalledWith([hookA], "Test Config");
-      expect(infoSpy).toHaveBeenCalledWith("Loaded Test Config: 2 new; hooked 1 method, 1 not resolved");
+      expect(infoSpy).toHaveBeenCalledWith("Loaded Test Config: 2 new; hooked 1 method, 1 not found");
     });
 
     it("logs an error and does not throw when the hook manager's resolveHooks() rejects", async () => {
@@ -144,7 +139,7 @@ describe("FrookyAgent", () => {
       expect(rawManager.registerHooks).not.toHaveBeenCalled();
     });
 
-    it("reports every hook as not resolved when every hook collection failed to resolve", async () => {
+    it("reports every hook as not found when no hook collection resolves", async () => {
       const rawManager = fakePlatformHookManager();
       rawManager.resolveHooks.mockResolvedValue([Promise.resolve(null)]);
       const { agent } = createAgent(fakePlatformHookValidator(["normalized-hook"]), rawManager as unknown as HookManager<any, any, any>);
@@ -152,7 +147,7 @@ describe("FrookyAgent", () => {
       await agent.loadFrookyConfig(makeConfig());
 
       expect(rawManager.registerHooks).not.toHaveBeenCalled();
-      expect(infoSpy).toHaveBeenCalledWith("Loaded Test Config: 1 new; hooked nothing, 1 not resolved");
+      expect(infoSpy).toHaveBeenCalledWith("Loaded Test Config: 1 new; hooked nothing, 1 not found");
     });
   });
 
@@ -256,7 +251,7 @@ describe("FrookyAgent", () => {
       expect(rawManager.unregisterHooks).toHaveBeenCalledWith(hooks);
     });
 
-    it("does not retry unchanged hooks that failed to resolve in the previous version", async () => {
+    it("does not retry unchanged hooks that were not found in the previous version", async () => {
       const { agent, rawManager } = setup(["a", "b"], ["a", "c"]);
       rawManager.resolveHooks.mockResolvedValueOnce([Promise.resolve(null), Promise.resolve([fakeHook()])]);
 
@@ -267,7 +262,7 @@ describe("FrookyAgent", () => {
       expect(resolvedNames(rawManager.resolveHooks.mock.calls[1])).toEqual(["c"]);
     });
 
-    it("retries only the failed hooks when asked to, leaving installed ones in place", async () => {
+    it("retries only the hooks that were not found when asked to, leaving installed ones in place", async () => {
       const { agent, rawManager } = setup(["a", "b"], ["a", "b"]);
       rawManager.resolveHooks.mockResolvedValueOnce([Promise.resolve(null), Promise.resolve([fakeHook()])]);
 
@@ -325,35 +320,38 @@ describe("FrookyAgent", () => {
     const hookA2 = { javaClass: "com.example.A", method: "two" };
     const hookB = { javaClass: "com.example.B", method: "three" };
 
-    // resolves class B at once and leaves class A pending until the returned function is called
-    function setupWithPendingClass(reportProgress?: (progress: HookProgress) => void, reportDelaySeconds?: number) {
+    // never resolves, so class A stays resolving instead of waiting
+    const notReady = new Promise<void>(() => {});
+
+    // resolves class B at once and leaves class A unresolved until the returned function is called
+    function setupWithPendingClass(reportProgress?: (progress: HookProgress) => void, targetReady?: Promise<void>) {
       const rawManager = fakeResolvingHookManager();
       let resolveClassA: (hooks: Hook[] | null) => void = () => {};
       const classA = new Promise<Hook[] | null>((resolve) => (resolveClassA = resolve));
       rawManager.resolveHooks.mockImplementationOnce(async () => [classA, classA, Promise.resolve([fakeHook()])]);
       const validator = fakePlatformHookValidator([hookA1, hookA2, hookB]);
-      const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>, reportProgress, reportDelaySeconds);
+      const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>, reportProgress, targetReady);
       return { agent, rawManager, validator, resolveClassA: (hooks: Hook[] | null) => resolveClassA(hooks) };
     }
 
-    it("reports a class that isn't loaded after the report delay as waiting, and installs its hooks when it loads", async () => {
-      const { agent, rawManager, resolveClassA } = setupWithPendingClass(undefined, 0.05);
+    it("reports a class that isn't loaded once the lookups at targetReady have run as waiting, and installs its hooks when it loads", async () => {
+      const { agent, rawManager, resolveClassA } = setupWithPendingClass();
 
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
 
-      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 0, waiting: 1, failed: 0 });
-      expect(warnSpy).toHaveBeenCalledWith("Java class 'com.example.A' not loaded within 0.05 seconds. Its hooks are installed when it loads.");
+      expect(agent.hookProgress()).toEqual({ hooked: 1, resolving: 0, waiting: 1, notFound: 0 });
+      expect(infoSpy).toHaveBeenCalledWith("Java class 'com.example.A' isn't loaded yet. Its hooks are installed when it loads.");
       expect(infoSpy).toHaveBeenCalledWith("Loaded hooks.yaml: 3 new; hooked 1 method, 2 waiting");
 
       resolveClassA([fakeHook()]);
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(agent.hookProgress()).toEqual({ hooked: 3, pending: 0, waiting: 0, failed: 0 });
+      expect(agent.hookProgress()).toEqual({ hooked: 3, resolving: 0, waiting: 0, notFound: 0 });
       expect(rawManager.registerHooks).toHaveBeenCalledTimes(3);
     });
 
     it("lists every declaration with its state and the events, filtered calls and decode time of its hooks", async () => {
-      const { agent, rawManager } = setupWithPendingClass(undefined, 0.05);
+      const { agent, rawManager } = setupWithPendingClass();
       await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
       const [installedHook] = rawManager.registerHooks.mock.calls[0][0] as Hook[];
       agent.addEventToLog(new LogEvent("info", "event"), installedHook, 2);
@@ -395,7 +393,7 @@ describe("FrookyAgent", () => {
     });
 
     it("unhooks a waiting hook that loads after its declaration was removed", async () => {
-      const { agent, rawManager, validator, resolveClassA } = setupWithPendingClass(undefined, 0.05);
+      const { agent, rawManager, validator, resolveClassA } = setupWithPendingClass();
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
       (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce([]);
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
@@ -405,38 +403,65 @@ describe("FrookyAgent", () => {
       await new Promise((r) => setTimeout(r, 10));
 
       expect(rawManager.unregisterHooks).toHaveBeenCalledWith(hooks);
-      expect(agent.hookProgress()).toEqual({ hooked: 0, pending: 0, waiting: 0, failed: 0 });
+      expect(agent.hookProgress()).toEqual({ hooked: 0, resolving: 0, waiting: 0, notFound: 0 });
     });
 
     it("counts installed hooks and the classes still being looked up", async () => {
-      const { agent, resolveClassA } = setupWithPendingClass();
+      const { agent, resolveClassA } = setupWithPendingClass(undefined, notReady);
 
       const loading = agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 1, waiting: 0, failed: 0 });
+      expect(agent.hookProgress()).toEqual({ hooked: 1, resolving: 1, waiting: 0, notFound: 0 });
 
       resolveClassA(null);
       await loading;
 
-      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 0, waiting: 0, failed: 2 });
+      expect(agent.hookProgress()).toEqual({ hooked: 1, resolving: 0, waiting: 0, notFound: 2 });
     });
 
-    it("marks a hook whose resolving rejected as failed instead of leaving it pending", async () => {
+    it("marks a hook whose resolving rejected as not found instead of leaving it resolving", async () => {
       const rawManager = fakeResolvingHookManager();
       rawManager.resolveHooks.mockImplementationOnce(async () => [Promise.reject(new Error("no such overload")), Promise.resolve([fakeHook()])]);
       const { agent } = createAgent(fakePlatformHookValidator([hookA1, hookB]), rawManager as unknown as HookManager<any, any, any>);
 
       await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
 
-      expect(agent.hookProgress()).toEqual({ hooked: 1, pending: 0, waiting: 0, failed: 1 });
+      expect(agent.hookProgress()).toEqual({ hooked: 1, resolving: 0, waiting: 0, notFound: 1 });
       expect(warnSpy).toHaveBeenCalledWith("Failed to hook com.example.A.one (hooks.yaml): no such overload");
-      expect(infoSpy).toHaveBeenCalledWith("Loaded hooks.yaml: 2 new; hooked 1 method, 1 not resolved");
+      expect(infoSpy).toHaveBeenCalledWith("Loaded hooks.yaml: 2 new; hooked 1 method, 1 not found");
     });
 
-    it("reports the progress, throttled, ending with nothing pending", async () => {
+    it("resolves loadFrookyConfigs() once the hooks that need no event are installed, without waiting for targetReady", async () => {
+      const { agent, rawManager, resolveClassA } = setupWithPendingClass(undefined, notReady);
+
+      await agent.loadFrookyConfigs([makeConfig()], ["hooks.yaml"]);
+
+      expect(rawManager.registerHooks).toHaveBeenCalledTimes(1);
+      expect(agent.hookProgress()).toEqual({ hooked: 1, resolving: 1, waiting: 0, notFound: 0 });
+      expect(summaryLogs()).toEqual([]);
+
+      resolveClassA([fakeHook()]);
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(agent.hookProgress()).toEqual({ hooked: 3, resolving: 0, waiting: 0, notFound: 0 });
+      expect(summaryLogs()).toEqual(["Loaded hooks.yaml: 3 new; hooked 3 methods"]);
+    });
+
+    it("resolves loadFrookyConfigs() for a config without valid hooks", async () => {
+      const { agent } = createAgent(
+        fakePlatformHookValidator(),
+        fakePlatformHookManager() as unknown as HookManager<any, any, any>,
+        undefined,
+        notReady,
+      );
+
+      await agent.loadFrookyConfigs([makeConfig(), { metadata: { name: "No hookCollection" } } as InputFrookyConfig]);
+    });
+
+    it("reports the progress, throttled, ending with nothing resolving", async () => {
       const reports: HookProgress[] = [];
-      const { agent, resolveClassA } = setupWithPendingClass((progress) => reports.push(progress));
+      const { agent, resolveClassA } = setupWithPendingClass((progress) => reports.push(progress), notReady);
 
       const loading = agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
       await new Promise((r) => setTimeout(r, PROGRESS_INTERVAL_MS + 50));
@@ -445,23 +470,23 @@ describe("FrookyAgent", () => {
       await new Promise((r) => setTimeout(r, PROGRESS_INTERVAL_MS + 50));
 
       expect(reports).toEqual([
-        { hooked: 1, pending: 1, waiting: 0, failed: 0 },
-        { hooked: 3, pending: 0, waiting: 0, failed: 0 },
+        { hooked: 1, resolving: 1, waiting: 0, notFound: 0 },
+        { hooked: 3, resolving: 0, waiting: 0, notFound: 0 },
       ]);
     });
   });
 
   describe("describeLoad()", () => {
-    const none = { added: 0, updated: 0, removed: 0, retried: 0, unchanged: 0, hookedMethods: 0, hookedFunctions: 0, waiting: 0, failed: 0 };
+    const none = { added: 0, updated: 0, removed: 0, retried: 0, unchanged: 0, hookedMethods: 0, hookedFunctions: 0, waiting: 0, notFound: 0 };
 
     it("lists the changes, then what the new, updated and retried declarations resolved to", () => {
-      expect(describeLoad({ ...none, added: 2, updated: 1, hookedMethods: 3, hookedFunctions: 1, failed: 1, unchanged: 38 })).toBe(
-        "2 new, 1 updated, 38 unchanged; hooked 3 methods and 1 function, 1 not resolved",
+      expect(describeLoad({ ...none, added: 2, updated: 1, hookedMethods: 3, hookedFunctions: 1, notFound: 1, unchanged: 38 })).toBe(
+        "2 new, 1 updated, 38 unchanged; hooked 3 methods and 1 function, 1 not found",
       );
     });
 
     it("lists retried declarations", () => {
-      expect(describeLoad({ ...none, retried: 4, failed: 4, unchanged: 35 })).toBe("4 retried, 35 unchanged; hooked nothing, 4 not resolved");
+      expect(describeLoad({ ...none, retried: 4, notFound: 4, unchanged: 35 })).toBe("4 retried, 35 unchanged; hooked nothing, 4 not found");
     });
 
     it("leaves out the hooked part when only removing", () => {
@@ -475,11 +500,11 @@ describe("FrookyAgent", () => {
 
   describe("describeHooked()", () => {
     it("uses singular and plural", () => {
-      expect(describeHooked({ hookedMethods: 1, hookedFunctions: 2, waiting: 0, failed: 0 })).toBe("hooked 1 method and 2 functions");
+      expect(describeHooked({ hookedMethods: 1, hookedFunctions: 2, waiting: 0, notFound: 0 })).toBe("hooked 1 method and 2 functions");
     });
 
-    it("lists the waiting and the failed declarations", () => {
-      expect(describeHooked({ hookedMethods: 1, hookedFunctions: 0, waiting: 2, failed: 1 })).toBe("hooked 1 method, 2 waiting, 1 not resolved");
+    it("lists the waiting and the not found declarations", () => {
+      expect(describeHooked({ hookedMethods: 1, hookedFunctions: 0, waiting: 2, notFound: 1 })).toBe("hooked 1 method, 2 waiting, 1 not found");
     });
   });
 });

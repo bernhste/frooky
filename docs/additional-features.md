@@ -310,7 +310,7 @@ Functions called during application launch (such as `Application.onCreate`, `JNI
 
 ### Blocked Functions
 
-Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_getspecific`, `dlopen` in `libdl.so`, and under V8 `memset` and `clock_gettime`. frooky doesn't install hooks on these functions (or, for `sigprocmask`, doesn't capture their stack traces) and logs a warning instead. See [Blocked Functions](./under-the-hood.md#blocked-functions) in Under the Hood for the full list and why each one is blocked.
+Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_getspecific`, `dlopen` in `libdl.so`, and under V8 `memset` and `clock_gettime`. frooky doesn't install hooks on these functions (or, for `sigprocmask`, doesn't capture their stack traces) and logs a warning instead. See [Blocked Native Functions](./under-the-hood.md#blocked-native-functions) in Under the Hood for the full list and why each one is blocked.
 
 See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml), [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml) and [`examples/native/08_early_hooking/02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) for full examples.
 
@@ -357,7 +357,7 @@ If a syntax error or schema violation is introduced in the hook file, frooky dis
 While frooky is running in the terminal, pressing `r` or `R` triggers an immediate reload:
 
 - Re-reads and applies the current hook YAML files.
-- **Retries unresolved hooks:** Any hooks that previously failed to resolve (for instance, because a method or symbol was misspelled) are retried immediately. Hooks that wait for their class or native library keep waiting.
+- **Retries hooks that were not found:** Any hooks whose method or symbol wasn't found (for instance, because it was misspelled) are retried immediately. Hooks that wait for their class or native library keep waiting.
 
 ## Dynamic Class and Module Resolution
 
@@ -371,15 +371,11 @@ frooky waits for a class or native module that isn't loaded yet for as long as i
 - **Native modules** are hooked while the linker loads them, before their constructors and `JNI_OnLoad` run. See [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml).
 - **Java classes** are hooked while the class loader that has them is created, before any of its code runs. See [Class Loaders](./java-hook-declaration.md#class-loaders), also for custom class loaders.
 
-Classes and modules that haven't loaded `-t` seconds (`--resolver-timeout`, default: `5`) after the app starts are reported as waiting, in a warning and in the status bar, e.g. `# Hooks 38 (1 waiting)`. A misspelled class or module name shows up there too. Their hooks are still installed when they load:
-
-```bash
-frooky -U -f com.example.app -t 30 hooks.yaml
-```
+Classes and modules that aren't loaded once the app has started are reported as waiting, in an info message (`-v`) and in the status bar, e.g. `# Hooks 38 (1 waiting)`. A misspelled class or module name shows up there too. Their hooks are still installed when they load. See [Resolve the Module or Class](./under-the-hood.md#resolve-the-module-or-class) in Under the Hood for how frooky is notified.
 
 ### Hook Statistics (`i` / `I` Key)
 
-While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not resolved, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, and how much time went into decoding the values of the recorded events. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
+While frooky is running in the terminal, pressing `i` or `I` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not found, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, and how much time went into decoding the values of the recorded events. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
 
 ```text
 Hook statistics
@@ -387,7 +383,7 @@ State         Overloads  Events  Filtered  Target                       File    
 hooked                3      41         0  javax.crypto.Cipher.init     hooks.yaml
 hooked                -   1,234    56,789  libc.so!open                 hooks.yaml
 waiting               -       -         -  com.example.Plugin.run       hooks.yaml  Java class 'com.example.Plugin'
-not resolved          -       -         -  libc.so!nope                 hooks.yaml
+not found             -       -         -  libc.so!nope                 hooks.yaml
 ```
 
 ## JavaScript Runtime: QuickJS vs. V8

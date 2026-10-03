@@ -20,9 +20,6 @@ from .options import RunnerOptions
 from .output import OutputWriter
 from .watcher import HookFileWatcher, describe_reload_error
 
-# DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS in the agent's defaultValues.ts, used when no -t is given
-AGENT_DEFAULT_RESOLVER_TIMEOUT_SECONDS = 5
-
 # How long unloading the scripts and detaching may take. Both need the agent, which never responds again when the app
 # deadlocks inside a hook. Under heavy load, a normal stop takes up to ~8 s.
 DETACH_TIMEOUT_SECONDS = 10.0
@@ -42,8 +39,7 @@ class FrookyRunner:
         self.device_frida_version: Optional[str] = None
         self.output = OutputWriter(options.output_path)
         self.feed = Feed()
-        timeout = options.agent_option_resolver_timeout
-        self._hook_status = HookStatus(timeout if timeout is not None else AGENT_DEFAULT_RESOLVER_TIMEOUT_SECONDS)
+        self._hook_status = HookStatus()
         self.feed.start()
         self._stop_event = threading.Event()
         self._stop_reason: Optional[str] = None
@@ -83,7 +79,7 @@ class FrookyRunner:
     def _on_progress(self, progress: dict) -> None:
         """Called on Frida's thread with the agent's hook resolving progress, shown in the status bar."""
         was_busy = self._hook_status.busy
-        self._hook_status.update(int(progress.get("hooked", 0)), int(progress.get("pending", 0)), int(progress.get("failed", 0)), int(progress.get("waiting", 0)))
+        self._hook_status.update(int(progress.get("hooked", 0)), int(progress.get("resolving", 0)), int(progress.get("notFound", 0)), int(progress.get("waiting", 0)))
         # without a terminal there is no status bar, so say it once in the feed; the integration tests wait for it
         if was_busy and not self._hook_status.busy and not self.feed.console.is_terminal:
             self.feed.log("info", self._hook_status.describe())
@@ -221,7 +217,7 @@ class FrookyRunner:
 
         lines.append("")
         if self._key_listener.active:
-            lines.append("  Press R to reload the hook files and retry failed hooks, I for hook statistics, Ctrl+C to stop...")
+            lines.append("  Press R to reload the hook files and retry hooks that were not found, I for hook statistics, Ctrl+C to stop...")
         else:
             lines.append("  Press Ctrl+C to stop...")
         lines.append("")
@@ -236,8 +232,8 @@ class FrookyRunner:
             self.script.exports_sync.update_frooky_config(str(path), hook_config)
 
     def _reload_hook_files(self, watcher: Optional[HookFileWatcher]) -> None:
-        """Reload every hook file and retry the hooks that failed to resolve; installed, unchanged hooks stay."""
-        self.feed.log("info", "Reloading hook files and retrying unresolved hooks...")
+        """Reload every hook file and retry the hooks that were not found; installed, unchanged hooks stay."""
+        self.feed.log("info", "Reloading hook files and retrying hooks that were not found...")
         if watcher:
             watcher.poll()
             reloaded = watcher.current()
@@ -315,7 +311,7 @@ class FrookyRunner:
             self.script.set_log_handler(create_log_handler(self.feed))
             self.script.load()
 
-            self.script.exports_sync.init_frooky_agent(self.options.agent_log_level, "console", self.options.agent_option_resolver_timeout)
+            self.script.exports_sync.init_frooky_agent(self.options.agent_log_level, "console")
 
             watcher = HookFileWatcher(self.options.hook_paths, self._on_reload_error) if self.options.watch else None
             hook_configs = watcher.configs if watcher else load_hook_configs(self.options.hook_paths)

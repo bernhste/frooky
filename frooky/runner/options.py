@@ -24,7 +24,6 @@ class RunnerOptions:
     user_scripts: list[Path] = field(default_factory=list)
     agent_option_verbose: bool = False
     agent_option_very_verbose: bool = False
-    agent_option_resolver_timeout: Optional[int] = None
     print_events: bool = False
     watch: bool = False
     # Frida script runtime ("qjs" or "v8") for the frooky agent and user scripts, None uses Frida's default (QuickJS)

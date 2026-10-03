@@ -1,6 +1,6 @@
 import Java from "frida-java-bridge";
 import { FrookyAgent } from "../FrookyAgent";
-import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO, DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS } from "../shared/defaultValues";
+import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO } from "../shared/defaultValues";
 import { InputFrookyConfig } from "../shared/frookyConfig";
 import { LogLevel, LogTo } from "../shared/logger";
 import { AndroidStackTrace } from "./androidStackTrace";
@@ -16,10 +16,11 @@ function initializedFrookyAgent(): FrookyAgent {
   return frookyAgent;
 }
 
-// RPC calls run on Frida's JS thread. In spawn mode the host resumes the app after loadFrookyConfigs(), so
-// native and framework hooks are installed before app code runs. App classes wait for FrookyAgent.targetReady.
+// RPC calls run on Frida's JS thread. In spawn mode the host resumes the app once loadFrookyConfigs() has replied, so
+// framework classes and `early: true` native hooks are installed before app code runs. App classes and the other
+// native hooks wait for FrookyAgent.targetReady.
 rpc.exports = {
-  initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo, resolverTimeoutSeconds?: number) {
+  initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo) {
     if (!Java.available) {
       throw new Error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
     }
@@ -33,7 +34,6 @@ rpc.exports = {
       AndroidStackTrace,
       logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
       logTo ?? DEFAULT_SETTING_LOG_TO,
-      resolverTimeoutSeconds ?? DEFAULT_SETTING_RESOLVER_TIMEOUT_SECONDS,
       // objects, unlike event batches (arrays)
       (progress) => send({ frooky: "progress", ...progress }),
       new Promise((resolve) => Java.perform(() => resolve())),
@@ -41,8 +41,9 @@ rpc.exports = {
     frookyAgent.reportCrashes((crash) => send({ frooky: "crash", ...crash }));
   },
   // configIds (index-aligned hook file paths) identify the configs for updateFrookyConfig()
+  // Frida replies once the returned promise resolves: in spawn mode, the host resumes the app then
   loadFrookyConfigs(frookyConfigs: InputFrookyConfig[], configIds?: string[]) {
-    initializedFrookyAgent()
+    return initializedFrookyAgent()
       .loadFrookyConfigs(frookyConfigs, configIds)
       .catch((e) => console.error(`Error loading frooky configs: ${String(e)}`));
   },
@@ -51,9 +52,9 @@ rpc.exports = {
     return initializedFrookyAgent().hookStatistics();
   },
   // replaces the config loaded under configId, re-hooking only what changed
-  updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig, retryFailed?: boolean) {
+  updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig, retryNotFound?: boolean) {
     initializedFrookyAgent()
-      .loadFrookyConfig(frookyConfig, configId, retryFailed ?? false)
+      .loadFrookyConfig(frookyConfig, configId, retryNotFound ?? false)
       .catch((e) => console.error(`Error updating frooky config: ${String(e)}`));
   },
 };

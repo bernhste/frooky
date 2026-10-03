@@ -133,7 +133,7 @@ class TestCreateMessageHandler:
         feed = MagicMock()
         on_progress = MagicMock()
         on_message = create_message_handler(output, feed, print_events=True, on_progress=on_progress)
-        progress = {"frooky": "progress", "hooked": 38, "pending": 4}
+        progress = {"frooky": "progress", "hooked": 38, "resolving": 4}
 
         on_message({"type": "send", "payload": progress}, None)
 

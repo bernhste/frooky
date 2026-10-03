@@ -33,4 +33,4 @@ Each offset hook names its function in a comment next to it. Keep that so the ne
    ```
 
 3. Update every offset and any comment that repeats it (`# Expected`, "0x... lies in .rodata"). Keep the format of each value. A quoted hex string such as `"0x00000000000013C0"` stays a 16-digit uppercase string, because it shows the string form.
-4. If a device is available, check that the installed app matches the build by reading the offsets from the running process, e.g. with `Process.getModuleByName(m).getExportByName(s).sub(m.base)`. Then run the example with `frooky` and confirm the hooks resolve: the status line shows no `not resolved` beyond the deliberately rejected ones.
+4. If a device is available, check that the installed app matches the build by reading the offsets from the running process, e.g. with `Process.getModuleByName(m).getExportByName(s).sub(m.base)`. Then run the example with `frooky` and confirm the hooks resolve: the status line shows no `not found` beyond the deliberately rejected ones.
