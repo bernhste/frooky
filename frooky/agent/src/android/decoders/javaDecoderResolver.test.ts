@@ -89,6 +89,8 @@ describe("JavaDecoderResolver", () => {
         expect(accepted("[Ljava.lang.String;")).toEqual(["length", "offset"]);
         expect(accepted("[B", "string")).toEqual(["length", "offset"]);
         expect(accepted("[C", "string")).toEqual(["length", "offset"]);
+        expect(accepted("[B", "base64")).toEqual(["length", "offset"]);
+        expect(accepted("[C", "base64")).toEqual(["length", "offset"]);
       });
 
       it("accepts no roles for other types and decoders", () => {

@@ -1,4 +1,5 @@
 import {
+  base64ToBytes,
   FilterMismatchError,
   formatHashCode,
   sleepMilliseconds,
@@ -219,6 +220,49 @@ describe("Utils", () => {
       const start = Date.now();
       await sleepSeconds(0.02);
       expect(Date.now() - start).toBeGreaterThan(14);
+    });
+  });
+
+  describe("base64ToBytes()", () => {
+    it("decodes standard padded base64 strings", () => {
+      // "Hello World" -> "SGVsbG8gV29ybGQ="
+      expect(Array.from(base64ToBytes("SGVsbG8gV29ybGQ="))).toEqual([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
+      // "M" -> "TQ=="
+      expect(Array.from(base64ToBytes("TQ=="))).toEqual([77]);
+      // "Ma" -> "TWE="
+      expect(Array.from(base64ToBytes("TWE="))).toEqual([77, 97]);
+      // "Man" -> "TWFu"
+      expect(Array.from(base64ToBytes("TWFu"))).toEqual([77, 97, 110]);
+    });
+
+    it("decodes unpadded base64 strings", () => {
+      expect(Array.from(base64ToBytes("SGVsbG8gV29ybGQ"))).toEqual([72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]);
+      expect(Array.from(base64ToBytes("TQ"))).toEqual([77]);
+      expect(Array.from(base64ToBytes("TWE"))).toEqual([77, 97]);
+    });
+
+    it("decodes URL-safe base64 strings (- and _)", () => {
+      // 0xfb, 0xff, 0xfe in base64: "+//+" or url-safe "-__-"
+      expect(Array.from(base64ToBytes("-__-"))).toEqual([0xfb, 0xff, 0xfe]);
+      expect(Array.from(base64ToBytes("+//+"))).toEqual([0xfb, 0xff, 0xfe]);
+    });
+
+    it("ignores whitespace", () => {
+      expect(Array.from(base64ToBytes("  SGVs\r\n bG8= \t"))).toEqual([72, 101, 108, 108, 111]);
+    });
+
+    it("decodes an empty string to an empty byte array", () => {
+      expect(Array.from(base64ToBytes(""))).toEqual([]);
+      expect(Array.from(base64ToBytes("   "))).toEqual([]);
+    });
+
+    it("throws an error for invalid base64 characters", () => {
+      expect(() => base64ToBytes("SGVsbG8*")).toThrow("Invalid base64 character");
+    });
+
+    it("throws an error for invalid base64 string length", () => {
+      expect(() => base64ToBytes("A")).toThrow("Invalid base64 string length");
+      expect(() => base64ToBytes("AAAAA")).toThrow("Invalid base64 string length");
     });
   });
 });

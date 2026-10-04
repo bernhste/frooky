@@ -76,6 +76,7 @@
               "type": "string",
               "enum": [
                 "string",
+                "base64",
                 "hashCode",
                 "intentFlag",
                 "intentUriFlag",
@@ -176,6 +177,7 @@
                               "type": "string",
                               "enum": [
                                 "string",
+                                "base64",
                                 "hashCode",
                                 "intentFlag",
                                 "intentUriFlag",
@@ -276,6 +278,7 @@
                                               "type": "string",
                                               "enum": [
                                                 "string",
+                                                "base64",
                                                 "hashCode",
                                                 "intentFlag",
                                                 "intentUriFlag",
@@ -363,6 +366,7 @@
                                               "type": "string",
                                               "enum": [
                                                 "string",
+                                                "base64",
                                                 "hashCode",
                                                 "intentFlag",
                                                 "intentUriFlag",
@@ -466,6 +470,7 @@
                                               "type": "string",
                                               "enum": [
                                                 "string",
+                                                "base64",
                                                 "hashCode",
                                                 "intentFlag",
                                                 "intentUriFlag",
@@ -531,6 +536,7 @@
                                     "type": "string",
                                     "enum": [
                                       "string",
+                                      "base64",
                                       "hashCode",
                                       "intentFlag",
                                       "intentUriFlag",
@@ -618,6 +624,7 @@
                               "type": "string",
                               "enum": [
                                 "string",
+                                "base64",
                                 "hashCode",
                                 "intentFlag",
                                 "intentUriFlag",
@@ -707,6 +714,7 @@
                     "type": "string",
                     "enum": [
                       "string",
+                      "base64",
                       "hashCode",
                       "intentFlag",
                       "intentUriFlag",
@@ -793,6 +801,7 @@
                               "type": "string",
                               "enum": [
                                 "string",
+                                "base64",
                                 "utf16",
                                 "errno",
                                 "fd",
@@ -893,6 +902,7 @@
                                             "type": "string",
                                             "enum": [
                                               "string",
+                                              "base64",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -986,6 +996,7 @@
                                             "type": "string",
                                             "enum": [
                                               "string",
+                                              "base64",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1095,6 +1106,7 @@
                                             "type": "string",
                                             "enum": [
                                               "string",
+                                              "base64",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1177,6 +1189,7 @@
                                           "type": "string",
                                           "enum": [
                                             "string",
+                                            "base64",
                                             "utf16",
                                             "errno",
                                             "fd",
@@ -1254,6 +1267,7 @@
                                           "type": "string",
                                           "enum": [
                                             "string",
+                                            "base64",
                                             "utf16",
                                             "errno",
                                             "fd",
@@ -1348,6 +1362,7 @@
                                   "type": "string",
                                   "enum": [
                                     "string",
+                                    "base64",
                                     "utf16",
                                     "errno",
                                     "fd",
@@ -1452,6 +1467,7 @@
                                             "type": "string",
                                             "enum": [
                                               "string",
+                                              "base64",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1545,6 +1561,7 @@
                                             "type": "string",
                                             "enum": [
                                               "string",
+                                              "base64",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1654,6 +1671,7 @@
                                             "type": "string",
                                             "enum": [
                                               "string",
+                                              "base64",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1736,6 +1754,7 @@
                                           "type": "string",
                                           "enum": [
                                             "string",
+                                            "base64",
                                             "utf16",
                                             "errno",
                                             "fd",
@@ -1813,6 +1832,7 @@
                                           "type": "string",
                                           "enum": [
                                             "string",
+                                            "base64",
                                             "utf16",
                                             "errno",
                                             "fd",
@@ -1907,6 +1927,7 @@
                                   "type": "string",
                                   "enum": [
                                     "string",
+                                    "base64",
                                     "utf16",
                                     "errno",
                                     "fd",
@@ -2013,6 +2034,7 @@
                     "type": "string",
                     "enum": [
                       "string",
+                      "base64",
                       "utf16",
                       "errno",
                       "fd",

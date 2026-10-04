@@ -71,6 +71,7 @@ The spec decoders show a `byte[]` as hex and a `char[]` as text. `Cipher`, `Mac`
 With `decoder`, a parameter or return value is decoded with one of these registered decoders instead of the one frooky would pick:
 
 - `string`: decodes a `byte[]` or `char[]` as text, or calls `toString()` on any other reference type
+- `base64`: decodes a value to string, then Base64-decodes it as text or bytes
 - `getters`: decodes an object through its public `get*()` and `is*()` methods, including inherited ones, e.g. an app class without a decoder
 - `hashCode`: renders a reference type as `<class>@<hashCode>`, without invoking a custom `toString()` override
 - `intentFlag`: decodes an `int` bitmask into the matching `Intent.FLAG_*` constant names
@@ -156,11 +157,11 @@ See [`02_output_parameters.yaml`](examples/android/02_parameters_and_return_valu
 
 Java can't pass a pointer into the middle of an array, so many APIs take an array with an offset and a length and only use that slice. `decoderArgs` passes these values to the decoder, each in its role (see [`decoderArgs`](./decoders.md#decoderargs-pass-values-to-the-decoder-by-role)). Java decoders accept these roles:
 
-| Decoder of the parameter                              | Role `offset`               | Role `length`                         |
-| ----------------------------------------------------- | --------------------------- | ------------------------------------- |
-| Arrays (`[B`, `[C`, `[I`, `[Ljava.lang.String;`, ...) | Elements to skip            | Elements to decode                    |
-| `decoder: string` on `[B` or `[C`                     | Bytes or characters to skip | Bytes or characters to decode as text |
-| All other types and decoders                          | –                           | –                                     |
+| Decoder of the parameter                               | Role `offset`               | Role `length`                         |
+| ------------------------------------------------------ | --------------------------- | ------------------------------------- |
+| Arrays (`[B`, `[C`, `[I`, `[Ljava.lang.String;`, ...)  | Elements to skip            | Elements to decode                    |
+| `decoder: string` or `decoder: base64` on `[B` or `[C` | Bytes or characters to skip | Bytes or characters to decode as text |
+| All other types and decoders                           | –                           | –                                     |
 
 Without `offset`, the slice starts at index 0. Without `length`, it ends at the end of the array. A slice that reaches past the end of the array is cut to the array. At most `maxItems` elements of the slice are decoded.
 
@@ -208,7 +209,7 @@ What `maxItems` limits for each decoder, and whether it counts as a `maxDepth` l
 | `java.security.Key`, `Cipher`, `Mac`              | Bytes of the key or IV               | No                           |
 | `java.nio.ByteBuffer`                             | Remaining bytes                      | No                           |
 | `X509Certificate`                                 | Subject alternative names            | No                           |
-| `string` and `hex` (for `[B`), `string` for `[C`  | Bytes or characters                  | No                           |
+| `string`, `base64` and `hex` (for `[B`), `string` and `base64` for `[C` | Bytes or characters            | No                           |
 | `java.lang.String`, other values via `toString()` | Characters                           | No                           |
 
 For `ContentValues`, whose output is a key/value object, the `"[truncated at N]"` marker is added as a key with the value `null`. Java strings, other values decoded with their `toString()`, and byte arrays decoded with `string` or `hex` end with `...` when they're cut.

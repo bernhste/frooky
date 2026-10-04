@@ -6,7 +6,7 @@ import { countArg, DecoderArgValues, logDecodeFailure } from "../../shared/decod
 
 // Reads byte chunks up to the NUL terminator, bounded by memory page boundaries so it never reads
 // into unmapped memory. Reads at most `limit` bytes plus one to tell whether the string continues.
-function readCString(input: NativePointer, limit: number): [bytes: Uint8Array, truncated: boolean] {
+export function readCString(input: NativePointer, limit: number): [bytes: Uint8Array, truncated: boolean] {
   if (limit <= 0) {
     try {
       const byte0 = input.readU8();
@@ -74,7 +74,7 @@ function readCString(input: NativePointer, limit: number): [bytes: Uint8Array, t
 }
 
 // Reads `length` bytes, at most `limit`. NUL bytes are data here, e.g. in a buffer from `read`.
-function readBoundedString(input: NativePointer, length: number, limit: number): [bytes: Uint8Array, truncated: boolean] {
+export function readBoundedString(input: NativePointer, length: number, limit: number): [bytes: Uint8Array, truncated: boolean] {
   const rawBytes = input.readByteArray(Math.min(length, limit));
   const bytes = rawBytes === null ? new Uint8Array(0) : new Uint8Array(rawBytes);
   return [bytes, length > limit];

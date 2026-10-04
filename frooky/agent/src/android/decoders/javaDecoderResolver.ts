@@ -7,6 +7,7 @@ import { JavaDecoderName } from "../../shared/frookySettings";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
+import { Base64Decoder } from "./builtin/Base64Decoder";
 import { ConstantDecoder } from "./builtin/ConstantDecoder";
 import { FlagsDecoder } from "./builtin/FlagsDecoder";
 import { GetterDecoder } from "./builtin/GetterDecoder";
@@ -23,6 +24,7 @@ let customDecoderRegistry: Record<JavaDecoderName, DecoderConstructor> | undefin
 function getCustomDecoderRegistry(): Record<JavaDecoderName, DecoderConstructor> {
   return (customDecoderRegistry ??= {
     string: StringDecoder,
+    base64: Base64Decoder,
     hashCode: HashCodeDecoder,
     intentFlag: IntentFlagDecoder,
     intentUriFlag: IntentUriFlagDecoder,
@@ -69,7 +71,7 @@ export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
 // The `decoderArgs` roles the decoder of a parameter accepts, see docs/decoders-java.md
 export function acceptedJavaDecoderArgs(decodable: Decodable): readonly DecoderArgRole[] {
   const decoder = decodable.settings.decoder;
-  if (decoder === "string") return decodable.type === "[B" || decodable.type === "[C" ? ["length", "offset"] : [];
+  if (decoder === "string" || decoder === "base64") return decodable.type === "[B" || decodable.type === "[C" ? ["length", "offset"] : [];
   if (decoder) return [];
   return decodable.type.startsWith("[") ? ["length", "offset"] : [];
 }

@@ -3,6 +3,7 @@ import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { NativeDecoderName, NativeEnumPresetName, NativeFlagsPresetName } from "../../shared/frookySettings";
+import { NativeBase64Decoder } from "./nativeBase64Decoder";
 import { NativeEnumDecoder, NativeFlagsDecoder } from "./nativeConstantDecoder";
 import { resolvePreset } from "./nativeConstantPresets";
 import { NativeErrnoDecoder } from "./nativeErrnoDecoder";
@@ -54,6 +55,7 @@ const enumPreset =
 
 const CUSTOM_DECODER_REGISTRY: Record<NativeDecoderName, NativeDecoderFactory> = {
   string: (decodable) => new NativeStringDecoder(decodable),
+  base64: (decodable) => new NativeBase64Decoder(decodable),
   utf16: (decodable) => new NativeUtf16Decoder(decodable),
   errno: (decodable) => new NativeErrnoDecoder(decodable, resolveTypeDecoder(decodable)),
   fd: (decodable) => new NativeFdDecoder(decodable),
@@ -88,7 +90,7 @@ export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
 // The `decoderArgs` roles the decoder of a parameter accepts, see docs/decoders-native.md
 export function acceptedNativeDecoderArgs(decodable: Decodable): readonly DecoderArgRole[] {
   const decoder = decodable.settings.decoder;
-  if (decoder === "string" || decoder === "utf16") return ["length", "offset"];
+  if (decoder === "string" || decoder === "utf16" || decoder === "base64") return ["length", "offset"];
   if (decoder === "nullTerminated") return ["offset"];
   if (decoder) return [];
   // pointers to fundamental types, e.g. `char *` or `int *`, and UTF-16 strings

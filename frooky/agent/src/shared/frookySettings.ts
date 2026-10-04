@@ -88,7 +88,7 @@ export interface DecoderSettings {
  *
  * @public
  */
-export type JavaDecoderName = "string" | "hashCode" | "intentFlag" | "intentUriFlag" | "constant" | "flags" | "getters";
+export type JavaDecoderName = "string" | "base64" | "hashCode" | "intentFlag" | "intentUriFlag" | "constant" | "flags" | "getters";
 
 /**
  * Decoders of native hooks that decode an integer bitmask with built-in constants, like `decoder: flags`.
@@ -110,7 +110,16 @@ export type NativeEnumPresetName = "socketDomain";
  * @public
  */
 export type NativeDecoderName =
-  "string" | "utf16" | "errno" | "fd" | "enum" | "flags" | "nullTerminated" | NativeFlagsPresetName | NativeEnumPresetName;
+  | "string"
+  | "base64"
+  | "utf16"
+  | "errno"
+  | "fd"
+  | "enum"
+  | "flags"
+  | "nullTerminated"
+  | NativeFlagsPresetName
+  | NativeEnumPresetName;
 
 /**
  * Name of a decoder of any platform. Settings outside a hook collection, e.g. the top-level `decoderSettings`, accept

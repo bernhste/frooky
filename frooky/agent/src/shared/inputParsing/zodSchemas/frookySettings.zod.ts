@@ -9,13 +9,13 @@ export const hookSettingsSchema = z.object({
     early: z.boolean()
 });
 
-export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("hashCode"), z.literal("intentFlag"), z.literal("intentUriFlag"), z.literal("constant"), z.literal("flags"), z.literal("getters")]);
+export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hashCode"), z.literal("intentFlag"), z.literal("intentUriFlag"), z.literal("constant"), z.literal("flags"), z.literal("getters")]);
 
 export const nativeFlagsPresetNameSchema = z.union([z.literal("openFlags"), z.literal("mmapProt"), z.literal("mmapFlags"), z.literal("dlopenFlags"), z.literal("socketType")]);
 
 export const nativeEnumPresetNameSchema = z.literal("socketDomain");
 
-export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("enum"), z.literal("flags"), z.literal("nullTerminated"), nativeFlagsPresetNameSchema, nativeEnumPresetNameSchema]);
+export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("enum"), z.literal("flags"), z.literal("nullTerminated"), nativeFlagsPresetNameSchema, nativeEnumPresetNameSchema]);
 
 export const decoderNameSchema = z.union([javaDecoderNameSchema, nativeDecoderNameSchema]);
 
