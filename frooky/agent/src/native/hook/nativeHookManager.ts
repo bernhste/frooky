@@ -294,8 +294,10 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
     if (hookedFunction.native) {
       for (const { hook } of hookedFunction.hooks) keepNativeFilteredCalls(hook);
       hookedFunction.native.detach();
-    } else {
-      hookedFunction.listener?.detach();
+    } else if (hookedFunction.listener) {
+      hookedFunction.listener.detach();
+      // see NativeFilteredListener.detach(): updateListener() may attach a listener to the same function next
+      Interceptor.flush();
     }
     hookedFunction.native = undefined;
     hookedFunction.listener = undefined;

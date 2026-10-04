@@ -6,6 +6,7 @@ import { LogLevel, LogTo } from "../shared/logger";
 import { AndroidStackTrace } from "./androidStackTrace";
 import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
+import { fixArtMethodAccessFlagsOffset } from "./javaBridgeWorkarounds";
 
 let frookyAgent: FrookyAgent | undefined;
 
@@ -27,6 +28,8 @@ rpc.exports = {
     if (frookyAgent) {
       throw new Error("[!] frookyAgent is already initialized.");
     }
+    // before the first Java.perform(), which can hook a method already
+    fixArtMethodAccessFlagsOffset();
     frookyAgent = new FrookyAgent(
       "Android",
       new AndroidHookValidator(),
@@ -50,6 +53,10 @@ rpc.exports = {
   // every hook declaration with its state and event count, for the host's `i` key
   hookStatistics() {
     return initializedFrookyAgent().hookStatistics();
+  },
+  // called by the host before it unloads the agent, see FrookyAgent.prepareDetach()
+  prepareDetach() {
+    return frookyAgent?.prepareDetach();
   },
   // replaces the config loaded under configId, re-hooking only what changed
   updateFrookyConfig(configId: string, frookyConfig: InputFrookyConfig, retryNotFound?: boolean) {

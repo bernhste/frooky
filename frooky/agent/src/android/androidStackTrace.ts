@@ -3,6 +3,7 @@ import { nativeStackFrames } from "../native/nativeStackTrace";
 import { HookSettings } from "../shared/frookySettings";
 import { compileCallerFilter, HookStackTrace, PlatformStackTrace, StackTraceRequest } from "../shared/platformStackTrace";
 import { FilterMismatchError } from "../shared/utils";
+import { resolveArtWalkStack } from "./javaBridgeWorkarounds";
 
 function formatJavaFrame(frame: Java.Frame): string {
   return `${frame.className}.${frame.methodName} (${frame.fileName}:${frame.lineNumber})`;
@@ -75,6 +76,7 @@ function walkJavaStack(): Java.Frame[] {
     const isFirstCall = javaBacktraceState === "uninitialized";
     if (isFirstCall) javaBacktraceState = "initializing";
     try {
+      if (isFirstCall) resolveArtWalkStack();
       Java.vm.perform(() => {
         javaStack = Java.backtrace().frames;
       });

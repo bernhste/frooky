@@ -1,5 +1,6 @@
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
 import { NativeDecoderResolver } from "./nativeDecoderResolver";
+import { sleepMilliseconds } from "../../shared/utils";
 import { formatIpv6, formatSockaddr } from "./nativeFdDecoder";
 
 const libcFunction = <R extends NativeFunctionReturnType, A extends NativeFunctionArgumentType[] | []>(name: string, ret: R, args: A) =>
@@ -69,7 +70,7 @@ describe("NativeFdDecoder", () => {
     expect(decoded.peer).toBe("127.0.0.1:9");
   });
 
-  it("decodes an fd in a hook of a function the decoder calls itself, without calling the hook again", () => {
+  it("decodes an fd in a hook of a function the decoder calls itself, without calling the hook again", async () => {
     const fd = track(socket(2, 2, 0));
     const getsockopt = libcFunction("getsockopt", "int", ["int", "int", "int", "pointer", "pointer"]);
     let calls = 0;
@@ -83,8 +84,13 @@ describe("NativeFdDecoder", () => {
     try {
       const value = Memory.alloc(4);
       const length = Memory.alloc(4);
-      length.writeU32(4);
-      getsockopt(fd, 1, 3, value, length);
+      // Interceptor changes are only committed once no thread runs a JS callback, which can take a moment while the
+      // app keeps hitting other hooks (e.g. frida-java-bridge's), so call until the hook fires
+      for (let i = 0; i < 100 && calls === 0; i++) {
+        length.writeU32(4);
+        getsockopt(fd, 1, 3, value, length);
+        if (calls === 0) await sleepMilliseconds(10);
+      }
     } finally {
       listener.detach();
     }

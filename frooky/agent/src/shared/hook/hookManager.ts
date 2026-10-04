@@ -63,6 +63,8 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   public abstract registerHooks(hooks: THooks[], source?: string): number;
   // Hooks that aren't installed are ignored.
   public abstract unregisterHooks(hooks: THooks[]): void;
+  // Prepares the agent's unload, see FrookyAgent.prepareDetach(). Nothing to do for hooks the unload removes safely.
+  public async prepareDetach(): Promise<void> {}
 
   // `decoderArgs` were checked when the hook file was validated (see validateDecoderArgs())
   protected resolveParamDecoders(params: Param[]): ParamDecoder<TValue>[] {

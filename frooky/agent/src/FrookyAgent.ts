@@ -319,6 +319,12 @@ export class FrookyAgent {
     if (hook) this.registry.countEvent(hook, decodeMs);
   }
 
+  // For the host before it unloads the agent: removes the hooks whose removal at unload can crash the app, see
+  // AndroidHookManager.prepareDetach()
+  public async prepareDetach(): Promise<void> {
+    await Promise.all([this.platformHookManger.prepareDetach(), this.nativeHookManager.prepareDetach()]);
+  }
+
   // Every hook declaration of the loaded configs, see HookStatistic
   public hookStatistics(): HookStatistic[] {
     return this.registry.statistics();

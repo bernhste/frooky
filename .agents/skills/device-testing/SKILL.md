@@ -38,7 +38,7 @@ cd frooky/agent
 npm run test:android
 ```
 
-This spawns `com.google.android.dialer` and runs every `*.test.ts` under `src/` inside it with `frida-test`. To run a subset while iterating, call frida-test directly with explicit paths:
+This spawns `com.google.android.dialer` and runs every `*.test.ts` under `src/` inside it with `frida-test`. On an image without the Google dialer, use the AOSP one: `FRIDA_TEST_APP=com.android.dialer npm run test:android`. To run a subset while iterating, call frida-test directly with explicit paths:
 
 ```bash
 npx frida-test -U -f 'com.google.android.dialer' ./src/android/decoders/android/os

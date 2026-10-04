@@ -2,13 +2,14 @@ import { sleepMilliseconds } from "../../shared/utils";
 import { NativeFilteredListener } from "./nativeFilteredListener";
 
 // qsort() calls compare_ints() from libc.so, a NativeFunction call comes from Frida's agent. Module level: its code
-// must outlive the hooks on it.
+// must outlive the hooks on it. Returns 1 for different values in either order, as the order in which bionic's qsort()
+// passes them differs between Android versions.
 const cm = new CModule(
   `
   extern int *__errno (void);
   int compare_ints (const int *a, const int *b) {
     *__errno () = 7;
-    return (*a > *b) - (*a < *b);
+    return *a != *b;
   }
 `,
   { __errno: Module.getGlobalExportByName("__errno") },

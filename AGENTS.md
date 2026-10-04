@@ -41,7 +41,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 
 ## Testing Guide
 
-- **Always run `npm run test:android` when changing the agent** (`frooky/agent/`): runs TypeScript agent unit tests inside `com.google.android.dialer` on the device. Recompile first (`npm run build:dev:android` or `uv run compile-agent --dev`).
+- **Always run `npm run test:android` when changing the agent** (`frooky/agent/`): runs TypeScript agent unit tests inside `com.google.android.dialer` on the device (`FRIDA_TEST_APP=<package>` for another app, e.g. `com.android.dialer` where the Google dialer is missing). Recompile first (`npm run build:dev:android` or `uv run compile-agent --dev`).
 - **Always run Python unit tests when changing Python host code** (`frooky/`, `tests/unit/`): run `uv run pytest tests/unit` (no device required) and check formatting/linting via `uv run ruff check . && uv run ruff format --check .`.
 - **Only run affected integration tests when agent or host changes**: integration tests (`pytest tests/integration/android`) use Appium and test apps; only run the specific tests affected by the change (e.g. `uv run pytest tests/integration/android -k <pattern>`) rather than the entire test suite.
 

@@ -5,10 +5,13 @@ import { InputFrookyConfig } from "../shared/frookyConfig";
 import { AndroidStackTrace } from "./androidStackTrace";
 import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
+import { fixArtMethodAccessFlagsOffset } from "./javaBridgeWorkarounds";
 
 if (!Java.available) {
   throw new Error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
 }
+// before the first Java.perform(), which can hook a method already
+fixArtMethodAccessFlagsOffset();
 
 //%%% REPLACE START
 const frookyConfigs: InputFrookyConfig[] = [{}] as InputFrookyConfig[];

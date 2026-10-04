@@ -311,6 +311,38 @@ class TestRunSessionLoss:
         assert exit_code == 0
         assert "Stopped: stopped by user (Ctrl+C)" in capsys.readouterr().out
 
+    def test_prepares_the_agent_for_the_detach_before_unloading_it(self, monkeypatch, tmp_path):
+        runner, session = self._make_wired_runner(monkeypatch, tmp_path)
+        script = session.create_script.return_value
+        calls = []
+        script.exports_sync.prepare_detach.side_effect = lambda: calls.append("prepare_detach")
+        script.unload.side_effect = lambda: calls.append("unload")
+        session.detach.side_effect = lambda: calls.append("detach")
+
+        def fake_sleep(seconds):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr("frooky.runner.runner.time.sleep", fake_sleep)
+
+        runner.run()
+
+        assert calls == ["prepare_detach", "unload", "detach"]
+
+    def test_unloads_the_agent_when_preparing_the_detach_fails(self, monkeypatch, tmp_path):
+        runner, session = self._make_wired_runner(monkeypatch, tmp_path)
+        script = session.create_script.return_value
+        script.exports_sync.prepare_detach.side_effect = RuntimeError("script is destroyed")
+
+        def fake_sleep(seconds):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr("frooky.runner.runner.time.sleep", fake_sleep)
+
+        runner.run()
+
+        script.unload.assert_called_once()
+        session.detach.assert_called_once()
+
     def test_stops_when_the_agent_does_not_respond(self, monkeypatch, tmp_path, capsys):
         runner, session = self._make_wired_runner(monkeypatch, tmp_path)
         never_detached = threading.Event()

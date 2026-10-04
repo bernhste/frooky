@@ -21,8 +21,8 @@ from .output import OutputWriter
 from .watcher import HookFileWatcher, describe_reload_error
 
 # How long unloading the scripts and detaching may take. Both need the agent, which never responds again when the app
-# deadlocks inside a hook. Under heavy load, a normal stop takes up to ~8 s.
-DETACH_TIMEOUT_SECONDS = 10.0
+# deadlocks inside a hook. Under heavy load, a normal stop takes up to ~8 s, plus 1 to 3 s for prepareDetach().
+DETACH_TIMEOUT_SECONDS = 13.0
 
 
 class FrookyRunner:
@@ -260,6 +260,12 @@ class FrookyRunner:
         or was interrupted with Ctrl+C."""
 
         def detach() -> None:
+            if self.script:
+                try:
+                    # unhooks what the unload can't remove safely, see FrookyAgent.prepareDetach()
+                    self.script.exports_sync.prepare_detach()
+                except Exception:
+                    pass
             for script in [self.script, *self.user_scripts]:
                 if script:
                     try:

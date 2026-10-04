@@ -518,6 +518,38 @@ describe("AndroidHookManager", () => {
     });
   });
 
+  describe("prepareDetach()", () => {
+    async function setup() {
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(stackTrace, agent);
+      const [hooks] = await resultsOf(await manager.resolveHooks([javaHook("java.lang.Integer", "reverse")]));
+      const reverse = (value: number): number => Java.use("java.lang.Integer").reverse(value);
+      return { manager, hooks: hooks as JavaHook[], reverse, addEventToLog: agent.addEventToLog as unknown as Mock };
+    }
+
+    it("reverts every hooked method and resolves once their replacements are released", async () => {
+      const { manager, hooks, reverse, addEventToLog } = await setup();
+      manager.registerHooks(hooks);
+      reverse(1);
+      expect(addEventToLog.mock.calls.length).toBe(1);
+
+      await manager.prepareDetach();
+
+      expect(hooks[0].method.implementation).toBeNull();
+      expect(reverse(1)).toBe(-2147483648);
+      expect(addEventToLog.mock.calls.length).toBe(1);
+    });
+
+    it("installs no hook afterwards", async () => {
+      const { manager, hooks } = await setup();
+
+      await manager.prepareDetach();
+
+      expect(manager.registerHooks(hooks)).toBe(0);
+      expect(hooks[0].method.implementation).toBeNull();
+    });
+  });
+
   describe("calls made by hook code", () => {
     function eventsOf(agent: FrookyAgent, method: string, instance?: Java.Wrapper): JavaHookEvent[] {
       const hashCode = instance ? formatHashCode(identityHashCode(instance)) : undefined;

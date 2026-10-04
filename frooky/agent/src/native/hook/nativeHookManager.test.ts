@@ -44,14 +44,15 @@ const cmErrno = new CModule(
 );
 
 // qsort() calls compare_ints() from libc.so, a NativeFunction call comes from Frida's agent: a callerFilter on
-// libc.so passes the first and drops the second
+// libc.so passes the first and drops the second. Returns -1 with errno ENOENT for different values in either order, as
+// the order in which bionic's qsort() passes them differs between Android versions.
 const cmCompare = new CModule(
   `
   extern int *__errno (void);
   int compare_ints (const int *a, const int *b) {
-    int result = (*a > *b) - (*a < *b);
-    if (result < 0) *__errno () = 2;
-    return result;
+    if (*a == *b) return 0;
+    *__errno () = 2;
+    return -1;
   }
 `,
   { __errno: Module.getGlobalExportByName("__errno") },
