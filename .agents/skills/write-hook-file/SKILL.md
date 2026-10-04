@@ -87,4 +87,5 @@ This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf
 - [ ] Output buffers use `direction: out` or `inout`; native buffers without a terminator have the role `length` in `decoderArgs`, and Java slices have `offset` and `length`.
 - [ ] `decoder:` names come from the registered list.
 - [ ] Hot methods (e.g. `String` methods, `HashMap.put`) are filtered or avoided; hooking them can make the app crawl.
+- [ ] No blocked function or method (e.g. `String.$init`, `Class.forName(String)`, `dlopen`): frooky skips them, see `docs/under-the-hood.md` (Danger Zone sections).
 - [ ] The file validates.

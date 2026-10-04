@@ -197,5 +197,44 @@ describe("AndroidHookValidator", () => {
       const [message] = warnSpy.mock.calls[0] as [string];
       expect(message).toContain("Early hooking ('early: true') is not supported for Java method 'bar' from class 'com.example.Foo'");
     });
+
+    describe("blocked methods", () => {
+      const warnings = () => warnSpy.mock.calls.map((call) => String(call[0]));
+      const hooksOf = (javaClass: string, hooks: InputJavaHookCollection["hooks"]) =>
+        validator.validateAndNormalizeHooks({ hookCollection: [{ type: "java", javaClass, hooks }] }, defaultSettings);
+
+      it("skips a method the hook breaks the app on", () => {
+        expect(hooksOf("java.lang.String", ["$init", "equals"]).map((hook) => hook.method)).toEqual(["equals"]);
+        expect(warnings().length).toBe(1);
+        expect(warnings()[0]).toContain("Skipping hook for java method '$init' from class 'java.lang.String': ART runs a String constructor");
+        expect(warnings()[0]).toContain("Hook the newStringFrom* methods of java.lang.StringFactory instead.");
+      });
+
+      it("matches the class by its full name", () => {
+        expect(hooksOf("com.example.String", ["$init"]).map((hook) => hook.method)).toEqual(["$init"]);
+      });
+
+      it("keeps the overloads of a method that aren't blocked", () => {
+        const [hook] = hooksOf("java.lang.Class", [
+          { method: "forName", overloads: [{ params: ["java.lang.String"] }, { params: ["java.lang.String", "boolean", "java.lang.ClassLoader"] }] },
+        ]);
+
+        expect(hook.overloads!.map((overload) => overload.params.map((param) => param.type))).toEqual([
+          ["java.lang.String", "boolean", "java.lang.ClassLoader"],
+        ]);
+        expect(warnings()).toEqual([
+          "Skipping hook for java method 'forName(java.lang.String)' from class 'java.lang.Class': it uses its caller's class loader, which the hook turns into the boot class loader, so it doesn't find the app's classes.",
+        ]);
+      });
+
+      it("skips a hook whose declared overloads are all blocked", () => {
+        expect(hooksOf("java.lang.Class", [{ method: "forName", overloads: [{ params: ["java.lang.String"] }] }])).toEqual([]);
+      });
+
+      it("leaves a hook on every overload of a partly blocked method to the resolver", () => {
+        expect(hooksOf("java.lang.Class", ["forName"]).map((hook) => hook.method)).toEqual(["forName"]);
+        expect(warnings()).toEqual([]);
+      });
+    });
   });
 });

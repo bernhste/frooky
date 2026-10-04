@@ -30,6 +30,16 @@ describe("resolveMethodHooks()", () => {
     expect(hooks[0].params![0].declaringClass).toBe("java.lang.String");
   });
 
+  it("skips the blocked overloads of a method", () => {
+    const javaClass = Java.use("java.lang.Class");
+    const hooks = resolveMethodHooks([javaClass], javaHook("forName", { javaClass: "java.lang.Class" }))!;
+
+    const paramTypes = hooks.map((hook) => hook.method.argumentTypes.map((t) => t.className).join(","));
+    expect(paramTypes).not.toContain("java.lang.String");
+    expect(paramTypes).toContain("java.lang.String,boolean,java.lang.ClassLoader");
+    expect(hooks.length).toBe(javaClass.forName.overloads.length - 1);
+  });
+
   it("returns null if the method doesn't exist in any of the classes", () => {
     expect(resolveMethodHooks([string()], javaHook("doesNotExist"))).toBeNull();
   });

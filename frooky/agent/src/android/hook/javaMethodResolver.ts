@@ -3,6 +3,7 @@ import { Param } from "../../shared/decoders/decodable";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { logger } from "../../shared/logger";
+import { findBlockedMethod, warnBlockedMethod } from "./androidHookValidator";
 import { JavaHook } from "./javaHook";
 
 // null if the method or none of its declared overloads exists in any of `javaClasses`
@@ -68,6 +69,12 @@ function resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDecl
   } else {
     // all overloads
     for (const javaMethod of method.overloads) {
+      const paramTypes = javaMethod.argumentTypes.map((type) => type.className ?? type.name);
+      const blocked = findBlockedMethod(declaringClass, method.methodName, paramTypes);
+      if (blocked) {
+        warnBlockedMethod(declaringClass, method.methodName, blocked, paramTypes);
+        continue;
+      }
       const params: Param[] = buildParamsFromArgumentTypes(javaMethod.argumentTypes, inputHook.decoderSettings, declaringClass);
       result.push({
         methodName: method.methodName,

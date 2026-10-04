@@ -26,6 +26,7 @@ This page explains how frooky works internally: what happens to a hook from the 
   - [Keeping the Module Ranges Current](#keeping-the-module-ranges-current)
   - [Caller Filters on Java Hooks](#caller-filters-on-java-hooks)
 - [Danger Zone: Blocked Native Functions](#danger-zone-blocked-native-functions)
+- [Danger Zone: Blocked Java Methods](#danger-zone-blocked-java-methods)
 - [Collecting Events](#collecting-events)
   - [Capture an Event](#capture-an-event)
   - [Sending Event Batches to the Host](#sending-event-batches-to-the-host)
@@ -570,6 +571,25 @@ The function is matched by its symbol and module, also if the hook names the mod
 **Source:**
 
 - [`nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`BLOCKED_FUNCTIONS`, `findBlockedFunction()`)
+
+## Danger Zone: Blocked Java Methods
+
+A few Java methods break the app however they are hooked, also with a plain Frida script that only calls the original method. Most of them look up their caller on the stack: frida-java-bridge calls the original method from its replacement of it, whose class is the hooked method's own class. These methods then see a boot class as their caller instead of the app's class. frooky drops hooks on them while it [validates the hook file](#validation), and logs a warning instead:
+
+| Method                                                                                                                           | Overloads            | Why                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `java.lang.String.$init`                                                                                                         | all                  | ART runs each `String` constructor as a `java.lang.StringFactory` method, so the hook never runs. On Android 12, ART finds no `StringFactory` method for the hooked constructor and aborts the app. Hook `java.lang.StringFactory` instead. |
+| `java.lang.Class.forName`                                                                                                        | `(java.lang.String)` | It loads the class with its caller's class loader, which becomes the boot class loader: the app's classes aren't found (`ClassNotFoundException`). The overload with a `ClassLoader` parameter can be hooked.                               |
+| `java.lang.System.loadLibrary`                                                                                                   | all                  | It loads the library with its caller's class loader, which becomes the boot class loader: the app's libraries aren't found (`UnsatisfiedLinkError`).                                                                                        |
+| `newUpdater` of `java.util.concurrent.atomic.AtomicIntegerFieldUpdater`, `AtomicLongFieldUpdater`, `AtomicReferenceFieldUpdater` | all                  | It checks its caller's access to the field, and the caller becomes the updater class: it throws `IllegalAccessException` on private fields, e.g. those of Kotlin coroutines.                                                                |
+| `dalvik.system.VMStack.getStackClass2`, `sun.reflect.Reflection.getCallerClass`                                                  | all                  | The hook adds a frame, so they return the wrong caller and e.g. `Class.forName()` doesn't find the app's classes. On Android 15, `getCallerClass` didn't break the app.                                                                     |
+
+The method is matched by the exact class name and, for `forName`, by the parameter types. A hook that declares `overloads` loses the blocked ones while it is validated; a hook on every overload, e.g. `- forName`, skips the blocked ones when the class is resolved. Measured on Android 12 and 15 (x86_64). Whether a hook breaks the app can depend on whether it's installed before the app's first call, e.g. during start-up. On the Android 17 emulator, Frida 17.22.1 can't hook Java methods in a spawned app at all.
+
+**Source:**
+
+- [`androidHookValidator.ts`](../frooky/agent/src/android/hook/androidHookValidator.ts) (`BLOCKED_METHODS`, `findBlockedMethod()`)
+- [`javaMethodResolver.ts`](../frooky/agent/src/android/hook/javaMethodResolver.ts) (blocked overloads of a hook on every overload)
 
 ## Collecting Events
 
