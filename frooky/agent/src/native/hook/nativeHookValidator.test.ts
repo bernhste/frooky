@@ -69,6 +69,23 @@ describe("NativeHookValidator", () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
+    for (const [kind, hooks] of [
+      ["a string", "custom_func"],
+      ["missing", undefined],
+    ]) {
+      it(`skips a collection whose hooks are ${kind}`, () => {
+        const nativeCollection = { type: "native", module: "libfoo.so", hooks } as unknown as InputNativeHookCollection;
+        const otherCollection: InputNativeHookCollection = { type: "native", module: "libbar.so", hooks: ["funcB"] };
+        const config: InputFrookyConfig = { hookCollection: [nativeCollection, otherCollection] };
+
+        const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(result.map((hook) => hook.symbol)).toEqual(["funcB"]);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(String(warnSpy.mock.calls[0][0])).toContain("Skipping the hook collection for module 'libfoo.so': 'hooks' must be a list");
+      });
+    }
+
     it("collects hooks from multiple native hook collections, ignoring non-native hook collections", () => {
       const nativeCollectionA: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: ["funcA"] };
       const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: ["foo"] };

@@ -1,7 +1,7 @@
 import { Param } from "../../shared/decoders/decodable";
 import z from "zod";
 
-import { validateInputHook } from "../../shared/configValidator";
+import { hasHookList, validateInputHook } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
 import { NativeHookDeclaration } from "../../shared/hook/hookDeclaration";
@@ -76,7 +76,7 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
   getPlatformHookCollections(inputFrookyConfig: InputFrookyConfig): InputNativeHookCollection[] {
     const platformHookCollection: InputNativeHookCollection[] = [];
     for (const hookScope of inputFrookyConfig.hookCollection) {
-      if (isNativeHookCollection(hookScope)) {
+      if (isNativeHookCollection(hookScope) && hasHookList(hookScope, `module '${hookScope.module}'`)) {
         platformHookCollection.push(hookScope);
       }
     }
