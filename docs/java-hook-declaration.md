@@ -124,6 +124,27 @@ WebView.loadUrl(url: String, additionalHttpHeaders: MutableMap<String!, String!>
 > - **Wildcards:** `org.owasp.*.HttpClient`, at the package level - `*` matches exactly one segment between dots. frooky hooks every matching class of the app and of its class loaders when it resolves the pattern, also classes the app hasn't used yet. If no class matches, it hooks the matching classes of the first class loader the app creates that has any. Reading the class names of a large app takes up to about a second. For a class loader created later, frooky reads them while it is created, which delays its creation by up to about 0.1 seconds for a large one.
 > - **Nested classes:** use the `$` separator, for example `Outer$Inner`
 
+## Method Wildcards
+
+A `*` in a method name matches any characters, also none. frooky hooks every overload of each method whose name matches.
+
+**Example:**
+
+```yaml
+javaClass: javax.crypto.Cipher
+hooks:
+  - get*          # getInstance, getIV, getParameters, ...
+  - "*Final"      # doFinal
+```
+
+> [!NOTE]
+>
+> - A pattern only matches the methods the class declares itself, not inherited methods (e.g. `wait` or `hashCode` of `java.lang.Object`) and not constructors. Hook those by name, e.g. `$init`.
+> - YAML reads a value that starts with `*` as an alias, so quote it: `"*Final"`.
+> - With `overloads`, frooky hooks these overloads of each matching method that has them, and skips the others.
+> - Methods that frooky never hooks because a hook breaks the app (e.g. `System.loadLibrary`) are skipped with a warning, also when a pattern matches them.
+> - A pattern also works with a class wildcard, e.g. `javaClass: org.owasp.*.HttpClient` with `send*`.
+
 ## Class Loaders
 
 frooky looks a class up in every class loader of the app, not only in the app's own:

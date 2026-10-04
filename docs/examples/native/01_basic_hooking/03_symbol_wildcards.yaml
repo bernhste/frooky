@@ -1,0 +1,22 @@
+metadata:
+  name: "Basic Hooking (Native): Symbol Wildcards"
+  description: |
+    A `*` in a symbol matches any characters, also none. frooky hooks every exported function of the
+    module whose name matches. `params` and `retType` of an expanded hook apply to each of them.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/01_basic_hooking/03_symbol_wildcards.yaml
+# See:    docs/native-hook-declaration.md#symbol-wildcards
+
+hookCollection:
+  - module: libreceiveFundamentalReference.so
+    hooks:
+      # receive_int_ref and receive_uint_ref
+      - receive_*int_ref
+
+# Expected events:
+#   receive_int_ref:  argsIn [], no returnValue
+#   receive_uint_ref: argsIn [], no returnValue

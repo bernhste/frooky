@@ -9,6 +9,13 @@ export function wildcardPatternToRegExp(pattern: string): RegExp {
   return new RegExp(`^${segments.join("[^.]+")}$`);
 }
 
+// For method and symbol names: `*` matches any characters, also none, e.g. `get*Key` matches `getKey` and
+// `getPublicKey`.
+export function namePatternToRegExp(pattern: string): RegExp {
+  const segments = pattern.split("*").map((segment) => segment.replace(/[.+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`^${segments.join(".*")}$`);
+}
+
 // JSON.stringify() with sorted object keys, so equal values give the same string
 export function stableStringify(value: unknown): string {
   return JSON.stringify(value, (_key, val) =>

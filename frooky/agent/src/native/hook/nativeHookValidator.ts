@@ -33,7 +33,7 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
             inputNativeHook,
             `native ${target} from module '${nativeHookCollection.module}'`,
           );
-          let validatedHook = normalizeNativeHook(validInputHook, nativeHookCollection.module, hookSettings, decoderSettings);
+          const validatedHook = normalizeNativeHook(validInputHook, nativeHookCollection.module, hookSettings, decoderSettings);
           validateDecoderArgRoles(validatedHook.params, acceptedNativeDecoderArgs);
           validateDecoderNames(
             [validatedHook.decoderSettings, validatedHook.retType?.settings, ...(validatedHook.params ?? []).map((p) => p.settings)],
@@ -41,26 +41,11 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
             "native",
           );
           rejectErrnoOnParams(validatedHook.params);
-          const blocked = findBlockedFunction(validatedHook);
-          if (blocked) {
-            const { hookSettings: settings } = validatedHook;
-            const hint = blocked.runtime ? " Use the default QuickJS runtime to hook it." : "";
-            if (!blocked.stackTraceOnly) {
-              logger.warn(
-                `Skipping hook for native function '${validatedHook.symbol}' from module '${nativeHookCollection.module}': ${blocked.reason}.${hint}`,
-              );
-              continue;
-            }
-            if (settings.nativeStackTrace || settings.platformStackTrace) {
-              logger.warn(
-                `No stack traces for native function '${validatedHook.symbol}' from module '${nativeHookCollection.module}': ${blocked.reason}.`,
-              );
-              validatedHook = { ...validatedHook, hookSettings: { ...settings, nativeStackTrace: false, platformStackTrace: false } };
-            }
-          }
-          warnOnHighFrequencyLibcHook(validatedHook);
-          noteEarlyPlatformStackTrace(validatedHook);
-          normalizedNativeHooks.push(validatedHook);
+          const allowedHook = applyBlockedFunctions(validatedHook);
+          if (!allowedHook) continue;
+          warnOnHighFrequencyLibcHook(allowedHook);
+          noteEarlyPlatformStackTrace(allowedHook);
+          normalizedNativeHooks.push(allowedHook);
         } catch (e) {
           const validationError = e instanceof z.ZodError ? z.prettifyError(e) : String(e instanceof Error ? e.message : e);
           logger.warn(
@@ -159,6 +144,23 @@ export function findBlockedFunction(hook: NativeHookDeclaration): BlockedFunctio
       (!blocked.runtime || blocked.runtime === Script.runtime) &&
       (!blocked.earlyOnly || hook.hookSettings.early),
   );
+}
+
+// Null if BLOCKED_FUNCTIONS blocks the hook's function, else the hook, without stack traces if it blocks those
+export function applyBlockedFunctions(hook: NativeHookDeclaration): NativeHookDeclaration | null {
+  const blocked = findBlockedFunction(hook);
+  if (!blocked) return hook;
+  const { hookSettings: settings } = hook;
+  if (!blocked.stackTraceOnly) {
+    const hint = blocked.runtime ? " Use the default QuickJS runtime to hook it." : "";
+    logger.warn(`Skipping hook for native function '${hook.symbol}' from module '${hook.module}': ${blocked.reason}.${hint}`);
+    return null;
+  }
+  if (settings.nativeStackTrace || settings.platformStackTrace) {
+    logger.warn(`No stack traces for native function '${hook.symbol}' from module '${hook.module}': ${blocked.reason}.`);
+    return { ...hook, hookSettings: { ...settings, nativeStackTrace: false, platformStackTrace: false } };
+  }
+  return hook;
 }
 
 export function warnOnHighFrequencyLibcHook(hook: NativeHookDeclaration): void {

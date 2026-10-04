@@ -3,21 +3,38 @@ import { Param } from "../../shared/decoders/decodable";
 import { DecoderSettings } from "../../shared/frookySettings";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { logger } from "../../shared/logger";
+import { namePatternToRegExp } from "../../shared/utils";
 import { findBlockedMethod, warnBlockedMethod } from "./androidHookValidator";
 import { JavaHook } from "./javaHook";
 
-// null if the method or none of its declared overloads exists in any of `javaClasses`
+// null if the method or none of its declared overloads exists in any of `javaClasses`. A `*` in the method name
+// matches the methods a class declares itself, not inherited methods or constructors.
 export function resolveMethodHooks(javaClasses: Java.Wrapper[], inputHook: JavaHookDeclaration): JavaHook[] | null {
+  const pattern = inputHook.method.includes("*") ? namePatternToRegExp(inputHook.method) : undefined;
   const hooks: JavaHook[] = [];
   for (const javaClass of javaClasses) {
     try {
-      const method = resolveMethod(javaClass, inputHook);
-      hooks.push(...resolveOverloads(method, inputHook));
+      if (!pattern) {
+        hooks.push(...resolveOverloads(resolveMethod(javaClass, inputHook), inputHook));
+        continue;
+      }
+      const methodNames = declaredMethodNames(javaClass).filter((name) => pattern.test(name));
+      if (methodNames.length === 0) logger.debug(`No method of class '${javaClass.$className}' matches '${inputHook.method}'.`);
+      for (const methodName of methodNames) {
+        const method: Java.MethodDispatcher | undefined = javaClass[methodName];
+        if (method) hooks.push(...resolveOverloads(method, { ...inputHook, method: methodName }, true));
+      }
     } catch (e) {
       logger.warn(e instanceof Error ? e.message : String(e));
     }
   }
   return hooks.length > 0 ? hooks : null;
+}
+
+// Overloads share a name, so each name once
+function declaredMethodNames(javaClass: Java.Wrapper): string[] {
+  const methods: Java.Wrapper[] = Array.from(javaClass.class.getDeclaredMethods());
+  return [...new Set(methods.map((method) => String(method.getName())))];
 }
 
 function buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {
@@ -45,7 +62,8 @@ function resolveMethod(javaClass: Java.Wrapper, inputHook: JavaHookDeclaration):
   }
 }
 
-function resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDeclaration): JavaHook[] {
+// `matched`: the method matched a `*` pattern, which needn't have the declared overloads
+function resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDeclaration, matched = false): JavaHook[] {
   const result: JavaHook[] = [];
   const declaringClass = method.holder.$className;
   if (inputHook.overloads?.length) {
@@ -53,6 +71,11 @@ function resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDecl
     for (const overload of inputHook.overloads) {
       const params: Param[] = overload.params.map((param) => ({ ...param, declaringClass }));
       const paramTypes: string[] = params.map((param) => param.type);
+      const blocked = findBlockedMethod(declaringClass, method.methodName, paramTypes);
+      if (blocked) {
+        warnBlockedMethod(declaringClass, method.methodName, blocked, paramTypes);
+        continue;
+      }
       try {
         result.push({
           methodName: method.methodName,
@@ -63,7 +86,7 @@ function resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDecl
           retTypeSettings: overload.retType,
         });
       } catch (e) {
-        logger.warn(`Skipping overload for method '${inputHook.method}(${paramTypes})'. The overload does not exist.`);
+        (matched ? logger.debug : logger.warn)(`Skipping overload for method '${inputHook.method}(${paramTypes})'. The overload does not exist.`);
       }
     }
   } else {

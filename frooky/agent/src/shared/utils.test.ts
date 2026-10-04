@@ -3,6 +3,7 @@ import {
   decodeBase64Value,
   FilterMismatchError,
   formatHashCode,
+  namePatternToRegExp,
   sleepMilliseconds,
   sleepSeconds,
   toAscii,
@@ -14,6 +15,26 @@ import {
 } from "./utils";
 
 describe("Utils", () => {
+  describe("namePatternToRegExp()", () => {
+    it("matches '*' against any characters, also none", () => {
+      const pattern = namePatternToRegExp("receive*Ref");
+
+      expect(pattern.test("receiveRef")).toBeTruthy();
+      expect(pattern.test("receiveIntRef")).toBeTruthy();
+      expect(pattern.test("receive_uint_Ref")).toBeTruthy();
+      expect(pattern.test("receiveRefs")).toBeFalsy();
+      expect(pattern.test("xreceiveRef")).toBeFalsy();
+    });
+
+    it("matches other characters literally", () => {
+      const pattern = namePatternToRegExp("lambda$on*$0");
+
+      expect(pattern.test("lambda$onCreate$0")).toBeTruthy();
+      expect(pattern.test("lambda$onCreate$01")).toBeFalsy();
+      expect(namePatternToRegExp("foo.cold*").test("fooXcold")).toBeFalsy();
+    });
+  });
+
   describe("wildcardPatternToRegExp()", () => {
     it("matches a pattern without wildcards only against the exact string", () => {
       const pattern = wildcardPatternToRegExp("org.owasp.mastestapp.MainActivity");

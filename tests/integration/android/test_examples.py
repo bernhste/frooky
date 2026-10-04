@@ -69,6 +69,15 @@ class TestAndroidExamples:
         assert event["argsIn"] == [{"type": "java.lang.String", "value": "plugin"}]
         assert event["returnValue"]["value"] == "Hello plugin"
 
+    def test_method_wildcards(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/01_basic_hooking/05_method_wildcards.yaml"), JAVA_APP)
+
+        assert {event["method"] for event in find_matched_events({"javaClassName": MASTG_CLASS})} == {"receiveBoolean", "receiveBooleanArray"}
+        [bool_event] = self._events(find_matched_events, "receiveBoolean")
+        assert bool_event["argsIn"] == [{"type": "boolean", "value": True}]
+        [array_event] = self._events(find_matched_events, "receiveBooleanArray")
+        assert array_event["argsIn"] == [{"type": "[Z", "value": [True, False]}]
+
     def test_named_parameters(self, run_frooky, find_matched_events):
         run_frooky(_example("android/02_parameters_and_return_values/01_named_parameters.yaml"), JAVA_APP)
 
@@ -381,6 +390,16 @@ class TestNativeExamples:
         [int_event] = self._events(find_matched_events, "receive_int")
         assert int_event["argsIn"] == [{"type": "int", "value": -2147483648}, {"type": "int", "value": 2147483647}]
         assert int_event["returnValue"]["value"] == -2147483648
+
+    def test_symbol_wildcards(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/01_basic_hooking/03_symbol_wildcards.yaml"), NATIVE_APP)
+
+        module = "libreceiveFundamentalReference.so"
+        assert {event["symbol"] for event in find_matched_events({"module": module})} == {"receive_int_ref", "receive_uint_ref"}
+        for symbol in ["receive_int_ref", "receive_uint_ref"]:
+            [event] = self._events(find_matched_events, symbol, module)
+            assert event["argsIn"] == []
+            assert "returnValue" not in event
 
     def test_values_and_pointers(self, run_frooky, find_matched_events):
         run_frooky(_example("native/02_parameters_and_return_values/01_values_and_pointers.yaml"), NATIVE_APP)

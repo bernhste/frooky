@@ -177,6 +177,47 @@ describe("NativeHookManager", () => {
       expect(results).toEqual([null]);
     });
 
+    it("resolves a '*' pattern to one hook per matching exported function", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const libc = Process.getModuleByName("libc.so");
+      const functions = new Map(
+        libc
+          .enumerateExports()
+          .filter((e) => e.type === "function")
+          .map((e) => [e.name, e.address.toString()]),
+      );
+
+      const results = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "pthread_mutex_*lock")]));
+
+      const hooks = results[0] as NativeHook[];
+      const names = hooks.map((hook) => hook.symbolName!);
+      expect(names).toContain("pthread_mutex_lock");
+      expect(names).toContain("pthread_mutex_unlock");
+      expect(names.every((name) => /^pthread_mutex_.*lock$/.test(name))).toBeTruthy();
+      hooks.forEach((hook) => expect(hook.symbolAddress.toString()).toBe(String(functions.get(hook.symbolName!))));
+      expect(new Set(hooks.map((hook) => hook.symbolAddress.toString())).size).toBe(hooks.length);
+    });
+
+    it("skips blocked functions that a '*' pattern matches", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const warnSpy = spyOn(logger, "warn");
+
+      const results = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "pthread_*specific")]));
+      const warnings = warnSpy.mock.calls.map((call) => String(call[0])).join("\n");
+      warnSpy.mockRestore();
+
+      expect(results).toEqual([null]);
+      expect(warnings).toContain("Skipping hook for native function 'pthread_getspecific'");
+    });
+
+    it("returns null when no exported function matches a '*' pattern", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+
+      const results = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "thisSymbolDoesNotExist*")]));
+
+      expect(results).toEqual([null]);
+    });
+
     it("resolves the module once and shares that same Module instance across every hook that references it", async () => {
       // Process.getModuleByName can't be spied on, so this checks that both hooks get the same Module instance
       const manager = new NativeHookManager(stackTrace, frookyAgent);

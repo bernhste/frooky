@@ -28,7 +28,10 @@ export interface InputOverload {
  * @public
  */
 export interface InputJavaHookDetails {
-  /** Method name. Use `$init` for constructors. */
+  /**
+   * Method name. Use `$init` for constructors. A `*` matches any characters, e.g. `get*` hooks every method of the
+   * class whose name starts with `get`, but no inherited method and no constructor.
+   */
   method: string;
 
   /** Overloads to hook. If omitted, all overloads are hooked. */
@@ -42,7 +45,8 @@ export interface InputJavaHookDetails {
 }
 
 /**
- * A Java method hook: a method name, a `[method, decoderSettings]` tuple, or a detailed declaration.
+ * A Java method hook: a method name, a `[method, decoderSettings]` tuple, or a detailed declaration. A `*` in the
+ * method name matches any characters.
  *
  * @public
  */

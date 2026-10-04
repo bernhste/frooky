@@ -118,6 +118,27 @@ hooks:
 
 This hooks `SSL_write` from `libssl.so`, with `maxItems` set to `16` for that hook only. Every native event carries the function's `address` and a `hashCode` of it.
 
+## Symbol Wildcards
+
+A `*` in a symbol matches any characters, also none. frooky hooks every exported function of the module whose name matches.
+
+**Example:**
+
+```yaml
+module: libc.so
+hooks:
+  - inet_*        # inet_addr, inet_aton, inet_ntop, inet_pton, ...
+  - "*addrinfo"   # getaddrinfo, freeaddrinfo
+```
+
+> [!NOTE]
+>
+> - A pattern only matches exported functions, not exported variables.
+> - YAML reads a value that starts with `*` as an alias, so quote it: `"*addrinfo"`.
+> - `params` and `retType` in the expanded form apply to every matching function, so only use them for functions with the same signature.
+> - If several matching names belong to one function (e.g. `memcpy` and `memmove` in some libcs), frooky hooks it once, under the first name.
+> - Functions that frooky never hooks because a hook breaks the app (e.g. `pthread_getspecific`) are skipped with a warning, also when a pattern matches them. A broad pattern on a low-level library such as `libc.so` can still match functions the app calls very often, which slows it down.
+
 ## Hooking Functions Without a Symbol
 
 Functions that a module does not export, for example ones you found by reverse engineering a stripped library, can't be hooked by `symbol`. Use `offset` instead: the function's offset from the base address the module is loaded at. Every hook needs exactly one of `symbol` or `offset`.

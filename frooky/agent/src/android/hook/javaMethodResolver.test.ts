@@ -1,6 +1,7 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
+import { logger } from "../../shared/logger";
 import { resolveMethodHooks } from "./javaMethodResolver";
 
 function javaHook(method: string, overrides: Partial<JavaHookDeclaration> = {}): JavaHookDeclaration {
@@ -42,5 +43,30 @@ describe("resolveMethodHooks()", () => {
 
   it("returns null if the method doesn't exist in any of the classes", () => {
     expect(resolveMethodHooks([string()], javaHook("doesNotExist"))).toBeNull();
+  });
+
+  it("resolves a '*' pattern to every overload of each matching method", () => {
+    const hooks = resolveMethodHooks([string()], javaHook("*ndexOf"))!;
+
+    expect([...new Set(hooks.map((hook) => hook.methodName))].sort()).toEqual(["indexOf", "lastIndexOf"]);
+    expect(hooks.length).toBe(string().indexOf.overloads.length + string().lastIndexOf.overloads.length);
+  });
+
+  it("resolves the declared overloads of the methods a '*' pattern matches, without warning about the others", () => {
+    const warnSpy = spyOn(logger, "warn");
+    const overloads = [{ params: [{ type: "int", direction: "in" as const, settings: DEFAULT_DECODER_SETTINGS }] }];
+
+    const hooks = resolveMethodHooks([string()], javaHook("*", { overloads }))!;
+    const warnCount = warnSpy.mock.calls.length;
+    warnSpy.mockRestore();
+
+    expect(hooks.map((hook) => hook.methodName)).toContain("indexOf");
+    expect(hooks.map((hook) => hook.methodName)).toContain("charAt");
+    expect(warnCount).toBe(0);
+  });
+
+  it("matches a '*' pattern only against the methods the class declares itself", () => {
+    expect(resolveMethodHooks([string()], javaHook("wait*"))).toBeNull();
+    expect(resolveMethodHooks([string()], javaHook("*"))!.map((hook) => hook.methodName)).not.toContain("$init");
   });
 });

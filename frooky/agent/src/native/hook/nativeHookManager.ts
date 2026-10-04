@@ -15,7 +15,7 @@ import { NativeCallerFilter } from "../nativeCallerFilter";
 import { NativeModuleWatcher } from "../nativeModuleWatcher";
 import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
 import { collectArgs, planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
-import { FindExport, resolveNativeHook } from "./nativeAddressResolver";
+import { ModuleExports, moduleExports, resolveNativeHook } from "./nativeAddressResolver";
 import { NativeHook } from "./nativeHook";
 import { NativeHookIndex } from "./nativeHookIndex";
 import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
@@ -120,17 +120,15 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       const loadedModule = Process.findModuleByName(moduleName);
       if (loadedModule) {
         logger.debug(`Module '${moduleName}' already loaded.`);
-        const findExport = (symbol: string) => loadedModule.findExportByName(symbol) ?? undefined;
-        for (const i of hookIndices) results[i] = this.resolveInLoadedModule(inputHooks[i], loadedModule, findExport);
+        const exports = moduleExports(loadedModule, true);
+        for (const i of hookIndices) results[i] = this.resolveInLoadedModule(inputHooks[i], loadedModule, exports);
         continue;
       }
       let loaded = false;
       const moduleHooks = this.moduleWatcher.whenLoaded(moduleName, (module) => {
         loaded = true;
-        // getExportByName() makes the linker abort the process while it loads `module`, reading the ELF doesn't
-        let exports: Map<string, NativePointer> | undefined;
-        const findExport = (symbol: string) => (exports ??= new Map(module.enumerateExports().map((e) => [e.name, e.address]))).get(symbol);
-        return hookIndices.map((i) => this.installWhileLoading(inputHooks[i], module, findExport, source));
+        const exports = moduleExports(module, false);
+        return hookIndices.map((i) => this.installWhileLoading(inputHooks[i], module, exports, source));
       });
       hookIndices.forEach((hookIndex, j) => {
         const hooks = moduleHooks.then((moduleResults) => moduleResults[j]);
@@ -141,8 +139,8 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   }
 
   // FrookyAgent installs the hooks: right away with `early: true` or after targetReady, else once targetReady resolves
-  private resolveInLoadedModule(inputHook: NativeHookDeclaration, module: Module, findExport: FindExport): Resolution<NativeHook[] | null> {
-    const hooks = resolveNativeHook(inputHook, module, findExport);
+  private resolveInLoadedModule(inputHook: NativeHookDeclaration, module: Module, exports: ModuleExports): Resolution<NativeHook[] | null> {
+    const hooks = resolveNativeHook(inputHook, module, exports);
     if (!hooks || inputHook.hookSettings.early || this.frookyAgent.isTargetReady) return hooks;
     return this.targetReady().then(() => hooks);
   }
@@ -152,10 +150,10 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   private installWhileLoading(
     inputHook: NativeHookDeclaration,
     module: Module,
-    findExport: FindExport,
+    exports: ModuleExports,
     source?: string,
   ): NativeHook[] | null | Promise<NativeHook[] | null> {
-    const hooks = resolveNativeHook(inputHook, module, findExport);
+    const hooks = resolveNativeHook(inputHook, module, exports);
     if (!hooks) return null;
     if (inputHook.hookSettings.early || this.frookyAgent.isTargetReady) {
       this.registerHooks(hooks, source);
