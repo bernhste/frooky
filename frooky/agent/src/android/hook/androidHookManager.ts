@@ -10,7 +10,7 @@ import { HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } fr
 import { formatHashCode, fromSource, plural } from "../../shared/utils";
 import { detectUnsafeContext } from "../../native/unsafeContext";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
-import { fixArtMethodAccessFlagsOffset, repairAccessFlags } from "../javaBridgeWorkarounds";
+import { fixArtMethodAccessFlagsOffset, initializeClass, repairAccessFlags } from "../javaBridgeWorkarounds";
 import { JavaHook } from "./javaHook";
 import { countCalls, ReplacementCalls, RetiredReplacements } from "./retiredReplacements";
 import { resolveMethodHooks } from "./javaMethodResolver";
@@ -128,6 +128,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
         resolveClassMembers(factory);
         this.preparedFactories.add(factory);
       }
+      initializeClass(method);
       const newOverload: HookedOverload = { method, hooks: [], observers: [], inFlight: 0, finished: 0 };
       newOverload.method.implementation = this.createDispatcher(newOverload);
       repairAccessFlags(newOverload.method);
