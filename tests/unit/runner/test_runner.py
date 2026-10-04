@@ -121,6 +121,14 @@ class TestDescribeStopReason:
         finally:
             runner._stop_live_terminal()
 
+    def test_error_message_is_kept_as_is(self, tmp_path):
+        runner = make_runner(tmp_path)
+        try:
+            runner._stop_reason = "error: unable to find device with id emulator-5554"
+            assert runner._describe_stop_reason() == "Error: unable to find device with id emulator-5554"
+        finally:
+            runner._stop_live_terminal()
+
     def test_crash_takes_priority_and_includes_summary(self, tmp_path):
         runner = make_runner(tmp_path)
         try:
@@ -272,7 +280,7 @@ class TestRunSessionLoss:
         session = MagicMock()
         session.create_script.return_value = MagicMock()
 
-        monkeypatch.setattr("frooky.runner.runner.get_device", lambda options: device)
+        monkeypatch.setattr("frooky.runner.runner.get_device", lambda options, choose: device)
         monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
         monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
         monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")
@@ -406,7 +414,7 @@ class TestRunWatch:
         script = MagicMock()
         session.create_script.return_value = script
 
-        monkeypatch.setattr("frooky.runner.runner.get_device", lambda options: device)
+        monkeypatch.setattr("frooky.runner.runner.get_device", lambda options, choose: device)
         monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
         monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
         monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")

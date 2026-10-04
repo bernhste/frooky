@@ -12,7 +12,7 @@ from rich.text import Text
 
 from .._version import __version__ as frooky_version
 from .config import load_hook_config, load_hook_configs, load_user_scripts
-from .device import attach_or_spawn, describe_target, detect_platform, get_device, get_device_frida_version
+from .device import attach_or_spawn, choose_device, describe_target, detect_platform, get_device, get_device_frida_version
 from .feed import LEVEL_STYLES, Feed, HookStatus
 from .keys import KeyListener
 from .messages import create_log_handler, create_message_handler
@@ -50,6 +50,10 @@ class FrookyRunner:
         self._statistics_requested = threading.Event()
         self._print_events = options.print_events
         self._key_listener = KeyListener(self._on_key)
+
+    def _choose_device(self, devices: list[frida.core.Device]) -> frida.core.Device:
+        with self.feed.paused():
+            return choose_device(devices)
 
     def _stop_live_terminal(self):
         self.feed.stop()
@@ -103,7 +107,10 @@ class FrookyRunner:
             return f"process crashed ({self._agent_crash.get('type')} at {self._agent_crash.get('address')})"
         if self._stop_reason == "user interrupt":
             return "stopped by user (Ctrl+C)"
+        if self._stop_reason and self._stop_reason.startswith("error: "):
+            return "E" + self._stop_reason[1:]
         if self._stop_reason:
+            # Frida's reasons, e.g. `process-terminated`
             return self._stop_reason[0].upper() + self._stop_reason[1:].replace("-", " ")
         return "stopped"
 
@@ -293,7 +300,7 @@ class FrookyRunner:
             self.output.truncate()
             self.output.open()
 
-            self.device = get_device(self.options)
+            self.device = get_device(self.options, choose=self._choose_device)
             self.platform = detect_platform(self.device)
 
             self.session, self.spawned_pid = attach_or_spawn(self.device, self.options)

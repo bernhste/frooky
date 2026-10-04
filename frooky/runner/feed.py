@@ -4,8 +4,9 @@ import queue
 import re
 import threading
 from collections import deque
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional
+from typing import Iterator, Optional
 
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.live import Live
@@ -276,6 +277,17 @@ class Feed:
             self._printer_thread.join(timeout=2.0)
             self._printer_thread = None
         self._live.stop()
+
+    @contextmanager
+    def paused(self) -> Iterator[None]:
+        """Remove the status bar while the user is asked something on the terminal."""
+        self._live.transient = True
+        self._live.stop()
+        try:
+            yield
+        finally:
+            self._live.transient = False
+            self._live.start()
 
     def print(self, text: str | Text = "") -> None:
         """Print text, e.g. the header, without a timestamp or level. Long lines are left to the terminal to wrap."""

@@ -20,8 +20,8 @@ def __getattr__(name: str):
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
     # Device selection group
     device_group = parser.add_argument_group("device selection")
-    device_group.add_argument("-D", "--device", metavar="ID", help="Connect to device with the given ID")
-    device_group.add_argument("-U", "--usb", action="store_true", help="Connect to USB device")
+    device_group.add_argument("-D", "-s", "--device", metavar="ID", help="Connect to device with the given ID, e.g. the adb serial `emulator-5554`")
+    device_group.add_argument("-U", "--usb", action="store_true", help="Connect to USB device; asks which one if several are attached")
     device_group.add_argument("-R", "--remote", action="store_true", help="Connect to remote frida-server")
     device_group.add_argument("-H", "--host", metavar="HOST", help="Connect to remote frida-server on HOST")
     device_group.add_argument("--certificate", metavar="CERTIFICATE", help="Certificate used for secure communication with frida-server")
@@ -100,7 +100,7 @@ def _validate_agent_dist() -> None:
 def _validate_device_selection(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     device_count = sum([args.usb, args.device is not None, args.remote, args.host is not None])
     if device_count > 1:
-        parser.error("Use only one of -D/--device, -U/--usb, -R/--remote, or -H/--host.")
+        parser.error("Use only one of -D/-s/--device, -U/--usb, -R/--remote, or -H/--host.")
 
 
 def _resolve_paths(parser: argparse.ArgumentParser, paths: list[str], not_found_label: str) -> list[Path]:

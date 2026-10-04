@@ -137,6 +137,11 @@ class TestArgumentParsing:
         assert args.device == "emulator-5554"
         assert args.certificate == "cert.pem"
 
+    def test_s_is_an_alias_for_device(self):
+        parser = build_parser()
+
+        assert parser.parse_args(["-F", "-s", "emulator-5556", "hooks.yaml"]).device == "emulator-5556"
+
     def test_version(self, capsys):
         parser = build_parser()
         with pytest.raises(SystemExit) as exc_info:
@@ -184,7 +189,7 @@ class TestMain:
             main()
 
         assert exc_info.value.code == 2
-        assert "-D/--device" in capsys.readouterr().err
+        assert "-D/-s/--device" in capsys.readouterr().err
 
     def test_missing_hooks_file_errors(self, monkeypatch, tmp_path, capsys):
         missing = tmp_path / "does-not-exist.yaml"

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import sys
 import threading
-from typing import Optional
+from typing import Callable, Optional
 
 import frida
 
@@ -10,8 +11,8 @@ from .options import RunnerOptions
 SUPPORTED_PLATFORMS = ("android", "ios", "debian")
 
 
-def get_device(options: RunnerOptions) -> frida.core.Device:
-    """Get the Frida device based on options."""
+def get_device(options: RunnerOptions, choose: Callable[[list[frida.core.Device]], frida.core.Device] | None = None) -> frida.core.Device:
+    """Get the Frida device based on options. `choose` picks one of several USB devices (default: `choose_device`)."""
     if options.device_id:
         return frida.get_device(options.device_id, timeout=5)
     elif options.host:
@@ -19,9 +20,52 @@ def get_device(options: RunnerOptions) -> frida.core.Device:
     elif options.remote:
         return frida.get_remote_device()
     elif options.use_usb:
-        return frida.get_usb_device(timeout=5)
+        return get_usb_device(choose or choose_device)
     else:
         return frida.get_local_device()
+
+
+def get_usb_device(choose: Callable[[list[frida.core.Device]], frida.core.Device]) -> frida.core.Device:
+    """Get the only USB device, or let the user choose one when several are attached."""
+    # waits for the first device, so the enumeration below doesn't miss devices that are still being discovered
+    first = frida.get_usb_device(timeout=5)
+    devices = sorted((device for device in frida.enumerate_devices() if device.type == "usb"), key=lambda device: device.id)
+    if len(devices) <= 1:
+        return first
+    return choose(devices)
+
+
+def describe_device(device: frida.core.Device) -> str:
+    """e.g. `Android 15, API 35 (emulator-5554)`, or the device name if its OS can't be queried"""
+    try:
+        params = device.query_system_parameters()
+    except Exception:
+        params = {}
+    os_info = params.get("os", {})
+    parts = [f"{os_info['name']} {os_info.get('version', '')}".rstrip()] if os_info.get("name") else [device.name]
+    if params.get("api-level") is not None:
+        parts.append(f"API {params['api-level']}")
+    return f"{', '.join(parts)} ({device.id})"
+
+
+def choose_device(devices: list[frida.core.Device], prompt: Callable[[str], str] = input) -> frida.core.Device:
+    """Ask the user which of several devices to use."""
+    listing = "\n".join(f"  {index}) {describe_device(device)}" for index, device in enumerate(devices, start=1))
+    if not sys.stdin.isatty():
+        raise RuntimeError(f"Several USB devices are attached, choose one with -s/-D <ID>:\n{listing}")
+
+    print(f"Several USB devices are attached:\n{listing}", file=sys.stderr)
+    while True:
+        try:
+            answer = prompt(f"Choose a device [1-{len(devices)}]: ").strip()
+        except EOFError:
+            raise RuntimeError("No device chosen") from None
+        if answer.isdigit() and 1 <= int(answer) <= len(devices):
+            return devices[int(answer) - 1]
+        # the device ID works too, e.g. `emulator-5554`
+        for device in devices:
+            if answer == device.id:
+                return device
 
 
 def detect_platform(device: frida.core.Device) -> str:
