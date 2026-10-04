@@ -34,6 +34,11 @@ Requirements:
 - A device or emulator with `frida-server`
 - A 64-bit app process (`arm64` or `x86_64`). 32-bit processes are not supported, e.g. an app that ships only `armeabi-v7a` native libraries.
 
+frooky is tested on Android 12 to 15.
+
+> [!NOTE]
+> Android 16 and 17 are not fully supported. frooky works around known issues of Frida's Java bridge on these versions (e.g. crashes of hooked Java methods, empty Java stack traces), which makes it more stable there, but use it at your own risk.
+
 Install the `frooky` CLI tool via uv or pip:
 
 ```bash
