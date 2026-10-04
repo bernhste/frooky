@@ -136,6 +136,17 @@ export function validateMetadata(metadata: FrookyMetadata, platform: Platform) {
   logger.debug(`frooky meta data are valid`);
 }
 
+// False for a hook collection whose `hooks` isn't a list, e.g. `hooks: open`, whose characters would otherwise be
+// taken as hooks. `target` names the collection, e.g. `class 'android.content.Intent'`.
+export function hasHookList(hookCollection: { hooks?: unknown }, target: string): boolean {
+  if (Array.isArray(hookCollection.hooks)) return true;
+  const example = typeof hookCollection.hooks === "string" ? hookCollection.hooks : "name";
+  logger.warn(
+    `Skipping the hook collection for ${target}: 'hooks' must be a list, e.g. 'hooks: [${example}]', but is ${JSON.stringify(hookCollection.hooks) ?? "missing"}.`,
+  );
+  return false;
+}
+
 // Checks a hook declaration from a hook file against its input schema. Throws if it doesn't match, and warns about
 // properties the schema doesn't know (e.g. a misspelled `retTyp`), which parsing drops.
 export function validateInputHook<T>(schema: z.ZodType<T>, inputHook: unknown, label: string): T {

@@ -1,6 +1,6 @@
 import { acceptedJavaDecoderArgs, javaDecoderNames } from "../decoders/javaDecoderResolver";
 import z from "zod";
-import { validateInputHook } from "../../shared/configValidator";
+import { hasHookList, validateInputHook } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
@@ -67,7 +67,7 @@ export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, 
   getPlatformHookCollections(inputFrookyConfig: InputFrookyConfig): InputJavaHookCollection[] {
     const platformHookCollection: InputJavaHookCollection[] = [];
     for (const hookScope of inputFrookyConfig.hookCollection) {
-      if (isJavaHookScope(hookScope)) {
+      if (isJavaHookScope(hookScope) && hasHookList(hookScope, `class '${hookScope.javaClass}'`)) {
         platformHookCollection.push(hookScope);
       }
     }

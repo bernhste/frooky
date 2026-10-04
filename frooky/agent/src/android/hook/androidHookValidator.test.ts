@@ -68,6 +68,23 @@ describe("AndroidHookValidator", () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
+    for (const [kind, hooks] of [
+      ["a string", "bar"],
+      ["missing", undefined],
+    ]) {
+      it(`skips a collection whose hooks are ${kind}`, () => {
+        const javaCollection = { type: "java", javaClass: "com.example.Foo", hooks } as unknown as InputJavaHookCollection;
+        const otherCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Bar", hooks: ["baz"] };
+        const config: InputFrookyConfig = { hookCollection: [javaCollection, otherCollection] };
+
+        const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+
+        expect(result.map((hook) => hook.method)).toEqual(["baz"]);
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(String(warnSpy.mock.calls[0][0])).toContain("Skipping the hook collection for class 'com.example.Foo': 'hooks' must be a list");
+      });
+    }
+
     it("collects hooks from multiple java hook collections, ignoring non-java hook collections", () => {
       const javaCollectionA: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: ["foo"] };
       const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["bar"] };
