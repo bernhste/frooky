@@ -2,7 +2,7 @@ name: Test agent Android
 
 on:
   push:
-  # all API levels unless api-levels is set; a push tests only API 34
+  # all API levels unless api-levels is set; a push tests API 31-35 (Android 12, 12L, 13-15)
   workflow_dispatch:
     inputs:
       api-levels:
@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api-level: ${{ fromJSON(github.event_name == 'push' && '[34]' || inputs.api-levels && format('[{0}]', inputs.api-levels) || '[29, 31, 33, 34, 35, 36]') }}
+        api-level: ${{ fromJSON(github.event_name == 'push' && '[31, 32, 33, 34, 35]' || inputs.api-levels && format('[{0}]', inputs.api-levels) || '[29, 31, 32, 33, 34, 35, 36]') }}
     timeout-minutes: 30
 
     steps:

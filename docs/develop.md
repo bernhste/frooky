@@ -290,7 +290,7 @@ frooky only supports 64-bit app processes (`arm64`, `x86_64`). The agent refuses
 
 ### CI
 
-A push runs the tests on one configuration: Linux with Python 3.14 for the host unit tests, and an x86_64 emulator with API 34 for the agent and integration tests. To test the others, run the workflows manually under **Actions → Run workflow**:
+A push runs the tests on Linux with Python 3.14 for the host unit tests, and x86_64 emulators with API 31 to 35 (Android 12, 12L and 13 to 15) for the agent and integration tests. To test the others, run the workflows manually under **Actions → Run workflow**:
 
 - **Verify frooky host**: host unit tests on Linux, macOS and Windows, each with Python 3.12 and 3.14.
-- **Test agent Android** and **Test host Android**: emulators with API 29, 31, 33, 34, 35 and 36, or the levels given as a comma-separated list, e.g. `36` or `29, 36`.
+- **Test agent Android** and **Test host Android**: emulators with API 29 and 31 to 36, or the levels given as a comma-separated list, e.g. `36` or `29, 36`.

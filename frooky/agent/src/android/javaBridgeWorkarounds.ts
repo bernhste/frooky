@@ -11,7 +11,7 @@ declare module "frida-java-bridge/lib/android.js" {
 // Adjustments frooky makes to frida-java-bridge 7.0.13 for some Android versions:
 // 1. Android 16: hooking an intrinsic or a precompiled boot image method overflows the stack (repairAccessFlags)
 // 2. Android 17: Java.backtrace() throws (resolveArtWalkStack)
-// 3. Android 17: every hooked method crashes the app at the next GC (fixArtMethodAccessFlagsOffset)
+// 3. Android 17: a GC while a hooked method runs crashes the app (fixArtMethodAccessFlagsOffset)
 // 4. Android 12 and 13: hooks on a class that isn't initialized yet miss calls (initializeClass)
 // Remove an adjustment once a newer bridge version no longer needs it. They depend on the bridge's internals (the
 // `_m` mangler, the memoized ArtMethod spec, its API table), so package.json pins the exact version: when upgrading,
@@ -123,7 +123,7 @@ export function resolveArtWalkStack(): void {
 }
 
 // =====================================================================================================================
-// Issue 3 - Android 17: every hooked method crashes the app at the next GC
+// Issue 3 - Android 17: a GC while a hooked method runs crashes the app
 // =====================================================================================================================
 
 const kAccPublic = 0x0001;
@@ -134,7 +134,7 @@ const GET_ELAPSED_CPU_TIME_MODIFIERS = kAccPublic | kAccStatic | kAccFinal | kAc
 
 let artMethodSpecFixed = false;
 
-// Issue: every hooked method crashes the app at the next GC on Android 17.
+// Issue: on Android 17, a GC that walks a thread while it is inside a hooked method crashes the app.
 //
 // Repro (Android 17 x86_64 emulator, com.google.android.dialer): hook HashMap.get(Object) with
 // `m.implementation = function (...args) { return m.call(this, ...args); }` and trigger GCs (`kill -USR1 <pid>`).
@@ -154,7 +154,8 @@ let artMethodSpecFixed = false;
 //   the replacement's generic JNI frame, takes it for compiled code and decodes the GC maps of a null method header.
 // - The flags of the next method in the class change, and unhooking writes the flags read from there back.
 //
-// frooky runs into this on every Java hook on Android 17, as soon as a GC runs while a hooked method is on a stack.
+// frooky can run into this on any Java hook on Android 17: hot methods (e.g. HashMap.get) crash within seconds,
+// rarely called ones only if a GC happens to run while they are on a stack.
 //
 // Fix: compare only the low 16 bits (the Java modifiers) of each word within the ArtMethod. The first match is the
 // access flags at offset 4: offset 0 holds the 32-bit reference to the declaring class, which is 8-byte aligned and
