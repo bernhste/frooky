@@ -28,8 +28,8 @@ classifiers = [
 ]
 
 dependencies = [
-  "frida>=17.19.0",
-  "frida-tools>=14.10.4",
+  "frida>=17.22.1",
+  "frida-tools>=14.11.0",
   "pyyaml>=6.0.3",
   "rich>=15.0.0",
 ]
@@ -41,8 +41,8 @@ dev = [
   "pytest-cov>=7.1.0",
   "pylint-pytest>=1.1.9.post1",
   "Appium-Python-Client>=6.0.7",
-  "selenium>=4.49.0",
-  "ruff>=0.16.9",
+  "selenium>=4.50.0",
+  "ruff>=0.16.10",
 ]
 
 [project.urls]
