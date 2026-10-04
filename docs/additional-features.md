@@ -334,6 +334,28 @@ The `-l` (or `--load`) option can be specified multiple times to execute several
 - **Root and Integrity Bypass:** Overriding common detection checks (e.g. `File.exists` checks for `/system/bin/su` or root beer detectors) before application logic runs.
 - **Environment Setup:** Setting global variables, configuring instrumentation hooks, or monkey-patching libraries before the frooky agent installs its YAML-declared hooks.
 
+User scripts can be written in plain JavaScript (`.js`) or TypeScript (`.ts`). When a `.ts` file is passed, frooky compiles it automatically using Frida's built-in compiler (`frida.Compiler`).
+
+In both JavaScript and TypeScript, scripts have access to the platform runtime bridges (`Java`, `ObjC`, and `Swift`). frooky automatically resolves bridge imports, provides dependencies, and injects the runtime bridge:
+
+```typescript
+// unlock.ts
+import Java from "frida-java-bridge";
+
+interface UnlockConfig {
+  premium: boolean;
+}
+
+const config: UnlockConfig = { premium: true };
+
+Java.perform(() => {
+  const MainActivity = Java.use("com.example.app.MainActivity");
+  MainActivity.isPremium.implementation = () => config.premium;
+});
+```
+
+ESM import syntax (`import Java from "frida-java-bridge";`), CommonJS (`require("frida-java-bridge")`), and direct global access (`Java.perform(...)` without imports) are all supported.
+
 See [`examples/native/09_custom_scripts/`](./examples/native/09_custom_scripts/) for an example using custom scripts.
 
 ## Hot-Reloading and Watch Mode
