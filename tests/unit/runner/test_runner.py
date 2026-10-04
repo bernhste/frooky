@@ -284,7 +284,7 @@ class TestRunSessionLoss:
         monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
         monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
         monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")
-        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed, runtime: [])
+        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed, runtime, platform=None: [])
         monkeypatch.setattr("frooky.runner.runner.load_hook_configs", lambda paths: [])
 
         defaults = {"hook_paths": [hook_file], "output_path": tmp_path / "out.json", "attach_pid": 1234}
@@ -418,7 +418,7 @@ class TestRunWatch:
         monkeypatch.setattr("frooky.runner.runner.detect_platform", lambda d: "android")
         monkeypatch.setattr("frooky.runner.runner.attach_or_spawn", lambda d, o: (session, None))
         monkeypatch.setattr("frooky.runner.runner.get_device_frida_version", lambda s: "16.0.0")
-        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed, runtime: [])
+        monkeypatch.setattr("frooky.runner.runner.load_user_scripts", lambda s, paths, feed, runtime, platform=None: [])
 
         runner = FrookyRunner(RunnerOptions(hook_paths=[hook_file], output_path=tmp_path / "out.json", attach_pid=1234, watch=watch))
         return runner, script, hook_file

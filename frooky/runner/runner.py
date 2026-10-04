@@ -315,7 +315,7 @@ class FrookyRunner:
             self.feed.hook_status(self._hook_status)
 
             # Load any user-provided scripts before the frooky agent
-            self.user_scripts = load_user_scripts(self.session, self.options.user_scripts, self.feed, self.options.runtime)
+            self.user_scripts = load_user_scripts(self.session, self.options.user_scripts, self.feed, self.options.runtime, platform=self.platform)
 
             self.script = self.session.create_script(script_source, runtime=self.options.runtime)
             self.script.on(
