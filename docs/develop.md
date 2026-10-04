@@ -97,7 +97,7 @@ You find them in the folder `tests/target-apps`, together with [instructions](..
 
 ### Installing the Target App
 
-After building, the app must be installed manually on the device or simulator before running tests. This command will install and launch the app:
+On Android, [`sync_target_apps.py`](#sync_target_appspy) builds the apps and installs the latest build on every attached device. Otherwise, build the app and install it with the Makefile:
 
 ```bash
 cd tests/target-apps/<android|ios>
@@ -109,80 +109,166 @@ make install
 
 ### Running Agent Tests
 
-The Frida agent has its own test suite that runs inside a live Frida session (on a real device, simulator, or emulator). Tests are written in TypeScript and live under `frooky/agent/tests/`.
+The agent's unit tests are the `*.test.ts` files next to the code in `frooky/agent/src/`. They use [frida-test](https://www.npmjs.com/package/frida-test) (`describe`, `it`, `expect`) and run inside a live app process on a device, so `Java.use`, `Process` and `Module` work in them. They can't run without a device.
 
-All test commands must be run from the `frooky/agent/` directory with Node.js dependencies installed:
+Install the Node.js dependencies once, and again after `package-lock.json` changes:
 
 ```bash
 cd frooky/agent
 npm ci
 ```
 
-You only need to do this once (or after updating `package-lock.json`).
-
-In general, you need to have either the PID (attach), bundle-id (spawn then attach), or app name (attach by name).
-
-#### Option A: USB Device (Android and iOS)
-
-Use this when the app is running on a device connected over USB with `frida-server` running on the device (or with a Frida gadget embedded in the app).
+Then run the tests from `frooky/agent`:
 
 ```bash
-# Examples: Target is an physical or emulated Android:
-npm run test:android -i org.owasp.mastestapp
-npm run test:android -i MASTestApp
-npm run test:android -i 4926
-
-# Examples: Target is a physical iOS USB device mode:
-npm run test:ios:usb -i org.owasp.mastestapp.MASTestApp-iOS
-npm run test:ios:usb -i MASTestApp
-npm run test:ios:usb -i 23452
+npm run test:android                       # the only attached device, or $ANDROID_SERIAL
+npm run test:android -- -s emulator-5554   # one of several devices (serials: scripts/list_android_devices.py)
+npm run test:android -- -a                 # every attached device, one after another
 ```
 
-#### Option B: Local (iOS Simulator only)
+- The device needs a running frida-server, which [`prepare_android_devices.py`](#prepare_android_devicespy) sets up.
+- The tests run in `com.google.android.dialer`, or in `com.android.dialer` on images without the Google dialer, e.g. Android 12. `FRIDA_TEST_APP=<package>` picks another app. frida-test spawns the app, so it doesn't have to be running.
+- With several devices attached and neither `-s` nor `ANDROID_SERIAL`, the script stops and lists the devices.
+- With `-a`, it prints a summary per device and fails if any device failed.
+- Other arguments go to frida-test, e.g. `npm run test:android -- -a -o out.json` writes `out-<serial>.json` per device. `npm run test:android -- -s emulator-5554 -t 300` lowers the timeout from 600 to 300 seconds.
 
-Use this when targeting an **iOS Simulator** on your Mac via the local device.
-
-Compared to option A, this differs, because the target app in an iOS simulator is running as local process on the host system. This means, that there is no need to start a dedicated Frida server.
-
-Use the following commands to test against the running simulator:
+The script is `frooky/agent/scripts/test-android.sh`. It runs every test file under `src/`. To run only some files while iterating, call frida-test directly with paths:
 
 ```bash
-# Examples: Target is an physical or emulated Android:
-npm run test:android:usb -i org.owasp.mastestapp
-npm run test:android:usb -i MASTestApp
-npm run test:android:usb -i 4926
-
-# Examples: Target is a iOS simulator:
-npm run test:ios:local -i org.owasp.mastestapp.MASTestApp-iOS
-npm run test:ios:local -i MASTestApp
-npm run test:ios:local -i 23452
+npx frida-test -D emulator-5554 -f com.google.android.dialer ./src/shared/utils.test.ts ./src/android/decoders
 ```
 
-### What the Tests Do
+frida-test bundles the test files and the agent code they import on its own, so the agent tests don't need `npm run build:dev:android` first. The host and the integration tests do, because they load `dist/agent-android.js`.
 
-Each test script:
+iOS isn't complete yet and has no agent test script.
 
-1. Builds the agent and the test agent bundle (`dist/agent-test-{platform}.js`).
-2. Attaches to (or spawns) the target app via Frida.
-3. Injects the test bundle into the live process.
-4. The bundle runs all registered `test(...)` cases inside the process and sends results back.
-5. Results are printed to the terminal; the process exits with code `0` (all pass) or `1` (any failure).
+### Writing Agent Tests
 
-### Test File Structure
+Put the test next to the code it tests, e.g. `src/shared/utils.test.ts` for `src/shared/utils.ts`. `npm run test:android` picks it up without registering it anywhere. `describe`, `it` and `expect` are globals, typed through `frida-test` in `tsconfig.json`:
 
-```sh
-frooky/agent/tests/
-├── agent-test-framework.ts   # Minimal test runner (test/expect API)
-├── target-apps/              # Folder of apps in the form of MASTG-DEMO apps
-├── android/
-│   ├── agent-runner.ts       # Entry point injected into the Android app
-│   └── test-*.ts             # Tests
-└── ios/
-    ├── agent-runner.ts       # Entry point injected into the iOS app
-    └── test-*.ts             # Tests
+```ts
+import { wildcardPatternToRegExp } from "./utils";
+
+describe("wildcardPatternToRegExp()", () => {
+  it("matches '*' against exactly one dot-separated segment", () => {
+    expect(wildcardPatternToRegExp("org.owasp.*.HttpClient").test("org.owasp.network.HttpClient")).toBeTruthy();
+  });
+});
 ```
 
-To add a new test, create a `test-*.ts` file in the relevant platform folder and import it in `agent-runner.ts`.
+The test app is a system app, not one of the target apps. A test that needs a specific Java method or native function belongs in an integration test against a [target app](#building-target-app).
+
+## Development Scripts
+
+The scripts in `scripts/` set up Android devices and run the tests on one or several of them. Run them with `uv run` from the repository root. Each one prints its options with `--help`.
+
+They reach the devices through adb and honor `ADB_SERVER_SOCKET`, so they also work from the devcontainer, where adb runs on the host. Most of them choose devices like adb does:
+
+- `-s <serial>` picks a device. For `prepare_android_devices.py`, `sync_target_apps.py` and `platform_check.py` you can repeat it.
+- Without `-s`, the setup scripts and `platform_check.py` work on every attached device. `run_integration_tests.py` uses `$ANDROID_SERIAL`, else the only attached device, and needs `-a` to run on all of them.
+
+A typical session with several emulators:
+
+```bash
+uv run scripts/list_android_devices.py       # which serial is which Android version
+uv run scripts/prepare_android_devices.py    # root and frida-server on every device
+uv run scripts/sync_target_apps.py           # build and install the target apps everywhere
+uv run scripts/run_integration_tests.py -s emulator-5556 -k receive_int
+```
+
+### list_android_devices.py
+
+Prints the serial, state, Android version, API level, ABI and model of every device that `adb devices` lists, sorted by API level. Use it to find the serial for `-s`:
+
+```console
+$ uv run scripts/list_android_devices.py
+SERIAL         STATE   ANDROID  API  ABI        MODEL
+emulator-5562  device  12       31   arm64-v8a  sdk_gphone64_arm64
+emulator-5554  device  15       35   arm64-v8a  sdk_gphone16k_arm64
+emulator-5558  device  17       37   arm64-v8a  sdk_gphone16k_arm64
+```
+
+Offline or unauthorized devices are listed with their state but without properties.
+
+### prepare_android_devices.py
+
+Sets up each device for frooky:
+
+1. Gets root, with `adb root` or else `su`.
+2. Sets SELinux to permissive.
+3. Installs the newest frida-server with the host frida's major version to `/data/local/tmp/frida-server-<version>`.
+4. Stops frida-servers of other versions and starts that one.
+5. Checks that frida can reach it.
+
+Within a major version, client and server are compatible, and newer servers carry fixes for newer Android versions. Downloads are cached in `~/.cache/frooky/frida-server/`. The script is safe to rerun. Run it again after restarting an emulator, because frida-server doesn't survive a restart.
+
+```bash
+uv run scripts/prepare_android_devices.py                            # every attached device
+uv run scripts/prepare_android_devices.py -s emulator-5554           # one device
+uv run scripts/prepare_android_devices.py --frida-version 17.19.0    # a specific frida-server
+```
+
+```console
+===== emulator-5554 =====
+  ok    connected, Android 15, arm64-v8a
+  ok    adbd runs as root
+  ok    SELinux Permissive
+  ok    /data/local/tmp/frida-server-17.22.0 installed
+  ok    frida-server 17.22.0 running
+  ok    frida connects (access: full)
+===== Summary =====
+ready   emulator-5554
+```
+
+Run it when frida reports `unable to connect to remote frida-server` or `Need Gadget to attach on jailed Android`, or when the app crashes right after spawn with `Agent connection closed unexpectedly`.
+
+### sync_target_apps.py
+
+Builds the Android [target apps](../tests/target-apps/README.md) with the Makefile in `tests/target-apps/android`. Then, on each device, it compares the SHA-256 of the installed APK with `dist/<app>.apk`. An app that is missing or differs is uninstalled, so nothing of the old build remains, and installed again. Apps that are up to date are left alone.
+
+```bash
+uv run scripts/sync_target_apps.py                                # all apps, all devices
+uv run scripts/sync_target_apps.py value-passing-native           # one app
+uv run scripts/sync_target_apps.py -s emulator-5554 -s emulator-5556
+uv run scripts/sync_target_apps.py -c                             # clean build
+```
+
+Builds are incremental: they copy the sources over the previous build. Use `-c` after changing an app's `build.gradle.kts.*` or `AndroidManifest.xml` or removing a source file.
+
+### run_integration_tests.py
+
+Runs the Android integration tests in `tests/integration/android` with pytest. It passes the device to the tests as `ANDROID_SERIAL`, so frooky, frida, adb and Appium all use the same device. Arguments it doesn't know go to pytest. Without a test path, it runs the whole folder.
+
+```bash
+uv run scripts/run_integration_tests.py -k receive_int                    # the only attached device or $ANDROID_SERIAL
+uv run scripts/run_integration_tests.py -s emulator-5554 -k receive_int   # one of several devices
+uv run scripts/run_integration_tests.py -a -x                             # every device, stop each run at the first failure
+uv run scripts/run_integration_tests.py tests/integration/android/test_frida_flags.py
+uv run scripts/run_integration_tests.py --appium 192.168.1.10             # another Appium server (default port 4723)
+```
+
+- With `-a`, the tests run once per device, one after another. The script then prints a summary and fails if any device failed.
+- The Appium server is `--appium <ip>[:<port>]`, else `$APPIUM_URL`, else `127.0.0.1:4723`. The script stops right away if Appium isn't reachable.
+- The tests need the target apps (`sync_target_apps.py`), a running frida-server (`prepare_android_devices.py`) and a current agent (`uv run compile-agent --dev && uv sync`).
+
+Plain pytest works too. With several devices attached, set `ANDROID_SERIAL`:
+
+```bash
+ANDROID_SERIAL=emulator-5554 uv run pytest tests/integration/android -k receive_int
+```
+
+### platform_check.py
+
+Runs every test suite on the host and on every device and writes a report. See [Checking a New Platform](#checking-a-new-platform).
+
+```bash
+uv run scripts/platform_check.py                                   # host and every attached device
+uv run scripts/platform_check.py -s emulator-5554 --skip unit      # one device, without the host unit tests
+uv run scripts/platform_check.py --skip agent -k receive_int       # only some integration tests
+uv run scripts/platform_check.py --adb-host 192.168.1.20 --appium 192.168.1.20   # adb and Appium on another machine
+```
+
+The agent tests aren't in `scripts/`: run them with `npm run test:android` in `frooky/agent`, which takes `-- -s <serial>` or `-- -a` the same way (`frooky/agent/scripts/test-android.sh`).
 
 ## Checking a New Platform
 
@@ -192,11 +278,13 @@ To check frooky on a host OS, Android version or device it hasn't been tested on
 uv run scripts/platform_check.py
 ```
 
-It records the host (OS, architecture, Python, Node, Frida) and the device (Android version, API level, architecture), builds the agent, and runs the host unit tests, the agent tests and the Android integration tests against the device that `frida -U` uses. The report is written to `.platform-check/<timestamp>/report.md`, together with the test results and the full log. Attach the folder to an issue or PR.
+It records the host (OS, architecture, Python, Node, Frida) and each device (Android version, API level, architecture), builds the agent, runs the host unit tests, and then runs the agent tests and the Android integration tests on every attached device, one after another. `-s <serial>` checks only that device and can be repeated; `uv run scripts/list_android_devices.py` shows which serial belongs to which Android version and model. The report is written to `.platform-check/<timestamp>/report.md` with a section per device, together with the test results (`<serial>/`) and the full logs. Attach the folder to an issue or PR.
 
-- Requires a running `frida-server` that matches `frida --version`.
-- The integration tests also need Appium (`APPIUM_URL`) and the target apps (`make install-all` in `tests/target-apps/android`). Without them, the step is skipped and the report says why.
+- Requires a running `frida-server` on each device: `uv run scripts/prepare_android_devices.py` installs and starts it.
+- The integration tests also need Appium (`APPIUM_URL`) and the target apps: `uv run scripts/sync_target_apps.py` builds and installs them. Without them, the step is skipped and the report says why.
+- On a device without the Google dialer, the agent tests run in `com.android.dialer`.
 - `--skip unit,agent,integration` skips steps, `-k <pattern>` runs only the matching integration tests.
+- `--adb-host <ip>[:<port>]` uses the adb server on another machine (default port 5037), `--appium <ip>[:<port>]` the Appium server (default: `$APPIUM_URL`, else `127.0.0.1:4723`), and `--out <dir>` writes the report elsewhere.
 
 frooky only supports 64-bit app processes (`arm64`, `x86_64`). The agent refuses to start in a 32-bit process.
 

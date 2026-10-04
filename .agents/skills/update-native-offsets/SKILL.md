@@ -22,7 +22,7 @@ Each offset hook names its function in a comment next to it. Keep that so the ne
 
 ## Workflow
 
-1. Rebuild and install the app: `cd tests/target-apps/android && make build TARGET_APP=<app> && make install TARGET_APP=<app>`. `make install` alone only reinstalls the last APK.
+1. Rebuild and install the app: `uv run scripts/sync_target_apps.py <app>`. It builds the app and reinstalls it on every attached device whose installed APK differs (`-s <serial>` for one device, `-c` for a clean build).
 2. Read the symbol offsets and section ranges from the build:
 
    ```bash

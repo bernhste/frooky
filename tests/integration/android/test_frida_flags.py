@@ -23,9 +23,9 @@ def platform(request):
 
 
 @pytest.fixture
-def running_app():
+def running_app(frida_device):
     """Ensure TARGET_APP is running on the Android device and return its Frida Application."""
-    device = frida.get_usb_device()
+    device = frida_device
     for app in device.enumerate_applications():
         if app.identifier == TARGET_APP and app.pid != 0:
             return app
@@ -98,62 +98,64 @@ def run_frooky(args: list[str], timeout: float = 10.0) -> tuple[str, str, int]:
 
 
 class TestFridaFlags:
-    def test_attach_identifier_flag(self, running_app, hook_file):
-        stdout, stderr, code = run_frooky(["-U", "-N", running_app.identifier, str(hook_file)])
+    def test_attach_identifier_flag(self, running_app, hook_file, frooky_device_args):
+        stdout, stderr, code = run_frooky([*frooky_device_args, "-N", running_app.identifier, str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Hooks ready:" in stdout
         assert running_app.identifier in stdout
 
-    def test_attach_name_flag(self, running_app, hook_file):
-        stdout, stderr, code = run_frooky(["-U", "-n", running_app.name, str(hook_file)])
+    def test_attach_name_flag(self, running_app, hook_file, frooky_device_args):
+        stdout, stderr, code = run_frooky([*frooky_device_args, "-n", running_app.name, str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Hooks ready:" in stdout
         assert running_app.name in stdout
 
-    def test_attach_pid_flag(self, running_app, hook_file):
-        stdout, stderr, code = run_frooky(["-U", "-p", str(running_app.pid), str(hook_file)])
+    def test_attach_pid_flag(self, running_app, hook_file, frooky_device_args):
+        stdout, stderr, code = run_frooky([*frooky_device_args, "-p", str(running_app.pid), str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Hooks ready:" in stdout
         assert str(running_app.pid) in stdout
 
-    def test_attach_frontmost_flag(self, running_app, hook_file):
-        stdout, stderr, code = run_frooky(["-U", "-F", str(hook_file)])
+    def test_attach_frontmost_flag(self, running_app, hook_file, frooky_device_args):
+        stdout, stderr, code = run_frooky([*frooky_device_args, "-F", str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Hooks ready:" in stdout
 
     def test_device_usb_flag(self, running_app, hook_file):
+        if os.environ.get("ANDROID_SERIAL") and sum(device.type == "usb" for device in frida.enumerate_devices()) > 1:
+            pytest.skip("-U picks any of several attached devices, not necessarily ANDROID_SERIAL")
         stdout, stderr, code = run_frooky(["-U", "-N", running_app.identifier, str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Hooks ready:" in stdout
 
-    def test_device_id_flag(self, running_app, hook_file):
-        device_id = frida.get_usb_device().id
+    def test_device_id_flag(self, running_app, hook_file, frida_device):
+        device_id = frida_device.id
         stdout, stderr, code = run_frooky(["-D", device_id, "-N", running_app.identifier, str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert device_id in stdout
         assert "Hooks ready:" in stdout
 
-    def test_runtime_qjs_flag(self, running_app, hook_file):
-        stdout, stderr, code = run_frooky(["-U", "-N", running_app.identifier, "--runtime", "qjs", str(hook_file)])
+    def test_runtime_qjs_flag(self, running_app, hook_file, frooky_device_args):
+        stdout, stderr, code = run_frooky([*frooky_device_args, "-N", running_app.identifier, "--runtime", "qjs", str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Runtime: QuickJS" in stdout
         assert "Hooks ready:" in stdout
 
-    def test_runtime_v8_flag(self, running_app, hook_file):
-        stdout, stderr, code = run_frooky(["-U", "-N", running_app.identifier, "--runtime", "v8", str(hook_file)])
+    def test_runtime_v8_flag(self, running_app, hook_file, frooky_device_args):
+        stdout, stderr, code = run_frooky([*frooky_device_args, "-N", running_app.identifier, "--runtime", "v8", str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Runtime: V8" in stdout
         assert "Hooks ready:" in stdout
 
-    def test_load_script_flag(self, running_app, hook_file, tmp_path):
+    def test_load_script_flag(self, running_app, hook_file, tmp_path, frooky_device_args):
         script_file = tmp_path / "user_script.js"
         script_file.write_text("console.log('frooky user script loaded');", encoding="utf-8")
-        stdout, stderr, code = run_frooky(["-U", "-N", running_app.identifier, "-l", str(script_file), str(hook_file)])
+        stdout, stderr, code = run_frooky([*frooky_device_args, "-N", running_app.identifier, "-l", str(script_file), str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Hooks ready:" in stdout
 
-    def test_spawn_flag(self, hook_file):
-        stdout, stderr, code = run_frooky(["-U", "-f", TARGET_APP, str(hook_file)])
+    def test_spawn_flag(self, hook_file, frooky_device_args):
+        stdout, stderr, code = run_frooky([*frooky_device_args, "-f", TARGET_APP, str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "(spawned)" in stdout
         assert "Hooks ready:" in stdout

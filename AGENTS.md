@@ -23,13 +23,16 @@ uv run compile-agent --dev                 # build agent -> frooky/agent/dist/ag
 uv sync                                 # sync dependencies and install host in editable mode (.venv)
 uv run pytest tests/unit                # host unit tests, no device needed
 uv run ruff check . && uv run ruff format --check .   # Python lint/format (config in pyproject.toml)
-uv run scripts/platform_check.py       # all tests on the current host and device, writes a report (docs/develop.md)
+uv run scripts/platform_check.py       # all tests on the host and every attached device (-s <serial> for one), writes a report (docs/develop.md)
+uv run scripts/list_android_devices.py      # serial, Android version, API level, ABI and model of every attached device
+uv run scripts/prepare_android_devices.py   # root, SELinux permissive, install and start frida-server on all attached devices (-s <serial> for one)
+uv run scripts/sync_target_apps.py     # build the target apps and install the latest build on all attached devices (-c clean build)
 
 cd frooky/agent
 npm run build:dev:android               # rebuild agent only
 npm run build:zodSchema                 # regenerate Zod schemas after changing hook-file types
 npm run build:jsonSchema                # regenerate docs/schema/frooky-config.schema.json
-npm run test:android                    # agent tests, needs a device (see below)
+npm run test:android                    # agent tests on the only attached device; -- -s <serial> for one of several, -- -a for every device
 npm run build:watch:android             # standalone agent with hook files embedded, for use with the plain `frida` CLI
 ```
 
@@ -41,16 +44,16 @@ Tests that need a device (`npm run test:android`, `pytest tests/integration/andr
 
 ## Testing Guide
 
-- **Always run `npm run test:android` when changing the agent** (`frooky/agent/`): runs TypeScript agent unit tests inside `com.google.android.dialer` on the device (`FRIDA_TEST_APP=<package>` for another app, e.g. `com.android.dialer` where the Google dialer is missing). Recompile first (`npm run build:dev:android` or `uv run compile-agent --dev`).
+- **Always run `npm run test:android` when changing the agent** (`frooky/agent/`): runs TypeScript agent unit tests inside `com.google.android.dialer` on the device, or `com.android.dialer` where the Google dialer is missing (`FRIDA_TEST_APP=<package>` for another app). With several devices attached, pass `-- -s <serial>` (or set `ANDROID_SERIAL`) for one, or `-- -a` to run on each. Recompile first (`npm run build:dev:android` or `uv run compile-agent --dev`).
 - **Always run Python unit tests when changing Python host code** (`frooky/`, `tests/unit/`): run `uv run pytest tests/unit` (no device required) and check formatting/linting via `uv run ruff check . && uv run ruff format --check .`.
-- **Only run affected integration tests when agent or host changes**: integration tests (`pytest tests/integration/android`) use Appium and test apps; only run the specific tests affected by the change (e.g. `uv run pytest tests/integration/android -k <pattern>`) rather than the entire test suite.
+- **Only run affected integration tests when agent or host changes**: integration tests (`pytest tests/integration/android`) use Appium and test apps; only run the specific tests affected by the change (e.g. `uv run scripts/run_integration_tests.py -k <pattern>`, with `-s <serial>` for one of several devices, `-a` for all and `--appium <ip>[:<port>]`, default `$APPIUM_URL`, else `127.0.0.1:4723`) rather than the entire test suite.
 
 ## Target Apps
 
 The integration tests and the examples in `docs/examples/` run against our own test apps in `tests/target-apps/android/<app>/` (`value-passing-java`, `value-passing-native`). Test frooky against these, not against system libraries or third-party apps: a situation a test needs (e.g. a call from a library constructor, a deep call chain, a class loader) belongs in a target app.
 
 - **Sources:** `MastgTest.kt`, `cpp/*.c` with `cpp/CMakeLists.txt`, `build.gradle.kts.*` and the app's `README.md`, which lists what each function or method is for. `<app>/build/` is a generated clone of the base app and `dist/` holds the APKs; both are gitignored, never edit them.
-- **Rebuild and reinstall with the Makefile** in `tests/target-apps/android`, never with Gradle or `adb` directly. `make install` only installs the last built APK, so build first, and uninstall the old app so nothing of the old build remains:
+- **Rebuild and reinstall with `uv run scripts/sync_target_apps.py`** (or the Makefile it calls), never with Gradle or `adb` directly. It builds all apps, compares each device's installed APK with `dist/<app>.apk` and reinstalls the ones that are missing or differ, on every attached device. Pass app names or `-s <serial>` to narrow it down, and `-c` for a clean build after changing `build.gradle.kts.*` or `AndroidManifest.xml` or removing a source file. With the Makefile, `make install` only installs the last built APK, so build first, and uninstall the old app so nothing of the old build remains (`ANDROID_SERIAL` picks the device):
 
   ```bash
   cd tests/target-apps/android
@@ -108,7 +111,7 @@ The integration tests and the examples in `docs/examples/` run against our own t
   adb shell pidof <package>                    # 6. app running, only needed for attach (-n/-p), not spawn (-f)
   ```
 
-  If step 2 fails, start frida-server (see the `device-testing` skill). If step 3 fails while step 2 passes, the most likely cause is a client/server version mismatch; install a frida-server matching `frida --version`. Test apps install from `tests/target-apps/android` with `make install TARGET_APP=<app>`; their package ids are `<app with - replaced by _>.frooky.target.app`.
+  If step 2 or 3 fails, run `uv run scripts/prepare_android_devices.py`: it installs and starts the newest frida-server with the host frida's major version. A server of another major version can't talk to the host, and an older server can crash the app on newer Android versions. Test apps install with `uv run scripts/sync_target_apps.py`; their package ids are `<app with - replaced by _>.frooky.target.app`.
 
 ## Skills
 

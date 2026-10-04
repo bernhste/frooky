@@ -10,7 +10,7 @@
     "build:prod:android": "node build.js android -c",
     "build:dev:android": "node build.js android",
     "build:watch:android": "node build.js android -t frida -w",
-    "test:android": "npx frida-test -U -f \"${FRIDA_TEST_APP:-com.google.android.dialer}\" ./src/android ./src/shared ./src/native ./src/FrookyAgent.test.ts"
+    "test:android": "bash scripts/test-android.sh ./src/android ./src/shared ./src/native ./src/FrookyAgent.test.ts"
   },
   "devDependencies": {
     "@types/frida-gum": "^19.11.0",

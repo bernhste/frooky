@@ -18,7 +18,6 @@ import struct
 import textwrap
 from pathlib import Path
 
-import frida
 import pytest
 
 TARGET_APP = "value-passing-native"
@@ -44,9 +43,9 @@ def _round_trip_float32(value: float) -> float:
     return struct.unpack("<f", struct.pack("<f", value))[0]
 
 
-def _export_offset(pid: int, module: str, symbol: str) -> str:
+def _export_offset(device, pid: int, module: str, symbol: str) -> str:
     """The offset of an exported symbol from its module's base, e.g. `0xf20`, read from the running app."""
-    session = frida.get_usb_device().attach(pid)
+    session = device.attach(pid)
     try:
         script = session.create_script("rpc.exports = { offset(name, symbol) { const module = Process.getModuleByName(name); return module.getExportByName(symbol).sub(module.base).toString(); } };")
         script.load()
@@ -59,11 +58,11 @@ def _export_offset(pid: int, module: str, symbol: str) -> str:
 class TestValuePassingNative:
     """Tests for native C function hooking on Android."""
 
-    def test_hook_by_offset(self, app_session, run_frooky, find_matched_events):
+    def test_hook_by_offset(self, app_session, run_frooky, find_matched_events, frida_device):
         """A hook by `offset` from the module base (see native-hook-declaration.md). The offset of receive_int
         depends on the build of the app, so it's looked up in the running app first."""
         _, pid = app_session(f"{TARGET_APP.replace('-', '_')}.frooky.target.app")
-        offset = _export_offset(int(pid), MODULE_VALUE, "receive_int")
+        offset = _export_offset(frida_device, int(pid), MODULE_VALUE, "receive_int")
         hook_file = textwrap.dedent(f"""\
             hookCollection:
               - module: {MODULE_VALUE}

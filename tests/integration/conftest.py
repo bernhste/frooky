@@ -9,6 +9,7 @@ import threading
 import time
 from pathlib import Path
 
+import frida
 import pytest
 import urllib3
 from appium import webdriver
@@ -27,6 +28,8 @@ APPIUM_URL = os.environ.get("APPIUM_URL", "http://127.0.0.1:4723")
 NEW_SESSION_RETRIES = 3
 NEW_SESSION_RETRY_DELAY = 2
 FRIDA_HOST = os.environ.get("FRIDA_HOST", "127.0.0.1:27042")
+# the Android device under test, as adb and frida name it; unset means the only USB device (`-U`)
+ANDROID_SERIAL = os.environ.get("ANDROID_SERIAL")
 
 APP_START_TIMEOUT = 60
 UI_TIMEOUT = 60
@@ -116,6 +119,24 @@ def platform(request):
     return request.param
 
 
+def _frooky_device_args(platform):
+    if platform != "android":
+        return []
+    return ["-D", ANDROID_SERIAL] if ANDROID_SERIAL else ["-U"]
+
+
+@pytest.fixture
+def frooky_device_args(platform):
+    """frooky's device selection for the device under test, e.g. `["-D", "emulator-5554"]`."""
+    return _frooky_device_args(platform)
+
+
+@pytest.fixture
+def frida_device():
+    """The Android device under test."""
+    return frida.get_device(ANDROID_SERIAL, timeout=10) if ANDROID_SERIAL else frida.get_usb_device(timeout=10)
+
+
 def _build_options(platform, app_bundle_id):
     if platform == "android":
         options = UiAutomator2Options()
@@ -128,7 +149,7 @@ def _build_options(platform, app_bundle_id):
 
     options.no_reset = True
     options.new_command_timeout = NEW_COMMAND_TIMEOUT
-    if udid := os.environ.get("DEVICE_UDID"):
+    if udid := os.environ.get("DEVICE_UDID") or (ANDROID_SERIAL if platform == "android" else None):
         options.udid = udid
     return options
 
@@ -357,7 +378,7 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, m
         process = subprocess.Popen(
             [
                 "frooky",
-                *(["-U"] if platform == "android" else []),
+                *_frooky_device_args(platform),
                 "-p",
                 str(target_app_pid),
                 "-o",
@@ -414,7 +435,7 @@ def run_frooky_spawn(platform, output_file_path, app_session, tmp_path):
         process = subprocess.Popen(
             [
                 "frooky",
-                *(["-U"] if platform == "android" else []),
+                *_frooky_device_args(platform),
                 "-f",
                 app_bundle_id,
                 *[arg for script in user_scripts for arg in ("-l", str(script))],
@@ -503,7 +524,7 @@ def run_frooky_watch(platform, output_file_path, app_session, mastg_app_click_st
         process = subprocess.Popen(
             [
                 "frooky",
-                *(["-U"] if platform == "android" else []),
+                *_frooky_device_args(platform),
                 "-w",
                 "-v",  # the agent's `Updated hooks.yaml: ...` summary is an info log
                 "-p",
