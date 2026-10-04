@@ -186,6 +186,8 @@ class TestAndroidExamples:
         assert re.fullmatch(r"java\.math\.BigInteger@[0-9a-f]+", big_integer["argsIn"][0]["value"])
         [password] = self._events(find_matched_events, "receivePassword")
         assert password["argsIn"] == [{"type": "[C", "name": "password", "value": "s3cr3t"}]
+        base64_values = sorted(event["argsIn"][0]["value"] for event in self._events(find_matched_events, "receiveBase64"))
+        assert base64_values == ["0x000102030405060708090a0b0c0d0e0f", "Hello frooky"]
         [profile] = self._events(find_matched_events, "receiveProfile")
         assert {prop["name"]: prop["value"] for prop in profile["argsIn"][0]["value"]} == {"name": "alice", "age": 42, "admin": True}
         modes = sorted(event["argsIn"][0]["name"] + "=" + event["argsIn"][0]["value"] for event in self._events(find_matched_events, "receiveMode"))

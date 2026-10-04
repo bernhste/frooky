@@ -131,7 +131,7 @@ describe("AndroidHookValidator", () => {
 
       expect(result.map((hook) => hook.method)).toEqual(["foo"]);
       const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain("decoder 'fd' is no Java decoder. The Java decoders are: string, hashCode,");
+      expect(message).toContain("decoder 'fd' is no Java decoder. The Java decoders are: string, base64, hashCode,");
     });
 
     it("warns about an unknown property and still installs the hook", () => {

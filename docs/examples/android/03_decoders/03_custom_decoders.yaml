@@ -2,8 +2,8 @@ metadata:
   name: "Decoders (Android): Custom Decoders"
   description: |
     `decoder` replaces the decoder chosen by type with a registered custom decoder, e.g. to show a
-    byte array or a char array as text, an object by its identity or its getters, an int as the
-    name of a constant, or a bitmask as the names of its flags.
+    byte array or a char array as text, base64 as the bytes it encodes, an object by its identity
+    or its getters, an int as the name of a constant, or a bitmask as the names of its flags.
   version: 1
   author: frooky dev
   platform: Android
@@ -26,6 +26,12 @@ hookCollection:
         overloads:
           - params:
               - ["[C", password, { decoder: string }]
+
+      # `base64`: the decoded bytes of base64 text, as text if they're printable, otherwise as hex, e.g. a key
+      - method: receiveBase64
+        overloads:
+          - params:
+              - [java.lang.String, encoded, { decoder: base64 }]
 
       # `getters`: the values of the get*() and is*() methods, e.g. of an app class without a decoder
       - method: receiveProfile
@@ -83,6 +89,7 @@ hookCollection:
 # Expected values (argsIn):
 #   receiveTextBytes:  "Hello frooky"
 #   receivePassword:   "s3cr3t"
+#   receiveBase64:     "Hello frooky", and "0x000102030405060708090a0b0c0d0e0f" (a second event)
 #   receiveProfile:    [{name: age, value: 42}, {name: name, value: "alice"}, {name: admin, value: true}] (in the order of reflection)
 #   receiveBigInteger: "java.math.BigInteger@<hashCode>"
 #   receiveMode:       mode "MODE_DECRYPT", and opmode "DECRYPT" (a second event)

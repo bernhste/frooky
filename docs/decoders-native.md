@@ -86,7 +86,8 @@ See [`02_pointers_and_arrays.yaml`](examples/native/03_decoders/02_pointers_and_
 | Decoder of the parameter                                                                   | Role `length`                                                          | Role `offset`                    |
 | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | -------------------------------- |
 | `void *`, `unsigned char *`                                                                | Bytes of the buffer, decoded as hex                                    | Bytes to skip                    |
-| `char *`, and `decoder: string` or `decoder: base64` on any pointer        | Bytes of the string. NUL bytes in it don't end it.                     | Bytes to skip                    |
+| `char *`, and `decoder: string` on any pointer                                             | Bytes of the string. NUL bytes in it don't end it.                     | Bytes to skip                    |
+| `decoder: base64`                                                                          | Bytes of the base64 text                                               | Bytes to skip                    |
 | Other pointers (`int *`, `char **`, ...)                                                   | Elements of the array, see [Pointers and Arrays](#pointers-and-arrays) | Elements to skip                 |
 | `decoder: nullTerminated`                                                                  | –                                                                      | Elements to skip, e.g. `argv[0]` |
 | UTF-16 pointers (`const jchar *`, ...), and `decoder: utf16`                               | Code units of the string (2 bytes each). 0 units in it don't end it.   | Code units to skip               |
@@ -295,8 +296,8 @@ Native hooks have these registered decoders:
 - `fd`: decodes an `int` file descriptor to the file, socket or pipe it refers to, see [File Descriptors](#file-descriptors).
 - `enum` and `flags`: decode an integer to the names in `constants`, see [Flags and Enums](#flags-and-enums). The presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain` and `socketType` have the constants built in.
 - `nullTerminated`: decodes a pointer to pointers, e.g. `char **`, as an array that ends at a NULL pointer, see [Pointers and Arrays](#pointers-and-arrays).
+- `base64`: Base64-decodes the string a pointer points to. Without the role `length`, it ends at its NUL terminator, with it, it is that many bytes long. The role `offset` skips bytes at the start. Standard and URL-safe base64 are decoded, with or without padding, and whitespace such as line breaks is ignored. The decoded bytes are shown as text if they're printable UTF-8 text, otherwise as hex, e.g. a key. At most `maxItems` decoded bytes are shown, and longer output ends with `...`. Text that isn't base64 is decoded like with `string`, and frooky logs a warning.
 - `string`: decodes a pointer (`void *`, ...) as a UTF-8 string, or as ASCII if the bytes aren't valid UTF-8. Without the role `length`, the string ends at its NUL terminator. With it, exactly that many bytes are decoded, so buffers that aren't NUL-terminated can be decoded too. The role `offset` skips bytes at the start. NUL bytes inside the buffer don't end the string; they are decoded like any other byte (as `.` when decoded as ASCII). At most `maxItems` bytes are decoded, and a longer string ends with `...`.
-- `base64`: reads the memory a pointer points to as a string, then Base64-decodes it as text or bytes. Without the role `length`, the string ends at its NUL terminator. With it, exactly that many bytes are decoded. The role `offset` skips bytes at the start. At most `maxItems` decoded bytes are returned, and a longer decoded string ends with `...`.
 
 `char *` is always decoded this way, and so is `unsigned char *` without the role `length`, so they don't need `decoder: string`.
 
@@ -331,12 +332,13 @@ See [`02_output_parameters.yaml`](examples/native/02_parameters_and_return_value
 
 What `maxItems` limits for each decoder (see [`maxItems` and `maxDepth`](./decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values)). Native decoders don't nest, so `maxDepth` doesn't apply.
 
-| Decoder                                           | `maxItems` limits          |
-| ------------------------------------------------- | -------------------------- |
-| `char *`, `unsigned char *`, `void *`, `base64`   | Bytes read from the buffer |
-| Other pointers with the role `length`             | Elements of the array      |
-| `nullTerminated`                                  | Elements of the array      |
-| UTF-16 pointers, `utf16`                          | Code units of the string   |
+| Decoder                               | `maxItems` limits          |
+| ------------------------------------- | -------------------------- |
+| `char *`, `unsigned char *`, `void *` | Bytes read from the buffer |
+| `base64`                              | Decoded bytes              |
+| Other pointers with the role `length` | Elements of the array      |
+| `nullTerminated`                      | Elements of the array      |
+| UTF-16 pointers, `utf16`              | Code units of the string   |
 
 Strings and buffers decoded as hex end with `...` when they're cut, arrays end with a `"[truncated at N]"` marker.
 

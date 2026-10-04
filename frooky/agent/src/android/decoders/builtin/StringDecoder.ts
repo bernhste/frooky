@@ -10,6 +10,13 @@ function getJavaObject(): Java.Wrapper {
   return (javaObject ??= Java.use("java.lang.Object"));
 }
 
+// The Java `toString()` of a value. Interface wrappers have no Java toString() method dispatcher, falling back to
+// Object.prototype.toString, so they are cast to java.lang.Object.
+export function javaToString(value: Java.Wrapper): string {
+  const target = value.toString === Object.prototype.toString ? Java.cast(value, getJavaObject()) : value;
+  return target.toString();
+}
+
 export class StringDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "StringDecoder";
   readonly description =
@@ -18,7 +25,10 @@ export class StringDecoder extends Decoder<Java.Wrapper> {
   // the roles `offset` and `length` select a slice of a byte[] or char[], e.g. of `new String(bytes, offset, length)`
   decode(value: Java.Wrapper, args?: DecoderArgValues): DecodedValue {
     var decodedValue: any;
-    const bounds = value != null && (this.type == "[B" || this.type == "[C") ? this.sliceBounds(value, args) : undefined;
+    const bounds =
+      value != null && (this.type == "[B" || this.type == "[C")
+        ? arraySliceBounds(value, args, `${this.type}${this.name ? ` '${this.name}'` : ""}`)
+        : undefined;
     if (value == null) {
       decodedValue = value;
     } else if (bounds === null) {
@@ -34,9 +44,7 @@ export class StringDecoder extends Decoder<Java.Wrapper> {
       const decodeLen = Math.min(end - start, this.settings.maxItems);
       decodedValue = decodePrimitiveArray(chars, "[C", decodeLen, start).join("") + (end - start > decodeLen ? "..." : "");
     } else {
-      // Interface wrappers have no Java toString() method dispatcher, falling back to Object.prototype.toString
-      const target = value.toString === Object.prototype.toString ? Java.cast(value, getJavaObject()) : value;
-      decodedValue = truncateString(target.toString(), this.settings.maxItems);
+      decodedValue = truncateString(javaToString(value), this.settings.maxItems);
     }
     return {
       type: this.type,
@@ -44,14 +52,15 @@ export class StringDecoder extends Decoder<Java.Wrapper> {
       value: decodedValue,
     };
   }
+}
 
-  // The slice of a byte[] or char[], null if the roles are invalid
-  private sliceBounds(value: Java.Wrapper, args?: DecoderArgValues): { start: number; end: number } | null {
-    try {
-      return sliceBounds(args, (value as unknown as ArrayLike<unknown>).length);
-    } catch (e) {
-      logDecodeFailure(`Unable to decode ${this.type}${this.name ? ` '${this.name}'` : ""}`, e);
-      return null;
-    }
+// The slice of a byte[] or char[] that the roles select, null if they are invalid. `what` names the value in the
+// warning, e.g. `[B 'data'`.
+export function arraySliceBounds(value: Java.Wrapper, args: DecoderArgValues | undefined, what: string): { start: number; end: number } | null {
+  try {
+    return sliceBounds(args, (value as unknown as ArrayLike<unknown>).length);
+  } catch (e) {
+    logDecodeFailure(`Unable to decode ${what}`, e);
+    return null;
   }
 }

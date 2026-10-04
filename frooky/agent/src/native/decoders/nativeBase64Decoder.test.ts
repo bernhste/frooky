@@ -47,10 +47,21 @@ describe("NativeBase64Decoder", () => {
       expect(makeDecoder().decode(ptr(0)).value).toBe(null);
     });
 
-    it("should decode as null and warn when base64 is invalid", () => {
+    it("should decode binary data as hex", () => {
+      // the bytes 0x00 to 0x0f, e.g. a key
+      expect(makeDecoder().decode(Memory.allocUtf8String("AAECAwQFBgcICQoLDA0ODw==")).value).toBe("0x000102030405060708090a0b0c0d0e0f");
+    });
+
+    it("should read only as much of the buffer as maxItems needs", () => {
+      // a length far beyond the allocation would fault if it was read in full
+      const decoder = makeDecoder({ ...DEFAULT_DECODER_SETTINGS, maxItems: 4 });
+      expect(decoder.decode(Memory.allocUtf8String("SGVsbG8gV29ybGQ="), lengthArg(1_000_000_000)).value).toBe("Hell...");
+    });
+
+    it("should decode invalid base64 as a string and warn", () => {
       const warnSpy = spyOn(logger, "warn");
       try {
-        expect(makeDecoder().decode(Memory.allocUtf8String("not-valid-base64*")).value).toBe(null);
+        expect(makeDecoder().decode(Memory.allocUtf8String("not-valid-base64*")).value).toBe("not-valid-base64*");
         expect(warnSpy).toHaveBeenCalled();
       } finally {
         warnSpy.mockRestore();

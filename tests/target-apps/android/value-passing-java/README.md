@@ -44,4 +44,5 @@ For the examples in `docs/examples/android/`, the app also has:
 - Overloads (`receiveOverloaded`), a constructor (`Secret`) and a static method (the top-level `receiveStatic`)
 - Methods that write into their arguments (`fillSecret`, `toggleCase`)
 - `receiveMode`, whose argument matches the constants `MODE_ENCRYPT`/`MODE_DECRYPT`
+- `receiveBase64`, called with the base64 of a text and of 16 binary bytes, for `decoder: base64`
 - `trackEvent`, called both directly and through `ThirdPartySdk`, for stack traces and stack trace filters

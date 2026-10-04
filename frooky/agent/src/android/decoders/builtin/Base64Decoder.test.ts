@@ -1,5 +1,7 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
+import { logger } from "../../../shared/logger";
+import { JavaDecoderResolver } from "../javaDecoderResolver";
 import { Base64Decoder } from "./Base64Decoder";
 
 describe("Base64Decoder", () => {
@@ -76,6 +78,49 @@ describe("Base64Decoder", () => {
       expect(result).toEqual({ type: "java.lang.String", value: "Hell..." });
     });
 
+    it("should decode binary data as hex", () => {
+      // the bytes 0x00 to 0x0f, e.g. a key
+      const decoder = new Base64Decoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
+
+      const result = decoder.decode("AAECAwQFBgcICQoLDA0ODw==" as unknown as Java.Wrapper);
+
+      expect(result).toEqual({ type: "java.lang.String", value: "0x000102030405060708090a0b0c0d0e0f" });
+    });
+
+    it("should decode only the start of a long value", () => {
+      // 3000 bytes "frooky..." encoded, far more than maxItems: 4 needs
+      const base64 = Java.use("android.util.Base64").encodeToString(
+        Java.array(
+          "byte",
+          Array.from("frooky".repeat(500), (c) => c.charCodeAt(0)),
+        ),
+        0,
+      );
+      const bytes = Java.array(
+        "byte",
+        Array.from(base64 as string, (c) => c.charCodeAt(0)),
+      );
+      const settings = { ...DEFAULT_DECODER_SETTINGS, maxItems: 4 };
+
+      expect(new Base64Decoder({ type: "java.lang.String", settings }).decode(base64).value).toBe("froo...");
+      expect(new Base64Decoder({ type: "[B", settings }).decode(bytes as unknown as Java.Wrapper).value).toBe("froo...");
+    });
+
+    it("should decode MIME base64 with line breaks", () => {
+      // android.util.Base64.DEFAULT breaks lines after 76 characters
+      const base64 = Java.use("android.util.Base64").encodeToString(
+        Java.array(
+          "byte",
+          Array.from("frooky".repeat(20), (c) => c.charCodeAt(0)),
+        ),
+        0,
+      );
+      const decoder = new Base64Decoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
+
+      expect(base64).toContain("\n");
+      expect(decoder.decode(base64).value).toBe("frooky".repeat(16) + "froo...");
+    });
+
     it("should decode a null value as null", () => {
       const decoder = new Base64Decoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
 
@@ -88,6 +133,21 @@ describe("Base64Decoder", () => {
       const decoder = new Base64Decoder({ type: "java.lang.String", settings: DEFAULT_DECODER_SETTINGS });
 
       expect(() => decoder.decode("not valid base64!" as unknown as Java.Wrapper)).toThrow();
+    });
+
+    it("should fall back to the default decoder for invalid base64 when resolved by the resolver", () => {
+      const warnSpy = spyOn(logger, "warn");
+      try {
+        const decoder = JavaDecoderResolver.resolveDecoder({
+          type: "java.lang.String",
+          settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "base64" },
+        });
+
+        expect(decoder.decode("not base64!" as unknown as Java.Wrapper).value).toBe("not base64!");
+        expect(warnSpy).toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     describe("with the roles offset and length", () => {

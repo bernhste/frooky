@@ -1,5 +1,6 @@
 import {
   base64ToBytes,
+  decodeBase64Value,
   FilterMismatchError,
   formatHashCode,
   sleepMilliseconds,
@@ -263,6 +264,49 @@ describe("Utils", () => {
     it("throws an error for invalid base64 string length", () => {
       expect(() => base64ToBytes("A")).toThrow("Invalid base64 string length");
       expect(() => base64ToBytes("AAAAA")).toThrow("Invalid base64 string length");
+    });
+
+    it("throws an error for characters outside of Latin-1", () => {
+      expect(() => base64ToBytes("€€€€")).toThrow("Invalid base64 character");
+      expect(() => base64ToBytes("SGVs中中中中")).toThrow("Invalid base64 character");
+    });
+
+    it("throws an error for padding that isn't at the end of a full block", () => {
+      expect(() => base64ToBytes("TQ===")).toThrow("Invalid base64 padding");
+      expect(() => base64ToBytes("TQ=")).toThrow("Invalid base64 padding");
+      expect(() => base64ToBytes("TQ==TQ==")).toThrow("Invalid base64 character");
+    });
+
+    it("throws an error for mixed standard and URL-safe alphabets", () => {
+      expect(() => base64ToBytes("+_-/")).toThrow("mixes the standard and URL-safe alphabets");
+    });
+  });
+
+  describe("decodeBase64Value()", () => {
+    it("decodes printable text as text", () => {
+      expect(decodeBase64Value("SGVsbG8gV29ybGQ=", 100)).toBe("Hello World");
+      expect(decodeBase64Value("Z3LDvGV6aSDwn5mC", 100)).toBe("grüezi 🙂");
+    });
+
+    it("decodes binary data as hex", () => {
+      // the bytes 0x00 to 0x0f, e.g. a key
+      expect(decodeBase64Value("AAECAwQFBgcICQoLDA0ODw==", 100)).toBe("0x000102030405060708090a0b0c0d0e0f");
+    });
+
+    it("cuts the decoded bytes at maxItems and appends an ellipsis", () => {
+      expect(decodeBase64Value("SGVsbG8gV29ybGQ=", 5)).toBe("Hello...");
+      expect(decodeBase64Value("AAECAwQFBgcICQoLDA0ODw==", 4)).toBe("0x00010203...");
+      expect(decodeBase64Value("SGVsbG8=", 5)).toBe("Hello");
+    });
+
+    it("drops a multi-byte character cut at maxItems", () => {
+      // "grü": the ü is 2 bytes, the third and fourth byte
+      expect(decodeBase64Value("Z3LDvGV6aSDwn5mC", 3)).toBe("gr...");
+    });
+
+    it("decodes only the full blocks of a truncated input and appends an ellipsis", () => {
+      expect(decodeBase64Value("SGVsbG8gV29y", 100, true)).toBe("Hello Wor...");
+      expect(decodeBase64Value("SGVsbG8gV2", 100, true)).toBe("Hello ...");
     });
   });
 });

@@ -10,6 +10,7 @@ import android.hardware.biometrics.BiometricPrompt
 import android.location.Location
 import android.net.Uri
 import android.os.Bundle
+import android.util.Base64
 import android.os.Parcelable
 import android.os.PersistableBundle
 import android.security.keystore.KeyGenParameterSpec
@@ -200,6 +201,8 @@ class MastgTest(private val context: Context) {
         // Sends `length` bytes of `buffer` from `offset`, like OutputStream.write(byte[], int, int).
         fun sendPacket(buffer: ByteArray, offset: Int, length: Int): Int = length
         fun receiveTextBytes(arg: ByteArray): ByteArray = arg
+        // Base64 text, e.g. a token or a key, for `decoder: base64`
+        fun receiveBase64(arg: String): String = arg
         fun receiveBundle(arg: Bundle): Bundle = arg
         fun receiveContentValues(arg: ContentValues): ContentValues = arg
         fun receiveClipData(arg: ClipData): ClipData = arg
@@ -408,7 +411,9 @@ class MastgTest(private val context: Context) {
 
                 receiveMode(MODE_DECRYPT)
                 receiveTextBytes("Hello frooky".toByteArray())
-                r.add(Status.PASS, "mode and text bytes")
+                receiveBase64(Base64.encodeToString("Hello frooky".toByteArray(), Base64.NO_WRAP))
+                receiveBase64(Base64.encodeToString(ByteArray(16) { it.toByte() }, Base64.NO_WRAP))
+                r.add(Status.PASS, "mode, text bytes and base64")
 
                 // only the middle of each buffer is used: 12 bytes of the packet, and the 16 key bytes 0x10 to 0x1f
                 sendPacket("HEADER|hello frooky|TRAILER".toByteArray(), 7, 12)

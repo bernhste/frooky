@@ -259,76 +259,75 @@ export function plural(count: number, noun: string, pluralNoun: string = `${noun
   return `${count} ${count === 1 ? noun : pluralNoun}`;
 }
 
-// Decode standard (RFC 4648 §4) and URL-safe (RFC 4648 §5) base64 strings to bytes
-const B64_LOOKUP = new Int8Array(256).fill(-1);
-for (let i = 0; i < 26; i++) {
-  B64_LOOKUP[65 + i] = i; // 'A'-'Z'
-  B64_LOOKUP[97 + i] = 26 + i; // 'a'-'z'
-}
-for (let i = 0; i < 10; i++) {
-  B64_LOOKUP[48 + i] = 52 + i; // '0'-'9'
-}
-B64_LOOKUP[43] = 62; // '+'
-B64_LOOKUP[45] = 62; // '-'
-B64_LOOKUP[47] = 63; // '/'
-B64_LOOKUP[95] = 63; // '_'
+const BASE64_LOOKUP = new Int8Array(128).fill(-1);
+"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".split("").forEach((c, i) => (BASE64_LOOKUP[c.charCodeAt(0)] = i));
+BASE64_LOOKUP[0x2b] = BASE64_LOOKUP[0x2d] = 62; // `+`, URL-safe `-`
+BASE64_LOOKUP[0x2f] = BASE64_LOOKUP[0x5f] = 63; // `/`, URL-safe `_`
 
+// Decodes standard (RFC 4648 §4) or URL-safe (§5) base64, padded or not. Whitespace, e.g. the line breaks of MIME
+// base64, is ignored. Throws for other characters, padding other than at the end, mixed alphabets or a length no
+// base64 string has.
 export function base64ToBytes(base64: string): Uint8Array {
   const clean = base64.replace(/\s+/g, "");
-  let len = clean.length;
-  if (len === 0) return new Uint8Array(0);
-
-  while (len > 0 && clean.charCodeAt(len - 1) === 61 /* '=' */) {
-    len--;
+  const padding = clean.length - clean.replace(/=+$/, "").length;
+  if (padding > 2 || (padding > 0 && clean.length % 4 !== 0)) {
+    throw new Error("Invalid base64 padding");
   }
-
-  const mod = len % 4;
-  if (mod === 1) {
+  const dataLength = clean.length - padding;
+  if (dataLength % 4 === 1) {
     throw new Error("Invalid base64 string length");
   }
 
-  const fullChunks = Math.floor(len / 4);
-  const extraBytes = mod === 2 ? 1 : mod === 3 ? 2 : 0;
-  const outLength = fullChunks * 3 + extraBytes;
-  const out = new Uint8Array(outLength);
-
-  let inIdx = 0;
+  const out = new Uint8Array(Math.floor((dataLength * 3) / 4));
   let outIdx = 0;
-
-  for (let i = 0; i < fullChunks; i++) {
-    const c0 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-    const c1 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-    const c2 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-    const c3 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-
-    if ((c0 | c1 | c2 | c3) < 0) {
-      throw new Error("Invalid base64 character");
+  let buffer = 0;
+  let bits = 0;
+  let standard = false;
+  let urlSafe = false;
+  for (let i = 0; i < dataLength; i++) {
+    const code = clean.charCodeAt(i);
+    const value = code < 128 ? BASE64_LOOKUP[code] : -1;
+    if (value < 0) {
+      throw new Error(`Invalid base64 character ${JSON.stringify(clean[i])}`);
     }
+    if (code === 0x2b || code === 0x2f) standard = true;
+    else if (code === 0x2d || code === 0x5f) urlSafe = true;
 
-    out[outIdx++] = (c0 << 2) | (c1 >> 4);
-    out[outIdx++] = ((c1 & 15) << 4) | (c2 >> 2);
-    out[outIdx++] = ((c2 & 3) << 6) | c3;
+    buffer = ((buffer << 6) | value) & 0xffff;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out[outIdx++] = (buffer >> bits) & 0xff;
+    }
   }
-
-  if (extraBytes === 1) {
-    const c0 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-    const c1 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-    if ((c0 | c1) < 0) {
-      throw new Error("Invalid base64 character");
-    }
-    out[outIdx++] = (c0 << 2) | (c1 >> 4);
-  } else if (extraBytes === 2) {
-    const c0 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-    const c1 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-    const c2 = B64_LOOKUP[clean.charCodeAt(inIdx++)];
-    if ((c0 | c1 | c2) < 0) {
-      throw new Error("Invalid base64 character");
-    }
-    out[outIdx++] = (c0 << 2) | (c1 >> 4);
-    out[outIdx++] = ((c1 & 15) << 4) | (c2 >> 2);
+  if (standard && urlSafe) {
+    throw new Error("Invalid base64: mixes the standard and URL-safe alphabets");
   }
-
   return out;
+}
+
+// Base64 characters to read to decode more than `maxItems` bytes, doubled for whitespace such as MIME line breaks
+export function base64ReadLimit(maxItems: number): number {
+  return Math.ceil((maxItems + 1) / 3) * 8;
+}
+
+// Base64-decodes `encoded` as text if the bytes are printable ASCII or UTF-8 text, otherwise as hex, e.g. a key.
+// At most `maxItems` bytes, ending with "..." when cut. `inputTruncated`: `encoded` is only the start of the value,
+// read up to base64ReadLimit(). Throws for invalid base64.
+export function decodeBase64Value(encoded: string, maxItems: number, inputTruncated: boolean = false): string {
+  let clean = encoded.replace(/\s+/g, "");
+  if (inputTruncated) clean = clean.slice(0, clean.length - (clean.length % 4));
+  const bytes = base64ToBytes(clean);
+  const truncated = inputTruncated || bytes.length > maxItems;
+  const shown = bytes.subarray(0, Math.min(bytes.length, maxItems));
+  // a cut multi-byte character would make the text look binary
+  const text = truncated ? trimIncompleteUtf8Tail(shown) : shown;
+  return (isText(text) ? bytesToString(text) : toHex(shown)) + (truncated ? "..." : "");
+}
+
+// Printable ASCII or valid UTF-8 without control characters
+function isText(bytes: Uint8Array): boolean {
+  return bytes.every((byte) => byte >= 0x80 || isPrintable(byte)) && isValidUtf8(bytes);
 }
 
 // e.g. ` (hooks.yaml)` for log messages, "" if unknown
