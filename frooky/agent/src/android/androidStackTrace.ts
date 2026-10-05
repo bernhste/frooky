@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { ArtStackVisitor, getApi, Thread, withRunnableArtThread } from "frida-java-bridge/lib/android.js";
 import { nativeStackFrames } from "../native/nativeStackTrace";
 import { HookSettings } from "../shared/frookySettings";
 import { compileCallerFilter, HookStackTrace, PlatformStackTrace, StackTraceRequest } from "../shared/platformStackTrace";
@@ -12,13 +13,19 @@ function formatJavaFrame(frame: Java.Frame): string {
 // frida-java-bridge builds its backtrace module on the first Java.backtrace() without a lock, and gives up the JS lock
 // while doing so. A second thread entering then builds another module, and the first one's code is freed while still
 // in use, which crashes the app. Other threads skip the Java frames until the first call returned.
-let javaBacktraceState: "uninitialized" | "initializing" | "ready" = "uninitialized";
+let javaBacktraceState: InitState = "uninitialized";
+// the same for the caller walk, whose first call builds frida-java-bridge's thread state transition code
+let callerWalkState: InitState = "uninitialized";
+
+type InitState = "uninitialized" | "initializing" | "ready";
 
 export const AndroidStackTrace: PlatformStackTrace = {
   // Builds the backtrace module before any hook needs it: the first Java.backtrace() needs the linker's lock, later
   // ones don't, so Java frames can be captured at `linker-busy`
   prepare() {
-    if (Java.available && javaBacktraceState === "uninitialized") walkJavaStack();
+    if (!Java.available) return;
+    if (javaBacktraceState === "uninitialized") walkJavaStack();
+    if (callerWalkState === "uninitialized") Java.vm.perform(() => hasJavaCaller([]));
   },
 
   build(settings: HookSettings, request: StackTraceRequest): HookStackTrace {
@@ -48,15 +55,15 @@ export const AndroidStackTrace: PlatformStackTrace = {
     const canWalkJava = !javaBlocked && Java.available && Java.vm.tryGetEnv() !== null;
     if (filterCallers && !canWalkJava) throw FilterMismatchError.INSTANCE;
 
-    const javaStack = canWalkJava && (wantsJavaFrames || filterCallers) ? walkJavaStack() : [];
+    const javaStack = canWalkJava && wantsJavaFrames ? walkJavaStack() : [];
     if (filterCallers) {
       const regExps = compileCallerFilter(callerFilter);
       // the whole stack, as an app often calls the hooked method through libraries (e.g. app -> OkHttp -> Cipher),
       // without the hooked method itself on top
-      const callers = javaStack.slice(1);
-      if (!callers.some((frame) => regExps.some((regExp) => regExp.test(`${frame.className}.${frame.methodName}`)))) {
-        throw FilterMismatchError.INSTANCE;
-      }
+      const matches = wantsJavaFrames
+        ? javaStack.slice(1).some((frame) => regExps.some((regExp) => regExp.test(`${frame.className}.${frame.methodName}`)))
+        : !(linkerBusy && callerWalkState !== "ready") && hasJavaCaller(regExps);
+      if (!matches) throw FilterMismatchError.INSTANCE;
     }
 
     const nativeFrames = wantsNativeFrames && ctx ? nativeStackFrames(ctx, limit, linkerBusy) : [];
@@ -86,4 +93,84 @@ function walkJavaStack(): Java.Frame[] {
     }
   }
   return javaStack;
+}
+
+// `<class>.<method>` per ArtMethod address, e.g. `org.owasp.mastestapp.MastgTest.trackEvent`, or null for ART's
+// runtime methods, which aren't Java frames
+const methodNames = new Map<string, string | null>();
+
+function methodName(visitor: ArtStackVisitor): string | null {
+  const method = visitor.getMethod();
+  if (method === null) return null;
+  const key = method.handle.toString();
+  let name = methodNames.get(key);
+  if (name === undefined) {
+    const prettyMethod = method.prettyMethod(false);
+    name = prettyMethod.startsWith("<") ? null : prettyMethod;
+    methodNames.set(key, name);
+  }
+  return name;
+}
+
+// Stops at the first caller that matches, skipping the innermost Java frame (the hooked method)
+class CallerVisitor extends ArtStackVisitor {
+  matched = false;
+  private skippedHookedMethod = false;
+
+  constructor(
+    thread: Thread,
+    context: unknown,
+    private readonly regExps: RegExp[],
+  ) {
+    super(thread, context, "skip-inlined-frames");
+  }
+
+  // false stops the walk
+  visitFrame(): boolean {
+    try {
+      const name = methodName(this);
+      if (name === null) return true;
+      if (!this.skippedHookedMethod) {
+        this.skippedHookedMethod = true;
+        return true;
+      }
+      this.matched = this.regExps.some((regExp) => regExp.test(name));
+      return !this.matched;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+// Whether a Java method on the current thread's stack matches one of `regExps`. Unlike Java.backtrace(), it stops at
+// the first match and neither describes the frames nor looks up their line numbers. False while another thread runs
+// the first walk. The thread must be attached to the VM (Java.vm.tryGetEnv()).
+function hasJavaCaller(regExps: RegExp[]): boolean {
+  if (callerWalkState === "initializing") return false;
+  const isFirstCall = callerWalkState === "uninitialized";
+  if (isFirstCall) callerWalkState = "initializing";
+  let matched = false;
+  try {
+    const api = getApi();
+    withRunnableArtThread(Java.vm, Java.vm.getEnv(), (thread) => {
+      // runs inside ART's thread state transition: an exception must not unwind through it
+      try {
+        const getContext = api["art::Thread::GetLongJumpContext"];
+        const context = getContext !== undefined ? getContext(thread) : api["art::Context::Create"]();
+        try {
+          const visitor = new CallerVisitor(thread, context, regExps);
+          visitor.walkStack();
+          matched = visitor.matched;
+        } finally {
+          api.$delete(context);
+        }
+      } catch (_) {
+        matched = false;
+      }
+    });
+    callerWalkState = "ready";
+  } catch (_) {
+    if (isFirstCall) callerWalkState = "uninitialized";
+  }
+  return matched;
 }

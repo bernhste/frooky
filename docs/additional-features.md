@@ -244,10 +244,10 @@ See [`examples/android/05_hook_settings/01_platform_stack_trace.yaml`](./example
 
 Widely used methods and functions (such as `SharedPreferences`, crypto APIs, or libc's `fopen` and `strstr`) generate a lot of noise, because the framework, system libraries and third-party SDKs call them constantly. `callerFilter` records a call only if it comes from code you are interested in, usually the app's own packages or native libraries. It is a list of regular expressions under `hookSettings`. They aren't anchored: `libapp.so` also matches `mylibapp.so`, so write `'^libapp\.so$'` to match one module exactly. What they match depends on the hook:
 
-| Hook        | Matches                            | Searches               | Cost per call                  |
-| ----------- | ---------------------------------- | ---------------------- | ------------------------------ |
-| Java hook   | Java methods as `<class>.<method>` | The whole Java stack   | A walk of the whole Java stack |
-| Native hook | Module names, e.g. `libapp.so`     | The direct caller only | A few address comparisons      |
+| Hook        | Matches                            | Searches               | Cost per call                                  |
+| ----------- | ---------------------------------- | ---------------------- | ---------------------------------------------- |
+| Java hook   | Java methods as `<class>.<method>` | The whole Java stack   | A walk of the Java stack up to the first match |
+| Native hook | Module names, e.g. `libapp.so`     | The direct caller only | A few address comparisons                      |
 
 A call that doesn't match is dropped before its values are decoded and before any stack trace is built. `callerFilter` doesn't need `nativeStackTrace` or `platformStackTrace`; those only decide what the recorded event contains. An empty list means no filter.
 
