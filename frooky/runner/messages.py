@@ -19,7 +19,8 @@ def create_message_handler(
     """Build the frooky agent's message callback: writes hook/log events to the output file
     and prints them to the feed while print_events() returns True, calling on_event after each event in a batch (or on_batch once per batch).
     Hook resolving progress reports ({"frooky": "progress", "hooked": n, "resolving": n, "waiting": n, "notFound": n}) go to on_progress,
-    crash reports ({"frooky": "crash", "type": ..., "address": ..., "backtrace": [...], "nativeHooks": [...]}) to on_crash."""
+    crash reports ({"frooky": "crash", "type": ..., "address": ..., "backtrace": [...], "nativeHooks": [...]}) to on_crash.
+    The output of user scripts in the agent's script ({"frooky": "userLog" | "userSend", "script": name, ...}) goes to the feed."""
 
     def on_message(message, data):
         msg_type = message.get("type")
@@ -42,6 +43,15 @@ def create_message_handler(
         if isinstance(payload, dict) and payload.get("frooky") == "crash":
             if on_crash:
                 on_crash(payload)
+            return
+
+        # console output and send() messages of a user script (-l) that runs in the agent's script
+        if isinstance(payload, dict) and payload.get("frooky") == "userLog":
+            feed.log(payload.get("level", "info"), str(payload.get("text", "")), payload.get("script"))
+            return
+
+        if isinstance(payload, dict) and payload.get("frooky") == "userSend":
+            feed.log("info", str(payload.get("payload")), payload.get("script"))
             return
 
         if isinstance(payload, str) and payload.lstrip().startswith("{"):

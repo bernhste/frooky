@@ -420,7 +420,7 @@ See [`03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_le
 
 ## Custom User Scripts
 
-frooky allows loading custom Frida JavaScript files into the target process before the frooky agent is injected and initialized:
+frooky allows loading custom Frida JavaScript or TypeScript files into the target process before the frooky agent is initialized and installs its hooks:
 
 ```bash
 frooky -U -f com.example.app -l unpin.js -l bypass_root.js hooks.yaml
@@ -452,7 +452,15 @@ Java.perform(() => {
 });
 ```
 
-The bridge can be imported (`import Java from "frida-java-bridge";`), required (`require("frida-java-bridge")`) or used as a global (`Java.perform(...)`). See [User Scripts](./under-the-hood.md#user-scripts) in Under the Hood for how frooky loads them.
+The bridge can be imported (`import Java from "frida-java-bridge";`), required (`require("frida-java-bridge")`) or used as a global (`Java.perform(...)`). A script that uses it runs in the frooky agent's script and shares the agent's bridge, so it works when frooky attaches and when it spawns the app (`-f`). Other scripts, e.g. ones that only use `Interceptor`, run as their own Frida script.
+
+A script that uses the Java bridge:
+
+- **Shares hooks with the hook files:** a Java method has one replacement at a time. If a script and a hook file hook the same method, the one installed later replaces the other, and frooky logs a warning naming the method. When frooky spawns the app, the script's `Java.perform()` callbacks run once the app is ready: a script's hook replaces frooky's hooks on framework classes, which frooky installs before, and frooky's hooks on the app's classes replace the script's.
+- **Prints its output with its name:** `console.log()` and `send()` show up in the terminal tagged with the script's file name, e.g. `[unlock.ts]`.
+- **Has no `rpc.exports`:** they would replace the agent's, so a script's `rpc.exports` are ignored.
+
+See [User Scripts](./under-the-hood.md#user-scripts) in Under the Hood for how frooky loads them.
 
 See [`examples/native/09_custom_scripts/`](./examples/native/09_custom_scripts/) for an example using custom scripts.
 

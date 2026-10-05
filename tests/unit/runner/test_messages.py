@@ -154,6 +154,20 @@ class TestCreateMessageHandler:
         feed.log.assert_not_called()
         assert not output.output_path.exists()
 
+    def test_user_script_output_goes_to_the_feed_tagged_with_the_script_and_not_to_the_output(self, tmp_path):
+        output = OutputWriter(tmp_path / "out.json")
+        feed = MagicMock()
+        on_message = create_message_handler(output, feed, print_events=lambda: True)
+
+        on_message({"type": "send", "payload": {"frooky": "userLog", "script": "unlock.js", "level": "warning", "text": "careful"}}, None)
+        on_message({"type": "send", "payload": {"frooky": "userSend", "script": "unlock.js", "payload": '{"a": 1}'}}, None)
+
+        assert feed.log.call_args_list == [
+            (("warning", "careful", "unlock.js"),),
+            (("info", '{"a": 1}', "unlock.js"),),
+        ]
+        assert not output.output_path.exists()
+
 
 class TestCreateLogHandler:
     def test_forwards_level_text_and_source(self):

@@ -306,9 +306,6 @@ class FrookyRunner:
             self._print_header()
             self.feed.hook_status(self._hook_status)
 
-            # Load any user-provided scripts before the frooky agent
-            self.user_scripts = load_user_scripts(self.session, self.options.user_scripts, self.feed, self.options.runtime, platform=self.platform)
-
             self.script = self.session.create_script(script_source, runtime=self.options.runtime)
             self.script.on(
                 "message",
@@ -323,6 +320,8 @@ class FrookyRunner:
             )
             self.script.set_log_handler(create_log_handler(self.feed))
             self.script.load()
+
+            self.user_scripts = load_user_scripts(self.session, self.script, self.options.user_scripts, self.feed, self.options.runtime)
 
             self.script.exports_sync.init_frooky_agent(self.options.agent_log_level, "console")
 

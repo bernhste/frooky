@@ -12,6 +12,7 @@ import { detectUnsafeContext } from "../../native/unsafeContext";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { javaIdentityHashCode } from "../decoders/utils/javaValues";
 import { fixArtMethodAccessFlagsOffset, initializeClass, repairAccessFlags } from "../javaBridgeWorkarounds";
+import { asFrooky } from "../scriptReplacements";
 import { JavaHook } from "./javaHook";
 import { countCalls, ReplacementCalls, RetiredReplacements } from "./retiredReplacements";
 import { resolveMethodHooks } from "./javaMethodResolver";
@@ -128,7 +129,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       }
       initializeClass(method);
       const newOverload: HookedOverload = { method, target, hooks: [], observers: [], inFlight: 0, finished: 0 };
-      newOverload.method.implementation = this.createDispatcher(newOverload);
+      asFrooky(target, () => (newOverload.method.implementation = this.createDispatcher(newOverload)));
       repairAccessFlags(newOverload.method, target);
       overload = newOverload;
       this.hookedOverloads.set(key, overload);
@@ -192,7 +193,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
 
       this.hookedOverloads.delete(key);
       try {
-        this.retiredReplacements.revert(overload.method, overload);
+        asFrooky(overload.target, () => this.retiredReplacements.revert(overload.method, overload));
       } catch (e) {
         logger.warn(`Failed to unhook ${overload.target}: ${e}`);
       }
@@ -206,7 +207,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     this.detaching = true;
     for (const overload of this.hookedOverloads.values()) {
       try {
-        this.retiredReplacements.revert(overload.method, overload);
+        asFrooky(overload.target, () => this.retiredReplacements.revert(overload.method, overload));
       } catch (e) {
         logger.warn(`Failed to unhook ${overload.target}: ${e}`);
       }

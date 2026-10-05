@@ -9,7 +9,7 @@ from frooky.runner.config import (
     compile_user_script,
     load_hook_configs,
     load_user_scripts,
-    prepare_user_script,
+    uses_java_bridge,
 )
 
 
@@ -61,14 +61,23 @@ class TestCompileUserScript:
         assert "console.log" in compiled
         assert "msg" in compiled
 
-    def test_leaves_bridge_imports_as_external(self, tmp_path):
+    def test_turns_bridge_imports_into_require_calls(self, tmp_path):
         ts_file = tmp_path / "unlock.ts"
         ts_file.write_text("import Java from 'frida-java-bridge';\nconst n: number = 42;\nJava.perform(() => console.log(n));")
 
         compiled = compile_user_script(ts_file)
 
-        assert "frida-java-bridge" in compiled
+        assert '__require("frida-java-bridge")' in compiled
         assert "const n: number" not in compiled
+
+    def test_compiles_javascript_with_an_import(self, tmp_path):
+        js_file = tmp_path / "unlock.js"
+        js_file.write_text('import Java from "frida-java-bridge";\nJava.perform(() => {});')
+
+        compiled = compile_user_script(js_file)
+
+        assert '__require("frida-java-bridge")' in compiled
+        assert "import Java" not in compiled
 
     def test_compilation_failure_raises_value_error(self, tmp_path):
         ts_file = tmp_path / "broken.ts"
@@ -78,121 +87,71 @@ class TestCompileUserScript:
             compile_user_script(ts_file)
 
 
-class TestPrepareUserScript:
-    def test_leaves_plain_script_body_intact(self):
-        source = "console.log('hello');"
-        prepared = prepare_user_script(source)
-        assert "console.log('hello');" in prepared
-        assert "globalThis.require" in prepared
+class TestUsesJavaBridge:
+    @pytest.mark.parametrize(
+        "source",
+        [
+            'var import_bridge = __toESM(__require("frida-java-bridge"));',
+            'var Java = __require("frida-java-bridge");',
+            "Java.perform(() => {});",
+        ],
+    )
+    def test_detects_the_bridge(self, source):
+        assert uses_java_bridge(source)
 
-    def test_resolves_default_import_frida_java_bridge(self):
-        source = 'import Java from "frida-java-bridge";\nJava.perform(() => {});'
-        prepared = prepare_user_script(source)
-        assert 'if (typeof Java === "undefined") {' in prepared
-        assert "globalThis.Java = bridge;" in prepared
-        assert "var Java = globalThis.Java;\nJava.perform(() => {});" in prepared
-
-    def test_resolves_single_quotes_and_no_semicolon(self):
-        source = "import Java from 'frida-java-bridge'\nJava.perform(() => {})"
-        prepared = prepare_user_script(source)
-        assert 'if (typeof Java === "undefined") {' in prepared
-        assert "var Java = globalThis.Java;\nJava.perform(() => {})" in prepared
-
-    def test_resolves_namespace_import(self):
-        source = 'import * as Java from "frida-java-bridge";'
-        prepared = prepare_user_script(source)
-        assert 'if (typeof Java === "undefined") {' in prepared
-        assert "var Java = globalThis.Java;" in prepared
-
-    def test_resolves_named_import(self):
-        source = 'import { Java } from "frida-java-bridge";'
-        prepared = prepare_user_script(source)
-        assert 'if (typeof Java === "undefined") {' in prepared
-        assert "var Java = globalThis.Java;" in prepared
-
-    def test_resolves_aliased_identifier(self):
-        source = 'import myBridge from "frida-java-bridge";\nmyBridge.perform(() => {});'
-        prepared = prepare_user_script(source)
-        assert 'if (typeof Java === "undefined") {' in prepared
-        assert "var myBridge = globalThis.Java;\nmyBridge.perform(() => {});" in prepared
-
-    def test_resolves_require_statement(self):
-        source = 'const Java = require("frida-java-bridge");\nJava.perform(() => {});'
-        prepared = prepare_user_script(source)
-        assert 'if (typeof Java === "undefined") {' in prepared
-        assert "var Java = globalThis.Java;\nJava.perform(() => {});" in prepared
-
-    def test_injects_bridge_when_java_used_directly_without_import(self):
-        source = "Java.perform(() => console.log('hello'));"
-        prepared = prepare_user_script(source)
-        assert 'if (typeof Java === "undefined") {' in prepared
-        assert "globalThis.Java = bridge;" in prepared
-        assert prepared.endswith("Java.perform(() => console.log('hello'));")
-
-    def test_injects_bridge_on_android_platform_even_if_not_imported(self):
-        source = "console.log('hooking...');"
-        prepared = prepare_user_script(source, platform="android")
-        assert 'if (typeof Java === "undefined") {' in prepared
-        assert "console.log('hooking...');" in prepared
-
-    def test_resolves_objc_bridge(self):
-        source = 'import ObjC from "frida-objc-bridge";\nconsole.log(ObjC.available);'
-        prepared = prepare_user_script(source)
-        assert 'if (typeof ObjC === "undefined") {' in prepared
-        assert "globalThis.ObjC = bridge;" in prepared
-        assert "var ObjC = globalThis.ObjC;\nconsole.log(ObjC.available);" in prepared
-
-    def test_resolves_swift_bridge(self):
-        source = 'import Swift from "frida-swift-bridge";\nconsole.log(Swift.available);'
-        prepared = prepare_user_script(source)
-        assert 'if (typeof Swift === "undefined") {' in prepared
-        assert "globalThis.Swift = bridge;" in prepared
-        assert "var Swift = globalThis.Swift;\nconsole.log(Swift.available);" in prepared
+    @pytest.mark.parametrize("source", ["Interceptor.attach(ptr(1), {});", "const JavaScript = 1;", "var java = 1;"])
+    def test_ignores_scripts_without_the_bridge(self, source):
+        assert not uses_java_bridge(source)
 
 
 class TestLoadUserScripts:
-    def test_loads_and_tracks_each_script(self, tmp_path):
+    def test_runs_a_script_using_the_java_bridge_in_the_agent(self, tmp_path):
+        script_path = tmp_path / "unlock.js"
+        script_path.write_text("Java.perform(() => {});")
+        session, agent = MagicMock(), MagicMock()
+
+        scripts = load_user_scripts(session, agent, [script_path], MagicMock())
+
+        name, source = agent.exports_sync.load_user_script.call_args[0]
+        assert name == "unlock.js"
+        assert "Java.perform(" in source
+        session.create_script.assert_not_called()
+        assert scripts == []
+
+    def test_loads_a_script_without_the_java_bridge_as_its_own_script(self, tmp_path):
         script_path = tmp_path / "script.js"
         script_path.write_text("console.log('hi')")
-        session = MagicMock()
+        session, agent = MagicMock(), MagicMock()
         script_mock = session.create_script.return_value
 
-        scripts = load_user_scripts(session, [script_path], MagicMock())
+        scripts = load_user_scripts(session, agent, [script_path], MagicMock(), "v8")
 
-        called_source = session.create_script.call_args[0][0]
-        assert "console.log('hi')" in called_source
+        assert "console.log(" in session.create_script.call_args[0][0]
+        assert session.create_script.call_args[1]["runtime"] == "v8"
         script_mock.set_log_handler.assert_called_once()
         script_mock.load.assert_called_once()
+        agent.exports_sync.load_user_script.assert_not_called()
         assert scripts == [script_mock]
 
-    def test_creates_scripts_with_the_given_runtime(self, tmp_path):
-        script_path = tmp_path / "script.js"
-        script_path.write_text("console.log('hi')")
-        session = MagicMock()
+    def test_keeps_the_order_of_the_scripts(self, tmp_path):
+        paths = [tmp_path / "a.js", tmp_path / "b.ts", tmp_path / "c.js"]
+        paths[0].write_text("Java.perform(() => {});")
+        paths[1].write_text("send('b');")
+        paths[2].write_text('import Java from "frida-java-bridge";\nJava.perform(() => {});')
+        session, agent = MagicMock(), MagicMock()
+        order = []
+        agent.exports_sync.load_user_script.side_effect = lambda name, source: order.append(name)
+        session.create_script.return_value.load.side_effect = lambda: order.append("b.ts")
 
-        load_user_scripts(session, [script_path], MagicMock(), "v8")
+        load_user_scripts(session, agent, paths, MagicMock())
 
-        assert session.create_script.call_args[1]["runtime"] == "v8"
+        assert order == ["a.js", "b.ts", "c.js"]
 
-    def test_prepares_script_with_bridges(self, tmp_path):
+    def test_names_the_script_that_fails_to_load(self, tmp_path):
         script_path = tmp_path / "unlock.js"
-        script_path.write_text('import Java from "frida-java-bridge";\nJava.perform(() => {});')
-        session = MagicMock()
+        script_path.write_text("Java.perform(() => {});")
+        agent = MagicMock()
+        agent.exports_sync.load_user_script.side_effect = Exception("ReferenceError: foo is not defined")
 
-        load_user_scripts(session, [script_path], MagicMock(), platform="android")
-
-        called_source = session.create_script.call_args[0][0]
-        assert 'if (typeof Java === "undefined") {' in called_source
-        assert "var Java = globalThis.Java;\nJava.perform(() => {});" in called_source
-
-    def test_compiles_typescript_user_script(self, tmp_path):
-        script_path = tmp_path / "unlock.ts"
-        script_path.write_text('import Java from "frida-java-bridge";\nconst val: number = 100;\nJava.perform(() => console.log(val));')
-        session = MagicMock()
-
-        load_user_scripts(session, [script_path], MagicMock(), platform="android")
-
-        called_source = session.create_script.call_args[0][0]
-        assert 'if (typeof Java === "undefined") {' in called_source
-        assert "frida-java-bridge" in called_source
-        assert "const val: number" not in called_source
+        with pytest.raises(RuntimeError, match="Failed to load unlock.js: ReferenceError: foo is not defined"):
+            load_user_scripts(MagicMock(), agent, [script_path], MagicMock())

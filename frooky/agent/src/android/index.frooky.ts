@@ -3,12 +3,20 @@ import { FrookyAgent } from "../FrookyAgent";
 import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO } from "../shared/defaultValues";
 import { InputFrookyConfig } from "../shared/frookyConfig";
 import { LogLevel, LogTo } from "../shared/logger";
+import { runUserScript } from "../shared/userScript";
 import { AndroidStackTrace } from "./androidStackTrace";
 import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
 import { fixArtMethodAccessFlagsOffset } from "./javaBridgeWorkarounds";
+import { trackScriptReplacements } from "./scriptReplacements";
 
 let frookyAgent: FrookyAgent | undefined;
+
+function assertAndroid(): void {
+  if (!Java.available) {
+    throw new Error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
+  }
+}
 
 function initializedFrookyAgent(): FrookyAgent {
   if (!frookyAgent) {
@@ -21,10 +29,18 @@ function initializedFrookyAgent(): FrookyAgent {
 // framework classes and `early: true` native hooks are installed before app code runs. App classes and the other
 // native hooks wait for FrookyAgent.targetReady.
 rpc.exports = {
+  // Runs a -l script that uses frida-java-bridge, before initFrookyAgent(). It shares the agent's bridge: two bridges in
+  // one process recurse into each other's replacements of a method, e.g. ActivityThread.handleBindApplication(), which
+  // Java.perform() replaces in a spawned app.
+  loadUserScript(name: string, source: string) {
+    assertAndroid();
+    // before the script's first Java.perform()
+    fixArtMethodAccessFlagsOffset();
+    trackScriptReplacements();
+    runUserScript(name, source, [{ module: "frida-java-bridge", global: "Java", value: Java }]);
+  },
   initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo) {
-    if (!Java.available) {
-      throw new Error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
-    }
+    assertAndroid();
     if (frookyAgent) {
       throw new Error("[!] frookyAgent is already initialized.");
     }

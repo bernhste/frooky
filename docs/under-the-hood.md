@@ -670,15 +670,20 @@ Under V8, an installed exception handler makes a hook on e.g. libc's `strlen` cr
 
 ## User Scripts
 
-Each script passed with `-l` is loaded into the same Frida session as its own script, in the order of the command line, before the agent:
+Each script passed with `-l` is compiled with Frida's compiler (`frida.Compiler`) into one IIFE, also a `.js` file. The bridges (`frida-java-bridge`, ...) are left as externals, so their imports become `require()` calls. The scripts are loaded in the order of the command line, after the agent's script is loaded and before it is initialized:
 
-1. A `.ts` file is compiled with Frida's compiler (`frida.Compiler`) into one script, with the bridges (`frida-java-bridge`, ...) left as externals.
-2. Imports and `require()` calls of a bridge are rewritten to its global, e.g. `Java`, and a `require()` shim is added for the bridges.
-3. The bridge code from frida-tools is put in front of the script if the script uses it. On Android, the Java bridge is always added.
+1. A script that imports `frida-java-bridge` or uses the global `Java` runs in the agent's script (the `loadUserScript` RPC, `Script.evaluate()`). It gets the agent's bridge as `Java` and from `require("frida-java-bridge")`, and its own `console`, `send` and `rpc`: its output goes to the host tagged with its name, and its `rpc.exports` don't replace the agent's.
+2. Any other script is loaded as its own Frida script, with its own JS lock.
+
+Scripts that use Java share the agent's bridge because frida-java-bridge doesn't support two copies of itself replacing the same method: each copy only knows its own replacements, so a call of the original from one copy's replacement runs the other copy's, and back, until the stack overflows. `Java.perform()` in a spawned app replaces `ActivityThread.handleBindApplication()`, so with a second bridge, a script calling `Java.perform()` would crash every spawned app.
+
+With one bridge, a method has one replacement: the one installed later replaces the other. frooky wraps the bridge's `ArtMethodMangler` to see which replacements the scripts make, and logs a warning when a script's hook and frooky's are on the same method.
 
 **Source:**
 
-- [`config.py`](../frooky/runner/config.py) (`compile_user_script()`, `prepare_user_script()`, `load_user_scripts()`)
+- [`config.py`](../frooky/runner/config.py) (`compile_user_script()`, `uses_java_bridge()`, `load_user_scripts()`)
+- [`userScript.ts`](../frooky/agent/src/shared/userScript.ts) (`runUserScript()`)
+- [`scriptReplacements.ts`](../frooky/agent/src/android/scriptReplacements.ts) (the warning for hooks on the same method)
 
 ## JavaScript Runtimes
 
