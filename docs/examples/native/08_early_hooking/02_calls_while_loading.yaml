@@ -12,7 +12,7 @@ metadata:
 #         libloadStage.so and then libloadTime.so at startup. libloadTime.so's constructor calls its own
 #         load_time_constructor, which calls report_load_stage; JNI_OnLoad calls report_load_stage too.
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/08_early_hooking/02_calls_while_loading.yaml
-# See:    docs/additional-features.md#dynamic-class-and-module-resolution
+# See:    docs/additional-features.md#early-true
 #
 # The library loads at startup, so this needs spawn (-f). A library the app loads later, e.g. after
 # pressing "Start", is hooked the same way when it loads.

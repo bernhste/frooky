@@ -151,7 +151,7 @@ frooky looks a class up in every class loader of the app, not only in the app's 
 
 - **Classes of the app and of Android** are found right away.
 - **Classes in a class loader the app creates later**, such as a plugin, code the app downloads and loads with `DexClassLoader`, or the WebView implementation, are hooked while that class loader is created, before any of its code runs.
-- **A class that no class loader has yet** keeps waiting: frooky reports it as waiting after `-t` seconds and hooks it as soon as a class loader has it. See [Dynamic Class and Module Resolution](./additional-features.md#dynamic-class-and-module-resolution).
+- **A class that no class loader has yet** keeps waiting: frooky reports it as waiting after `-t` seconds and hooks it as soon as a class loader has it. See [Resolve the Module or Class](./under-the-hood.md#resolve-the-module-or-class) in Under the Hood.
 
 ### Classes of Custom Class Loaders
 

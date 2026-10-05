@@ -216,7 +216,7 @@ Keep in mind:
 
 - **Use the virtual address, not the file offset.** A hex editor or a raw file view shows positions in the file, which are often different from the virtual address of code.
 - **An offset only fits one build of the module and one ABI.** After an app update, or for the `arm64-v8a` and `x86_64` copies of the same library, the offsets are different. frooky skips a hook whose offset is outside the module or doesn't point to executable memory, but an offset that points to the wrong code in the same module can't be detected.
-- **Late-loaded modules:** If the shared library is loaded dynamically via `dlopen` after application startup, frooky hooks it as soon as it loads (see [Dynamic Class and Module Resolution](./additional-features.md#dynamic-class-and-module-resolution)).
+- **Late-loaded modules:** If the shared library is loaded dynamically via `dlopen` after application startup, frooky hooks it as soon as it loads (see [Resolve the Module or Class](./under-the-hood.md#resolve-the-module-or-class) in Under the Hood).
 
 Events of these hooks contain `offset` instead of `symbol`, see [Output](./output.md#hook-native-events).
 
@@ -286,4 +286,4 @@ hooks:
 ```
 
 > [!WARNING]
-> Don't capture stack traces on high-frequency libc functions such as `open`, `read` or `malloc`. See [Dangerous Low-Level, Early, and High-Frequency Hooks](./additional-features.md#dangerous-low-level-early-and-high-frequency-hooks).
+> Don't capture stack traces on high-frequency libc functions such as `open`, `read` or `malloc`. See [Dangerous Low-Level and High-Frequency Hooks](./additional-features.md#dangerous-low-level-and-high-frequency-hooks).

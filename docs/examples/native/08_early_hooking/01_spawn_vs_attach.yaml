@@ -8,7 +8,7 @@ metadata:
   platform: Android
 
 # Target: tests/target-apps/android/value-passing-native, which loads its libraries at startup.
-# See:    docs/native-hook-declaration.md
+# See:    docs/additional-features.md#spawn-vs-attach
 #
 # Spawn (-f): frooky starts the app suspended, installs the hooks, then resumes it. The library loads are recorded:
 #   frooky -U -f value_passing_native.frooky.target.app docs/examples/native/08_early_hooking/01_spawn_vs_attach.yaml

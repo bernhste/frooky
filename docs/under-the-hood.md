@@ -303,7 +303,7 @@ A **native value** only has its declared decoder: a native value is just a numbe
 
 ### Keeping Hooks Current
 
-Every normalized declaration gets a fingerprint. On a [reload](./additional-features.md#hot-reloading-and-watch-mode), unchanged declarations keep their installed hooks, removed ones are unhooked, and only new, changed or retried ones are resolved. On the first load, every declaration is new and starts in the state `resolving`.
+Every normalized declaration gets a fingerprint. On a [reload](./additional-features.md#interacting-with-frooky), unchanged declarations keep their installed hooks, removed ones are unhooked, and only new, changed or retried ones are resolved. On the first load, every declaration is new and starts in the state `resolving`.
 
 ```mermaid
 flowchart TD
@@ -399,7 +399,7 @@ sequenceDiagram
     end
 ```
 
-`early: true` skips the wait for `targetReady`. Use it for code that runs before `targetReady`, e.g. ELF constructors in `.init_array`, `JNI_OnLoad` of a library loaded at startup, or anti-tampering checks, and give a high-frequency function a `callerFilter`, see [Dangerous Low-Level, Early, and High-Frequency Hooks](./additional-features.md#dangerous-low-level-early-and-high-frequency-hooks) and the examples in [`08_early_hooking`](./examples/native/08_early_hooking/). `early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
+`early: true` skips the wait for `targetReady`. Use it for code that runs before `targetReady`, e.g. ELF constructors in `.init_array`, `JNI_OnLoad` of a library loaded at startup, or anti-tampering checks, and give a high-frequency function a `callerFilter`, see [Early Hooking](./additional-features.md#early-hooking) and the examples in [`08_early_hooking`](./examples/native/08_early_hooking/). `early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
 
 A hook is installed as soon as its module is found: before the app is resumed (stage 1) if the module is already loaded, otherwise inside the linker while the module loads (stage 2), so its constructors and `JNI_OnLoad` run hooked.
 

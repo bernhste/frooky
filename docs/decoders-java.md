@@ -1,15 +1,12 @@
 # Decoders for Android Java Hooks
 
-How frooky decodes the parameters and return values of Java and Kotlin methods. The settings themselves and the decoders shared with native hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
+How frooky decodes the parameters and return values of Java and Kotlin methods. The decoder settings, including the `decoderArgs` roles and the limits of each Java decoder, and the decoders shared with native hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
 
 <!-- TOC -->
 
 - [How frooky Picks a Java Decoder](#how-frooky-picks-a-java-decoder)
-- [Built-in Decoders](#built-in-decoders)
+- [Class and Interface Decoders](#class-and-interface-decoders)
 - [Java-Only Decoders](#java-only-decoders)
-- [`direction`: Output Parameters](#direction-output-parameters)
-- [`decoderArgs`: Offset and Length](#decoderargs-offset-and-length)
-- [Limits](#limits)
 - [Return Values](#return-values)
 
 <!-- /TOC -->
@@ -27,7 +24,7 @@ Primitives, `java.lang.String` and arrays are decoded by their declared type. Wi
 
 Decoders never change the state of the object they decode. For example, frooky never reads the elements of an `Iterator`, which would use them up, and the decoders of `Cipher`, `Mac` and `Signature` never make them choose a provider early.
 
-## Built-in Decoders
+## Class and Interface Decoders
 
 Class decoders, also used for subclasses:
 
@@ -99,94 +96,6 @@ hooks:
 ```
 
 This decodes `number` as `"java.math.BigInteger@<identity hash code in hex>"`. The identity hash code (`System.identityHashCode()`) is the [`hashCode`](./output.md) of the events about the same object, e.g. of a hooked method that returns `this`, so decoded values and events can be matched. It doesn't change while the object changes, and two distinct objects have different ones, even if they are equal. Hash codes can collide. Primitives and strings have no identity, they are decoded as if no `decoder` were set.
-
-## `direction`: Output Parameters
-
-[`MessageDigest.digest(byte[], int, int)`](<https://developer.android.com/reference/java/security/MessageDigest#digest(byte[],%20int,%20int)>) computes the hash and writes it into `buf`, so `buf` must be decoded at exit:
-
-```yaml
-javaClass: java.security.MessageDigest
-hooks:
-  - method: digest
-    overloads:
-      - params:
-        - [ "[B", buf, { direction: out } ]
-        - [ int, offset ]
-        - [ int, len ]
-```
-
-See [`02_output_parameters.yaml`](examples/android/02_parameters_and_return_values/02_output_parameters.yaml).
-
-## `decoderArgs`: Offset and Length
-
-Java can't pass a pointer into the middle of an array, so many APIs take an array with an offset and a length and only use that slice. `decoderArgs` passes these values to the decoder, each in its role (see [`decoderArgs`](./decoders.md#decoderargs-pass-values-to-the-decoder-by-role)). Java decoders accept these roles:
-
-| Decoder of the parameter                                      | Role `offset`               | Role `length`                          |
-| ------------------------------------------------------------- | --------------------------- | -------------------------------------- |
-| Arrays (`[B`, `[C`, `[I`, `[Ljava.lang.String;`, ...)         | Elements to skip            | Elements to decode                     |
-| `decoder: string` on `[B` or `[C`                             | Bytes or characters to skip | Bytes or characters to decode as text  |
-| `decoder: base64` on `[B` or `[C`                             | Bytes or characters to skip | Bytes or characters of the base64 text |
-| `decoder: hex` on an array of numbers (`[B`, `[I`, `[D`, ...) | Elements to skip            | Elements to decode as hex              |
-| All other types and decoders                                  | –                           | –                                      |
-
-Without `offset`, the slice starts at index 0. Without `length`, it ends at the end of the array. A slice that reaches past the end of the array is cut to the array. At most `maxItems` elements of the slice are decoded.
-
-Common APIs that pass a slice:
-
-| API                                                                                   | Parameter | `decoderArgs`                               |
-| ------------------------------------------------------------------------------------- | --------- | ------------------------------------------- |
-| `SecretKeySpec(byte[] key, int offset, int len, String algorithm)`                    | `key`     | `{ offset: offset, length: len }`           |
-| `IvParameterSpec(byte[] iv, int offset, int len)`                                     | `iv`      | `{ offset: offset, length: len }`           |
-| `Cipher.update(byte[] input, int inputOffset, int inputLen)`, also `doFinal`          | `input`   | `{ offset: inputOffset, length: inputLen }` |
-| `Mac.update(byte[] input, int offset, int len)`, also `MessageDigest` and `Signature` | `input`   | `{ offset: offset, length: len }`           |
-| `OutputStream.write(byte[] b, int off, int len)`                                      | `b`       | `{ offset: off, length: len }`              |
-| `InputStream.read(byte[] b, int off, int len)`, with `direction: out`                 | `b`       | `{ offset: off, length: $ret }`             |
-
-`read` returns how many bytes it read, so the return value is the length of the slice. Hook the class that implements `read`, e.g. `FileInputStream`, since most streams override it:
-
-```yaml
-javaClass: java.io.FileInputStream
-hooks:
-  - method: read
-    overloads:
-      - params:
-        - [ "[B", b, { direction: out, decoder: string, decoderArgs: { offset: off, length: $ret } } ]
-        - [ int, off ]
-        - [ int, len ]
-```
-
-A role on any other parameter, e.g. on a `java.lang.String` or with `decoder: getters`, makes the hook invalid. See [`04_decoder_args.yaml`](examples/android/04_decoder_settings/04_decoder_args.yaml).
-
-## Limits
-
-What `maxItems` limits for each decoder, and whether it counts as a `maxDepth` level (see [`maxItems` and `maxDepth`](./decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values)):
-
-| Decoder                                           | `maxItems` limits                    | Counts as a `maxDepth` level |
-| ------------------------------------------------- | ------------------------------------ | ---------------------------- |
-| Java arrays (`[I`, `[Ljava.lang.String;`, ...)    | Elements                             | Yes                          |
-| `java.lang.Iterable` (lists, sets, ...)           | Elements                             | Yes                          |
-| `java.util.Map`                                   | Keys and values                      | Yes                          |
-| `android.os.Bundle`                               | Extras, and elements of array extras | Yes, array extras too        |
-| `android.content.ContentValues`                   | Key/value pairs                      | Yes                          |
-| `android.content.ClipData`                        | Items                                | Yes, and each item           |
-| `android.content.Intent`                          | -                                    | Yes                          |
-| `android.security.keystore.KeyGenParameterSpec`   | -                                    | Yes                          |
-| `getters`, `KeySpec`, `AlgorithmParameterSpec`    | -                                    | Yes                          |
-| `java.security.Key`, `Cipher`, `Mac`              | Bytes of the key or IV               | No                           |
-| `java.nio.ByteBuffer`                             | Remaining bytes                      | No                           |
-| `X509Certificate`                                 | Subject alternative names            | No                           |
-| `java.lang.String`, other values via `toString()` | Characters                           | No                           |
-
-For `ContentValues`, whose output is a key/value object, the `"[truncated at N]"` marker is added as a key with the value `null`. Java strings and other values decoded with their `toString()` end with `...` when they're cut. For `string`, `base64` and `hex`, see their chapters in [Decoders](./decoders.md#shared-decoders).
-
-```yaml
-javaClass: android.content.Intent
-hooks:
-  - method: putExtras
-    overloads:
-      - params:
-        - [ android.os.Bundle, extras, { maxItems: 20, maxDepth: 2 } ]
-```
 
 ## Return Values
 

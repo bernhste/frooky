@@ -1,18 +1,15 @@
 # Decoders for Native Hooks
 
-How frooky decodes the parameters and return values of native (C/C++) functions. The settings themselves and the decoders shared with Java hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
+How frooky decodes the parameters and return values of native (C/C++) functions. The decoder settings, including the `decoderArgs` roles and the limits of each native decoder, and the decoders shared with Java hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
 
 <!-- TOC -->
 
 - [How frooky Picks a Decoder](#how-frooky-picks-a-decoder)
 - [Pointers and Arrays](#pointers-and-arrays)
-- [`decoderArgs`: Length and Offset](#decoderargs-length-and-offset)
 - [UTF-16 Strings](#utf-16-strings)
 - [File Descriptors](#file-descriptors)
 - [Constant Presets](#constant-presets)
 - [errno](#errno)
-- [`direction`: Output Parameters](#direction-output-parameters)
-- [Limits](#limits)
 - [Return Values](#return-values)
 
 <!-- /TOC -->
@@ -33,7 +30,7 @@ A native value has no runtime type, so frooky decodes it by the type declared in
 
 A pointer is read as its declared type: `int *` as one `int`, `char *` as a NUL-terminated string, `char **` by following both pointers to the string, and so on for every `*`. A NULL pointer on any level is `null`, as is memory that can't be read. A `void *` without the role `length` is shown as its address, since its contents are unknown.
 
-With the role `length` in `decoderArgs`, a pointer is an array with that many elements: `int *` with a length of 3 is `[3, 1, 4]`, and `char **` with a length of 2 is `["alpha", "beta"]`. At most `maxItems` elements are decoded. For `void *`, `char *` and `unsigned char *`, the length is in bytes instead, see [`decoderArgs`](#decoderargs-length-and-offset).
+With the role `length` in `decoderArgs`, a pointer is an array with that many elements: `int *` with a length of 3 is `[3, 1, 4]`, and `char **` with a length of 2 is `["alpha", "beta"]`. At most `maxItems` elements are decoded. For `void *`, `char *` and `unsigned char *`, the length is in bytes instead, see [roles of native decoders](./decoders.md#roles-of-native-decoders).
 
 ```yaml
 module: libreceiveFundamentalReference.so
@@ -77,64 +74,6 @@ A string is always read up to its `\0`. `decoder: nullTerminated` adds the outer
 For a pointee frooky doesn't know, e.g. `FILE **`, the elements are shown as addresses. On a single pointer such as `char *`, `nullTerminated` has no effect: the string is read up to its `\0`, as without the decoder.
 
 See [`02_pointers_and_arrays.yaml`](examples/native/03_decoders/02_pointers_and_arrays.yaml).
-
-## `decoderArgs`: Length and Offset
-
-`decoderArgs` passes values to the decoder of a parameter, each in a role (see [`decoderArgs`](./decoders.md#decoderargs-pass-values-to-the-decoder-by-role)). Native decoders accept these roles:
-
-| Decoder of the parameter                                                                          | Role `length`                                                          | Role `offset`                    |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------- |
-| `void *`, `unsigned char *`                                                                       | Bytes of the buffer, decoded as hex                                    | Bytes to skip                    |
-| `char *`, and `decoder: string` on any pointer                                                    | Bytes of the string. NUL bytes in it don't end it.                     | Bytes to skip                    |
-| `decoder: base64`                                                                                 | Bytes of the base64 text                                               | Bytes to skip                    |
-| `decoder: hex` on a pointer                                                                       | Bytes to decode as hex. NUL bytes in it don't end it.                  | Bytes to skip                    |
-| Other pointers (`int *`, `char **`, ...)                                                          | Elements of the array, see [Pointers and Arrays](#pointers-and-arrays) | Elements to skip                 |
-| `decoder: nullTerminated`                                                                         | –                                                                      | Elements to skip, e.g. `argv[0]` |
-| UTF-16 pointers (`const jchar *`, ...), and `decoder: utf16`                                      | Code units of the string (2 bytes each). 0 units in it don't end it.   | Code units to skip               |
-| Values passed by value, unknown types, and the other decoders (`fd`, `constants`, `bitmask`, ...) | –                                                                      | –                                |
-
-Without `offset`, decoding starts at the pointer. Without `length`, a `char *` ends at its `\0`, and other pointers are read as one element. C usually passes a slice as a pointer to its start (`buf + off`), so `offset` is only needed for APIs that pass the start and the offset separately.
-
-[`send`](https://www.man7.org/linux/man-pages/man2/send.2.html) passes the length of `buf` as `len`:
-
-```yaml
-module: libc.so
-hooks:
-  - symbol: send
-    retType: ssize_t
-    params:
-      - [int, sockfd]
-      - [const void *, buf, { decoderArgs: { length: len }, decoder: string }]
-      - [size_t, len]
-      - [int, flags]
-```
-
-[`EVP_EncryptUpdate`](https://docs.openssl.org/3.0/man3/EVP_EncryptInit/) of OpenSSL encrypts `inl` bytes of `in` and writes the result into `out`. How many bytes it writes depends on the cipher, and it stores that number in `*outl`:
-
-```c
-int EVP_EncryptUpdate(EVP_CIPHER_CTX *ctx,       // Cipher context
-                      unsigned char *out,        // Output buffer
-                      int *outl,                 // Number of bytes written to out
-                      const unsigned char *in,   // Input buffer
-                      int inl);                  // Length of the input buffer
-```
-
-So `out` and `outl` are decoded on return, and `outl`, read as the `int` it points to, is the length of `out`:
-
-```yaml
-module: libcrypto.so
-hooks:
-  - symbol: EVP_EncryptUpdate
-    retType: int
-    params:
-      - [ "EVP_CIPHER_CTX *", ctx ]
-      - [ "unsigned char *", out, { direction: out, decoderArgs: { length: outl } } ]
-      - [ "int *", outl, { direction: out } ]
-      - [ "const unsigned char *", in, { decoderArgs: { length: inl } } ]
-      - [ int, inl ]
-```
-
-See [`01_strings_and_buffers.yaml`](examples/native/03_decoders/01_strings_and_buffers.yaml).
 
 ## UTF-16 Strings
 
@@ -254,35 +193,6 @@ hooks:
 ```
 
 See [`05_errno.yaml`](examples/native/03_decoders/05_errno.yaml).
-
-## `direction`: Output Parameters
-
-OpenSSL's [`RAND_bytes`](https://docs.openssl.org/3.0/man3/RAND_bytes/) fills `buf` with `num` random bytes, so `buf` is only meaningful after the call:
-
-```yaml
-module: libcrypto.so
-hooks:
-  - symbol: RAND_bytes
-    retType: int
-    params:
-      - [ "unsigned char *", buf, { direction: out, decoderArgs: { length: num } } ]
-      - [ int, num ]
-```
-
-See [`02_output_parameters.yaml`](examples/native/02_parameters_and_return_values/02_output_parameters.yaml).
-
-## Limits
-
-What `maxItems` limits for each decoder (see [`maxItems` and `maxDepth`](./decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values)). Native decoders don't nest, so `maxDepth` doesn't apply.
-
-| Decoder                               | `maxItems` limits          |
-| ------------------------------------- | -------------------------- |
-| `char *`, `unsigned char *`, `void *` | Bytes read from the buffer |
-| Other pointers with the role `length` | Elements of the array      |
-| `nullTerminated`                      | Elements of the array      |
-| UTF-16 pointers, `utf16`              | Code units of the string   |
-
-Strings and buffers decoded as hex end with `...` when they're cut, arrays end with a `"[truncated at N]"` marker. For `string`, `base64` and `hex`, see their chapters in [Decoders](./decoders.md#shared-decoders).
 
 ## Return Values
 

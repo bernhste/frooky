@@ -10,7 +10,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/03_custom_decoders.yaml
-# See:    docs/decoders.md#named-decoders
+# See:    docs/decoders.md#built-in-decoders
 
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest

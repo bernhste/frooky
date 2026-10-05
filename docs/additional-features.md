@@ -4,6 +4,11 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
 
 <!-- TOC -->
 
+- [Interacting with frooky](#interacting-with-frooky)
+  - [Watch Mode (`-w` / `--watch`)](#watch-mode--w----watch)
+  - [Interactive Manual Reload (`r` / `R` Key)](#interactive-manual-reload-r--r-key)
+  - [Hook Statistics (`s` / `S` Key)](#hook-statistics-s--s-key)
+  - [Show or Hide Events (`e` / `E` Key)](#show-or-hide-events-e--e-key)
 - [Settings Precedence](#settings-precedence)
 - [Multiple Hooks on the Same Method or Function](#multiple-hooks-on-the-same-method-or-function)
 - [Stack Traces](#stack-traces)
@@ -15,19 +20,74 @@ frooky supports two kinds of settings that can be used regardless of hook type: 
   - [Native Hooks](#native-hooks)
   - [Performance](#performance)
   - [Pitfalls](#pitfalls)
-- [Dangerous Low-Level, Early, and High-Frequency Hooks](#dangerous-low-level-early-and-high-frequency-hooks)
+- [Early Hooking](#early-hooking)
+  - [Spawn vs. Attach](#spawn-vs-attach)
+  - [`early: true`](#early-true)
+- [Dangerous Low-Level and High-Frequency Hooks](#dangerous-low-level-and-high-frequency-hooks)
   - [Blocked Functions](#blocked-functions)
 - [Custom User Scripts](#custom-user-scripts)
-- [Hot-Reloading and Watch Mode](#hot-reloading-and-watch-mode)
-  - [Watch Mode (`-w` / `--watch`)](#watch-mode--w----watch)
-  - [Interactive Manual Reload (`r` / `R` Key)](#interactive-manual-reload-r--r-key)
-- [Dynamic Class and Module Resolution](#dynamic-class-and-module-resolution)
-  - [Hook Statistics (`s` / `S` Key)](#hook-statistics-s--s-key)
-  - [Show or Hide Events (`e` / `E` Key)](#show-or-hide-events-e--e-key)
 - [JavaScript Runtime: QuickJS vs. V8](#javascript-runtime-quickjs-vs-v8)
 - [Native Crash Reporter](#native-crash-reporter)
 
 <!-- /TOC -->
+
+## Interacting with frooky
+
+When writing or testing hook definitions, restarting the app or re-running frooky repeatedly slows down analysis. While frooky runs, it can reload the hook files, either when they change (watch mode) or when you press a key. Other keys show the state of the hooks and turn printing the events on or off.
+
+### Watch Mode (`-w` / `--watch`)
+
+Run frooky with `-w` (or `--watch`) to have it monitor hook YAML files on disk:
+
+```bash
+frooky -U -f com.example.app -w hooks.yaml
+```
+
+Whenever a hook file is modified and saved, frooky computes an incremental diff between the currently installed hooks and the updated configuration:
+
+- **Unchanged hooks** continue running without interruption.
+- **Removed hooks** are detached cleanly from the target process.
+- **New or modified hooks** are parsed, validated, and installed immediately.
+
+If a syntax error or schema violation is introduced in the hook file, frooky displays the validation error in the terminal while keeping all previously valid hooks active.
+
+### Interactive Manual Reload (`r` / `R` Key)
+
+While frooky is running in the terminal, pressing `r` or `R` triggers an immediate reload:
+
+- Re-reads and applies the current hook YAML files.
+- **Retries hooks that were not found:** Any hooks whose method or symbol wasn't found (for instance, because it was misspelled) are retried immediately. Hooks that wait for their class or native library keep waiting.
+
+### Hook Statistics (`s` / `S` Key)
+
+While frooky is running in the terminal, pressing `s` or `S` prints one row per hooked method or function, and one per hook declaration that is waiting for its class or module or not found: its state, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, how much time went into decoding the values of the recorded events, and the target. Below a waiting target is what it waits for. The states are explained in [Hook Initialization](./under-the-hood.md#hook-initialization) in Under the Hood. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
+
+A declaration with a [class](./java-hook-declaration.md#basic-usage), [method](./java-hook-declaration.md#method-wildcards), [symbol](./native-hook-declaration.md#symbol-wildcards) or [module](./native-hook-declaration.md#module-wildcards) wildcard gets one row per method or function it matched, with `via` and the pattern below the target; only the method or symbol pattern if the class or module is the same. A target too long for the terminal wraps, with its further lines indented. A function or overload that another declaration hooks too, in the same or another hook file, gets an `also hooked` line for each of them, e.g. `also hooked via SSL_*`, `also hooked in other.yaml` or `also hooked: 2 of 3 overloads via com.example.*.b*`. Each declaration records its own event per call, so these calls show up more than once in the output. `also hooked as libc.so!memmove` is the same function under another name, e.g. `memcpy` and `memmove` in some libcs.
+
+```text
+Hook statistics
+                                         Decoding
+                                             time
+State      Overloads  Events  Filtered      (sum)  Target                                       File
+hooked             3      41         0       3 ms  javax.crypto.Cipher.init                     hooks.yaml
+hooked             -      12         0       0 ms  libc.so!inet_pton                            hooks.yaml
+                                                     via inet_*
+                                                     also hooked in other.yaml
+hooked             -   1,234    56,789      2.3 s  libc.so!open                                 hooks.yaml
+hooked             -       7         0       4 ms  libssl3.so!SSL_write                         hooks.yaml
+                                                     via libssl*.so!SSL_write
+hooked             2       5         0       1 ms  org.owasp.net.HttpClient.send                hooks.yaml
+                                                     via org.owasp.*.HttpClient.send*
+hooked             1       2         0       0 ms  org.owasp.net.HttpClient.sendAsync           hooks.yaml
+                                                     via org.owasp.*.HttpClient.send*
+waiting            -       -         -          -  com.example.Plugin.run                       hooks.yaml
+                                                     waits for Java class 'com.example.Plugin'
+not found          -       -         -          -  libc.so!nope                                 hooks.yaml
+```
+
+### Show or Hide Events (`e` / `E` Key)
+
+While frooky is running in the terminal, pressing `e` or `E` turns printing the captured events to the terminal on or off, as `-e`/`--print-events` does at startup. Events are written to the output file either way.
 
 ## Settings Precedence
 
@@ -283,7 +343,41 @@ On a native hook, a call that `callerFilter` drops is never decoded, gets no sta
 
 See [`examples/android/05_hook_settings/02_caller_filter.yaml`](./examples/android/05_hook_settings/02_caller_filter.yaml) and [`examples/native/05_hook_settings/02_caller_filter.yaml`](./examples/native/05_hook_settings/02_caller_filter.yaml) for full examples.
 
-## Dangerous Low-Level, Early, and High-Frequency Hooks
+## Early Hooking
+
+Many checks that matter for a security analysis run while the app starts, before its first screen: anti-tampering, root and Frida detection in ELF constructors (`.init_array`) or `JNI_OnLoad`, integrity checks of the APK, or libraries that unpack code at startup. To record them, the hooks must be installed before this code runs.
+
+### Spawn vs. Attach
+
+- **Spawn (`-f`):** frooky starts the app suspended, installs the hooks, and resumes it. Only a spawned app's startup can be recorded.
+- **Attach (`-n`, `-N`, `-p`):** frooky attaches to an app that already runs. Its startup code has already run and isn't recorded.
+
+### `early: true`
+
+By default, native hooks wait until the app's own code is about to run (`targetReady`), since hooks on functions like `read` or `close` can deadlock the runtime (ART) while it starts its own threads. A library the app loads during startup, before `targetReady`, then runs its constructors and `JNI_OnLoad` unhooked. Java hooks don't wait, and native hooks on a library loaded after `targetReady` are installed while the linker loads it, before its constructors run.
+
+With `early: true` in `hookSettings`, native hooks don't wait: a hook on a library that is already loaded, e.g. `libc.so`, is installed before the app is resumed, and a hook on a library loaded later is installed while the linker loads it, so its constructors and `JNI_OnLoad` run hooked:
+
+```yaml
+hookCollection:
+  - module: libloadTime.so
+    hookSettings:
+      early: true
+    hooks:
+      - symbol: load_time_constructor
+```
+
+`early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
+
+When using `early: true`:
+
+- **Give high-frequency libc functions a `callerFilter`** (e.g. `open`, `read`, `write`, `malloc`). Without one, early hooks intercept the runtime's and the linker's own threads, which can deadlock the app or make it stop responding (ANR). frooky warns about such a hook.
+- **Expect fewer stack frames before `targetReady`.** A native hook's calls before `targetReady` get native frames only (`skipped: before-ready`), see [Skipped Stack Traces](#skipped-stack-traces).
+- **Hook the loader with care.** Hooking `android_dlopen_ext` in `libdl.so` shows which libraries the app loads, but intercepting the dynamic linker can break loads across Android linker namespaces.
+
+See [`01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml), [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) and [`03_stack_traces_while_loading.yaml`](./examples/native/08_early_hooking/03_stack_traces_while_loading.yaml). [Timing](./under-the-hood.md#timing) in Under the Hood shows what can be hooked in each stage of the startup.
+
+## Dangerous Low-Level and High-Frequency Hooks
 
 Capturing stack traces and hooking low-level primitives carries stability and recursion risks, especially on high-frequency libc functions such as `open`, `openat`, `close`, `read`, `write`, `mmap`, `mprotect`, `malloc`, `free`, `memcpy`, or `memset`:
 
@@ -292,25 +386,13 @@ Capturing stack traces and hooking low-level primitives carries stability and re
 - **Hangs:** A platform stack trace enters the Java VM from inside the hooked call. If the caller holds a lock the VM then waits for, the app hangs; `platformStackTrace` on libc's `write` does this during startup (ANR).
 - **Performance degradation:** Resolving symbols for native frames takes ~35 µs per frame. On functions invoked thousands of times per second, capturing stack traces causes noticeable application stutter or ANR timeouts.
 
-**Early Hooking (Spawn vs. Attach and `early: true`):**
-
-Functions called during application launch (such as `Application.onCreate`, `JNI_OnLoad`, or early native library loads via `android_dlopen_ext` in `libdl.so`) only show up when frooky spawns the process with `-f`:
-
-- **Default Gating behind `platformReady`:** By default, frooky gates all standard hooks behind `platformReady` (`targetReady`), waiting for the Android runtime (ART) to initialize before attaching interceptors. This prevents early bootstrap deadlocks, lock inversions, and crashes.
-- **Explicit `early: true`:** To observe early-stage execution (e.g. anti-tampering checks, ELF constructors in `.init_array`, or early library loads before ART initializes), set `early: true` under `hookSettings`.
-- **Spawn (`-f`):** frooky starts the app suspended, installs `early: true` hooks, and resumes execution.
-- **Attach (`-n`, `-N`, `-p`):** Attaches to an already running app. Code executed during startup has already finished and is not captured.
-- **Loader hooks:** Hooking `android_dlopen_ext` in `libdl.so` can observe library loads, but intercepting the dynamic linker can break loads across Android linker namespaces.
-- **Late-loaded code:** When a library is loaded after `platformReady`, hooks are installed as soon as the linker loads it.
-
 **Recommendations for low-level and high-frequency hooks:**
 
-1. **Keep `early: false` (the default)** unless you specifically need to observe anti-tampering or `.init_array` code before runtime startup.
-2. **If using `early: true`, always specify a `callerFilter`** on high-frequency libc functions (e.g. `open`, `read`, `write`, `malloc`). Early hooks without a caller filter intercept ART daemon initialization and dynamic linker threads, risking deadlocks or ANRs (Application Not Responding).
-3. **Keep stack traces disabled** on high-frequency libc functions (`nativeStackTrace: false`, `platformStackTrace: false`).
-4. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: [libapp.so]`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
-5. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
-6. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
+1. **Keep `early: false` (the default)** unless you need to record code that runs during startup, and then give these functions a `callerFilter`, see [Early Hooking](#early-hooking).
+2. **Keep stack traces disabled** on high-frequency libc functions (`nativeStackTrace: false`, `platformStackTrace: false`).
+3. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: [libapp.so]`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
+4. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
+5. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
 
 ### Blocked Functions
 
@@ -318,7 +400,7 @@ Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_get
 
 The same goes for a few Java methods, e.g. `java.lang.String.$init`, `Class.forName(String)` and `System.loadLibrary`: hooking them breaks the app even with a plain Frida script, so frooky skips them with a warning. To see the strings an app creates, hook the `newStringFrom*` methods of `java.lang.StringFactory` instead of `String.$init`. See [Blocked Java Methods](./under-the-hood.md#danger-zone-blocked-java-methods) for the full list.
 
-See [`examples/native/05_hook_settings/03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml), [`examples/native/08_early_hooking/01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml), [`examples/native/08_early_hooking/02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) and [`examples/native/08_early_hooking/03_stack_traces_while_loading.yaml`](./examples/native/08_early_hooking/03_stack_traces_while_loading.yaml) for full examples.
+See [`03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml).
 
 ## Custom User Scripts
 
@@ -359,78 +441,6 @@ Java.perform(() => {
 ESM import syntax (`import Java from "frida-java-bridge";`), CommonJS (`require("frida-java-bridge")`), and direct global access (`Java.perform(...)` without imports) are all supported.
 
 See [`examples/native/09_custom_scripts/`](./examples/native/09_custom_scripts/) for an example using custom scripts.
-
-## Hot-Reloading and Watch Mode
-
-When writing or testing hook definitions, restarting the app or re-running frooky repeatedly slows down analysis. frooky provides two mechanisms to reload hooks dynamically:
-
-### Watch Mode (`-w` / `--watch`)
-
-Run frooky with `-w` (or `--watch`) to have it monitor hook YAML files on disk:
-
-```bash
-frooky -U -f com.example.app -w hooks.yaml
-```
-
-Whenever a hook file is modified and saved, frooky computes an incremental diff between the currently installed hooks and the updated configuration:
-
-- **Unchanged hooks** continue running without interruption.
-- **Removed hooks** are detached cleanly from the target process.
-- **New or modified hooks** are parsed, validated, and installed immediately.
-
-If a syntax error or schema violation is introduced in the hook file, frooky displays the validation error in the terminal while keeping all previously valid hooks active.
-
-### Interactive Manual Reload (`r` / `R` Key)
-
-While frooky is running in the terminal, pressing `r` or `R` triggers an immediate reload:
-
-- Re-reads and applies the current hook YAML files.
-- **Retries hooks that were not found:** Any hooks whose method or symbol wasn't found (for instance, because it was misspelled) are retried immediately. Hooks that wait for their class or native library keep waiting.
-
-## Dynamic Class and Module Resolution
-
-Applications frequently load code dynamically:
-
-- **Java/Kotlin:** Plugins or feature modules loaded at runtime via `DexClassLoader` or `PathClassLoader`, and the WebView implementation.
-- **Native:** Shared libraries loaded on demand via `dlopen` or `System.loadLibrary`.
-
-frooky waits for a class or native module that isn't loaded yet for as long as it runs, and hooks it when it loads. It doesn't check for it periodically, but is notified when the app loads code:
-
-- **Native modules** are hooked while the linker loads them, before their constructors and `JNI_OnLoad` run. See [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml).
-- **Java classes** are hooked while the class loader that has them is created, before any of its code runs. See [Class Loaders](./java-hook-declaration.md#class-loaders), also for custom class loaders.
-
-Classes and modules that aren't loaded once the app has started are reported as waiting, in an info message (`-v`) and in the status bar, e.g. `# Hooks 38 (1 waiting)`. A misspelled class or module name shows up there too. Their hooks are still installed when they load. See [Resolve the Module or Class](./under-the-hood.md#resolve-the-module-or-class) in Under the Hood for how frooky is notified.
-
-### Hook Statistics (`s` / `S` Key)
-
-While frooky is running in the terminal, pressing `s` or `S` prints one row per hooked method or function, and one per hook declaration that is waiting for its class or module or not found: its state, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, how much time went into decoding the values of the recorded events, and the target. Below a waiting target is what it waits for. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
-
-A declaration with a [class](./java-hook-declaration.md#basic-usage), [method](./java-hook-declaration.md#method-wildcards), [symbol](./native-hook-declaration.md#symbol-wildcards) or [module](./native-hook-declaration.md#module-wildcards) wildcard gets one row per method or function it matched, with `via` and the pattern below the target; only the method or symbol pattern if the class or module is the same. A target too long for the terminal wraps, with its further lines indented. A function or overload that another declaration hooks too, in the same or another hook file, gets an `also hooked` line for each of them, e.g. `also hooked via SSL_*`, `also hooked in other.yaml` or `also hooked: 2 of 3 overloads via com.example.*.b*`. Each declaration records its own event per call, so these calls show up more than once in the output. `also hooked as libc.so!memmove` is the same function under another name, e.g. `memcpy` and `memmove` in some libcs.
-
-```text
-Hook statistics
-                                         Decoding
-                                             time
-State      Overloads  Events  Filtered      (sum)  Target                                       File
-hooked             3      41         0       3 ms  javax.crypto.Cipher.init                     hooks.yaml
-hooked             -      12         0       0 ms  libc.so!inet_pton                            hooks.yaml
-                                                     via inet_*
-                                                     also hooked in other.yaml
-hooked             -   1,234    56,789      2.3 s  libc.so!open                                 hooks.yaml
-hooked             -       7         0       4 ms  libssl3.so!SSL_write                         hooks.yaml
-                                                     via libssl*.so!SSL_write
-hooked             2       5         0       1 ms  org.owasp.net.HttpClient.send                hooks.yaml
-                                                     via org.owasp.*.HttpClient.send*
-hooked             1       2         0       0 ms  org.owasp.net.HttpClient.sendAsync           hooks.yaml
-                                                     via org.owasp.*.HttpClient.send*
-waiting            -       -         -          -  com.example.Plugin.run                       hooks.yaml
-                                                     waits for Java class 'com.example.Plugin'
-not found          -       -         -          -  libc.so!nope                                 hooks.yaml
-```
-
-### Show or Hide Events (`e` / `E` Key)
-
-While frooky is running in the terminal, pressing `e` or `E` turns printing the captured events to the terminal on or off, as `-e`/`--print-events` does at startup. Events are written to the output file either way.
 
 ## JavaScript Runtime: QuickJS vs. V8
 
