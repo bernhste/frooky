@@ -1,6 +1,6 @@
 import { LoadedHookEntry } from "./configDiff";
 import { filteredCallCount, Hook } from "./hook";
-import { configLabel, HookProgress, HookStatistic } from "./hookDescriptions";
+import { AlsoHookedBy, configLabel, HookProgress, HookStatistic } from "./hookDescriptions";
 
 // The hook declarations of every loaded config and the events their hooks recorded
 export class HookRegistry {
@@ -53,24 +53,82 @@ export class HookRegistry {
     return { hooked, resolving: resolvingLookups.size, waiting: waitingLookups.size, notFound };
   }
 
-  // Every hook declaration of the loaded configs, see HookStatistic
-  statistics(): HookStatistic[] {
+  // Every hook declaration of the loaded configs, see HookStatistic. An installed declaration gets one row per method
+  // or function `lookup` names for its hooks, e.g. one per class and method a wildcard pattern matched; a hook it names
+  // no target for (one that isn't installed) is left out. Without any named target, the declaration is one row.
+  // `lookup` is the hook manager of a declaration, by its fingerprint.
+  statistics(lookup?: (fingerprint: string) => HookLookup): HookStatistic[] {
+    // the declaration of each installed hook, for AlsoHookedBy
+    const owners = new Map<Hook, { config: string; declaration: string; fingerprint: string; entry: LoadedHookEntry }>();
+    for (const [configId, entries] of this.configs) {
+      for (const [fingerprint, entry] of entries) {
+        if (entry.state !== "installed") continue;
+        for (const hook of entry.hooks ?? [])
+          owners.set(hook, { config: configLabel(configId), declaration: declarationOf(fingerprint, entry), fingerprint, entry });
+      }
+    }
+
     const statistics: HookStatistic[] = [];
     for (const [configId, entries] of this.configs) {
       for (const [fingerprint, entry] of entries) {
-        if (entry.state === "removed") continue;
-        statistics.push({
+        const state = entry.state;
+        if (state === "removed") continue;
+        const declaration = declarationOf(fingerprint, entry);
+        const isPlatform = entry.target?.startsWith("platform:") ?? false;
+        const alsoHookedBy = (hooks: Hook[]): AlsoHookedBy[] => {
+          if (!lookup) return [];
+          const others = new Map<string, AlsoHookedBy>();
+          for (const hook of hooks) {
+            // counted once per hook of this row, also if the other declaration has several hooks on its function
+            const counted = new Set<string>();
+            for (const other of lookup(fingerprint).otherHooksOnSameFunction(hook)) {
+              const owner = owners.get(other);
+              if (!owner || owner.entry === entry) continue;
+              const target = lookup(owner.fingerprint).describeInstalledHook(other) ?? owner.declaration;
+              const key = JSON.stringify([owner.config, owner.declaration, target]);
+              if (counted.has(key)) continue;
+              counted.add(key);
+              const known = others.get(key) ?? { config: owner.config, declaration: owner.declaration, target, overloads: isPlatform ? 0 : null };
+              if (known.overloads !== null) known.overloads++;
+              others.set(key, known);
+            }
+          }
+          return [...others.values()];
+        };
+        const row = (target: string, hooks: Hook[], overloads: number): HookStatistic => ({
           config: configLabel(configId),
-          target: entry.target ? entry.target.slice(entry.target.indexOf(":") + 1) : fingerprint,
-          state: entry.state,
+          target,
+          declaration,
+          state,
           waitsFor: entry.waitsFor,
-          overloads: entry.target?.startsWith("platform:") ? (entry.hookedCount ?? 0) : null,
-          events: (entry.hooks ?? []).reduce((count, hook) => count + (this.eventCounts.get(hook) ?? 0), 0),
-          filtered: (entry.hooks ?? []).reduce((count, hook) => count + filteredCallCount(hook), 0),
-          decodeMs: (entry.hooks ?? []).reduce((ms, hook) => ms + (this.decodeTimes.get(hook) ?? 0), 0),
+          overloads: isPlatform ? overloads : null,
+          events: hooks.reduce((count, hook) => count + (this.eventCounts.get(hook) ?? 0), 0),
+          filtered: hooks.reduce((count, hook) => count + filteredCallCount(hook), 0),
+          decodeMs: hooks.reduce((ms, hook) => ms + (this.decodeTimes.get(hook) ?? 0), 0),
+          alsoHookedBy: state === "installed" ? alsoHookedBy(hooks) : [],
         });
+        const hooksByTarget = new Map<string, Hook[]>();
+        if (state === "installed" && lookup) {
+          for (const hook of entry.hooks ?? []) {
+            const target = lookup(fingerprint).describeInstalledHook(hook);
+            if (target !== undefined) hooksByTarget.set(target, [...(hooksByTarget.get(target) ?? []), hook]);
+          }
+        }
+        if (hooksByTarget.size === 0) statistics.push(row(declaration, entry.hooks ?? [], entry.hookedCount ?? 0));
+        for (const [target, hooks] of hooksByTarget) statistics.push(row(target, hooks, hooks.length));
       }
     }
     return statistics;
   }
+}
+
+// What HookRegistry.statistics() asks the hook manager of a declaration, see HookManager
+export type HookLookup = {
+  describeInstalledHook: (hook: Hook) => string | undefined;
+  otherHooksOnSameFunction: (hook: Hook) => Hook[];
+};
+
+// e.g. `com.example.*.get*` for the fingerprint of a declaration without a target
+function declarationOf(fingerprint: string, entry: LoadedHookEntry): string {
+  return entry.target ? entry.target.slice(entry.target.indexOf(":") + 1) : fingerprint;
 }

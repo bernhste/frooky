@@ -138,7 +138,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     let countSuccessfulHooks = 0;
 
     for (const hook of hooks) {
-      if (this.hookedOverloads.get(hook.method.handle.toString())?.hooks.some((installedHook) => installedHook.hook === hook)) {
+      if (this.installedHook(hook)) {
         countSuccessfulHooks++;
         continue;
       }
@@ -163,6 +163,19 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       countSuccessfulHooks++;
     }
     return countSuccessfulHooks;
+  }
+
+  describeInstalledHook(hook: JavaHook): string | undefined {
+    return this.installedHook(hook)?.target;
+  }
+
+  otherHooksOnSameFunction(hook: JavaHook): JavaHook[] {
+    const overload = this.hookedOverloads.get(hook.method.handle.toString());
+    return overload ? overload.hooks.map((installedHook) => installedHook.hook).filter((other) => other !== hook) : [];
+  }
+
+  private installedHook(hook: JavaHook): InstalledJavaHook | undefined {
+    return this.hookedOverloads.get(hook.method.handle.toString())?.hooks.find((installedHook) => installedHook.hook === hook);
   }
 
   unregisterHooks(hooks: JavaHook[]): void {

@@ -163,11 +163,80 @@ class TestHookStatistics:
 
         lines = [line.rstrip() for line in buffer.getvalue().splitlines()]
         assert lines[0] == "Hook statistics"
-        assert re.match(r"^State\s+Overloads\s+Events\s+Filtered\s+Decoding time \(sum\)\s+Target\s+File\s+Waits for$", lines[1])
-        assert re.match(r"^hooked\s+8\s+41\s+0\s+3 ms\s+javax\.crypto\.Cipher\.init\s+hooks\.yaml$", lines[2])
-        assert re.match(r"^hooked\s+-\s+1,234\s+56,789\s+2\.3 s\s+libc\.so!open\s+hooks\.yaml$", lines[3])
-        assert re.match(r"^waiting\s+-\s+-\s+-\s+-\s+com\.example\.Late\.run\s+hooks\.yaml\s+Java class 'com\.example\.Late'$", lines[4])
-        assert re.match(r"^not found\s+-\s+-\s+-\s+-\s+libc\.so!nope\s+hooks\.yaml$", lines[5])
+        # the header of `Decoding time (sum)` wraps, its values fit
+        assert re.match(r"^\s+Decoding$", lines[1])
+        assert re.match(r"^\s+time$", lines[2])
+        assert re.match(r"^State\s+Overloads\s+Events\s+Filtered\s+\(sum\)\s+Target\s+File$", lines[3])
+        assert re.match(r"^hooked\s+8\s+41\s+0\s+3 ms\s+javax\.crypto\.Cipher\.init\s+hooks\.yaml$", lines[4])
+        assert re.match(r"^hooked\s+-\s+1,234\s+56,789\s+2\.3 s\s+libc\.so!open\s+hooks\.yaml$", lines[5])
+        assert re.match(r"^waiting\s+-\s+-\s+-\s+-\s+com\.example\.Late\.run\s+hooks\.yaml$", lines[6])
+        assert re.match(r"^\s+waits for Java class 'com\.example\.Late'$", lines[7])
+        assert re.match(r"^not found\s+-\s+-\s+-\s+-\s+libc\.so!nope\s+hooks\.yaml$", lines[8])
+
+    def test_lists_the_targets_of_a_wildcard_declaration_together_with_their_pattern(self):
+        feed, buffer = make_feed(width=160)
+        pattern = "org.example.*.receive*"
+        statistics = [
+            {"config": "hooks.yaml", "target": "org.example.Zeta.run", "declaration": "org.example.Zeta.run", "state": "installed", "waitsFor": "", "overloads": 1, "events": 0, "filtered": 0, "decodeMs": 0},
+            {"config": "hooks.yaml", "target": "org.example.Foo.receiveString", "declaration": pattern, "state": "installed", "waitsFor": "", "overloads": 1, "events": 2, "filtered": 0, "decodeMs": 0},
+            {"config": "hooks.yaml", "target": "org.example.Bar.receiveInt", "declaration": pattern, "state": "installed", "waitsFor": "", "overloads": 3, "events": 5, "filtered": 0, "decodeMs": 0},
+            {"config": "hooks.yaml", "target": "libfoo.so!SSL_read", "declaration": "libfoo.so!SSL_*", "state": "installed", "waitsFor": "", "overloads": None, "events": 4, "filtered": 0, "decodeMs": 0},
+            {"config": "hooks.yaml", "target": "org.example.Zeta.runFast", "declaration": "org.example.Zeta.run*", "state": "installed", "waitsFor": "", "overloads": 1, "events": 0, "filtered": 0, "decodeMs": 0},
+        ]
+
+        feed.hook_statistics(statistics)
+
+        lines = [line.rstrip() for line in buffer.getvalue().splitlines()][4:]
+        assert re.match(r"^hooked\s+-\s+4\s+0\s+0 ms\s+libfoo\.so!SSL_read\s+hooks\.yaml$", lines[0])
+        assert re.match(r"^\s+via SSL_\*$", lines[1])
+        assert re.match(r"^hooked\s+3\s+5\s+0\s+0 ms\s+org\.example\.Bar\.receiveInt\s+hooks\.yaml$", lines[2])
+        assert re.match(r"^\s+via org\.example\.\*\.receive\*$", lines[3])
+        assert re.match(r"^hooked\s+1\s+2\s+0\s+0 ms\s+org\.example\.Foo\.receiveString\s+hooks\.yaml$", lines[4])
+        assert re.match(r"^\s+via org\.example\.\*\.receive\*$", lines[5])
+        assert re.match(r"^hooked\s+1\s+0\s+0\s+0 ms\s+org\.example\.Zeta\.run\s+hooks\.yaml$", lines[6])
+        assert re.match(r"^hooked\s+1\s+0\s+0\s+0 ms\s+org\.example\.Zeta\.runFast\s+hooks\.yaml$", lines[7])
+        assert re.match(r"^\s+via run\*$", lines[8])
+
+    def test_names_the_other_declarations_that_hook_a_target_too(self):
+        feed, buffer = make_feed(width=160)
+
+        def row(target, declaration, overloads, also_hooked_by):
+            return {"config": "a.yaml", "target": target, "declaration": declaration, "state": "installed", "waitsFor": "", "overloads": overloads, "events": 1, "filtered": 0, "decodeMs": 0, "alsoHookedBy": also_hooked_by}
+
+        def other(config, declaration, target, overloads=None):
+            return {"config": config, "declaration": declaration, "target": target, "overloads": overloads}
+
+        statistics = [
+            row("com.example.Foo.bar", "com.example.Foo.bar", 3, [other("a.yaml", "com.example.*.b*", "com.example.Foo.bar", 2)]),
+            row("libc.so!memcpy", "libc.so!memcpy", None, [other("a.yaml", "libc.so!memmove", "libc.so!memmove")]),
+            row("libc.so!open", "libc.so!open", None, [other("a.yaml", "libc.so!open", "libc.so!open")]),
+            row("libfoo.so!receive_int_ref", "libfoo.so!receive_*", None, [other("a.yaml", "libfoo.so!receive_*int_ref", "libfoo.so!receive_int_ref"), other("b.yaml", "libfoo.so!receive_int_ref", "libfoo.so!receive_int_ref")]),
+        ]
+
+        feed.hook_statistics(statistics)
+
+        lines = [line.strip() for line in buffer.getvalue().splitlines()][4:]
+        assert lines[1] == "also hooked: 2 of 3 overloads via com.example.*.b*"
+        assert lines[3] == "also hooked as libc.so!memmove"
+        assert lines[5] == "also hooked by another declaration"
+        assert lines[7:10] == ["via receive_*", "also hooked via receive_*int_ref", "also hooked in b.yaml"]
+
+    def test_wraps_a_long_target_with_its_further_lines_indented(self):
+        feed, buffer = make_feed(width=80)
+        target = "org.example.network.client.HttpClientWithAVeryLongName.sendRequestWithRetries"
+        statistics = [{"config": "hooks.yaml", "target": target, "declaration": "org.example.*.*.*.send*", "state": "installed", "waitsFor": "", "overloads": 1, "events": 0, "filtered": 0, "decodeMs": 0}]
+
+        feed.hook_statistics(statistics)
+
+        lines = [line.rstrip() for line in buffer.getvalue().splitlines()][4:]
+        assert all(len(line) <= 80 for line in lines)
+        column = lines[0].index("org.example")
+        assert lines[0].endswith("hooks.yaml")
+        parts = [lines[0][column:].split()[0]] + [line[column:] for line in lines[1:]]
+        assert all(part.startswith("  ") and not part.startswith("   ") for part in parts[1:])
+        via = next(i for i, part in enumerate(parts) if part.strip() == "via")
+        assert "".join(part.strip() for part in parts[:via]) == target
+        assert "".join(part.strip() for part in parts[via + 1 :]) == "org.example.*.*.*.send*"
 
     def test_says_so_when_no_hooks_are_loaded(self):
         feed, buffer = make_feed()

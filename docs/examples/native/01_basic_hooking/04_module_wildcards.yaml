@@ -1,0 +1,23 @@
+metadata:
+  name: "Basic Hooking (Native): Module Wildcards"
+  description: |
+    A `*` in a module name matches any characters, also none. frooky hooks the function in every module
+    whose name matches and that exports it, also in modules that load later.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/01_basic_hooking/04_module_wildcards.yaml
+# See:    docs/native-hook-declaration.md#module-wildcards
+
+hookCollection:
+  # libreceiveFundamentalValue.so and libreceiveFundamentalReference.so, which the app loads one after the other
+  - module: libreceiveFundamental*.so
+    hooks:
+      # receive_uint in libreceiveFundamentalValue.so, receive_uint_ref in libreceiveFundamentalReference.so
+      - receive_uint*
+
+# Expected events:
+#   receive_uint     (libreceiveFundamentalValue.so):     argsIn [], no returnValue
+#   receive_uint_ref (libreceiveFundamentalReference.so): argsIn [], no returnValue

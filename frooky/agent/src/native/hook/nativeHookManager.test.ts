@@ -10,7 +10,7 @@ import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { sleepMilliseconds } from "../../shared/utils";
 import { NativeHook } from "./nativeHook";
 import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
-import { isWaiting, Resolution, Waiting } from "../../shared/hook/hookManager";
+import { isWaiting, LaterHooks, Resolution, Waiting } from "../../shared/hook/hookManager";
 import { NativeHookManager } from "./nativeHookManager";
 
 // resolveHooks() installs nothing, so it can run against always-loaded libc.so exports like malloc
@@ -257,6 +257,24 @@ describe("NativeHookManager", () => {
       manager.unregisterHooks(hooks!);
     });
 
+    it("skips a symbol that the module only links from another library, and names that library", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const libcMalloc = Process.getModuleByName("libc.so").getExportByName("malloc");
+      // findExportByName() searches libcutils.so's dependencies too
+      expect(Process.getModuleByName("libcutils.so").findExportByName("malloc")?.toString()).toBe(libcMalloc.toString());
+      const warnSpy = spyOn(logger, "warn");
+      try {
+        const [hooks] = await resultsOf(await manager.resolveHooks([nativeHook("libcutils.so", "malloc")]));
+
+        expect(hooks).toBeNull();
+        expect(String(warnSpy.mock.calls[0][0])).toBe(
+          "Skipping hook for 'malloc'. Module 'libcutils.so' doesn't define it but links it from 'libc.so': hook it there with 'module: libc.so', and with 'callerFilter: ['^libcutils\\.so$']' for its calls from 'libcutils.so' only.",
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it("resolves the hooks of a loaded module while another module of the batch is still waited for", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 
@@ -267,6 +285,102 @@ describe("NativeHookManager", () => {
 
       expect((await eventually(resolvedResult))![0].symbolName).toBe("malloc");
       expect(await isPending((await waitingOf(missingModuleResult)).waiting)).toBe(true);
+    });
+  });
+
+  // `libke*.so` matches no module the test app loads by itself, but libkeyutils.so and libkeystore2_crypto.so, which load
+  // no other module matching it (checked on Android 12 and 15). `*e*I*` matches one function of libkeyutils.so,
+  // keyctl_get_keyring_ID, and several of libkeystore2_crypto.so, e.g. CreateKeyId.
+  describe("resolveHooks() with a module wildcard pattern", () => {
+    const targetsOf = (hooks: NativeHook[]) => hooks.map((hook) => `${hook.moduleName}!${hook.symbolName}`);
+
+    // the LaterHooks of one declaration, and what it was given
+    function laterHooks(wanted = true): LaterHooks<NativeHook[]> & { added: NativeHook[][]; wantedCalls: number } {
+      const later = {
+        added: [] as NativeHook[][],
+        wantedCalls: 0,
+        wanted: () => {
+          later.wantedCalls++;
+          return wanted;
+        },
+        add: (index: number, hooks: NativeHook[]) => {
+          expect(index).toBe(0);
+          later.added.push(hooks);
+        },
+      };
+      return later;
+    }
+
+    it("resolves to the function in each loaded module whose name matches, without warning about the modules that don't export it", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const warnSpy = spyOn(logger, "warn");
+      try {
+        const [hooks] = await resultsOf(await manager.resolveHooks([nativeHook("lib*.so", "malloc")]));
+
+        expect(targetsOf(hooks!)).toContain("libc.so!malloc");
+        // e.g. not libc's malloc again for libcutils.so, which links libc.so
+        for (const hook of hooks!) {
+          const module = Process.getModuleByName(hook.moduleName);
+          expect(hook.symbolAddress.compare(module.base) >= 0 && hook.symbolAddress.compare(module.base.add(module.size)) < 0).toBe(true);
+        }
+        expect(hooks!.find((hook) => hook.moduleName === "libc.so")!.symbolAddress.toString()).toBe(
+          Process.getModuleByName("libc.so").getExportByName("malloc").toString(),
+        );
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("skips a blocked function in the module the pattern matches", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const warnSpy = spyOn(logger, "warn");
+      try {
+        const [result] = await manager.resolveHooks([nativeHook("libc*.so", "pthread_getspecific")]);
+
+        expect(await isPending((await waitingOf(result)).waiting)).toBe(true);
+        expect(String(warnSpy.mock.calls[0][0])).toContain("Skipping hook for native function 'pthread_getspecific' from module 'libc.so'");
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
+    it("waits for the first matching module that loads with the function, and passes the hooks of the next ones to LaterHooks", async () => {
+      expect(Process.findModuleByName("libkeyutils.so")).toBeNull();
+      expect(Process.findModuleByName("libkeystore2_crypto.so")).toBeNull();
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const later = laterHooks();
+
+      const [result] = await manager.resolveHooks([nativeHook("libke*.so", "*e*I*")], undefined, later);
+      const { waiting } = await waitingOf(result);
+      Module.load("/system/lib64/libkeyutils.so");
+      const first = (await waiting)!;
+      Module.load("/system/lib64/libkeystore2_crypto.so");
+      for (let i = 0; i < 100 && later.added.length === 0; i++) await sleepMilliseconds(10);
+
+      try {
+        expect(targetsOf(first)).toEqual(["libkeyutils.so!keyctl_get_keyring_ID"]);
+        expect(later.added.length).toBe(1);
+        expect(targetsOf(later.added[0])).toContain("libkeystore2_crypto.so!CreateKeyId");
+        expect(later.added[0].every((hook) => hook.moduleName === "libkeystore2_crypto.so")).toBe(true);
+        expect(manager.registerHooks([...first, ...later.added[0]])).toBe(first.length + later.added[0].length);
+      } finally {
+        manager.unregisterHooks([...first, ...later.added.flat()]);
+      }
+    });
+
+    it("stops looking once LaterHooks no longer wants the hooks", async () => {
+      expect(Process.findModuleByName("libnetlink.so")).toBeNull();
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const later = laterHooks(false);
+
+      const [result] = await manager.resolveHooks([nativeHook("libnetl*.so", "*")], undefined, later);
+      const { waiting } = await waitingOf(result);
+      const module = Module.load("/system/lib64/libnetlink.so");
+
+      expect(later.wantedCalls).toBe(1);
+      expect(manager.hookIndex.isInHookedModule(module.base)).toBe(false);
+      expect(await isPending(waiting)).toBe(true);
     });
   });
 
@@ -292,6 +406,24 @@ describe("NativeHookManager", () => {
         warnSpy.mockRestore();
         manager.unregisterHooks([hooks![0], sameName, alias]);
       }
+    });
+
+    it("lists the other hooks installed on the same function", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const [[first], [second], [other]] = (await resultsOf(
+        await manager.resolveHooks([nativeHook("libc.so", "atoi"), nativeHook("libc.so", "atoi"), nativeHook("libc.so", "atol")]),
+      )) as NativeHook[][];
+      try {
+        manager.registerHooks([first, second, other]);
+
+        expect(manager.otherHooksOnSameFunction(first)).toEqual([second]);
+        expect(manager.otherHooksOnSameFunction(other)).toEqual([]);
+        expect(manager.describeInstalledHook(second)).toBe("libc.so!atoi");
+      } finally {
+        manager.unregisterHooks([first, second, other]);
+      }
+      expect(manager.otherHooksOnSameFunction(first)).toEqual([]);
+      expect(manager.describeInstalledHook(first)).toBeUndefined();
     });
 
     it("detaches the Interceptor listener", async () => {

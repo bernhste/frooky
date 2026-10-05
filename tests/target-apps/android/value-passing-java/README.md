@@ -46,3 +46,4 @@ For the examples in `docs/examples/android/`, the app also has:
 - `receiveMode`, whose argument matches the constants `MODE_ENCRYPT`/`MODE_DECRYPT`
 - `receiveBase64`, called with the base64 of a text and of 16 binary bytes, for `decoder: base64`
 - `trackEvent`, called both directly and through `ThirdPartySdk`, for stack traces and stack trace filters
+- `CloudBackup.upload` and `LocalBackup.upload`, two classes with the same method, for class wildcards

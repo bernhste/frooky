@@ -249,6 +249,15 @@ describe("NativeHookValidator", () => {
       expect(skipWarning()).toContain("Skipping hook for native function 'foo' from module 'libfoo.so' due to an invalid declaration:");
     });
 
+    it("skips an offset hook in a module wildcard pattern and keeps its symbol hooks", () => {
+      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo*.so", hooks: ["validSymbol", { offset: "0x1a2b4" }] };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+
+      expect(result.map((hook) => [hook.module, hook.symbol])).toEqual([["libfoo*.so", "validSymbol"]]);
+      expect(skipWarning()).toContain("'offset' needs an exact module name, not the pattern 'libfoo*.so'");
+    });
+
     it("skips a hook with an invalid hook setting", () => {
       const invalidHook = { symbol: "foo", hookSettings: { maxStackFrames: -1 } };
       const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: ["validSymbol", invalidHook] };

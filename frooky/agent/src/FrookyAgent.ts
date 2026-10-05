@@ -23,7 +23,7 @@ import {
   HookStatistic,
   LoadSummary,
 } from "./shared/hook/hookDescriptions";
-import { HookManager, isWaiting, Resolution } from "./shared/hook/hookManager";
+import { HookManager, isWaiting, LaterHooks, Resolution } from "./shared/hook/hookManager";
 import { HookRegistry } from "./shared/hook/hookRegistry";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { logger, LogLevel, LogTo } from "./shared/logger";
@@ -209,23 +209,8 @@ export class FrookyAgent {
     let markInitialized: () => void = () => {};
     initializing?.push(new Promise<void>((resolve) => (markInitialized = resolve)));
 
-    let resolutions: Resolution<Hook[] | null>[];
-    try {
-      resolutions = await manager.resolveHooks(
-        hooksToResolve.map((hookToResolve) => hookToResolve.inputHook),
-        source,
-      );
-    } catch (e) {
-      for (const { entry } of hooksToResolve) {
-        if (entry.state === "resolving") entry.state = "notFound";
-      }
-      this.scheduleProgressReport();
-      logger.error(`Error while resolving ${kind} hooks of ${source}: ${String(e)}`);
-      markInitialized();
-      return 0;
-    }
-
     let countSuccessfulHooks = 0;
+    // adds to the hooks already installed, see LaterHooks
     const install = ({ entry }: HookToResolve, hooks: Hook[] | null) => {
       if (entry.state === "removed") {
         // hooks are installed while their class or module loads, see HookManager.resolveHooks()
@@ -239,8 +224,8 @@ export class FrookyAgent {
       }
       const hookedCount = manager.registerHooks(hooks, source);
       countSuccessfulHooks += hookedCount;
-      entry.hooks = hooks;
-      entry.hookedCount = hookedCount;
+      entry.hooks = entry.hooks ? [...entry.hooks, ...hooks] : hooks;
+      entry.hookedCount = (entry.hookedCount ?? 0) + hookedCount;
       entry.state = "installed";
     };
     const reject = ({ inputHook, entry }: HookToResolve, reason: unknown) => {
@@ -249,6 +234,28 @@ export class FrookyAgent {
       logger.warn(`Failed to hook ${describeInputHook(inputHook)} (${source}): ${reason instanceof Error ? reason.message : String(reason)}`);
       this.scheduleProgressReport();
     };
+
+    let resolutions: Resolution<Hook[] | null>[];
+    // e.g. in a module that a module wildcard pattern matches and that loads after the declaration was installed
+    const laterHooks: LaterHooks<Hook[]> = {
+      wanted: (i) => hooksToResolve[i].entry.state !== "removed",
+      add: (i, hooks) => install(hooksToResolve[i], hooks),
+    };
+    try {
+      resolutions = await manager.resolveHooks(
+        hooksToResolve.map((hookToResolve) => hookToResolve.inputHook),
+        source,
+        laterHooks,
+      );
+    } catch (e) {
+      for (const { entry } of hooksToResolve) {
+        if (entry.state === "resolving") entry.state = "notFound";
+      }
+      this.scheduleProgressReport();
+      logger.error(`Error while resolving ${kind} hooks of ${source}: ${String(e)}`);
+      markInitialized();
+      return 0;
+    }
 
     // installs what the first lookup decided right away, the rest once the lookups at targetReady have run; resolves
     // with the hooks that still wait for their class or module then
@@ -327,6 +334,6 @@ export class FrookyAgent {
 
   // Every hook declaration of the loaded configs, see HookStatistic
   public hookStatistics(): HookStatistic[] {
-    return this.registry.statistics();
+    return this.registry.statistics((fingerprint) => (fingerprint.startsWith("native:") ? this.nativeHookManager : this.platformHookManger));
   }
 }

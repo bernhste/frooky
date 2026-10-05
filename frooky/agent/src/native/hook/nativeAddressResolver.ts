@@ -41,6 +41,23 @@ export function resolveNativeHook(inputHook: NativeHookDeclaration, module: Modu
   }
 }
 
+// The hooks of `inputHook`, declared with a module wildcard pattern, in `module`, one of the modules it matches. Most
+// modules a pattern matches don't export the symbol, so a module without it has no hooks and no warning. Blocked
+// functions are checked against the name of `module`, e.g. `libc.so` for `libc*.so`.
+export function resolveNativeHookInMatchingModule(inputHook: NativeSymbolHookDeclaration, module: Module, exports: ModuleExports): NativeHook[] {
+  const hook = applyBlockedFunctions({ ...inputHook, module: module.name });
+  if (!hook?.symbol) return [];
+  try {
+    if (hook.symbol.includes("*")) return resolveSymbolPattern(hook, module, exports);
+    const symbolAddress = resolveSymbol(hook.symbol, module, exports);
+    warnOnHighFrequencyLibcHook(hook);
+    return [toNativeHook(hook, module, symbolAddress)];
+  } catch (e) {
+    logger.debug(e instanceof Error ? e.message : String(e));
+    return [];
+  }
+}
+
 function toNativeHook(inputHook: NativeHookDeclaration, module: Module, symbolAddress: NativePointer): NativeHook {
   return {
     module,
@@ -75,9 +92,20 @@ function resolveSymbolPattern(inputHook: NativeSymbolHookDeclaration, module: Mo
   return hooks;
 }
 
+// The address of `symbol` in `module`. findExportByName() searches like dlsym(), so it also finds the functions of the
+// libraries `module` links, e.g. libc's `malloc` from libcutils.so. These aren't `module`'s: a hook on them records
+// the calls from the whole process.
 function resolveSymbol(symbol: string, module: Module, exports: ModuleExports): NativePointer {
   const address = exports.find(symbol);
   if (!address) throw Error(`Skipping hook for '${symbol}'. This symbol does not exist in module '${module.name}'.`);
+  if (address.compare(module.base) < 0 || address.compare(module.base.add(module.size)) >= 0) {
+    const owner = Process.findModuleByAddress(address)?.name;
+    const escapedName = module.name.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+    const callerFilter = `'^${escapedName}$'`;
+    throw Error(
+      `Skipping hook for '${symbol}'. Module '${module.name}' doesn't define it but links it from ${owner ? `'${owner}'` : "another library"}: hook it there${owner ? ` with 'module: ${owner}'` : ""}, and with 'callerFilter: [${callerFilter}]' for its calls from '${module.name}' only.`,
+    );
+  }
   return address;
 }
 

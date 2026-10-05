@@ -4,7 +4,7 @@ import { stopEventSender } from "./shared/event/eventSender";
 import { InputFrookyConfig } from "./shared/frookyConfig";
 import { countFilteredCall, Hook } from "./shared/hook/hook";
 import { HookProgress } from "./shared/hook/hookDescriptions";
-import { HookManager } from "./shared/hook/hookManager";
+import { HookManager, LaterHooks } from "./shared/hook/hookManager";
 import { HookValidator } from "./shared/hook/hookValidator";
 import { LogEvent } from "./shared/event/logEvent";
 import { logger } from "./shared/logger";
@@ -17,16 +17,30 @@ function fakeHook(overrides: Partial<Hook> = {}): Hook {
 }
 
 // FrookyAgent only calls resolveHooks()/registerHooks()/unregisterHooks() on the platform hook manager
-function fakePlatformHookManager(): { resolveHooks: Mock; registerHooks: Mock; unregisterHooks: Mock } {
+function fakePlatformHookManager(): {
+  resolveHooks: Mock;
+  registerHooks: Mock;
+  unregisterHooks: Mock;
+  describeInstalledHook: Mock;
+  otherHooksOnSameFunction: Mock;
+} {
   return {
     resolveHooks: fn(async (): Promise<Promise<Hook[] | null>[]> => []),
     registerHooks: fn((): number => 0),
     unregisterHooks: fn((): void => {}),
+    describeInstalledHook: fn((): string | undefined => undefined),
+    otherHooksOnSameFunction: fn((): Hook[] => []),
   };
 }
 
 // resolves every normalized hook (a string in these tests) to one fake hook tagged with its name
-function fakeResolvingHookManager(): { resolveHooks: Mock; registerHooks: Mock; unregisterHooks: Mock } {
+function fakeResolvingHookManager(): {
+  resolveHooks: Mock;
+  registerHooks: Mock;
+  unregisterHooks: Mock;
+  describeInstalledHook: Mock;
+  otherHooksOnSameFunction: Mock;
+} {
   const manager = fakePlatformHookManager();
   manager.resolveHooks.mockImplementation(async (inputHooks: string[]) =>
     inputHooks.map((name) => Promise.resolve([fakeHook({ retType: { type: name } as Hook["retType"] })])),
@@ -371,34 +385,77 @@ describe("FrookyAgent", () => {
         {
           config: "hooks.yaml",
           target: "com.example.A.one",
+          declaration: "com.example.A.one",
           state: "waiting",
           waitsFor: "Java class 'com.example.A'",
           overloads: 0,
           events: 0,
           filtered: 0,
           decodeMs: 0,
+          alsoHookedBy: [],
         },
         {
           config: "hooks.yaml",
           target: "com.example.A.two",
+          declaration: "com.example.A.two",
           state: "waiting",
           waitsFor: "Java class 'com.example.A'",
           overloads: 0,
           events: 0,
           filtered: 0,
           decodeMs: 0,
+          alsoHookedBy: [],
         },
         {
           config: "hooks.yaml",
           target: "com.example.B.three",
+          declaration: "com.example.B.three",
           state: "installed",
           waitsFor: "Java class 'com.example.B'",
           overloads: 1,
           events: 2,
           filtered: 1,
           decodeMs: 5,
+          alsoHookedBy: [],
         },
       ]);
+    });
+
+    it("lists the methods of an installed declaration as its hook manager names them", async () => {
+      const { agent, rawManager } = setupWithPendingClass();
+      await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");
+      rawManager.describeInstalledHook.mockReturnValue("com.example.B$Impl.three");
+
+      expect(agent.hookStatistics().map(({ target, declaration }) => [target, declaration])).toEqual([
+        ["com.example.A.one", "com.example.A.one"],
+        ["com.example.A.two", "com.example.A.two"],
+        ["com.example.B$Impl.three", "com.example.B.three"],
+      ]);
+    });
+
+    it("counts the hooks a declaration gets later, and unhooks them once the declaration is removed", async () => {
+      const rawManager = fakeResolvingHookManager();
+      let later: LaterHooks<Hook[]> | undefined;
+      rawManager.resolveHooks.mockImplementationOnce(async (_inputHooks: unknown[], _source: string, laterHooks: LaterHooks<Hook[]>) => {
+        later = laterHooks;
+        return [[fakeHook()]];
+      });
+      const validator = fakePlatformHookValidator([hookA1]);
+      const { agent } = createAgent(validator, rawManager as unknown as HookManager<any, any, any>);
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+
+      expect(later!.wanted(0)).toBe(true);
+      later!.add(0, [fakeHook()]);
+      expect(agent.hookProgress().hooked).toBe(2);
+      expect(agent.hookStatistics().map(({ state, overloads }) => [state, overloads])).toEqual([["installed", 2]]);
+
+      (validator.validateAndNormalizeHooks as unknown as Mock).mockReturnValueOnce([]);
+      await agent.loadFrookyConfig(makeConfig(), "hooks.yaml");
+      const tooLate = [fakeHook()];
+      expect(later!.wanted(0)).toBe(false);
+      later!.add(0, tooLate);
+      expect(rawManager.unregisterHooks).toHaveBeenCalledWith(tooLate);
+      expect(agent.hookProgress().hooked).toBe(0);
     });
 
     it("unhooks a waiting hook that loads after its declaration was removed", async () => {

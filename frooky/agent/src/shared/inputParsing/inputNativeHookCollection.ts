@@ -82,7 +82,10 @@ export interface InputNativeHookCollection {
   /** Collection kind. Optional in hook files; inferred from `module`. */
   type: "native";
 
-  /** Name of the module that exports the functions, e.g. `libssl.so`. */
+  /**
+   * Name of the module that exports the functions, e.g. `libssl.so`. A `*` matches any characters, e.g. `libssl*.so`
+   * hooks the functions in every module whose name matches, also in modules that load later.
+   */
   module: string;
 
   /** Functions to hook. */

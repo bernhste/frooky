@@ -403,15 +403,29 @@ Classes and modules that aren't loaded once the app has started are reported as 
 
 ### Hook Statistics (`s` / `S` Key)
 
-While frooky is running in the terminal, pressing `s` or `S` prints one row per hook declaration: whether it is hooked, waiting for its class or module, or not found, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, and how much time went into decoding the values of the recorded events. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
+While frooky is running in the terminal, pressing `s` or `S` prints one row per hooked method or function, and one per hook declaration that is waiting for its class or module or not found: its state, how many overloads it hooks (Java hooks only, `-` for native hooks), how many events these recorded so far, how many calls their `callerFilter` or `argFilter`s dropped, how much time went into decoding the values of the recorded events, and the target. Below a waiting target is what it waits for. The decode time is summed from millisecond timestamps, so it is only accurate over many events. A hook with many filtered calls and few events still costs time on every call, see [Caller Filters](#caller-filters).
+
+A declaration with a [class](./java-hook-declaration.md#basic-usage), [method](./java-hook-declaration.md#method-wildcards), [symbol](./native-hook-declaration.md#symbol-wildcards) or [module](./native-hook-declaration.md#module-wildcards) wildcard gets one row per method or function it matched, with `via` and the pattern below the target; only the method or symbol pattern if the class or module is the same. A target too long for the terminal wraps, with its further lines indented. A function or overload that another declaration hooks too, in the same or another hook file, gets an `also hooked` line for each of them, e.g. `also hooked via SSL_*`, `also hooked in other.yaml` or `also hooked: 2 of 3 overloads via com.example.*.b*`. Each declaration records its own event per call, so these calls show up more than once in the output. `also hooked as libc.so!memmove` is the same function under another name, e.g. `memcpy` and `memmove` in some libcs.
 
 ```text
 Hook statistics
-State         Overloads  Events  Filtered  Target                       File        Waits for
-hooked                3      41         0  javax.crypto.Cipher.init     hooks.yaml
-hooked                -   1,234    56,789  libc.so!open                 hooks.yaml
-waiting               -       -         -  com.example.Plugin.run       hooks.yaml  Java class 'com.example.Plugin'
-not found             -       -         -  libc.so!nope                 hooks.yaml
+                                         Decoding
+                                             time
+State      Overloads  Events  Filtered      (sum)  Target                                       File
+hooked             3      41         0       3 ms  javax.crypto.Cipher.init                     hooks.yaml
+hooked             -      12         0       0 ms  libc.so!inet_pton                            hooks.yaml
+                                                     via inet_*
+                                                     also hooked in other.yaml
+hooked             -   1,234    56,789      2.3 s  libc.so!open                                 hooks.yaml
+hooked             -       7         0       4 ms  libssl3.so!SSL_write                         hooks.yaml
+                                                     via libssl*.so!SSL_write
+hooked             2       5         0       1 ms  org.owasp.net.HttpClient.send                hooks.yaml
+                                                     via org.owasp.*.HttpClient.send*
+hooked             1       2         0       0 ms  org.owasp.net.HttpClient.sendAsync           hooks.yaml
+                                                     via org.owasp.*.HttpClient.send*
+waiting            -       -         -          -  com.example.Plugin.run                       hooks.yaml
+                                                     waits for Java class 'com.example.Plugin'
+not found          -       -         -          -  libc.so!nope                                 hooks.yaml
 ```
 
 ### Show or Hide Events (`e` / `E` Key)

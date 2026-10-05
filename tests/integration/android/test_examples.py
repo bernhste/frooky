@@ -78,6 +78,16 @@ class TestAndroidExamples:
         [array_event] = self._events(find_matched_events, "receiveBooleanArray")
         assert array_event["argsIn"] == [{"type": "[Z", "value": [True, False]}]
 
+    def test_class_wildcards(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/01_basic_hooking/06_class_wildcards.yaml"), JAVA_APP)
+
+        [string_event] = self._events(find_matched_events, "receiveString")
+        assert string_event["argsIn"] == [{"type": "java.lang.String", "value": "Welcome the first OWASP MASCon 📱❤️"}]
+        for backup, returned in [("CloudBackup", "cloud:notes"), ("LocalBackup", "local:notes")]:
+            [event] = self._events(find_matched_events, "upload", f"org.owasp.mastestapp.{backup}")
+            assert event["argsIn"] == [{"type": "java.lang.String", "value": "notes"}]
+            assert event["returnValue"]["value"] == returned
+
     def test_named_parameters(self, run_frooky, find_matched_events):
         run_frooky(_example("android/02_parameters_and_return_values/01_named_parameters.yaml"), JAVA_APP)
 
@@ -405,6 +415,16 @@ class TestNativeExamples:
         module = "libreceiveFundamentalReference.so"
         assert {event["symbol"] for event in find_matched_events({"module": module})} == {"receive_int_ref", "receive_uint_ref"}
         for symbol in ["receive_int_ref", "receive_uint_ref"]:
+            [event] = self._events(find_matched_events, symbol, module)
+            assert event["argsIn"] == []
+            assert "returnValue" not in event
+
+    def test_module_wildcards(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/01_basic_hooking/04_module_wildcards.yaml"), NATIVE_APP)
+
+        # libreceiveFundamentalReference.so loads after the hook on libreceiveFundamentalValue.so is installed
+        for module, symbol in [("libreceiveFundamentalValue.so", "receive_uint"), ("libreceiveFundamentalReference.so", "receive_uint_ref")]:
+            assert {event["symbol"] for event in find_matched_events({"module": module})} == {symbol}
             [event] = self._events(find_matched_events, symbol, module)
             assert event["argsIn"] == []
             assert "returnValue" not in event

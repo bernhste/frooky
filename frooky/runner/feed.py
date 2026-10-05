@@ -10,6 +10,7 @@ from typing import Iterator, Optional
 
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.live import Live
+from rich.measure import Measurement
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
@@ -105,24 +106,52 @@ class HookStatus:
 _STATISTIC_STATES = {"installed": "hooked", "waiting": "waiting", "resolving": "resolving", "notFound": "not found"}
 
 
+class HangingText:
+    """`text` wrapped to the width it gets by Rich (at spaces, folding words longer than a line), with each line after
+    the first indented by `indent` spaces. Its minimum width is small, so a table column of it shrinks before its
+    neighbors wrap."""
+
+    MIN_WIDTH = 16
+
+    def __init__(self, text: Text, indent: int = 2):
+        self.text = text
+        self.indent = indent
+
+    def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
+        width = max((line.cell_len + (self.indent if i > 0 else 0) for i, line in enumerate(self.text.split())), default=0)
+        return Measurement(min(width, self.MIN_WIDTH), width)
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        width = options.max_width
+        for i, line in enumerate(self.text.split()):
+            if i == 0 and line.cell_len <= width:
+                yield line
+                continue
+            for j, wrapped in enumerate(line.wrap(console, max(width - self.indent, 1), overflow="fold")):
+                yield wrapped if i == 0 and j == 0 else Text(" " * self.indent) + wrapped
+
+
 def format_hook_statistics(statistics: list[dict]) -> Table:
-    """The table the `i` key prints: one row per hook declaration (see HookStatistic in FrookyAgent.ts), hooked ones
-    first, with the overloads it hooks (Java hooks only), their events, the calls their filters dropped and the time spent
-    decoding the values of their events, or the class or module it waits for. The `Waits for` column only shows while
-    a declaration waits, so the table fits narrower terminals. Rows are colored per hook file."""
-    table = Table(box=None, padding=(0, 2), pad_edge=False, header_style="bold", title="Hook statistics", title_justify="left", title_style="bold")
+    """The table the `s` key prints: one row per hook declaration, and for a hooked one per method or function it hooks
+    (see HookStatistic in hookDescriptions.ts), hooked ones first, with the overloads it hooks (Java hooks only), their
+    events, the calls their filters dropped and the time spent decoding the values of their events, or the class or
+    module it waits for, below the target. A target that a wildcard pattern matched names the pattern below it. Only the
+    Target column wraps, so it gets the width the others leave. Rows are colored per hook file."""
+    table = Table(box=None, padding=(0, 1), pad_edge=False, header_style="bold", title="Hook statistics", title_justify="left", title_style="bold")
     table.add_column("State", no_wrap=True)
     table.add_column("Overloads", justify="right", no_wrap=True)
     table.add_column("Events", justify="right", no_wrap=True)
     table.add_column("Filtered", justify="right", no_wrap=True)
-    table.add_column("Decoding time (sum)", justify="right")
-    table.add_column("Target", overflow="fold")
-    table.add_column("File", no_wrap=True)
-    any_waiting = any(row["state"] in ("waiting", "resolving") for row in statistics)
-    if any_waiting:
-        table.add_column("Waits for", overflow="fold")
+    # its header wraps, its values fit, e.g. `2,345 ms`
+    table.add_column("Decoding time (sum)", justify="right", max_width=9)
+    table.add_column("Target")
+    table.add_column("File", overflow="fold")
     order = list(_STATISTIC_STATES)
-    rows = sorted(statistics, key=lambda row: (order.index(row["state"]) if row["state"] in order else len(order), row["config"], row["target"]))
+    # the targets of one declaration next to each other
+    rows = sorted(
+        statistics,
+        key=lambda row: (order.index(row["state"]) if row["state"] in order else len(order), row["config"], row.get("declaration", row["target"]), row["target"]),
+    )
     # by sorted file name, so a file keeps its color across prints while the states change
     file_styles = {config: ACCENT_STYLES[i % len(ACCENT_STYLES)] for i, config in enumerate(sorted({row["config"] for row in rows}))}
     for row in rows:
@@ -134,15 +163,54 @@ def format_hook_statistics(statistics: list[dict]) -> Table:
             f"{row['events']:,}" if installed else "-",
             f"{row.get('filtered', 0):,}" if installed else "-",
             _format_milliseconds(row.get("decodeMs", 0)) if installed else "-",
-            row["target"],
+            HangingText(_format_target(row, row["waitsFor"] if waiting else None)),
             row["config"],
         ]
-        if any_waiting:
-            cells.append(row["waitsFor"] if waiting else "")
         table.add_row(*cells, style=file_styles[row["config"]])
     if not rows:
         table.add_row("-", "-", "-", "-", "-", "no hooks loaded", "")
     return table
+
+
+def _format_target(row: dict, waits_for: Optional[str] = None) -> Text:
+    """e.g. `com.example.Foo.getKey` and `via com.example.*.get*` below it, or `via SSL_*` for `libfoo.so!SSL_read` when
+    only the method or symbol is a pattern, or `waits for Module 'libfoo.so'`; then a line per other declaration that
+    hooks it too, see _describe_also_hooked()"""
+    target = Text(row["target"])
+    declaration = row.get("declaration")
+    if declaration and declaration != row["target"]:
+        target.append(f"\nvia {_short_pattern(declaration, row['target'])}", style="dim")
+    if waits_for:
+        target.append(f"\nwaits for {waits_for}", style="dim")
+    for other in row.get("alsoHookedBy", []):
+        target.append(f"\n{_describe_also_hooked(row, other)}", style="dim")
+    return target
+
+
+def _short_pattern(declaration: str, target: str) -> str:
+    """Only the method or symbol pattern of `declaration` if its class or module is the one of `target`, e.g. `SSL_*`
+    for `libfoo.so!SSL_*` and `libfoo.so!SSL_read`"""
+    owner, separator, name = declaration.rpartition("!" if "!" in declaration else ".")
+    return name if separator and target.startswith(owner + separator) else declaration
+
+
+def _describe_also_hooked(row: dict, other: dict) -> str:
+    """Another declaration that hooks the target of `row` too (see AlsoHookedBy in hookDescriptions.ts), each call of
+    which it records as an event of its own, e.g. `also hooked via SSL_* in other.yaml`, `also hooked: 2 of 3 overloads
+    via com.example.*.b*` or `also hooked as libc.so!memmove`, the same function under another name"""
+    text = "also hooked"
+    if other.get("overloads") is not None and row.get("overloads") and other["overloads"] < row["overloads"]:
+        text += f": {other['overloads']} of {row['overloads']} overloads"
+    alias = other["target"] != row["target"]
+    if alias:
+        text += f" as {other['target']}"
+    if other["declaration"] != other["target"]:
+        text += f" via {_short_pattern(other['declaration'], other['target'])}"
+    if other["config"] != row["config"]:
+        text += f" in {other['config']}"
+    elif not alias and other["declaration"] == other["target"]:
+        text += " by another declaration"
+    return text
 
 
 def _format_milliseconds(milliseconds: float) -> str:

@@ -46,6 +46,7 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
             "native",
           );
           rejectErrnoOnParams(validatedHook.params);
+          rejectOffsetInModulePattern(validatedHook);
           const allowedHook = applyBlockedFunctions(validatedHook);
           if (!allowedHook) continue;
           warnOnHighFrequencyLibcHook(allowedHook);
@@ -192,6 +193,13 @@ export function noteEarlyPlatformStackTrace(hook: NativeHookDeclaration): void {
   logger.info(
     `${describeNativeTarget(hook.module, hook)} has early: true and platformStackTrace: its calls before targetReady get native frames, but no Java frames (skipped: before-ready), as walking the Java stack of a thread that is still attaching to the Java VM crashes the app.`,
   );
+}
+
+// An offset only fits one build of one library, so it can't apply to every module a pattern matches
+function rejectOffsetInModulePattern(hook: NativeHookDeclaration): void {
+  if (hook.offset !== undefined && hook.module.includes("*")) {
+    throw Error(`'offset' needs an exact module name, not the pattern '${hook.module}': an offset only fits one build of one library.`);
+  }
 }
 
 // errno is only set by the call, so `decoder: errno` only applies to the return value

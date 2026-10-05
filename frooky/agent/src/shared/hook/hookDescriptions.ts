@@ -7,20 +7,31 @@ import { plural } from "../utils";
 // whose method, symbol or offset wasn't found.
 export type HookProgress = { hooked: number; resolving: number; waiting: number; notFound: number };
 
-// One hook declaration for the host's hook statistics (`i` key). `target` is e.g. `com.example.Foo.bar` or
-// `libfoo.so!open`, `waitsFor` the class or module it waits for, `overloads` how many overloads a Java hook
-// declaration hooks (null for native hooks), `events` how many events these recorded, `filtered` how many calls their callerFilter or argFilters dropped, and
-// `decodeMs` the milliseconds spent decoding the values of the recorded events.
+// One row of the host's hook statistics (`s` key): a hook declaration, or for an installed one each method or function
+// it hooks. `target` is e.g. `com.example.Foo.bar` or `libfoo.so!open`, `declaration` the declared target, e.g. the
+// wildcard pattern `com.example.*.get*` that matched `target`, `waitsFor` the class or module it waits for,
+// `overloads` how many overloads of `target` a Java hook declaration hooks (null for native hooks), `events` how many
+// events these recorded, `filtered` how many calls their callerFilter or argFilters dropped, and `decodeMs` the
+// milliseconds spent decoding the values of the recorded events. `alsoHookedBy` are the other hook declarations that
+// hook `target` too, see AlsoHookedBy.
 export type HookStatistic = {
   config: string;
   target: string;
+  declaration: string;
   state: "resolving" | "waiting" | "installed" | "notFound";
   waitsFor: string;
   overloads: number | null;
   events: number;
   filtered: number;
   decodeMs: number;
+  alsoHookedBy: AlsoHookedBy[];
 };
+
+// Another hook declaration that hooks the same function or overloads, each call of which it records as an event of its
+// own: its config, its declared target and the target it hooks them under, e.g. `libc.so!memmove` for `libc.so!memcpy`,
+// which are one function in some libcs. `overloads` is how many overloads of the Java method it hooks too (null for
+// native hooks).
+export type AlsoHookedBy = { config: string; declaration: string; target: string; overloads: number | null };
 
 // Installed hooks (one per overload or function), declarations waiting for their class or module, and
 // declarations whose method, symbol or offset wasn't found.
@@ -59,7 +70,7 @@ export function lookupOf(kind: string, inputHook: unknown): string | undefined {
   return hook.classLoader ? `${kind}:${lookup}@${hook.classLoader}` : `${kind}:${lookup}`;
 }
 
-// e.g. `Java class 'com.example.Foo'` or `Module 'libfoo.so'`
+// e.g. `Java class 'com.example.Foo'`, `Module 'libfoo.so'` or `Module matching 'libfoo*.so'`
 export function describeLookup(inputHook: unknown): string {
   const hook = (typeof inputHook === "object" && inputHook !== null ? inputHook : {}) as {
     javaClass?: string;
@@ -67,7 +78,7 @@ export function describeLookup(inputHook: unknown): string {
     module?: string;
   };
   if (hook.javaClass) return `Java class '${hook.javaClass}'${hook.classLoader ? ` from class loader '${hook.classLoader}'` : ""}`;
-  return `Module '${hook.module}'`;
+  return hook.module?.includes("*") ? `Module matching '${hook.module}'` : `Module '${hook.module}'`;
 }
 
 // e.g. `com.example.Foo.bar` or `libfoo.so!open`

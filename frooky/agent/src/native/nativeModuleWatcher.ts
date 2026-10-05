@@ -19,6 +19,8 @@ function sameBytes(a: ArrayBuffer | null, b: ArrayBuffer): boolean {
 export class NativeModuleWatcher {
   // called with a module once it loads, keyed by the name (or path) hooks declare it with
   private readonly moduleWaiters = new Map<string, ((module: Module) => void)[]>();
+  // called with every module that loads and matches, until stopped, see whenEachLoaded()
+  private readonly matchWatchers = new Set<{ matches: (module: Module) => boolean; onLoaded: (module: Module) => void }>();
   private moduleObserver?: ModuleObserver;
   // the functions hooked by the module observer's current callback, see waitUntilCommitted()
   private pendingCommits: PendingCommit[] | null = null;
@@ -43,6 +45,15 @@ export class NativeModuleWatcher {
     });
   }
 
+  // Calls `onLoaded` with each module that `matches` while the linker loads it, until the returned function is called.
+  // Attaching the observer the first time also calls it with the matching modules that are loaded already.
+  whenEachLoaded(matches: (module: Module) => boolean, onLoaded: (module: Module) => void): () => void {
+    const watcher = { matches, onLoaded };
+    this.matchWatchers.add(watcher);
+    this.observeModules();
+    return () => this.matchWatchers.delete(watcher);
+  }
+
   // Called before the Interceptor first patches `address`. Inside a whenLoaded() callback, the linker then waits
   // until the patch is committed; elsewhere this does nothing.
   beforePatch(address: NativePointer): void {
@@ -58,10 +69,13 @@ export class NativeModuleWatcher {
     this.moduleObserver ??= Process.attachModuleObserver({
       // runs on the thread that loads the module, inside the linker, before its constructors
       onAdded: (module) => {
-        const waiters = this.moduleWaiters.get(module.name) ?? this.moduleWaiters.get(module.path);
-        if (!waiters) return;
+        const waiters = this.moduleWaiters.get(module.name) ?? this.moduleWaiters.get(module.path) ?? [];
         this.moduleWaiters.delete(module.name);
         this.moduleWaiters.delete(module.path);
+        for (const watcher of this.matchWatchers) {
+          if (watcher.matches(module)) waiters.push(watcher.onLoaded);
+        }
+        if (waiters.length === 0) return;
         this.pendingCommits = [];
         try {
           for (const waiter of waiters) waiter(module);

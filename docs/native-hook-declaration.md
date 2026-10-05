@@ -118,6 +118,24 @@ hooks:
 
 This hooks `SSL_write` from `libssl.so`, with `maxItems` set to `16` for that hook only. Every native event carries the function's `address` and a `hashCode` of it.
 
+### Functions From Other Libraries
+
+frooky only hooks a function that the module defines itself. A function that the module calls from a library it links, e.g. `malloc` or `open` from `libc.so`, isn't the module's: a hook on it would record the calls from the whole process, not only those of the module. frooky skips such a hook with a warning that names the library that defines it:
+
+```text
+Skipping hook for 'malloc'. Module 'libfoo.so' doesn't define it but links it from 'libc.so': hook it there with 'module: libc.so', and with 'callerFilter: ['^libfoo\.so$']' for its calls from 'libfoo.so' only.
+```
+
+To record the module's calls of such a function, hook it in the library that defines it, with a [caller filter](./additional-features.md#caller-filters) on the module:
+
+```yaml
+module: libc.so
+hookSettings:
+  callerFilter: ['^libfoo\.so$']
+hooks:
+  - malloc
+```
+
 ## Symbol Wildcards
 
 A `*` in a symbol matches any characters, also none. frooky hooks every exported function of the module whose name matches.
@@ -138,6 +156,30 @@ hooks:
 > - `params` and `retType` in the expanded form apply to every matching function, so only use them for functions with the same signature.
 > - If several matching names belong to one function (e.g. `memcpy` and `memmove` in some libcs), frooky hooks it once, under the first name.
 > - Functions that frooky never hooks because a hook breaks the app (e.g. `pthread_getspecific`) are skipped with a warning, also when a pattern matches them. A broad pattern on a low-level library such as `libc.so` can still match functions the app calls very often, which slows it down.
+
+## Module Wildcards
+
+A `*` in a module name matches any characters, also none. frooky hooks each declared function in every module whose name matches and that exports it: in the modules that are loaded already, and in each matching module that loads later, while it loads.
+
+**Example:**
+
+```yaml
+module: libssl*.so      # libssl.so, libssl3.so, libssl_static.so, ...
+hooks:
+  - SSL_write
+  - SSL_read*           # also with a symbol wildcard
+```
+
+> [!NOTE]
+>
+> - The pattern matches the module's file name, e.g. `libssl.so`, not its path.
+> - A module that matches but doesn't export the function is skipped without a warning. A declaration waits until a matching module with the function loads, and stays installed for the matching modules that load after that.
+> - Only functions inside the matching module count: a module that only links the function from another library, e.g. libc's `malloc`, doesn't get a hook of its own.
+> - `offset` needs an exact module name: an offset only fits one build of one library.
+> - A broad pattern, e.g. `lib*.so`, reads the exports of every module it matches, which takes time at startup and on every matching module that loads.
+> - The hook statistics (`s` key) list each hooked function with its module, see [Hook Statistics](./additional-features.md#hook-statistics-s--s-key).
+
+See [`04_module_wildcards.yaml`](./examples/native/01_basic_hooking/04_module_wildcards.yaml).
 
 ## Hooking Functions Without a Symbol
 

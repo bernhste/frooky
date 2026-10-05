@@ -3,23 +3,38 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { countFilteredCall, filteredCallCount } from "../../shared/hook/hook";
-import { DecodedArgs, HookManager, ParamDecoder, Resolution, Waiting } from "../../shared/hook/hookManager";
-import { NativeHookDeclaration } from "../../shared/hook/hookDeclaration";
+import { DecodedArgs, HookManager, LaterHooks, ParamDecoder, Resolution, Waiting } from "../../shared/hook/hookManager";
+import { NativeHookDeclaration, NativeSymbolHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { describeNativeTarget } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
 import { EMPTY_STACK_TRACE, HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
-import { fromSource, plural } from "../../shared/utils";
+import { fromSource, namePatternToRegExp, plural } from "../../shared/utils";
 import { NativeDecoderResolver } from "../decoders/nativeDecoderResolver";
 import { detectUnsafeContext } from "../unsafeContext";
 import { NativeCallerFilter } from "../nativeCallerFilter";
 import { NativeModuleWatcher } from "../nativeModuleWatcher";
 import { NativeErrnoDecoder } from "../decoders/nativeErrnoDecoder";
 import { collectArgs, planArgSlots, planFloatRetTypeSlot, readFloatArgBits, usesSeparateFloatRegisterFile } from "./nativeFloatArgs";
-import { ModuleExports, moduleExports, resolveNativeHook } from "./nativeAddressResolver";
+import { ModuleExports, moduleExports, resolveNativeHook, resolveNativeHookInMatchingModule } from "./nativeAddressResolver";
 import { NativeHook } from "./nativeHook";
 import { NativeHookIndex } from "./nativeHookIndex";
 import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
 import { MAX_FILTERED_ARGS, ModuleRange, NativeFilteredListener } from "./nativeFilteredListener";
+
+// A hook declaration with a module wildcard pattern while resolveModulePatterns() looks for its hooks
+type ModulePatternHook = {
+  index: number;
+  inputHook: NativeSymbolHookDeclaration;
+  pattern: RegExp;
+  // a matching module had hooks, so its Resolution isn't Waiting
+  found: boolean;
+  // its Resolution has its first hooks, later ones go to LaterHooks
+  settled: boolean;
+  settle: (hooks: NativeHook[]) => void;
+  firstHooks: Promise<NativeHook[]>;
+  // removed, or found without LaterHooks to take more
+  stopped: boolean;
+};
 
 // A registered hook with what it uses on every call, resolved once
 type InstalledNativeHook = {
@@ -101,8 +116,12 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   // Hooks with `early: true` are installed right away, or inside the linker before the module's constructors and
   // JNI_OnLoad run. The Resolution of a hook on a loaded module is its hooks, or a promise of them if it waits for
   // targetReady. The Resolution of a hook on a module that isn't loaded is decided at targetReady: its hooks if the
-  // module loaded by then, else Waiting.
-  public async resolveHooks(inputHooks: NativeHookDeclaration[], source?: string): Promise<Resolution<NativeHook[] | null>[]> {
+  // module loaded by then, else Waiting. For a module wildcard pattern, see resolveModulePatterns().
+  public async resolveHooks(
+    inputHooks: NativeHookDeclaration[],
+    source?: string,
+    laterHooks?: LaterHooks<NativeHook[]>,
+  ): Promise<Resolution<NativeHook[] | null>[]> {
     logger.info(
       `Resolving ${plural(inputHooks.length, "native hook")} in ${plural(new Set(inputHooks.map((h) => h.module)).size, "module")}${fromSource(source)}`,
     );
@@ -113,9 +132,14 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
 
     // each module is looked up once, no matter how many hooks target it
     const hookIndicesByModule = new Map<string, number[]>();
-    inputHooks.forEach((inputHook, i) => hookIndicesByModule.set(inputHook.module, [...(hookIndicesByModule.get(inputHook.module) ?? []), i]));
+    const patternIndices: number[] = [];
+    inputHooks.forEach((inputHook, i) => {
+      if (inputHook.module.includes("*")) patternIndices.push(i);
+      else hookIndicesByModule.set(inputHook.module, [...(hookIndicesByModule.get(inputHook.module) ?? []), i]);
+    });
 
     const results: Resolution<NativeHook[] | null>[] = new Array(inputHooks.length);
+    if (patternIndices.length > 0) this.resolveModulePatterns(inputHooks, patternIndices, results, source, laterHooks);
     for (const [moduleName, hookIndices] of hookIndicesByModule) {
       const loadedModule = Process.findModuleByName(moduleName);
       if (loadedModule) {
@@ -136,6 +160,103 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       });
     }
     return results;
+  }
+
+  // Sets the Resolutions of the hooks at `indices`, declared with a module wildcard pattern, e.g. `libssl*.so`: their
+  // hooks in every module whose name matches, loaded already or later. The Resolution is the hooks in the loaded
+  // modules, or, without any, decided at targetReady as for a module that isn't loaded: Waiting for the first module
+  // that loads with hooks. The hooks in modules that load after that go to `laterHooks`. The modules are listed once and
+  // the exports of each are read at most once for all these declarations.
+  private resolveModulePatterns(
+    inputHooks: NativeHookDeclaration[],
+    indices: number[],
+    results: Resolution<NativeHook[] | null>[],
+    source?: string,
+    laterHooks?: LaterHooks<NativeHook[]>,
+  ): void {
+    const patternHooks: ModulePatternHook[] = [];
+    for (const index of indices) {
+      const inputHook = inputHooks[index];
+      // NativeHookValidator rejects an offset with a module pattern
+      if (inputHook.symbol === undefined) {
+        results[index] = null;
+        continue;
+      }
+      let settle: (hooks: NativeHook[]) => void = () => {};
+      const firstHooks = new Promise<NativeHook[]>((resolve) => (settle = resolve));
+      patternHooks.push({
+        index,
+        inputHook,
+        pattern: namePatternToRegExp(inputHook.module),
+        found: false,
+        settled: false,
+        settle,
+        firstHooks,
+        stopped: false,
+      });
+    }
+    // module paths, so a module the watcher reports again isn't hooked twice
+    const resolvedModules = new Set<string>();
+    const matching = (module: Module) => patternHooks.filter((patternHook) => !patternHook.stopped && patternHook.pattern.test(module.name));
+
+    const loadedHooks = new Map<ModulePatternHook, NativeHook[]>();
+    for (const module of Process.enumerateModules()) {
+      const matches = matching(module);
+      if (matches.length === 0) continue;
+      resolvedModules.add(module.path);
+      const exports = moduleExports(module, true);
+      for (const patternHook of matches) {
+        const hooks = resolveNativeHookInMatchingModule(patternHook.inputHook, module, exports);
+        if (hooks.length > 0) loadedHooks.set(patternHook, [...(loadedHooks.get(patternHook) ?? []), ...hooks]);
+      }
+    }
+    for (const patternHook of patternHooks) {
+      const hooks = loadedHooks.get(patternHook);
+      if (hooks) {
+        logger.debug(`${plural(hooks.length, "function")} in loaded modules matching '${patternHook.inputHook.module}' resolved.`);
+        patternHook.found = patternHook.settled = true;
+        patternHook.stopped = !laterHooks;
+        results[patternHook.index] =
+          patternHook.inputHook.hookSettings.early || this.frookyAgent.isTargetReady ? hooks : this.targetReady().then(() => hooks);
+      } else {
+        results[patternHook.index] = this.targetReady().then<NativeHook[] | Waiting<NativeHook[]>>(() =>
+          patternHook.found ? patternHook.firstHooks : { waiting: patternHook.firstHooks },
+        );
+      }
+    }
+
+    let stop: () => void = () => {};
+    stop = this.moduleWatcher.whenEachLoaded(
+      (module) => !resolvedModules.has(module.path) && matching(module).length > 0,
+      (module) => {
+        resolvedModules.add(module.path);
+        const exports = moduleExports(module, false);
+        for (const patternHook of matching(module)) {
+          if (laterHooks && !laterHooks.wanted(patternHook.index)) {
+            patternHook.stopped = true;
+            continue;
+          }
+          const hooks = resolveNativeHookInMatchingModule(patternHook.inputHook, module, exports);
+          if (hooks.length === 0) continue;
+          logger.debug(`Module '${module.name}' matches '${patternHook.inputHook.module}': ${plural(hooks.length, "function")} to hook.`);
+          patternHook.found = true;
+          patternHook.stopped = !laterHooks;
+          const install = () => {
+            this.registerHooks(hooks, source);
+            if (patternHook.settled) {
+              laterHooks?.add(patternHook.index, hooks);
+              return;
+            }
+            patternHook.settled = true;
+            patternHook.settle(hooks);
+          };
+          if (patternHook.inputHook.hookSettings.early || this.frookyAgent.isTargetReady) install();
+          else void this.targetReady().then(install);
+        }
+        if (patternHooks.every((patternHook) => patternHook.stopped)) stop();
+      },
+    );
+    if (patternHooks.every((patternHook) => patternHook.stopped)) stop();
   }
 
   // FrookyAgent installs the hooks: right away with `early: true` or after targetReady, else once targetReady resolves
@@ -210,6 +331,15 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       countSuccessfulHooks++;
     }
     return countSuccessfulHooks;
+  }
+
+  public describeInstalledHook(hook: NativeHook): string | undefined {
+    return this.hookedFunctions.get(hook.symbolAddress.toString())?.hooks.find((installedHook) => installedHook.hook === hook)?.target;
+  }
+
+  public otherHooksOnSameFunction(hook: NativeHook): NativeHook[] {
+    const hookedFunction = this.hookedFunctions.get(hook.symbolAddress.toString());
+    return hookedFunction ? hookedFunction.hooks.map((installedHook) => installedHook.hook).filter((other) => other !== hook) : [];
   }
 
   public unregisterHooks(hooks: NativeHook[]): void {

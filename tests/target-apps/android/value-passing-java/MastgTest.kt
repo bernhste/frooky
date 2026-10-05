@@ -84,6 +84,15 @@ class ApiRequest(private val url: String) : WebResourceRequest {
         override fun getRequestHeaders() = mapOf("Authorization" to "Bearer abc123")
 }
 
+// Two classes with the same method, for class wildcards such as `org.owasp.mastestapp.*Backup`.
+class CloudBackup {
+        fun upload(data: String): String = "cloud:$data"
+}
+
+class LocalBackup {
+        fun upload(data: String): String = "local:$data"
+}
+
 // Stands in for a third-party library that calls into the app, for stack trace filters.
 class ThirdPartySdk {
         fun flush(test: MastgTest): String = test.trackEvent("sdk_flush")
@@ -462,6 +471,10 @@ class MastgTest(private val context: Context) {
                 trackEvent("button_click")
                 ThirdPartySdk().flush(this)
                 r.add(Status.PASS, "events tracked")
+
+                CloudBackup().upload("notes")
+                LocalBackup().upload("notes")
+                r.add(Status.PASS, "backups uploaded")
 
                 return r.toJson()
         }

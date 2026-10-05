@@ -121,7 +121,7 @@ WebView.loadUrl(url: String, additionalHttpHeaders: MutableMap<String!, String!>
 > Use the following syntax for dynamic class lookup at runtime.
 >
 > - **Exact match:** `org.owasp.mastestapp.MainActivity`
-> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level - `*` matches exactly one segment between dots. frooky hooks every matching class of the app and of its class loaders when it resolves the pattern, also classes the app hasn't used yet. If no class matches, it hooks the matching classes of the first class loader the app creates that has any. Reading the class names of a large app takes up to about a second. For a class loader created later, frooky reads them while it is created, which delays its creation by up to about 0.1 seconds for a large one.
+> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level - `*` matches exactly one segment between dots, or part of one, e.g. `org.owasp.net.*Client`. See [`06_class_wildcards.yaml`](./examples/android/01_basic_hooking/06_class_wildcards.yaml). frooky hooks every matching class of the app and of its class loaders when it resolves the pattern, also classes the app hasn't used yet. If no class matches, it hooks the matching classes of the first class loader the app creates that has any. Reading the class names of a large app takes up to about a second. For a class loader created later, frooky reads them while it is created, which delays its creation by up to about 0.1 seconds for a large one.
 > - **Nested classes:** use the `$` separator, for example `Outer$Inner`
 
 ## Method Wildcards

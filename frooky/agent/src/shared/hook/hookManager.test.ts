@@ -63,6 +63,14 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
 
   public unregisterHooks(): void {}
 
+  public describeInstalledHook(): string | undefined {
+    return undefined;
+  }
+
+  public otherHooksOnSameFunction(): Hook[] {
+    return [];
+  }
+
   public exposedResolveParamDecoders(params: Param[]): ParamDecoder<TestValue>[] {
     return this.resolveParamDecoders(params);
   }

@@ -1,0 +1,27 @@
+metadata:
+  name: "Basic Hooking (Android): Class Wildcards"
+  description: |
+    A `*` in a class name matches one segment of the name, or part of one, but no dot. frooky hooks the
+    method in every class of the app whose name matches.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/06_class_wildcards.yaml
+# See:    docs/java-hook-declaration.md#basic-usage
+
+hookCollection:
+  # org.owasp.mastestapp.MastgTest: `*` matches the package segment `mastestapp`
+  - javaClass: org.owasp.*.MastgTest
+    hooks:
+      - receiveString
+  # org.owasp.mastestapp.CloudBackup and org.owasp.mastestapp.LocalBackup
+  - javaClass: org.owasp.mastestapp.*Backup
+    hooks:
+      - upload
+
+# Expected events:
+#   MastgTest.receiveString: argsIn [{type: java.lang.String, value: "Welcome the first OWASP MASCon 📱❤️"}]
+#   CloudBackup.upload:      argsIn [{type: java.lang.String, value: notes}], returnValue "cloud:notes"
+#   LocalBackup.upload:      argsIn [{type: java.lang.String, value: notes}], returnValue "local:notes"

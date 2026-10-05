@@ -36,6 +36,11 @@ export type Waiting<T> = { waiting: Promise<T> };
 // else with Waiting. The result is the declaration's hooks, or null if its method, symbol or offset doesn't exist.
 export type Resolution<T> = T | Promise<T | Waiting<T>>;
 
+// Takes the hooks a hook declaration gets after its Resolution settled, e.g. in each module a module wildcard pattern
+// matches that loads later, by the declaration's index in resolveHooks(). `wanted` is false once the declaration is
+// removed: the hook manager then stops looking for more.
+export type LaterHooks<T> = { wanted: (index: number) => boolean; add: (index: number, hooks: T) => void };
+
 export function isWaiting<T>(value: T | Waiting<T>): value is Waiting<T> {
   return typeof value === "object" && value !== null && !Array.isArray(value) && "waiting" in value;
 }
@@ -57,12 +62,18 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
 
   // Returns one Resolution per input hook (index-aligned). A hook on a class or module that isn't loaded yet is
   // installed while it loads, before its code runs (see registerHooks()). `source` names the hook file in log messages.
-  public abstract resolveHooks(inputHooks: TInputHook[], source?: string): Promise<Resolution<THooks[] | null>[]>;
+  // Hooks a declaration gets later go to `laterHooks`.
+  public abstract resolveHooks(inputHooks: TInputHook[], source?: string, laterHooks?: LaterHooks<THooks[]>): Promise<Resolution<THooks[] | null>[]>;
   // Returns how many hooks are installed: hooks that resolveHooks() already installed count as installed,
   // failures are logged and skipped.
   public abstract registerHooks(hooks: THooks[], source?: string): number;
   // Hooks that aren't installed are ignored.
   public abstract unregisterHooks(hooks: THooks[]): void;
+  // The method or function `hook` is installed on, e.g. `com.example.Foo.bar` or `libfoo.so!open`, or undefined
+  // if it isn't installed
+  public abstract describeInstalledHook(hook: THooks): string | undefined;
+  // The other hooks installed on the function or overload `hook` is installed on, e.g. of another hook declaration
+  public abstract otherHooksOnSameFunction(hook: THooks): THooks[];
   // Prepares the agent's unload, see FrookyAgent.prepareDetach(). Nothing to do for hooks the unload removes safely.
   public async prepareDetach(): Promise<void> {}
 
