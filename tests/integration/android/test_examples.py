@@ -217,7 +217,7 @@ class TestAndroidExamples:
             "FLAG_ACTIVITY_NEW_TASK",
             "FLAG_ACTIVITY_CLEAR_TASK",
         }
-        assert any(flag["type"] == "android.content.IntentFlag" and set(flag["value"]) == expected_flags for flag in flags)
+        assert any(flag["type"] == "int" and set(flag["value"]) == expected_flags for flag in flags)
         parse_uri = [event for event in self._events(find_matched_events, "parseUri", "android.content.Intent") if event["argsIn"][0]["value"] == "intent:#Intent;action=android.intent.action.VIEW;end"]
         assert len(parse_uri) == 1
         assert parse_uri[0]["argsIn"][1]["value"] == ["URI_INTENT_SCHEME"]

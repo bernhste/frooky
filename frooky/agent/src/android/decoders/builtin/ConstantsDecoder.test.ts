@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
+import { DecoderConfig } from "../../../shared/frookySettings";
 import { logger } from "../../../shared/logger";
 import { ConstantsDecoder } from "./ConstantsDecoder";
 
@@ -35,33 +36,42 @@ describe("ConstantsDecoder", () => {
       expect(result).toEqual({ type: "int", name: undefined, value: unwrapMode });
     });
 
-    describe("with a class in config.constants", () => {
-      const withClass = (constants: string) =>
-        new ConstantsDecoder({
-          type: "int",
-          declaringClass: "javax.crypto.Cipher",
-          settings: { ...DEFAULT_DECODER_SETTINGS, config: { constants } },
-        });
+    describe("with config.class and config.fields", () => {
+      const withConfig = (config: DecoderConfig) =>
+        new ConstantsDecoder({ type: "int", declaringClass: "javax.crypto.Cipher", settings: { ...DEFAULT_DECODER_SETTINGS, config } });
 
-      it("should use the constants of the class whose names match the pattern", () => {
+      it("should use the fields of the hooked class that match config.fields", () => {
         const encryptMode: number = Cipher.ENCRYPT_MODE.value;
         const publicKey: number = Cipher.PUBLIC_KEY.value;
 
         // both are 1
-        expect(withClass("javax.crypto.Cipher#*_MODE").decode(encryptMode as unknown as Java.Wrapper).value).toBe("ENCRYPT_MODE");
-        expect(withClass("javax.crypto.Cipher#*_KEY").decode(publicKey as unknown as Java.Wrapper).value).toBe("PUBLIC_KEY");
+        expect(withConfig({ fields: "*_MODE" }).decode(encryptMode as unknown as Java.Wrapper).value).toBe("ENCRYPT_MODE");
+        expect(withConfig({ fields: "*_KEY" }).decode(publicKey as unknown as Java.Wrapper).value).toBe("PUBLIC_KEY");
       });
 
-      it("should use another class than the hooked one", () => {
+      it("should use the fields of config.class instead of the hooked class", () => {
         const actionDown: number = Java.use("android.view.MotionEvent").ACTION_DOWN.value;
 
-        expect(withClass("android.view.MotionEvent#ACTION_*").decode(actionDown as unknown as Java.Wrapper).value).toBe("ACTION_DOWN");
+        expect(withConfig({ class: "android.view.MotionEvent", fields: "ACTION_*" }).decode(actionDown as unknown as Java.Wrapper).value).toBe(
+          "ACTION_DOWN",
+        );
+      });
+
+      it("should use every field of config.class without config.fields", () => {
+        const unwrapMode: number = Cipher.UNWRAP_MODE.value;
+        const decoder = new ConstantsDecoder({
+          type: "int",
+          declaringClass: "org.example.CryptoHelper",
+          settings: { ...DEFAULT_DECODER_SETTINGS, config: { class: "javax.crypto.Cipher" } },
+        });
+
+        expect(decoder.decode(unwrapMode as unknown as Java.Wrapper).value).toBe("UNWRAP_MODE");
       });
 
       it("should fall back to the raw value, with a warning, for a class that isn't found", () => {
         const warnSpy = spyOn(logger, "warn");
         try {
-          expect(withClass("com.example.Missing").decode(1 as unknown as Java.Wrapper).value).toBe(1);
+          expect(withConfig({ class: "com.example.Missing" }).decode(1 as unknown as Java.Wrapper).value).toBe(1);
           expect(warnSpy).toHaveBeenCalledTimes(1);
         } finally {
           warnSpy.mockRestore();

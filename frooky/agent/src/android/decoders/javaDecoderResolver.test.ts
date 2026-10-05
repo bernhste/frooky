@@ -2,9 +2,9 @@ import Java from "frida-java-bridge";
 import { DecoderName } from "../../shared/frookySettings";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../../shared/defaultValues";
-import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
-import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
+import { BitmaskDecoder } from "./builtin/BitmaskDecoder";
+import { ConstantsDecoder } from "./builtin/ConstantsDecoder";
 import { OverrideDecoder } from "./builtin/OverrideDecoder";
 import { PrimitiveDecoder } from "./builtin/PrimitiveDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
@@ -17,18 +17,22 @@ function decodableOf(type: string, decoder?: DecoderName): Decodable {
 describe("JavaDecoderResolver", () => {
   describe("resolveDecoder()", () => {
     it("resolves each registered custom decoder from settings.decoder", () => {
-      const flagDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentFlag"));
-      expect(flagDecoder instanceof OverrideDecoder).toBeTruthy();
-      expect(flagDecoder.decoderName).toBe(new IntentFlagDecoder(decodableOf("int")).decoderName);
+      const constantsDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "constants"));
+      expect(constantsDecoder instanceof OverrideDecoder).toBeTruthy();
+      expect(constantsDecoder.decoderName).toBe(new ConstantsDecoder(decodableOf("int")).decoderName);
 
-      const uriFlagDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentUriFlag"));
-      expect(uriFlagDecoder.decoderName).toBe(new IntentUriFlagDecoder(decodableOf("int")).decoderName);
+      const bitmaskDecoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "bitmask"));
+      expect(bitmaskDecoder.decoderName).toBe(new BitmaskDecoder(decodableOf("int")).decoderName);
     });
 
     it("prioritizes settings.decoder over the declared type", () => {
       // type "int" would normally resolve to PrimitiveDecoder
-      const decoder = JavaDecoderResolver.resolveDecoder(decodableOf("int", "intentFlag"));
+      const decoder = JavaDecoderResolver.resolveDecoder({
+        type: "int",
+        settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "bitmask", config: { class: "android.content.Intent", fields: "FLAG_ACTIVITY_*" } },
+      });
 
+      // FLAG_RECEIVER_FOREGROUND has the same value
       expect(decoder.decode(0x10000000 as unknown as Java.Wrapper).value).toEqual(["FLAG_ACTIVITY_NEW_TASK"]);
     });
 

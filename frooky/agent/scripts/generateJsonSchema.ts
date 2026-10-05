@@ -11,7 +11,6 @@ const outPath = path.join(rootDir, "..", "..", "..", "docs", "schema", "frooky-c
 
 type JsonSchemaNode = {
   type?: string;
-  pattern?: string;
   const?: string;
   enum?: string[];
   properties?: Record<string, JsonSchemaNode>;
@@ -55,22 +54,18 @@ function setDecoderNames(node: JsonSchemaNode | undefined, names: string[]) {
   node.anyOf?.forEach((variant) => setDecoderNames(variant, names));
 }
 
-// `config.constants` is a map of names to values, or in a Java hook also a class with an optional pattern for its
-// fields, e.g. `javax.crypto.Cipher#*_MODE` (see parseConstantsClass()). Native hooks only get the map.
-const CONSTANTS_CLASS_PATTERN = "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$";
-
-function setConstantsForms(node: JsonSchemaNode | undefined, allowClass: boolean) {
+// `config.class` and `config.fields` read constants from a Java class, so native hooks don't offer them
+function removeJavaConfigOptions(node: JsonSchemaNode | undefined) {
   if (!node || typeof node !== "object") return;
-  const constants = node.properties?.config?.properties?.constants;
-  if (constants?.anyOf) {
-    const classForm = constants.anyOf.find((form) => form.type === "string");
-    if (classForm) classForm.pattern = CONSTANTS_CLASS_PATTERN;
-    constants.anyOf = constants.anyOf.filter((form) => allowClass || form.type !== "string");
+  const configOptions = node.properties?.config?.properties;
+  if (configOptions) {
+    delete configOptions.class;
+    delete configOptions.fields;
   }
-  Object.values(node.properties ?? {}).forEach((propertySchema) => setConstantsForms(propertySchema, allowClass));
-  if (Array.isArray(node.items)) node.items.forEach((item) => setConstantsForms(item, allowClass));
-  else setConstantsForms(node.items, allowClass);
-  node.anyOf?.forEach((variant) => setConstantsForms(variant, allowClass));
+  Object.values(node.properties ?? {}).forEach(removeJavaConfigOptions);
+  if (Array.isArray(node.items)) node.items.forEach(removeJavaConfigOptions);
+  else removeJavaConfigOptions(node.items);
+  node.anyOf?.forEach(removeJavaConfigOptions);
 }
 
 const javaDecoderNames = decoderNames(javaDecoderNameSchema);
@@ -81,7 +76,7 @@ hookCollectionVariants.forEach((variant, i) => {
   // a copy, as the variants may share nodes with the top-level settings
   const copy = structuredClone(variant);
   setDecoderNames(copy, copy.properties?.javaClass ? javaDecoderNames : nativeDecoderNames);
-  setConstantsForms(copy, Boolean(copy.properties?.javaClass));
+  if (!copy.properties?.javaClass) removeJavaConfigOptions(copy);
   hookCollectionVariants[i] = copy;
 });
 

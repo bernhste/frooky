@@ -218,22 +218,26 @@ describe("AndroidHookValidator", () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
-    it("accepts a class in config.constants and skips a hook with a malformed one", () => {
+    it("accepts config.class and config.fields, and skips a hook that combines them with a map", () => {
       const javaCollection: InputJavaHookCollection = {
         type: "java",
         javaClass: "com.example.Foo",
         hooks: [
-          { method: "ok", overloads: [{ params: [["int", "mode", { decoder: "constants", config: { constants: "javax.crypto.Cipher#*_MODE" } }]] }] },
-          { method: "bad", overloads: [{ params: [["int", "mode", { decoder: "bitmask", config: { constants: "Cipher#" } }]] }] },
+          {
+            method: "a",
+            overloads: [{ params: [["int", "mode", { decoder: "constants", config: { class: "javax.crypto.Cipher", fields: "*_MODE" } }]] }],
+          },
+          { method: "b", overloads: [{ params: [["int", "flags", { decoder: "bitmask", config: { fields: "FLAG_*" } }]] }] },
+          { method: "c", overloads: [{ params: [["int", "mode", { decoder: "constants", config: { constants: { A: 1 }, fields: "*_MODE" } }]] }] },
         ],
       };
 
       const result = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
 
-      expect(result.map((hook) => hook.method)).toEqual(["ok"]);
+      expect(result.map((hook) => hook.method)).toEqual(["a", "b"]);
       const [message] = warnSpy.mock.calls[0] as [string];
       expect(message).toContain(
-        "config of 'mode': 'Cipher#' is no class with constants. Name a class and optionally a pattern for its fields, e.g. 'javax.crypto.Cipher#*_MODE'.",
+        "config of 'mode': 'constants' can't be combined with 'class' or 'fields'. Use either the map or the fields of a class.",
       );
     });
 

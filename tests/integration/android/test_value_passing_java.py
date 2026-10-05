@@ -217,8 +217,8 @@ class TestValuePassingJava:
         assert [item["value"] for item in decoded_list[:2]] == ["a", "b"]
         assert decoded_list[2] == {"type": "java.lang.String", "value": "[truncated at 2]"}
 
-    def test_intent_flag_decoder(self, run_frooky, find_matched_events):
-        """`decoder: intentFlag` resolves an int bitmask to the matching Intent.FLAG_* constant names."""
+    def test_bitmask_with_fields_of_hooked_class(self, run_frooky, find_matched_events):
+        """`decoder: bitmask` with `config.fields` resolves an int bitmask to the hooked class's Intent.FLAG_* names."""
         hook_file = textwrap.dedent("""\
             hookCollection:
               - javaClass: android.content.Intent
@@ -226,7 +226,7 @@ class TestValuePassingJava:
                   - method: setFlags
                     overloads:
                       - params:
-                          - [int, flags, {decoder: intentFlag}]
+                          - [int, flags, {decoder: bitmask, config: {fields: "FLAG_*"}}]
             """)
 
         run_frooky(hook_file, TARGET_APP)
@@ -246,7 +246,7 @@ class TestValuePassingJava:
         }
         matching = [e["argsIn"][0] for e in events if set(e["argsIn"][0].get("value", [])) == expected_flags]
         assert len(matching) == 1
-        assert matching[0]["type"] == "android.content.IntentFlag"
+        assert matching[0]["type"] == "int"
 
     def test_hashcode_return_type_decoder(self, run_frooky, find_matched_events):
         """Java return type decoder: `retType: {decoder: hashCode}` renders `<class>@<hashCode>`."""

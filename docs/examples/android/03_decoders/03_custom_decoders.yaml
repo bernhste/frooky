@@ -58,9 +58,9 @@ hookCollection:
           - params:
               - [int, opmode, { decoder: constants, config: { constants: { ENCRYPT: 1, DECRYPT: 2 } } }]
 
-  # `bitmask`: the names of the constants whose bits are set in a bitmask. The purposes of a Keystore key are a
-  # bitmask of KeyProperties.PURPOSE_*, which aren't declared on the hooked Builder class, so `config: { constants }`
-  # names the class and a pattern for the fields to use.
+  # `bitmask` with `class`: the names of the constants whose bits are set in a bitmask. The purposes of a Keystore key
+  # are a bitmask of KeyProperties.PURPOSE_*, which aren't declared on the hooked Builder class, so `class` names the
+  # class and `fields` the constants of it to use.
   # Docs: https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec.Builder#Builder(java.lang.String,%20int)
   - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
     hooks:
@@ -68,36 +68,36 @@ hookCollection:
         overloads:
           - params:
               - [java.lang.String, keystoreAlias]
-              - [int, purposes, { decoder: bitmask, config: { constants: "android.security.keystore.KeyProperties#PURPOSE_*" } }]
+              - [int, purposes, { decoder: bitmask, config: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" } }]
 
-  # `constants` with a class and a pattern: Cipher declares ENCRYPT_MODE and PUBLIC_KEY, both 1, so `*_MODE` picks
-  # the constants of `opmode`.
+  # `constants` with `fields`: the constants of the hooked class whose names match. Cipher declares ENCRYPT_MODE and
+  # PUBLIC_KEY, both 1, so `*_MODE` picks the constants of `opmode`.
   # Docs: https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key,%20java.security.spec.AlgorithmParameterSpec)
   - javaClass: javax.crypto.Cipher
     hooks:
       - method: init
         overloads:
           - params:
-              - [int, opmode, { decoder: constants, config: { constants: "javax.crypto.Cipher#*_MODE" } }]
+              - [int, opmode, { decoder: constants, config: { fields: "*_MODE" } }]
               - [java.security.Key, key]
               - [java.security.spec.AlgorithmParameterSpec, params]
 
-  # `intentFlag`: the Intent.FLAG_* constants set in a bitmask
+  # `bitmask` with `fields`: the Intent.FLAG_* constants set in a bitmask
   # Docs: https://developer.android.com/reference/android/content/Intent#setFlags(int)
   - javaClass: android.content.Intent
     hooks:
       - method: setFlags
         overloads:
           - params:
-              - [int, flags, { decoder: intentFlag }]
+              - [int, flags, { decoder: bitmask, config: { fields: "FLAG_*" } }]
 
-      # `intentUriFlag`: the Intent.URI_* constants set in a bitmask
+      # the Intent.URI_* constants set in a bitmask
       # Docs: https://developer.android.com/reference/android/content/Intent#parseUri(java.lang.String,%20int)
       - method: parseUri
         overloads:
           - params:
               - [java.lang.String, uri]
-              - [int, flags, { decoder: intentUriFlag }]
+              - [int, flags, { decoder: bitmask, config: { fields: "URI_*" } }]
 
 # Expected values (argsIn):
 #   receiveTextBytes:  "Hello frooky"
@@ -108,5 +108,5 @@ hookCollection:
 #   receiveMode:       mode "MODE_DECRYPT", and opmode "DECRYPT" (a second event)
 #   Builder.$init:     keystoreAlias "TestKeyPair", purposes ["PURPOSE_SIGN", "PURPOSE_VERIFY"]
 #   Cipher.init:       opmode "ENCRYPT_MODE"
-#   setFlags:          {type: android.content.IntentFlag, value: [FLAG_GRANT_READ_URI_PERMISSION, ..., FLAG_ACTIVITY_NEW_TASK, FLAG_ACTIVITY_CLEAR_TASK]}
-#   parseUri:          flags {type: android.content.IntentUriFlag, value: [URI_INTENT_SCHEME]}
+#   setFlags:          [FLAG_GRANT_READ_URI_PERMISSION, ..., FLAG_ACTIVITY_NEW_TASK, FLAG_ACTIVITY_CLEAR_TASK]
+#   parseUri:          flags [URI_INTENT_SCHEME]

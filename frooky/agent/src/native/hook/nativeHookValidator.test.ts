@@ -149,20 +149,18 @@ describe("NativeHookValidator", () => {
       expect(messages[1]).toContain("config of 'fd': decoder 'fd' doesn't accept 'constants'. It accepts no config.");
     });
 
-    it("skips a hook with a class in config.constants, which only Java hooks support", () => {
-      const nativeCollection: InputNativeHookCollection = {
+    it("skips a hook with config.class or config.fields, which only Java hooks support", () => {
+      const nativeCollection = {
         type: "native",
         module: "libfoo.so",
-        hooks: ["ok", { symbol: "bad", params: [["int", "flags", { decoder: "bitmask", config: { constants: "android.os.Foo#FLAG_*" } }]] }],
-      };
+        hooks: ["ok", { symbol: "bad", params: [["int", "flags", { decoder: "bitmask", config: { class: "android.os.Foo", fields: "FLAG_*" } }]] }],
+      } as unknown as InputNativeHookCollection;
 
       const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["ok"]);
       const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain(
-        "config of 'flags': constants must map names to values, e.g. '{ O_CREAT: 0x40 }'. A class of constants is only supported in Java hooks.",
-      );
+      expect(message).toContain("config of 'flags': decoder 'bitmask' doesn't accept 'class', 'fields'. It accepts: constants.");
     });
 
     it("uses the hook collection's module and warns about a module set on the hook itself", () => {

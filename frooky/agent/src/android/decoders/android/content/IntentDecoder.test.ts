@@ -24,7 +24,7 @@ describe("IntentDecoder", () => {
     expect(findProperty(result, "component")).toEqual({ type: "android.content.ComponentName", name: "component", value: null });
     expect(findProperty(result, "categories")).toEqual({ type: "java.util.Set", name: "categories", value: null });
     expect(findProperty(result, "extras")).toEqual({ type: "android.os.Bundle", name: "extras", value: null });
-    expect(findProperty(result, "flags")).toEqual({ type: "android.content.IntentFlag", name: "flags", value: [] });
+    expect(findProperty(result, "flags")).toEqual({ type: "int", name: "flags", value: [] });
   });
 
   it("should decode action, type and package as plain strings", () => {
@@ -80,7 +80,7 @@ describe("IntentDecoder", () => {
     const result = decoder.decode(intent);
 
     const flags = findProperty(result, "flags");
-    expect(flags?.type).toBe("android.content.IntentFlag");
+    expect(flags?.type).toBe("int");
     expect(flags?.value).toContain("FLAG_ACTIVITY_NEW_TASK");
     expect(flags?.value).toContain("FLAG_ACTIVITY_SINGLE_TOP");
   });

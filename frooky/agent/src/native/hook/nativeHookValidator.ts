@@ -40,7 +40,6 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
             ["return value", validatedHook.retType?.settings],
           ];
           validateDecoderConfig(values, acceptedNativeDecoderConfig);
-          rejectConstantsClasses(values);
           validateDecoderNames(
             [validatedHook.decoderSettings, validatedHook.retType?.settings, ...(validatedHook.params ?? []).map((p) => p.settings)],
             NATIVE_DECODER_NAMES,
@@ -212,15 +211,4 @@ function describeNativeFunction(inputHook: unknown): string {
   const { symbol, offset } = (inputHook ?? {}) as { symbol?: unknown; offset?: unknown };
   if (symbol !== undefined) return `function '${symbol}'`;
   return offset !== undefined ? `function at offset '${offset}'` : "function";
-}
-
-// `config.constants` of a native hook must be a map; reading the constants of a class is only for Java hooks
-function rejectConstantsClasses(values: [label: string, settings: DecoderSettings | undefined][]): void {
-  for (const [label, settings] of values) {
-    if (typeof settings?.config?.constants === "string") {
-      throw new Error(
-        `config of '${label}': constants must map names to values, e.g. '{ O_CREAT: 0x40 }'. A class of constants is only supported in Java hooks.`,
-      );
-    }
-  }
 }

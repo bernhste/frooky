@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { Decodable } from "../../../shared/decoders/decodable";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { logger } from "../../../shared/logger";
 import { namePatternToRegExp } from "../../../shared/utils";
@@ -83,33 +84,28 @@ export function decodeConstantValues(className: string, pattern = "*", visibleTo
   return constants;
 }
 
-// A class of `config.constants`, e.g. `javax.crypto.Cipher#*_MODE` -> `{ className: "javax.crypto.Cipher", pattern:
-// "*_MODE" }`. Without `#`, every field matches. Throws if it is no class name with an optional field name pattern.
-export function parseConstantsClass(reference: string): { className: string; pattern: string } {
-  const separator = reference.indexOf("#");
-  const className = separator < 0 ? reference : reference.slice(0, separator);
-  const pattern = separator < 0 ? "*" : reference.slice(separator + 1);
-  if (!/^[\w$]+(\.[\w$]+)*$/.test(className) || !/^[\w$*]+$/.test(pattern)) {
-    throw new Error(
-      `'${reference}' is no class with constants. Name a class and optionally a pattern for its fields, e.g. 'javax.crypto.Cipher#*_MODE'.`,
-    );
-  }
-  return { className, pattern };
-}
-
-// The constants of type `type` of a class in `config.constants`, e.g. `javax.crypto.Cipher#*_MODE` for an `int`.
-// Logs a warning and returns none if the class isn't found or has no such constant. `visibleTo`: see
-// decodeConstantValues().
-export function classConstants(reference: string, type: string, visibleTo?: string): DecodedValue[] {
-  const { className, pattern } = parseConstantsClass(reference);
+// The constants of type `type` of `className` whose name matches `pattern`, e.g. the `int` fields `*_MODE` of
+// `javax.crypto.Cipher`. Logs a warning and returns none if the class isn't found or has no such constant.
+// `visibleTo`: see decodeConstantValues().
+export function classConstants(className: string, pattern: string, type: string, visibleTo?: string): DecodedValue[] {
   try {
     const constants = decodeConstantValues(className, pattern, visibleTo).filter((constant) => constant.type === type);
     if (constants.length === 0) {
-      logger.warn(`config.constants '${reference}': '${className}' has no static final ${type} field matching '${pattern}'.`);
+      logger.warn(`'${className}' has no static final ${type} field matching '${pattern}', the value is decoded as it is.`);
     }
     return constants;
   } catch (e) {
-    logger.warn(`config.constants '${reference}': ${e instanceof Error ? e.message : e}. The value is decoded as it is.`);
+    logger.warn(`${e instanceof Error ? e.message : e}, the value is decoded as it is.`);
     return [];
   }
+}
+
+// The constants of `decoder: constants` and `decoder: bitmask` in a Java hook: the `static final` fields of
+// `config.class`, or else of the hooked class, that match `config.fields`. None with a map in `config.constants`, or
+// without a class.
+export function configClassConstants(decodable: Decodable): DecodedValue[] {
+  const config = decodable.settings.config;
+  const className = config?.class ?? decodable.declaringClass;
+  if (config?.constants || !className) return [];
+  return classConstants(className, config?.fields ?? "*", decodable.type, decodable.declaringClass);
 }

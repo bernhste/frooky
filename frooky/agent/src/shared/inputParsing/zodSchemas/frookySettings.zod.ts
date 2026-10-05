@@ -10,10 +10,12 @@ export const hookSettingsSchema = z.object({
 });
 
 export const decoderConfigSchema = z.object({
-    constants: z.union([z.record(z.string(), z.number()), z.string()]).optional()
+    constants: z.record(z.string(), z.number()).optional(),
+    class: z.string().optional(),
+    fields: z.string().optional()
 });
 
-export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hashCode"), z.literal("intentFlag"), z.literal("intentUriFlag"), z.literal("constants"), z.literal("bitmask"), z.literal("getters")]);
+export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hashCode"), z.literal("constants"), z.literal("bitmask"), z.literal("getters")]);
 
 export const nativeBitmaskPresetNameSchema = z.union([z.literal("openFlags"), z.literal("mmapProt"), z.literal("mmapFlags"), z.literal("dlopenFlags"), z.literal("socketType")]);
 

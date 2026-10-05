@@ -78,8 +78,6 @@
                 "string",
                 "base64",
                 "hashCode",
-                "intentFlag",
-                "intentUriFlag",
                 "constants",
                 "bitmask",
                 "getters",
@@ -146,8 +144,6 @@
                                 "string",
                                 "base64",
                                 "hashCode",
-                                "intentFlag",
-                                "intentUriFlag",
                                 "constants",
                                 "bitmask",
                                 "getters"
@@ -215,8 +211,6 @@
                                                 "string",
                                                 "base64",
                                                 "hashCode",
-                                                "intentFlag",
-                                                "intentUriFlag",
                                                 "constants",
                                                 "bitmask",
                                                 "getters"
@@ -243,21 +237,19 @@
                                               "type": "object",
                                               "properties": {
                                                 "constants": {
-                                                  "anyOf": [
-                                                    {
-                                                      "type": "object",
-                                                      "propertyNames": {
-                                                        "type": "string"
-                                                      },
-                                                      "additionalProperties": {
-                                                        "type": "number"
-                                                      }
-                                                    },
-                                                    {
-                                                      "type": "string",
-                                                      "pattern": "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$"
-                                                    }
-                                                  ]
+                                                  "type": "object",
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "additionalProperties": {
+                                                    "type": "number"
+                                                  }
+                                                },
+                                                "class": {
+                                                  "type": "string"
+                                                },
+                                                "fields": {
+                                                  "type": "string"
                                                 }
                                               }
                                             },
@@ -316,8 +308,6 @@
                                                 "string",
                                                 "base64",
                                                 "hashCode",
-                                                "intentFlag",
-                                                "intentUriFlag",
                                                 "constants",
                                                 "bitmask",
                                                 "getters"
@@ -344,21 +334,19 @@
                                               "type": "object",
                                               "properties": {
                                                 "constants": {
-                                                  "anyOf": [
-                                                    {
-                                                      "type": "object",
-                                                      "propertyNames": {
-                                                        "type": "string"
-                                                      },
-                                                      "additionalProperties": {
-                                                        "type": "number"
-                                                      }
-                                                    },
-                                                    {
-                                                      "type": "string",
-                                                      "pattern": "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$"
-                                                    }
-                                                  ]
+                                                  "type": "object",
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "additionalProperties": {
+                                                    "type": "number"
+                                                  }
+                                                },
+                                                "class": {
+                                                  "type": "string"
+                                                },
+                                                "fields": {
+                                                  "type": "string"
                                                 }
                                               }
                                             },
@@ -433,8 +421,6 @@
                                                 "string",
                                                 "base64",
                                                 "hashCode",
-                                                "intentFlag",
-                                                "intentUriFlag",
                                                 "constants",
                                                 "bitmask",
                                                 "getters"
@@ -461,21 +447,19 @@
                                               "type": "object",
                                               "properties": {
                                                 "constants": {
-                                                  "anyOf": [
-                                                    {
-                                                      "type": "object",
-                                                      "propertyNames": {
-                                                        "type": "string"
-                                                      },
-                                                      "additionalProperties": {
-                                                        "type": "number"
-                                                      }
-                                                    },
-                                                    {
-                                                      "type": "string",
-                                                      "pattern": "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$"
-                                                    }
-                                                  ]
+                                                  "type": "object",
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "additionalProperties": {
+                                                    "type": "number"
+                                                  }
+                                                },
+                                                "class": {
+                                                  "type": "string"
+                                                },
+                                                "fields": {
+                                                  "type": "string"
                                                 }
                                               }
                                             },
@@ -512,8 +496,6 @@
                                       "string",
                                       "base64",
                                       "hashCode",
-                                      "intentFlag",
-                                      "intentUriFlag",
                                       "constants",
                                       "bitmask",
                                       "getters"
@@ -540,21 +522,19 @@
                                     "type": "object",
                                     "properties": {
                                       "constants": {
-                                        "anyOf": [
-                                          {
-                                            "type": "object",
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "additionalProperties": {
-                                              "type": "number"
-                                            }
-                                          },
-                                          {
-                                            "type": "string",
-                                            "pattern": "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$"
-                                          }
-                                        ]
+                                        "type": "object",
+                                        "propertyNames": {
+                                          "type": "string"
+                                        },
+                                        "additionalProperties": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "class": {
+                                        "type": "string"
+                                      },
+                                      "fields": {
+                                        "type": "string"
                                       }
                                     }
                                   },
@@ -613,8 +593,6 @@
                                 "string",
                                 "base64",
                                 "hashCode",
-                                "intentFlag",
-                                "intentUriFlag",
                                 "constants",
                                 "bitmask",
                                 "getters"
@@ -671,8 +649,6 @@
                       "string",
                       "base64",
                       "hashCode",
-                      "intentFlag",
-                      "intentUriFlag",
                       "constants",
                       "bitmask",
                       "getters"
@@ -829,17 +805,13 @@
                                             "type": "object",
                                             "properties": {
                                               "constants": {
-                                                "anyOf": [
-                                                  {
-                                                    "type": "object",
-                                                    "propertyNames": {
-                                                      "type": "string"
-                                                    },
-                                                    "additionalProperties": {
-                                                      "type": "number"
-                                                    }
-                                                  }
-                                                ]
+                                                "type": "object",
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "additionalProperties": {
+                                                  "type": "number"
+                                                }
                                               }
                                             }
                                           },
@@ -932,17 +904,13 @@
                                             "type": "object",
                                             "properties": {
                                               "constants": {
-                                                "anyOf": [
-                                                  {
-                                                    "type": "object",
-                                                    "propertyNames": {
-                                                      "type": "string"
-                                                    },
-                                                    "additionalProperties": {
-                                                      "type": "number"
-                                                    }
-                                                  }
-                                                ]
+                                                "type": "object",
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "additionalProperties": {
+                                                  "type": "number"
+                                                }
                                               }
                                             }
                                           },
@@ -1051,17 +1019,13 @@
                                             "type": "object",
                                             "properties": {
                                               "constants": {
-                                                "anyOf": [
-                                                  {
-                                                    "type": "object",
-                                                    "propertyNames": {
-                                                      "type": "string"
-                                                    },
-                                                    "additionalProperties": {
-                                                      "type": "number"
-                                                    }
-                                                  }
-                                                ]
+                                                "type": "object",
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "additionalProperties": {
+                                                  "type": "number"
+                                                }
                                               }
                                             }
                                           },
@@ -1143,17 +1107,13 @@
                                           "type": "object",
                                           "properties": {
                                             "constants": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "object",
-                                                  "propertyNames": {
-                                                    "type": "string"
-                                                  },
-                                                  "additionalProperties": {
-                                                    "type": "number"
-                                                  }
-                                                }
-                                              ]
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "number"
+                                              }
                                             }
                                           }
                                         },
@@ -1230,17 +1190,13 @@
                                           "type": "object",
                                           "properties": {
                                             "constants": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "object",
-                                                  "propertyNames": {
-                                                    "type": "string"
-                                                  },
-                                                  "additionalProperties": {
-                                                    "type": "number"
-                                                  }
-                                                }
-                                              ]
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "number"
+                                              }
                                             }
                                           }
                                         },
@@ -1407,17 +1363,13 @@
                                             "type": "object",
                                             "properties": {
                                               "constants": {
-                                                "anyOf": [
-                                                  {
-                                                    "type": "object",
-                                                    "propertyNames": {
-                                                      "type": "string"
-                                                    },
-                                                    "additionalProperties": {
-                                                      "type": "number"
-                                                    }
-                                                  }
-                                                ]
+                                                "type": "object",
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "additionalProperties": {
+                                                  "type": "number"
+                                                }
                                               }
                                             }
                                           },
@@ -1510,17 +1462,13 @@
                                             "type": "object",
                                             "properties": {
                                               "constants": {
-                                                "anyOf": [
-                                                  {
-                                                    "type": "object",
-                                                    "propertyNames": {
-                                                      "type": "string"
-                                                    },
-                                                    "additionalProperties": {
-                                                      "type": "number"
-                                                    }
-                                                  }
-                                                ]
+                                                "type": "object",
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "additionalProperties": {
+                                                  "type": "number"
+                                                }
                                               }
                                             }
                                           },
@@ -1629,17 +1577,13 @@
                                             "type": "object",
                                             "properties": {
                                               "constants": {
-                                                "anyOf": [
-                                                  {
-                                                    "type": "object",
-                                                    "propertyNames": {
-                                                      "type": "string"
-                                                    },
-                                                    "additionalProperties": {
-                                                      "type": "number"
-                                                    }
-                                                  }
-                                                ]
+                                                "type": "object",
+                                                "propertyNames": {
+                                                  "type": "string"
+                                                },
+                                                "additionalProperties": {
+                                                  "type": "number"
+                                                }
                                               }
                                             }
                                           },
@@ -1721,17 +1665,13 @@
                                           "type": "object",
                                           "properties": {
                                             "constants": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "object",
-                                                  "propertyNames": {
-                                                    "type": "string"
-                                                  },
-                                                  "additionalProperties": {
-                                                    "type": "number"
-                                                  }
-                                                }
-                                              ]
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "number"
+                                              }
                                             }
                                           }
                                         },
@@ -1808,17 +1748,13 @@
                                           "type": "object",
                                           "properties": {
                                             "constants": {
-                                              "anyOf": [
-                                                {
-                                                  "type": "object",
-                                                  "propertyNames": {
-                                                    "type": "string"
-                                                  },
-                                                  "additionalProperties": {
-                                                    "type": "number"
-                                                  }
-                                                }
-                                              ]
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "number"
+                                              }
                                             }
                                           }
                                         },

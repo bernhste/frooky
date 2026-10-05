@@ -4,8 +4,6 @@ import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
 import { DecoderConfig, DecoderSettings, JavaDecoderName } from "../../shared/frookySettings";
-import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
-import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
 import { Base64Decoder } from "./builtin/Base64Decoder";
 import { ConstantsDecoder } from "./builtin/ConstantsDecoder";
@@ -26,8 +24,6 @@ function getCustomDecoderRegistry(): Record<JavaDecoderName, DecoderConstructor>
     string: StringDecoder,
     base64: Base64Decoder,
     hashCode: HashCodeDecoder,
-    intentFlag: IntentFlagDecoder,
-    intentUriFlag: IntentUriFlagDecoder,
     constants: ConstantsDecoder,
     bitmask: BitmaskDecoder,
     getters: GetterDecoder,
@@ -78,5 +74,5 @@ export function acceptedJavaDecoderArgs(decodable: Decodable): readonly DecoderA
 
 // The `config` options the decoder of a value accepts, see docs/decoders-java.md
 export function acceptedJavaDecoderConfig(settings: DecoderSettings): readonly (keyof DecoderConfig)[] {
-  return settings.decoder === "constants" || settings.decoder === "bitmask" ? ["constants"] : [];
+  return settings.decoder === "constants" || settings.decoder === "bitmask" ? ["constants", "class", "fields"] : [];
 }

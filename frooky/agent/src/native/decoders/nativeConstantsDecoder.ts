@@ -59,12 +59,6 @@ function toSignedValue(bits: UInt64, type: string): number | string {
   return n >= signBit ? n - 2 * signBit : n;
 }
 
-// `config.constants` of a native hook, which can only be a map: the native validator rejects a Java class
-const constantsMap = (decodable: Decodable): Record<string, number> | undefined => {
-  const constants = decodable.settings.config?.constants;
-  return typeof constants === "object" ? constants : undefined;
-};
-
 // `decoder: constants`: the name of the constant in `config.constants` with the value of an integer.
 export class NativeConstantsDecoder extends Decoder<NativePointer> {
   readonly decoderName = "NativeConstantsDecoder";
@@ -75,7 +69,7 @@ export class NativeConstantsDecoder extends Decoder<NativePointer> {
   // `preset` is a built-in decoder such as `socketDomain`, undefined on a platform it has no values for
   constructor(decodable: Decodable, preset?: ConstantSet | null) {
     super(decodable);
-    this.constants = preset === undefined ? constantsMap(decodable) : preset?.constants;
+    this.constants = preset === undefined ? decodable.settings.config?.constants : preset?.constants;
     if (!this.constants && preset === undefined) {
       logger.warn(`decoder: constants on '${decodable.name ?? decodable.type}' needs 'config: { constants }', it is decoded as a number.`);
     }
@@ -102,9 +96,8 @@ export class NativeBitmaskDecoder extends Decoder<NativePointer> {
     super(decodable);
     if (preset !== undefined) {
       this.constantSet = preset ?? undefined;
-    } else {
-      const constants = constantsMap(decodable);
-      if (constants) this.constantSet = { constants };
+    } else if (decodable.settings.config?.constants) {
+      this.constantSet = { constants: decodable.settings.config.constants };
     }
     if (!this.constantSet && preset === undefined) {
       logger.warn(`decoder: bitmask on '${decodable.name ?? decodable.type}' needs 'config: { constants }', it is decoded as a number.`);

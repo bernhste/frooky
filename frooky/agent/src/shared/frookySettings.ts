@@ -99,12 +99,22 @@ export interface DecoderSettings extends BaseDecoderSettings {
  */
 export interface DecoderConfig {
   /**
-   * Names of the values of an integer, for `decoder: constants` and `decoder: bitmask`: a map, e.g.
-   * `{ O_CREAT: 0x40 }`, or in Java hooks a class whose `static final` fields are the constants, e.g.
-   * `javax.crypto.Cipher`, optionally with a pattern for the field names after `#`, e.g. `javax.crypto.Cipher#*_MODE`.
-   * Java `constants` without it uses the constants of the hooked class.
+   * Names of the values of an integer, e.g. `{ O_CREAT: 0x40 }`, for `decoder: constants` and `decoder: bitmask`. In Java
+   * hooks, it can't be combined with `class` and `fields`.
    */
-  constants?: Record<string, number> | string;
+  constants?: Record<string, number>;
+
+  /**
+   * Java hooks: the class whose `static final` fields are the constants of `decoder: constants` and `decoder: bitmask`,
+   * e.g. `javax.crypto.Cipher`. Only the fields of the type of the value are used. Default: the hooked class.
+   */
+  class?: string;
+
+  /**
+   * Java hooks: a pattern for the names of the fields of `class` (or of the hooked class) that are the constants, in
+   * which `*` matches any characters, e.g. `*_MODE`. Default: all fields.
+   */
+  fields?: string;
 }
 
 /**
@@ -112,7 +122,7 @@ export interface DecoderConfig {
  *
  * @public
  */
-export type JavaDecoderName = "string" | "base64" | "hashCode" | "intentFlag" | "intentUriFlag" | "constants" | "bitmask" | "getters";
+export type JavaDecoderName = "string" | "base64" | "hashCode" | "constants" | "bitmask" | "getters";
 
 /**
  * Decoders of native hooks that decode an integer bitmask with built-in constants, like `decoder: bitmask`.

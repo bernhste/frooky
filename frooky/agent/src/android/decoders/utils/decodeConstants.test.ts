@@ -1,6 +1,8 @@
 import Java from "frida-java-bridge";
+import { DecoderConfig } from "../../../shared/frookySettings";
 import { logger } from "../../../shared/logger";
-import { classConstants, decodeConstantValues, parseConstantsClass } from "./decodeConstants";
+import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
+import { classConstants, configClassConstants, decodeConstantValues } from "./decodeConstants";
 
 describe("javaConstants", () => {
   describe("decodePublicMethodValues()", () => {
@@ -73,20 +75,6 @@ describe("javaConstants", () => {
     });
   });
 
-  describe("parseConstantsClass()", () => {
-    it("should split a class and a pattern for its fields, all fields without a pattern", () => {
-      expect(parseConstantsClass("javax.crypto.Cipher#*_MODE")).toEqual({ className: "javax.crypto.Cipher", pattern: "*_MODE" });
-      expect(parseConstantsClass("javax.crypto.Cipher")).toEqual({ className: "javax.crypto.Cipher", pattern: "*" });
-      expect(parseConstantsClass("com.example.Outer$Inner#FLAG_*")).toEqual({ className: "com.example.Outer$Inner", pattern: "FLAG_*" });
-    });
-
-    it("should throw for no class name or an empty pattern", () => {
-      for (const reference of ["", "Cipher#", "#FLAG_*", "javax..Cipher", "javax.crypto.Cipher#FLAG.*", "javax.crypto.Cipher#A#B"]) {
-        expect(() => parseConstantsClass(reference)).toThrow(`'${reference}' is no class with constants.`);
-      }
-    });
-  });
-
   describe("classConstants()", () => {
     let warnSpy: Mock;
     beforeEach(() => {
@@ -97,7 +85,7 @@ describe("javaConstants", () => {
     });
 
     it("should return the constants of the type of the value", () => {
-      const constants = classConstants("android.content.Intent#FLAG_ACTIVITY_*", "int");
+      const constants = classConstants("android.content.Intent", "FLAG_ACTIVITY_*", "int");
 
       expect(constants.length).toBeGreaterThan(0);
       expect(constants.every(({ type }) => type === "int")).toBe(true);
@@ -106,17 +94,45 @@ describe("javaConstants", () => {
 
     it("should warn and return none if no constant has the type of the value", () => {
       // the ACTION_* constants of Intent are strings
-      expect(classConstants("android.content.Intent#ACTION_*", "int")).toEqual([]);
+      expect(classConstants("android.content.Intent", "ACTION_*", "int")).toEqual([]);
       expect(warnSpy).toHaveBeenCalledWith(
-        "config.constants 'android.content.Intent#ACTION_*': 'android.content.Intent' has no static final int field matching 'ACTION_*'.",
+        "'android.content.Intent' has no static final int field matching 'ACTION_*', the value is decoded as it is.",
       );
     });
 
     it("should warn and return none for a class that isn't found", () => {
-      expect(classConstants("com.example.Missing#FLAG_*", "int")).toEqual([]);
+      expect(classConstants("com.example.Missing", "FLAG_*", "int")).toEqual([]);
       const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain("config.constants 'com.example.Missing#FLAG_*': ");
-      expect(message).toContain("The value is decoded as it is.");
+      expect(message).toContain("com.example.Missing");
+      expect(message).toContain(", the value is decoded as it is.");
+    });
+  });
+
+  describe("configClassConstants()", () => {
+    const decodable = (config: DecoderConfig | undefined, declaringClass?: string) => ({
+      type: "int",
+      declaringClass,
+      settings: { ...DEFAULT_DECODER_SETTINGS, config },
+    });
+    const names = (constants: { name?: string }[]) => constants.map(({ name }) => name).sort();
+
+    it("should read config.class, else the hooked class, filtered by config.fields", () => {
+      expect(names(configClassConstants(decodable({ fields: "*_MODE" }, "javax.crypto.Cipher")))).toEqual([
+        "DECRYPT_MODE",
+        "ENCRYPT_MODE",
+        "UNWRAP_MODE",
+        "WRAP_MODE",
+      ]);
+      expect(names(configClassConstants(decodable({ class: "javax.crypto.Cipher", fields: "*_KEY" }, "org.example.Foo")))).toEqual([
+        "PRIVATE_KEY",
+        "PUBLIC_KEY",
+        "SECRET_KEY",
+      ]);
+    });
+
+    it("should read no class with a map in config.constants, or without a class", () => {
+      expect(configClassConstants(decodable({ constants: { A: 1 } }, "javax.crypto.Cipher"))).toEqual([]);
+      expect(configClassConstants(decodable(undefined))).toEqual([]);
     });
   });
 });

@@ -1,5 +1,4 @@
 import { acceptedJavaDecoderArgs, acceptedJavaDecoderConfig, javaDecoderNames } from "../decoders/javaDecoderResolver";
-import { parseConstantsClass } from "../decoders/utils/decodeConstants";
 import z from "zod";
 import { hasHookList, validateInputHook } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
@@ -45,7 +44,7 @@ export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, 
             ["return value", overload.retType] as [string, DecoderSettings | undefined],
           ]);
           validateDecoderConfig(values, acceptedJavaDecoderConfig);
-          validateConstantsClasses(values);
+          validateConstantsSource(values);
           validateDecoderNames(
             [normalizedJavaHook.decoderSettings, ...overloads.flatMap((overload) => [overload.retType, ...overload.params.map((p) => p.settings)])],
             javaDecoderNames(),
@@ -162,16 +161,12 @@ function describeJavaMethod(inputHook: unknown): string {
   return String((inputHook as { method?: unknown } | null)?.method);
 }
 
-// Throws if a class in `config.constants` is no class name with an optional pattern, e.g. `javax.crypto.Cipher#*_MODE`.
-// Whether the class exists is only known once the hook is installed.
-function validateConstantsClasses(values: [label: string, settings: DecoderSettings | undefined][]): void {
+// Throws if `config` names the constants twice: a map in `constants`, and a class or fields to read them from
+function validateConstantsSource(values: [label: string, settings: DecoderSettings | undefined][]): void {
   for (const [label, settings] of values) {
-    const constants = settings?.config?.constants;
-    if (typeof constants !== "string") continue;
-    try {
-      parseConstantsClass(constants);
-    } catch (e) {
-      throw new Error(`config of '${label}': ${e instanceof Error ? e.message : e}`);
+    const config = settings?.config;
+    if (config?.constants && (config.class !== undefined || config.fields !== undefined)) {
+      throw new Error(`config of '${label}': 'constants' can't be combined with 'class' or 'fields'. Use either the map or the fields of a class.`);
     }
   }
 }

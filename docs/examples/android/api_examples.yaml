@@ -147,7 +147,7 @@ hookCollection:
       - [ doFinal, {decoder: "string"} ]
 
   # Mutable PendingIntents can be changed by the app they are passed to. `decoder: bitmask` shows the flags
-  # by name, from `config: { constants }`.
+  # by name, from the FLAG_* constants of PendingIntent.
   # Docs: https://developer.android.com/reference/android/app/PendingIntent#getActivity(android.content.Context,%20int,%20android.content.Intent,%20int)
   - javaClass: android.app.PendingIntent
     hooks:
@@ -157,4 +157,4 @@ hookCollection:
         - [android.content.Context, context]
         - [int, requestCode]
         - [android.content.Intent, intent]
-        - [int, flags, { decoder: bitmask, config: { constants: { FLAG_ONE_SHOT: 0x40000000, FLAG_NO_CREATE: 0x20000000, FLAG_CANCEL_CURRENT: 0x10000000, FLAG_UPDATE_CURRENT: 0x8000000, FLAG_IMMUTABLE: 0x4000000, FLAG_MUTABLE: 0x2000000 } } }]
+        - [int, flags, { decoder: bitmask, config: { fields: "FLAG_*" } }]

@@ -5,8 +5,8 @@ import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { DecoderArgValues } from "../../../shared/decoders/decoderArgs";
 import { logger } from "../../../shared/logger";
 
-// Runs the decoder chosen with `decoder:` in the hook file. If it fails on a value (e.g. `decoder: intentFlag` on
-// a String), the value is decoded with the default decoder of its declared type, so the event keeps it.
+// Runs the decoder chosen with `decoder:` in the hook file. If it fails on a value (e.g. `decoder: hashCode` on
+// an `int`), the value is decoded with the default decoder of its declared type, so the event keeps it.
 export class OverrideDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName: string;
   readonly description: string | undefined;
