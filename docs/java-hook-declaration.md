@@ -1,12 +1,16 @@
 # `JavaHook` Declaration
 
-This documentation explains how to write Java hooks.
+A Java hook collection hooks methods of one Java class.
 
 <!-- TOC -->
 
 - [Structure](#structure)
 - [Basic Usage](#basic-usage)
+- [Class Wildcards](#class-wildcards)
+- [Method Wildcards](#method-wildcards)
 - [Method Overloads](#method-overloads)
+- [Class Loaders](#class-loaders)
+  - [Classes of Custom Class Loaders](#classes-of-custom-class-loaders)
 - [Hook and Decoder Settings](#hook-and-decoder-settings)
 - [Type Descriptors](#type-descriptors)
 
@@ -14,84 +18,36 @@ This documentation explains how to write Java hooks.
 
 ## Structure
 
-A `JavaHook` declaration is a YAML object with these top-level fields:
-
 ```yaml
-javaClass: <fully qualified Java class name>
-classLoader: <fully qualified ClassLoader class name>   # Optional. See Classes of Custom Class Loaders
-hookSettings:                       # Optional. Overrides the file-level `settings.hookSettings` for this hook collection
+javaClass: <fully qualified class name>
+classLoader: <fully qualified ClassLoader class name>   # Optional, see Classes of Custom Class Loaders
+hookSettings:                       # Optional. Override the file's settings for this collection
   <hook settings>
-decoderSettings:                    # Optional. Overrides the file-level `settings.decoderSettings` for this hook collection
+decoderSettings:                    # Optional
   <decoder settings>
 hooks:
-  - <method name>
-  - method: <method name>
-    overloads:                        # Optional
+  - <method name>                                     # short form
+  - [<method name>, { <decoder settings> }]           # short form with settings
+  - method: <method name>                             # expanded form
+    overloads:                      # Optional. Default: all overloads
       - params:
           - <parameter declaration>
-        retType: <decoder settings>   # Optional
-    hookSettings:                     # Optional. Overrides the hook collection's hookSettings for this hook only
+        retType: <decoder settings> # Optional
+    hookSettings:                   # Optional. Override the collection's settings for this hook
       <hook settings>
-    decoderSettings:                  # Optional. Overrides the hook collection's decoderSettings for this hook only
+    decoderSettings:                # Optional
       <decoder settings>
 ```
 
-Each item in `hooks` can be written in one of three forms.
+| Form                | Hooks                                                                       |
+| ------------------- | --------------------------------------------------------------------------- |
+| Short               | All overloads of the method                                                 |
+| Short with settings | All overloads of the method, with its own `decoderSettings`                 |
+| Expanded            | The overloads listed in `overloads` (all without it), with its own settings |
 
-Use the **short form** to hook all overloads of a method.
-
-```yaml
-javaClass: <fully qualified Java class name>
-hooks:
-  - <method name>
-```
-
-Use the **short form with settings** - a `[<method name>, {<decoder settings>}]` tuple - to hook all overloads of a method while overriding its `decoderSettings`, without switching to the expanded form.
-
-```yaml
-javaClass: <fully qualified Java class name>
-hooks:
-  - [<method name>, { <decoder settings> }]
-```
-
-Use the **expanded form** when you want to declare specific overloads, or override settings for a single hook.
-
-```yaml
-javaClass: <fully qualified Java class name>
-hooks:
-  - method: <method name>
-    overloads:                        # Optional
-      - params:
-          - <parameter declaration>
-```
-
-Each item in `overloads` describes one method signature.
-
-```yaml
-params:
-  - <parameter declaration>
-```
-
-> [!IMPORTANT]
-> Please read the documentation on [parameter](./parameter-declaration.md) and [return type](./return-type-declaration.md) declaration to learn how to declare and configure them properly.
->
-> There are multiple ways to declare a parameter. In this document, we always use [named parameters](./parameter-declaration.md#named-java-parameters).
->
-> Java hooks do not declare a return type because it is always resolved via reflection. To customize how the return value is decoded, pass decoder settings to `retType` on the overload (e.g. `retType: { decoder: string }`). See [Return Type Declaration](./return-type-declaration.md).
+Java hooks declare no return type: frooky gets it by reflection. `retType` only takes decoder settings, see [Return Type Declaration](./return-type-declaration.md#java-return-types). Parameters are described in [Parameter Declaration](./parameter-declaration.md).
 
 ## Basic Usage
-
-The minimum required fields are `javaClass` and `hooks`.
-
-```yaml
-javaClass: <fully qualified Java class name>
-hooks:
-  - <method name>
-```
-
-This hooks all overloads of each listed method in the specified class.
-
-**Example:**
 
 ```yaml
 javaClass: android.webkit.WebView
@@ -100,12 +56,7 @@ hooks:
   - loadUrl
 ```
 
-This declaration hooks all constructor overloads of `WebView`, plus all overloads of `loadUrl`.
-
-> [!NOTE]
-> `$init` is the constructor name. Events and hook statistics name constructors `$init` too.
-
-This declaration hooks the following methods:
+This hooks every overload of the `WebView` constructor and of `loadUrl`:
 
 ```kotlin
 WebView(context: Context)
@@ -117,18 +68,32 @@ WebView.loadUrl(url: String)
 WebView.loadUrl(url: String, additionalHttpHeaders: MutableMap<String!, String!>)
 ```
 
-> [!TIP]
-> Use the following syntax for dynamic class lookup at runtime.
->
-> - **Exact match:** `org.owasp.mastestapp.MainActivity`
-> - **Wildcards:** `org.owasp.*.HttpClient`, at the package level - `*` matches exactly one segment between dots, or part of one, e.g. `org.owasp.net.*Client`. See [`06_class_wildcards.yaml`](./examples/android/01_basic_hooking/06_class_wildcards.yaml). frooky hooks every matching class of the app and of its class loaders when it resolves the pattern, also classes the app hasn't used yet. If no class matches, it hooks the matching classes of the first class loader the app creates that has any. Reading the class names of a large app takes up to about a second. For a class loader created later, frooky reads them while it is created, which delays its creation by up to about 0.1 seconds for a large one.
-> - **Nested classes:** use the `$` separator, for example `Outer$Inner`
+- `$init` is the constructor. Events and hook statistics name constructors `$init` too.
+- A nested class is written with `$`, e.g. `android.security.keystore.KeyGenParameterSpec$Builder`.
+
+The short form with settings changes the decoder settings of one method:
+
+```yaml
+javaClass: javax.crypto.Cipher
+hooks:
+  - [doFinal, { decoder: string }]
+```
+
+This decodes the `byte[]` arguments and return values of every `doFinal` overload as text.
+
+## Class Wildcards
+
+A `*` in `javaClass` matches one package segment or part of one, e.g. `org.owasp.*.HttpClient` or `org.owasp.net.*Client`. It never matches across a `.`.
+
+- frooky hooks every matching class of the app and of its class loaders, also classes the app hasn't used yet.
+- If no class matches, frooky hooks the matching classes of the first class loader the app creates that has any.
+- Reading the class names of a large app takes up to about a second. For a class loader created later, frooky reads them while it is created, which delays it by up to about 0.1 seconds.
+
+See [`06_class_wildcards.yaml`](./examples/android/01_basic_hooking/06_class_wildcards.yaml).
 
 ## Method Wildcards
 
-A `*` in a method name matches any characters, also none. frooky hooks every overload of each method whose name matches.
-
-**Example:**
+A `*` in a method name matches any characters, also none. frooky hooks every overload of each matching method.
 
 ```yaml
 javaClass: javax.crypto.Cipher
@@ -137,27 +102,53 @@ hooks:
   - "*Final"      # doFinal
 ```
 
-> [!NOTE]
->
-> - A pattern only matches the methods the class declares itself, not inherited methods (e.g. `wait` or `hashCode` of `java.lang.Object`) and not constructors. Hook those by name, e.g. `$init`.
-> - YAML reads a value that starts with `*` as an alias, so quote it: `"*Final"`.
-> - With `overloads`, frooky hooks these overloads of each matching method that has them, and skips the others.
-> - Methods that frooky never hooks because a hook breaks the app (e.g. `System.loadLibrary`) are skipped with a warning, also when a pattern matches them.
-> - A pattern also works with a class wildcard, e.g. `javaClass: org.owasp.*.HttpClient` with `send*`.
+- A pattern only matches the methods the class declares itself, not inherited ones (e.g. `hashCode` of `java.lang.Object`) and not constructors. Hook those by name.
+- YAML reads a value that starts with `*` as an alias, so quote it: `"*Final"`.
+- With `overloads`, frooky hooks the listed overloads of each matching method that has them.
+- Methods that frooky never hooks (e.g. `System.loadLibrary`, see [Blocked Functions](./additional-features.md#blocked-functions)) are skipped with a warning, also when a pattern matches them.
+- Method and class wildcards can be combined, e.g. `javaClass: org.owasp.*.HttpClient` with `send*`.
+
+See [`05_method_wildcards.yaml`](./examples/android/01_basic_hooking/05_method_wildcards.yaml).
+
+## Method Overloads
+
+To hook only some overloads, list their parameters under `overloads`:
+
+```yaml
+javaClass: android.content.Intent
+hooks:
+  - method: putExtra
+    overloads:
+      - params:
+          - [java.lang.String, name]
+          - [java.lang.String, value]
+      - params:
+          - [java.lang.String, name]
+          - ["[Z", value]
+```
+
+This hooks only these two overloads:
+
+```kotlin
+Intent.putExtra(name: String!, value: String?): Intent
+Intent.putExtra(name: String!, value: BooleanArray?): Intent
+```
+
+The parameter types must match the method's exactly, written as [type descriptors](#type-descriptors). An overload that doesn't exist is skipped with a warning.
 
 ## Class Loaders
 
 frooky looks a class up in every class loader of the app, not only in the app's own:
 
 - **Classes of the app and of Android** are found right away.
-- **Classes in a class loader the app creates later**, such as a plugin, code the app downloads and loads with `DexClassLoader`, or the WebView implementation, are hooked while that class loader is created, before any of its code runs.
-- **A class that no class loader has yet** keeps waiting: frooky reports it as waiting after `-t` seconds and hooks it as soon as a class loader has it. See [Resolve the Module or Class](./under-the-hood.md#resolve-the-module-or-class) in Under the Hood.
+- **Classes in a class loader the app creates later**, such as a plugin, downloaded code loaded with `DexClassLoader`, or the WebView implementation, are hooked while that class loader is created, before any of its code runs.
+- **A class that no class loader has yet** is reported as waiting once the app has started, and hooked as soon as a class loader has it. See [Resolve the Module or Class](./under-the-hood.md#resolve-the-module-or-class).
 
 ### Classes of Custom Class Loaders
 
-Some apps load classes with a class loader of their own that extends `ClassLoader` directly and defines classes itself, for example with `DexFile.loadClass()`. frooky doesn't see these classes on its own. The same goes for a class that exists in several class loaders: frooky hooks the first one it finds, usually the app's.
+frooky doesn't see the classes of a class loader that extends `ClassLoader` directly and defines classes itself, e.g. with `DexFile.loadClass()`. A class that exists in several class loaders is hooked in the first one frooky finds, usually the app's.
 
-Name the class loader in `classLoader`, and frooky hooks the class only as instances of that class loader load it, before `loadClass()` returns it:
+For both, name the class loader in `classLoader`. frooky then hooks the class only as instances of that class loader load it, before `loadClass()` returns it:
 
 ```yaml
 javaClass: org.owasp.mastestapp.PluginGreeter
@@ -168,60 +159,9 @@ hooks:
 
 frooky hooks `loadClass(String)` of that class loader, or the one it inherits, which runs for every class it loads. See [`04_custom_class_loaders.yaml`](./examples/android/01_basic_hooking/04_custom_class_loaders.yaml).
 
-To hook all overloads of a method while also overriding its `decoderSettings`, write the hook as a `[<method name>, {<decoder settings>}]` tuple instead of a plain string.
-
-**Example:**
-
-```yaml
-javaClass: javax.crypto.Cipher
-hooks:
-  - [doFinal, { decoder: "string" }]
-```
-
-This hooks all overloads of `Cipher.doFinal`, decoding the plaintext/ciphertext byte arrays passed to and returned from it as strings.
-
-## Method Overloads
-
-To hook only specific overloads of a method, use the expanded form and provide a list of overload declarations under `overloads`.
-
-```yaml
-javaClass: <fully qualified Java class name>
-hooks:
-  - method: <method name>
-    overloads:                        # Optional
-      - params:
-          - <parameter declaration>
-```
-
-Each item in `overloads` matches one overloaded method signature including the relevant [parameter declarations](./parameter-declaration.md).
-
-**Example:**
-
-```yaml
-javaClass: android.content.Intent
-hooks:
-  - method: putExtra
-    overloads:
-      - params:
-          - ["java.lang.String", name]
-          - ["java.lang.String", value]
-      - params:
-          - ["java.lang.String", name]
-          - ["[Z", value]
-```
-
-This hooks **only** the following methods:
-
-```kotlin
-Intent.putExtra(name: String!, value: String?): Intent
-Intent.putExtra(name: String!, value: BooleanArray?): Intent
-```
-
 ## Hook and Decoder Settings
 
-`hookSettings` (e.g. `platformStackTrace`, `maxStackFrames`, `callerFilter`) and `decoderSettings` (`maxDepth`, `maxItems`, `decoder`) can be declared on the hook collection (applying to every hook in it) or on an individual hook (overriding the hook collection for that hook only). See [Additional Features](./additional-features.md#settings-precedence), [Decoders](./decoders.md) and [Decoders for Android Java Hooks](./decoders-java.md) for the full list of options and how the file-level `settings`, the hook collection, an individual hook, and a parameter or return type are merged together.
-
-**Example:**
+`hookSettings` and `decoderSettings` can be set on the collection, for all its hooks, or on a hook in the expanded form, overriding the collection. See [Settings Precedence](./additional-features.md#settings-precedence), [Stack Traces](./additional-features.md#stack-traces), [Caller Filters](./additional-features.md#caller-filters) and [Decoders](./decoders.md).
 
 ```yaml
 javaClass: android.database.sqlite.SQLiteDatabase
@@ -229,28 +169,26 @@ hookSettings:
   platformStackTrace: true
   maxStackFrames: 5
   callerFilter:
-    - org.owasp.mastestapp
+    - ^org\.owasp\.mastestapp\.
 hooks:
   - method: query
     overloads:
       - params:
-          - ["java.lang.String", table]
+          - [java.lang.String, table]
           - ["[Ljava.lang.String;", columns]
 ```
 
 ## Type Descriptors
 
-Frida, and therefore frooky, uses custom type descriptors based on the internal [JVM field type descriptor](https://docs.oracle.com/javase/specs/jvms/se19/html/jvms-4.html#jvms-4.3.2).
+Parameter types are written like Frida writes them: a primitive or a class by its Java name, an array by its [JVM descriptor](https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-4.html#jvms-4.3.2), with dots in class names.
 
-The following table shows how types are represented in Java, the JVM, and Frida or frooky.
+| Java type          | Type descriptor       |
+| ------------------ | --------------------- |
+| `int`, `boolean`   | `int`, `boolean`      |
+| `java.lang.String` | `java.lang.String`    |
+| `Outer.Inner`      | `Outer$Inner`         |
+| `byte[]`           | `[B`                  |
+| `String[]`         | `[Ljava.lang.String;` |
+| `int[][]`          | `[[I`                 |
 
-| Kind of Type      | Java Type Descriptor                                                                         | JVM Type Descriptor                                         | Frida / frooky Type Descriptor                                                               |
-| ----------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Primitive         | `boolean`<br>`byte`<br>`char`<br>`short`<br>`int`<br>`long`<br>`float`<br>`double`<br>`void` | `Z`<br>`B`<br>`C`<br>`S`<br>`I`<br>`J`<br>`F`<br>`D`<br>`V` | `boolean`<br>`byte`<br>`char`<br>`short`<br>`int`<br>`long`<br>`float`<br>`double`<br>`void` |
-| Primitive Array   | `boolean[]`<br>`byte[]`<br>...                                                               | `[Z`<br>`[B`<br>...                                         | `[Z`<br>`[B`<br>...                                                                          |
-| Reference         | `java.lang.Object`<br>`org.owasp.MyClass`<br>...                                             | `Ljava/lang/Object;`<br>`Lorg/owasp/MyClass;`<br>...        | `java.lang.Object`<br>`org.owasp.MyClass`<br>...                                             |
-| Reference Array   | `Object[]`<br>`MyClass[]`<br>...                                                             | `[Ljava/lang/Object;`<br>`[Lorg/owasp/MyClass;`<br>...      | `[Ljava.lang.Object`<br>`[Lorg.owasp.MyClass`<br>...                                         |
-| Multi-Dimensional | `int[][]`<br>`String[][]`<br>...                                                             | `[[I`<br>`[[Ljava/lang/String;`<br>...                      | `[[int`<br>`[[Ljava.lang.String`<br>...                                                      |
-
-> [!NOTE]
-> Frida uses a hybrid notation that combines JVM-style array prefixes (`[`) with Java-style class names (dot-separated rather than slash-separated, without the `L` prefix and `;` suffix).
+The element types of arrays: `Z` (`boolean`), `B` (`byte`), `C` (`char`), `S` (`short`), `I` (`int`), `J` (`long`), `F` (`float`), `D` (`double`) and `L<class>;`. Quote a descriptor that starts with `[` in YAML, e.g. `"[B"`.

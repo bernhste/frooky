@@ -11,14 +11,9 @@
 
 ![PyPI - Version](https://img.shields.io/pypi/v/frooky?color=fuchsia) [![Verify host](https://github.com/bernhste/frooky/actions/workflows/verify-host.yml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/verify-host.yml) [![Test host Android](https://github.com/bernhste/frooky/actions/workflows/test-host-android.yml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/test-host-android.yml) [![Test agent Android](https://github.com/bernhste/frooky/actions/workflows/test-agent-android.yaml/badge.svg)](https://github.com/bernhste/frooky/actions/workflows/test-agent-android.yaml)
 
-```mermaid
-flowchart LR
-    A["<b>hooks.yaml</b><br/>structured YAML:<br/>what to hook"] --> B["<b>frooky</b><br/>hooks the app<br/>via Frida"] --> C["<b>output.json</b><br/>structured JSON:<br/>decoded events"]
-```
+`frooky` is a [Frida](https://www.frida.re/)-based dynamic analysis tool for Android apps with the purpose of simplifying function hooking and runtime data decoding.
 
-`frooky` is a [Frida](https://www.frida.re/)-based dynamic analysis tool for Android and iOS apps with the purpose of simplifying function hooking and runtime data decoding.
-
-- Hook Java/Kotlin methods and native C/C++ functions (Objective-C/Swift support for iOS is planned)
+- Hook Java/Kotlin methods and native C/C++ functions
 - Structured YAML input for hook declarations
 - Structured NDJSON output for easy event processing
 - Support for method overloads and stack trace capture
@@ -83,7 +78,7 @@ A hook file consists of optional metadata and a list of _hook declarations_ call
 ```yaml
 metadata:                         # All metadata is optional
   name: <name>                    # Name of the hook collection
-  platform: Android|iOS           # Target platform (hooks must be platform-specific)
+  platform: Android               # Target platform
   description: <description>      # Description of what the hook collection does
   category: <category>            # Category of the hook collection
   author: <author>                # Your name or organization
@@ -103,13 +98,13 @@ Depending on the platform, the `<hook_declaration>` may look different. Please r
 
 At the moment, frooky supports these types of hooks:
 
-| Hook Type    | Platform    | Description                                 | Documentation                                                 |
-| ------------ | ----------- | ------------------------------------------- | ------------------------------------------------------------- |
-| `JavaHook`   | Android     | Hook for Java/Kotlin methods                | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)     |
-| `NativeHook` | Android/iOS | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
+| Hook Type    | Platform | Description                                 | Documentation                                                 |
+| ------------ | -------- | ------------------------------------------- | ------------------------------------------------------------- |
+| `JavaHook`   | Android  | Hook for Java/Kotlin methods                | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)     |
+| `NativeHook` | Android  | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
 
 > [!NOTE]
-> iOS support is not yet complete. Hooks for Objective-C and Swift methods are [planned](https://github.com/bernhste/frooky/tree/feature/ios-agent-poc). Until then, you can use the `NativeHook` with iOS.
+> frooky supports Android only. iOS support is [planned](https://github.com/bernhste/frooky/tree/feature/ios-agent-poc).
 
 ## Parameter- and Return-Type Declaration
 
@@ -193,6 +188,6 @@ Events are written to the output file as newline-separated batches, each line a 
 Please refer to the following documentation for more information about various topics:
 
 - [Understanding Output Format](./docs/output.md)
-- [Additional Settings and Best Practices](./docs/additional-features.md)
+- [Additional Features](./docs/additional-features.md)
 - [Development / Local Testing](./docs/develop.md)
 - [Under the Hood: Agent Start and Hook Loading](./docs/under-the-hood.md)

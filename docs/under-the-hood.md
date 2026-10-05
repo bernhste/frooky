@@ -2,9 +2,6 @@
 
 This page explains how frooky works internally: what happens to a hook from the hook file to the installed hook, when each kind of hook is installed, how a `callerFilter` decides which calls are recorded, and how events reach the host. It is optional reading for when you want to know why something behaves the way it does, e.g. why a hook shows up as `waiting`, why a call during startup was missed, or why a filtered hook still slows the app down. To learn how to use frooky, start with the [README](../README.md) and [Additional Features](./additional-features.md).
 
-> [!NOTE]
-> For now, this page describes the Android agent. iOS support is not yet complete, see the [README](../README.md).
-
 <!-- TOC -->
 
 - [Overview](#overview)
@@ -48,7 +45,7 @@ sequenceDiagram
     autonumber
     participant Host
     box rgba(128, 128, 128, 0.15) frooky agent
-        participant FA as index.js
+        participant FA as FrookyAgent
         participant R as Resolver
         participant HM as Hook manager
     end
@@ -195,6 +192,9 @@ flowchart LR
     watch -->|found by<br/>targetReady| found
     watch -->|not found by<br/>targetReady| wait(["waiting"])
     wait -->|the app loads it| found
+    pat(( )) -->|wildcard pattern| match["match the loaded classes<br/>or modules, then the ones<br/>that load later"]
+    match -->|a match by<br/>targetReady| found
+    match -->|no match by<br/>targetReady| wait
 ```
 
 The Java and native declarations go to their hook managers concurrently. Each hook manager groups the declarations by their class or module and looks each one up once, no matter how many hooks target it. frooky doesn't poll for classes and modules, and doesn't wait a fixed time for them: a class or module that isn't loaded yet is found when the app loads it.
@@ -208,16 +208,24 @@ A **Java class**, e.g. `javax.crypto.Cipher` or `org.owasp.mastestapp.MainActivi
 A **native module**, e.g. `libc.so` or `libnative-lib.so`, is looked up by `NativeHookManager`:
 
 1. In the loaded modules with `Process.findModuleByName()`. The system libraries, e.g. `libc.so`, are found right away.
-2. Otherwise frooky attaches a module observer (`Process.attachModuleObserver()`, once) and waits for a module with this name or path. Its `onAdded` callback runs on the thread that loads the module, inside the linker, before the module's constructors and `JNI_OnLoad` run.
+2. Otherwise `NativeModuleWatcher` attaches a module observer (`Process.attachModuleObserver()`, once) and waits for a module with this name or path (`whenLoaded()`). Its `onAdded` callback runs on the thread that loads the module, inside the linker, before the module's constructors and `JNI_OnLoad` run.
 3. At `targetReady`, frooky doesn't look again, it only checks whether the observer has seen the module. If not, the declaration is `waiting` until it loads.
+
+A **wildcard pattern**, e.g. `org.owasp.*.HttpClient` or `libssl*.so`, can match several classes or modules:
+
+- **Java:** at `targetReady`, `matchPatterns()` matches it against the loaded classes and the class names in the dex files of every class loader, on a timer rather than the app's main thread, as it reads every class name of the app. Without a match, it matches the dex files of each new class loader while it is created, until one has matching classes. Classes that match after that aren't hooked.
+- **Native:** `resolveModulePatterns()` matches it against the loaded modules (`Process.enumerateModules()`), then `NativeModuleWatcher.whenEachLoaded()` against each module the linker loads, while it loads, for the rest of the session. The hooks of later matches are added to the same declaration. The exports of each module are read once for all patterns.
+
+A pattern without a match by `targetReady` is `waiting` until its first match.
 
 As soon as the class or module is found, frooky resolves the [method, symbol or offset](#resolve-the-symbol-offset-or-method) in it, in the same callback: for a class loader or module that loads later, on the app's thread, before the app runs its code.
 
 **Sources:**
 
 - [`androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`resolveHooks()`)
-- [`javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts) (`find()`)
-- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHooks()`, `whenModuleLoaded()`)
+- [`javaClassResolver.ts`](../frooky/agent/src/android/hook/javaClassResolver.ts) (`find()`, `matchPatterns()`)
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHooks()`, `resolveModulePatterns()`)
+- [`nativeModuleWatcher.ts`](../frooky/agent/src/native/nativeModuleWatcher.ts) (`whenLoaded()`, `whenEachLoaded()`)
 
 ### Resolve the Symbol, Offset or Method
 
@@ -239,7 +247,7 @@ A **Java method** is resolved by `resolveMethodHooks()`:
 2. Without `overloads`, every overload is hooked, each as its own hook. Its parameters are built from the overload's argument types, e.g. `[B`, `int` or `java.lang.String`, each with the declaration's `decoderSettings`. The return type comes from the overload as well. So a Java hook needs no `params` or `retType` in the hook file.
 3. With `overloads`, only the declared ones are hooked (`method.overload(...types)`), with the parameters of the hook file. A declared overload that doesn't exist is skipped with a warning.
 
-A **native function** is resolved by `resolveHook()`:
+A **native function** is resolved by `resolveNativeHook()`:
 
 1. A `symbol` is looked up by `resolveSymbol()` in the module's exported (dynamic) symbols: with `findExportByName()` in a loaded module, and from the module's ELF exports (`enumerateExports()`, read once per module) in a module that is loading, as `getExportByName()` makes the linker abort the process while it loads the module. `findExportByName()` searches like `dlsym()`, so it also finds the functions of the libraries the module links, e.g. libc's `malloc` from `libcutils.so`. An address outside the module is skipped with a warning that names the library that defines the function (see [Functions From Other Libraries](./native-hook-declaration.md#functions-from-other-libraries)), so a hook resolves the same in a loaded module and in one that is loading.
 2. An `offset` is resolved by `resolveModuleOffset()` as `module.base + offset`. frooky only hooks the address if it is inside the module and executable, and, if Frida finds a section at that address, if the section's name starts with `.text`, `.plt`, `.init` or `.fini`. Otherwise it skips the hook with a warning, e.g. for an offset from another build of the library, which can point into data: the Interceptor would overwrite that data and crash the app.
@@ -248,8 +256,8 @@ A method, symbol or offset that doesn't resolve, or a declaration whose `overloa
 
 **Sources:**
 
-- [`androidHookManager.ts`](../frooky/agent/src/android/hook/androidHookManager.ts) (`resolveMethodHooks()`, `resolveOverloads()`)
-- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`resolveHook()`, `resolveSymbol()`, `resolveModuleOffset()`)
+- [`javaMethodResolver.ts`](../frooky/agent/src/android/hook/javaMethodResolver.ts) (`resolveMethodHooks()`, `resolveOverloads()`)
+- [`nativeAddressResolver.ts`](../frooky/agent/src/native/hook/nativeAddressResolver.ts) (`resolveNativeHook()`, `resolveSymbol()`, `resolveModuleOffset()`)
 
 ### Resolve Declared or Runtime Decoders
 
@@ -379,7 +387,7 @@ sequenceDiagram
     autonumber
     participant FA as FrookyAgent
     participant NM as NativeHookManager
-    participant MO as Module observer
+    participant MO as NativeModuleWatcher
     participant LK as Linker (app thread)
 
     FA->>NM: resolveHooks(native declarations with early: true)
@@ -389,10 +397,11 @@ sequenceDiagram
         NM-->>FA: hooks
         FA->>NM: registerHooks(): Interceptor attached,<br/>before the app is resumed
     else module not loaded yet: stage 2
-        NM->>MO: wait for the module (observer attached once)
+        NM->>MO: whenLoaded(module)<br/>(module observer attached once)
         LK->>MO: later: onAdded(module), on the loading thread,<br/>before its constructors and JNI_OnLoad run
-        MO->>NM: resolve the symbol or offset (from the ELF exports)
+        MO->>NM: installWhileLoading(): resolve the symbol<br/>or offset (from the ELF exports)
         NM->>NM: registerHooks() now, inside the linker
+        MO->>MO: waitUntilCommitted()
         Note over LK: constructors and JNI_OnLoad run hooked
         NM-->>FA: hooks
         FA->>NM: registerHooks(): already installed, counted
@@ -405,8 +414,8 @@ A hook is installed as soon as its module is found: before the app is resumed (s
 
 Stage 2 relies on Frida's module observer (`Process.attachModuleObserver()`), which calls back on the loading thread for every module the linker loads. frooky uses it like this:
 
-- `NativeHookManager` attaches one observer when the first hook waits for a module (`observeModules()`) and keeps it for the rest of the session.
-- Each waiting hook is registered under the module name (or path) it declares (`whenModuleLoaded()`). When a module with that name or path loads, the callback removes the waiting hooks and calls them.
+- `NativeModuleWatcher` attaches one observer when the first hook waits for a module (`observeModules()`) and keeps it for the rest of the session.
+- Each waiting hook is registered under the module name (or path) it declares (`whenLoaded()`). When a module with that name or path loads, the callback removes the waiting hooks and calls them.
 - They resolve the symbol or offset and, with `early: true` or after `targetReady`, install the hooks right there (`installWhileLoading()`).
 - Before the callback returns, it waits until Frida has committed the new hooks (`waitUntilCommitted()`). Frida commits Interceptor changes only once no other thread is in a hook callback, of frooky or of a `-l` script. Otherwise a thread that entered one at that moment would delay the commit until after the module's constructors ran, and their calls would be missed. The callback gives up the JS lock in 1ms steps until the hooked functions' code is patched, for up to 1s, and logs a warning if that isn't enough. The loading thread holds the linker's lock meanwhile, so other threads' hooks use only the fuzzy backtracer (`linker-busy`), which doesn't need it.
 - Calls that the new hooks record on this thread until `dlopen()` returns, e.g. from the module's constructors, get full stack traces: the thread holds the linker's lock itself. Other threads' hooks get only fuzzy native frames meanwhile (`linker-busy`), see [Stack Traces During Early Hooking](#stack-traces-during-early-hooking).
@@ -417,7 +426,8 @@ The validator warns about an `early: true` hook on a high-frequency libc functio
 
 **Sources:**
 
-- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`early`, `observeModules()`, `whenModuleLoaded()`, `installWhileLoading()`)
+- [`nativeHookManager.ts`](../frooky/agent/src/native/hook/nativeHookManager.ts) (`early`, `installWhileLoading()`)
+- [`nativeModuleWatcher.ts`](../frooky/agent/src/native/nativeModuleWatcher.ts) (`observeModules()`, `whenLoaded()`, `waitUntilCommitted()`)
 - [`nativeHookValidator.ts`](../frooky/agent/src/native/hook/nativeHookValidator.ts) (`warnOnHighFrequencyLibcHook()`)
 - [`Process.attachModuleObserver()`](https://frida.re/docs/javascript-api/#process) (Frida's module observer)
 

@@ -1,6 +1,6 @@
-# Additional Settings and Best Practices
+# Additional Features
 
-frooky supports two kinds of settings that can be used regardless of hook type: `hookSettings` (which configure stack traces and caller filters, see [Stack Traces](#stack-traces) and [Caller Filters](#caller-filters)) and `decoderSettings` (which configure parameter and return value decoding, see [Decoders](./decoders.md)).
+How to work with a running frooky, the settings that apply to every hook (stack traces, caller filters, early hooking), and the runtime options.
 
 <!-- TOC -->
 
@@ -91,7 +91,7 @@ While frooky is running in the terminal, pressing `e` or `E` turns printing the 
 
 ## Settings Precedence
 
-Both `hookSettings` and [`decoderSettings`](./decoders.md#decoder-settings) can be declared at multiple levels of a hook file, from farthest to closest:
+Every hook has two kinds of settings: `hookSettings` configure how events are captured, e.g. [stack traces](#stack-traces) and [caller filters](#caller-filters), and [`decoderSettings`](./decoders.md#decoder-settings) how parameters and return values are decoded. Both can be declared at multiple levels of a hook file, from farthest to closest:
 
 1. **Defaults**: the hard-coded values in the tables below and in [Decoders](./decoders.md#decoder-settings)
 2. **File**: the top-level `settings`, applies to every hook in the file
@@ -178,7 +178,7 @@ Capturing stack traces provides visibility into the execution path leading up to
 | `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames. Native hooks only: Java hooks have no native context and always capture an empty native stack trace.                                                                                                                  |
 | `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames. For a native hook, these are the Java frames that led to the native call, if it was called from Java.                                                                               |
 | `callerFilter`       | `string[]` | `[]`    | Regular expressions; a call is only recorded if its caller matches one of them. Java hooks match the methods on the Java stack (e.g. `'^com\.myapp\.'`), native hooks the module of the direct caller (e.g. `'^libapp\.so$'`). See [Caller Filters](#caller-filters). |
-| `early`              | `boolean`  | `false` | Whether to install native hooks early, before the platform runtime (e.g. ART) is initialized. When `false` (default), hooks are gated behind `platformReady` to prevent early bootstrap crashes and deadlocks. Native hooks only.                                     |
+| `early`              | `boolean`  | `false` | Whether native hooks skip the wait until the app's own code is about to run (`targetReady`), so they record calls during startup, e.g. from library constructors and `JNI_OnLoad`. Only matters when spawning (`-f`). See [Early Hooking](#early-hooking).            |
 
 In the output events, captured stack traces appear in the `stackTrace` object with separate arrays for `platformStackTrace` and `nativeStackTrace` (see [Output Format](./output.md)):
 

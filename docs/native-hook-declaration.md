@@ -1,11 +1,14 @@
 # `NativeHook` Declaration
 
-This documentation explains how to write native hook declarations.
+A native hook collection hooks functions of one native module, e.g. a shared library such as `libssl.so`.
 
 <!-- TOC -->
 
 - [Structure](#structure)
 - [Basic Usage](#basic-usage)
+  - [Functions From Other Libraries](#functions-from-other-libraries)
+- [Symbol Wildcards](#symbol-wildcards)
+- [Module Wildcards](#module-wildcards)
 - [Hooking Functions Without a Symbol](#hooking-functions-without-a-symbol)
   - [Finding the Offset](#finding-the-offset)
 - [Decoding Arguments and Return Values](#decoding-arguments-and-return-values)
@@ -15,82 +18,34 @@ This documentation explains how to write native hook declarations.
 
 ## Structure
 
-A `NativeHook` declaration is a YAML object with these top-level fields:
-
 ```yaml
 module: <module name>
-hookSettings:                       # Optional. Overrides the file-level `settings.hookSettings` for this hook collection
+hookSettings:                       # Optional. Override the file's settings for this collection
   <hook settings>
-decoderSettings:                    # Optional. Overrides the file-level `settings.decoderSettings` for this hook collection
+decoderSettings:                    # Optional
   <decoder settings>
 hooks:
-  - <symbol name>
-  - symbol: <symbol name>             # Or `offset: <offset>`, see below
-    retType: <type>                   # Optional
-    params:                           # Optional
+  - <symbol>                                          # short form
+  - [<symbol>, { <decoder settings> }]                # short form with settings
+  - symbol: <symbol>                                  # expanded form, or `offset: <offset>`
+    retType: <return type declaration>  # Optional
+    params:                             # Optional
       - <parameter declaration>
-    hookSettings:                     # Optional. Overrides the hook collection's hookSettings for this hook only
+    hookSettings:                       # Optional. Override the collection's settings for this hook
       <hook settings>
-    decoderSettings:                  # Optional. Overrides the hook collection's decoderSettings for this hook only
+    decoderSettings:                    # Optional
       <decoder settings>
 ```
 
-`module` is the name of the native module, for example a shared library such as `libssl.so`.
+| Form                | Use it to                                                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Short               | Record the calls of a function, without its arguments or return value                                                                      |
+| Short with settings | The same, with its own `decoderSettings`                                                                                                   |
+| Expanded            | Decode arguments (`params`) and the return value (`retType`), hook by [`offset`](#hooking-functions-without-a-symbol), or set own settings |
 
-`hooks` is a list of native functions to hook. Each item in `hooks` can be written in one of three forms.
-
-Use the **short form** when you only want to hook a symbol and do not need argument or return value decoding.
-
-```yaml
-module: <module name>
-hooks:
-  - <symbol name>
-```
-
-Use the **short form with settings** - a `[<symbol name>, {<decoder settings>}]` tuple - to hook a symbol while overriding its `decoderSettings`, without switching to the expanded form.
-
-```yaml
-module: <module name>
-hooks:
-  - [<symbol name>, { <decoder settings> }]
-```
-
-Use the **expanded form** when you want frooky to decode arguments and/or the return value.
-
-```yaml
-module: <module name>
-hooks:
-  - symbol: <symbol name>
-    retType: <type>                   # Optional
-    params:                           # Optional
-      - <parameter declaration>
-```
-
-In the expanded form:
-
-- `symbol`: Native symbol name.
-- `offset`: Instead of `symbol`, the function's offset from the module's base address, for functions without an exported symbol. See [Hooking Functions Without a Symbol](#hooking-functions-without-a-symbol).
-- `retType`: Optional return type of the function.
-- `params`: Optional list of parameter declarations.
-
-> [!IMPORTANT]
-> Read the documentation for [parameter](./parameter-declaration.md) and [return type](./return-type-declaration.md) declarations to learn how to declare and configure them correctly.
->
-> There are multiple ways to declare a parameter. In this document, all examples use [named parameters](./parameter-declaration.md#named-native-parameters).
+A native function has no type information at runtime, so frooky only decodes what `params` and `retType` declare. See [Parameter Declaration](./parameter-declaration.md) and [Return Type Declaration](./return-type-declaration.md).
 
 ## Basic Usage
-
-The minimum required fields are `module` and `hooks`.
-
-```yaml
-module: <module name>
-hooks:
-  - <symbol name>
-```
-
-This hooks the listed symbols from the specified native module.
-
-**Example:**
 
 ```yaml
 module: libssl.so
@@ -99,28 +54,16 @@ hooks:
   - ENGINE_cleanup
 ```
 
-This declaration hooks the following two functions from the [OpenSSL library](https://docs.openssl.org/master/man3/ENGINE_add):
+This hooks these two functions of [OpenSSL](https://docs.openssl.org/master/man3/ENGINE_add):
 
 ```c
 void ENGINE_load_builtin_engines(void);
 void ENGINE_cleanup(void);
 ```
 
-To hook a symbol while also overriding its `decoderSettings`, write the hook as a `[<symbol name>, {<decoder settings>}]` tuple instead of a plain string.
-
-**Example:**
-
-```yaml
-module: libssl.so
-hooks:
-  - [SSL_write, { maxItems: 16 }]
-```
-
-This hooks `SSL_write` from `libssl.so`, with `maxItems` set to `16` for that hook only. Every native event carries the function's `address` and a `hashCode` of it.
-
 ### Functions From Other Libraries
 
-frooky only hooks a function that the module defines itself. A function that the module calls from a library it links, e.g. `malloc` or `open` from `libc.so`, isn't the module's: a hook on it would record the calls from the whole process, not only those of the module. frooky skips such a hook with a warning that names the library that defines it:
+frooky only hooks a function that the module defines itself. A function the module calls from a library it links, e.g. `malloc` from `libc.so`, isn't the module's: a hook on it would record the calls of the whole process. frooky skips such a hook with a warning that names the library that defines it:
 
 ```text
 Skipping hook for 'malloc'. Module 'libfoo.so' doesn't define it but links it from 'libc.so': hook it there with 'module: libc.so', and with 'callerFilter: ['^libfoo\.so$']' for its calls from 'libfoo.so' only.
@@ -140,8 +83,6 @@ hooks:
 
 A `*` in a symbol matches any characters, also none. frooky hooks every exported function of the module whose name matches.
 
-**Example:**
-
 ```yaml
 module: libc.so
 hooks:
@@ -149,19 +90,17 @@ hooks:
   - "*addrinfo"   # getaddrinfo, freeaddrinfo
 ```
 
-> [!NOTE]
->
-> - A pattern only matches exported functions, not exported variables.
-> - YAML reads a value that starts with `*` as an alias, so quote it: `"*addrinfo"`.
-> - `params` and `retType` in the expanded form apply to every matching function, so only use them for functions with the same signature.
-> - If several matching names belong to one function (e.g. `memcpy` and `memmove` in some libcs), frooky hooks it once, under the first name.
-> - Functions that frooky never hooks because a hook breaks the app (e.g. `pthread_getspecific`) are skipped with a warning, also when a pattern matches them. A broad pattern on a low-level library such as `libc.so` can still match functions the app calls very often, which slows it down.
+- A pattern only matches exported functions, not exported variables.
+- YAML reads a value that starts with `*` as an alias, so quote it: `"*addrinfo"`.
+- `params` and `retType` apply to every matching function, so only use them for functions with the same signature.
+- If several matching names belong to one function (e.g. `memcpy` and `memmove` in some libcs), frooky hooks it once, under the first name.
+- Functions that frooky never hooks (e.g. `pthread_getspecific`, see [Blocked Functions](./additional-features.md#blocked-functions)) are skipped with a warning, also when a pattern matches them. A broad pattern on `libc.so` can still match functions the app calls very often, which slows it down.
+
+See [`03_symbol_wildcards.yaml`](./examples/native/01_basic_hooking/03_symbol_wildcards.yaml).
 
 ## Module Wildcards
 
-A `*` in a module name matches any characters, also none. frooky hooks each declared function in every module whose name matches and that exports it: in the modules that are loaded already, and in each matching module that loads later, while it loads.
-
-**Example:**
+A `*` in `module` matches any characters, also none. frooky hooks each declared function in every matching module that exports it: in the modules loaded already, and in each matching module that loads later, while it loads.
 
 ```yaml
 module: libssl*.so      # libssl.so, libssl3.so, libssl_static.so, ...
@@ -170,20 +109,17 @@ hooks:
   - SSL_read*           # also with a symbol wildcard
 ```
 
-> [!NOTE]
->
-> - The pattern matches the module's file name, e.g. `libssl.so`, not its path.
-> - A module that matches but doesn't export the function is skipped without a warning. A declaration waits until a matching module with the function loads, and stays installed for the matching modules that load after that.
-> - Only functions inside the matching module count: a module that only links the function from another library, e.g. libc's `malloc`, doesn't get a hook of its own.
-> - `offset` needs an exact module name: an offset only fits one build of one library.
-> - A broad pattern, e.g. `lib*.so`, reads the exports of every module it matches, which takes time at startup and on every matching module that loads.
-> - The hook statistics (`s` key) list each hooked function with its module, see [Hook Statistics](./additional-features.md#hook-statistics-s--s-key).
+- The pattern matches the module's file name, not its path.
+- A matching module that doesn't export the function is skipped without a warning. The hook waits until a matching module with the function loads.
+- `offset` needs an exact module name: an offset only fits one build of one library.
+- A broad pattern, e.g. `lib*.so`, reads the exports of every module it matches, which takes time at startup and whenever a matching module loads.
+- The [hook statistics](./additional-features.md#hook-statistics-s--s-key) list each hooked function with its module.
 
 See [`04_module_wildcards.yaml`](./examples/native/01_basic_hooking/04_module_wildcards.yaml).
 
 ## Hooking Functions Without a Symbol
 
-Functions that a module does not export, for example ones you found by reverse engineering a stripped library, can't be hooked by `symbol`. Use `offset` instead: the function's offset from the base address the module is loaded at. Every hook needs exactly one of `symbol` or `offset`.
+A function the module doesn't export, e.g. one found by reverse engineering a stripped library, is hooked by `offset`: its offset from the module's base address. Every hook has exactly one of `symbol` or `offset`.
 
 ```yaml
 module: libfoo.so
@@ -191,51 +127,31 @@ hooks:
   - offset: 0x1a2b4
     retType: int
     params:
-      - [const char *, input]
+      - ["const char *", input]
       - [size_t, length]
 ```
 
-frooky hooks the function at `<base address of libfoo.so> + 0x1a2b4`. Write the offset as a YAML number (`0x1a2b4`) or as a string starting with `0x` (`"0x1a2b4"`). A string without `0x` is rejected, because `"1234"` could be meant as hex or decimal. Leading zeros are allowed in a string, such as `"0x000000000001A2B4"`. Don't write them in an unquoted number: YAML reads `0001234` as an octal or decimal number, depending on the parser.
+frooky hooks the function at `<base address of libfoo.so> + 0x1a2b4`. Write the offset as a YAML number (`0x1a2b4`) or as a string starting with `0x` (`"0x000000000001A2B4"`, leading zeros allowed). A string without `0x` is rejected, because `"1234"` could be meant as hex or decimal. Don't write leading zeros in an unquoted number: YAML reads `0001234` as octal or decimal, depending on the parser.
+
+Events of these hooks contain `offset` instead of `symbol`, see [Output](./output.md#hook-native-events).
 
 ### Finding the Offset
 
 Take the function's address from your disassembler and subtract the image base the disassembler loaded the module at:
-
-```text
-offset = address shown in the disassembler - image base
-```
 
 | Disassembler | Default image base for a `.so` | Function shown at | `offset`  |
 | ------------ | ------------------------------ | ----------------- | --------- |
 | IDA          | `0x0`                          | `0x1a2b4`         | `0x1a2b4` |
 | Ghidra       | `0x100000`                     | `0x11a2b4`        | `0x1a2b4` |
 
-Ghidra shows the image base in _Window → Memory Map_, where you can also set it to `0`, so that addresses can be copied unchanged. Other tools may use other defaults, so check the image base before copying addresses.
+Ghidra shows the image base in _Window → Memory Map_, where you can also set it to `0` to copy addresses unchanged. Check the image base of other tools before copying addresses.
 
-Keep in mind:
-
-- **Use the virtual address, not the file offset.** A hex editor or a raw file view shows positions in the file, which are often different from the virtual address of code.
-- **An offset only fits one build of the module and one ABI.** After an app update, or for the `arm64-v8a` and `x86_64` copies of the same library, the offsets are different. frooky skips a hook whose offset is outside the module or doesn't point to executable memory, but an offset that points to the wrong code in the same module can't be detected.
-- **Late-loaded modules:** If the shared library is loaded dynamically via `dlopen` after application startup, frooky hooks it as soon as it loads (see [Resolve the Module or Class](./under-the-hood.md#resolve-the-module-or-class) in Under the Hood).
-
-Events of these hooks contain `offset` instead of `symbol`, see [Output](./output.md#hook-native-events).
+- **Use the virtual address, not the file offset.** A hex editor shows positions in the file, which often differ from the virtual address of the code.
+- **An offset only fits one build and one ABI of the module.** After an app update, or for the `arm64-v8a` and `x86_64` copies of a library, the offsets differ. frooky skips a hook whose offset is outside the module or not in executable memory, but can't detect an offset that points to the wrong code.
 
 ## Decoding Arguments and Return Values
 
-When a function accepts parameters or returns a value, frooky needs to know how to decode them.
-
-You can provide that information by declaring `retType` and `params` for each function. The type syntax follows standard [C function declaration](https://en.cppreference.com/w/c/language/function_declaration.html) style.
-
-```yaml
-module: <module name>
-hooks:
-  - symbol: <symbol name>
-    retType: <type>                   # Optional
-    params:                           # Optional
-      - <parameter declaration>
-```
-
-**Example:**
+`params` and `retType` are written as C types:
 
 ```yaml
 module: libssl.so
@@ -248,7 +164,7 @@ hooks:
       - ["X509 *", cert]
 ```
 
-This declaration hooks the following function from the [OpenSSL library](https://docs.openssl.org/master/man3/OSSL_CMP_validate_msg/):
+This hooks this function of [OpenSSL](https://docs.openssl.org/master/man3/OSSL_CMP_validate_msg/):
 
 ```c
 int OSSL_CMP_validate_cert_path(const OSSL_CMP_CTX *ctx,
@@ -256,32 +172,24 @@ int OSSL_CMP_validate_cert_path(const OSSL_CMP_CTX *ctx,
                                 X509 *cert);
 ```
 
-When these types are declared, frooky can decode arguments and return values using its built-in decoders.
-
-A pointer to one of these types is read as that type, e.g. `int *` as an `int` and `char **` as the string that `char *` points to. With the role `length` in `decoderArgs`, a pointer is an array, see [Native Pointers and Arrays](./decoders-native.md#pointers-and-arrays). An array type is a pointer, e.g. `char *[]` is `char **`.
-
-If a type is more complex, you may need further [decoder settings](./decoders.md#decoder-settings) (see also [Decoders for Native Hooks](./decoders-native.md)), such as `decoderArgs` or `direction`, to decode it correctly.
+How each type is decoded, e.g. `char *` as a string and `int *` as the `int` it points to, is described in [Decoders for Native Hooks](./decoders-native.md). Buffers and output parameters need [decoder settings](./decoders.md#decoder-settings) such as `decoderArgs` and `direction`.
 
 ## Hook and Decoder Settings
 
-`hookSettings` (e.g. `early`, `nativeStackTrace`, `platformStackTrace`, `maxStackFrames`, `callerFilter`) and `decoderSettings` (`maxDepth`, `maxItems`, `decoder`) can be declared on the hook collection (applying to every hook in it) or on an individual hook (overriding the hook collection for that hook only). See [Additional Features](./additional-features.md#settings-precedence), [Decoders](./decoders.md) and [Decoders for Native Hooks](./decoders-native.md) for the full list of options and how the file-level `settings`, the hook collection, an individual hook, and a parameter or return type are merged together.
-
-**Example:**
+`hookSettings` and `decoderSettings` can be set on the collection, for all its hooks, or on a hook in the expanded form, overriding the collection. See [Settings Precedence](./additional-features.md#settings-precedence), [Stack Traces](./additional-features.md#stack-traces), [Caller Filters](./additional-features.md#caller-filters), [Early Hooking](./additional-features.md#early-hooking) and [Decoders](./decoders.md).
 
 ```yaml
 module: libssl.so
 hookSettings:
-  platformStackTrace: true
   nativeStackTrace: true
   maxStackFrames: 10
-  callerFilter:
-    - libapp.so
+  callerFilter: ['^libapp\.so$']
 hooks:
   - symbol: SSL_write
     retType: int
     params:
       - ["SSL *", ssl]
-      - [const void *, buf, { decoderArgs: { length: num } }]
+      - ["const void *", buf, { decoderArgs: { length: num } }]
       - [int, num]
 ```
 

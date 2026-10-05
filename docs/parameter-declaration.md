@@ -1,86 +1,35 @@
 # Parameter Declaration
 
-frooky needs to know a function or method's signature to hook it correctly. Part of this signature is the parameter list, which includes the types and names of the arguments passed to the function or method. This documentation explains how to declare parameters.
-
-There are different accepted ways to declare a parameter. The following chapters explain them.
+`params` lists the parameters of a method or function, in order. In Java hooks, their types select the [overload](./java-hook-declaration.md#method-overloads). In native hooks, they tell frooky how to read the arguments, since a native function has no type information at runtime.
 
 <!-- TOC -->
 
-- [Unnamed Parameters](#unnamed-parameters)
-  - [Unnamed Java Parameters](#unnamed-java-parameters)
-  - [Unnamed Native Parameters](#unnamed-native-parameters)
-- [Named Parameters](#named-parameters)
-  - [Named Java Parameters](#named-java-parameters)
-  - [Named Native Parameters](#named-native-parameters)
-- [Decoders](#decoders)
+- [Forms](#forms)
+- [Java Parameters](#java-parameters)
+- [Native Parameters](#native-parameters)
+- [Decoder Settings](#decoder-settings)
 
 <!-- /TOC -->
 
-## Unnamed Parameters
+## Forms
 
-This is the simplest declaration, based solely on its type:
+| Form                   | Example                                                                     |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Type                   | `int`                                                                       |
+| Type + name            | `[int, len]`                                                                |
+| Type + settings        | `["[B", { maxItems: 32 }]`                                                  |
+| Type + name + settings | `["void *", buf, { direction: out, decoderArgs: { length: len } }]`         |
+| Object                 | `{ type: "void *", name: buf, direction: out, settings: { maxItems: 32 } }` |
 
-```yaml
-params: [ <type> ]
-```
+In the tuple forms, `direction` is one of the settings. In the object form, it's a field of its own next to `settings`.
 
-frooky will try to decode the arguments based on the provided type.
+The name is optional, but name your parameters: events show it next to the value, and [`decoderArgs`](./decoders.md#decoderargs-pass-values-to-the-decoder-by-role) refers to other parameters by it. A name that `decoderArgs` refers to must be unique within the hook.
 
-### Unnamed Java Parameters
+In YAML, quote a type that starts with `[` (`"[B"`) or contains `*` or `[]` (`"char *"`, `"char *const []"`).
 
-```yaml
-javaClass: android.webkit.WebView
-hooks:
-  - method: $init
-    overloads:
-      - params: [ android.content.Context ]
-      - params: [ android.content.Context, android.util.AttributeSet, int, boolean ]
-```
+## Java Parameters
 
-This example hooks the following constructors from the [Android Java Library](https://developer.android.com/reference/kotlin/android/webkit/WebView#public-constructors):
-
-```kotlin
-WebView(context: Context)
-WebView(context: Context, attrs: AttributeSet?, defStyleAttr: Int, privateBrowsing: Boolean)
-```
-
-### Unnamed Native Parameters
-
-```yaml
-module: sqlite3.so
-hooks:
-  - symbol: sqlite3_exec
-    retType: int
-    params: [ "sqlite3*", "const char *", "void *", "void *", "char **" ]
-```
-
-This example hooks the following method from the [SQLite function](https://sqlite.org/c3ref/exec.html):
-
-```c
-int sqlite3_exec(
-  sqlite3*,                                  /* An open database */
-  const char *sql,                           /* SQL to be evaluated */
-  int (*callback)(void*,int,char**,char**),  /* Callback function */
-  void *,                                    /* 1st argument to callback */
-  char **errmsg                              /* Error msg written here */
-);
-```
-
-## Named Parameters
-
-If you want to declare the name of the parameter, you must use an array for the type and name pair.
-
-```yaml
-params:
-  - [ <type>, <name> ]
-```
-
-The following chapters use the same examples described in [Unnamed Parameters](#unnamed-parameters) but add parameter names.
-
-> [!TIP]
-> Technically, the name of an argument is not required, but it is recommended to declare the name as well, as this makes a declaration easier to read and provides more context in the output of frooky.
-
-### Named Java Parameters
+Java types are written as [type descriptors](./java-hook-declaration.md#type-descriptors):
 
 ```yaml
 javaClass: android.webkit.WebView
@@ -88,34 +37,41 @@ hooks:
   - method: $init
     overloads:
       - params:
-        - [ android.content.Context, context ]
-        - [ android.util.AttributeSet, attrs ]
-        - [ int, defStyleAttr ]
-        - [ boolean, privateBrowsing ]
+          - [android.content.Context, context]
+      - params:
+          - [android.content.Context, context]
+          - [android.util.AttributeSet, attrs]
+          - [int, defStyleAttr]
+          - [boolean, privateBrowsing]
 ```
 
-This example hooks the following constructors from the [Android Java Library](https://developer.android.com/reference/kotlin/android/webkit/WebView#public-constructors):
+This hooks these two [constructors](https://developer.android.com/reference/kotlin/android/webkit/WebView#public-constructors):
 
 ```kotlin
+WebView(context: Context)
 WebView(context: Context, attrs: AttributeSet?, defStyleAttr: Int, privateBrowsing: Boolean)
 ```
 
-### Named Native Parameters
+frooky decodes a Java argument by its runtime class, not by the declared type, see [How frooky Picks a Java Decoder](./decoders-java.md#how-frooky-picks-a-java-decoder). Without `overloads`, every overload is hooked and its parameters are taken from reflection, without names.
+
+## Native Parameters
+
+Native types are written as in C. Parameters without a name can be mixed with named ones:
 
 ```yaml
-module: sqlite3.so
+module: libsqlite.so
 hooks:
   - symbol: sqlite3_exec
     retType: int
     params:
-      - "sqlite3*"
-      - [ "const char *", sql ]
-      - [ "void *", callback ]
+      - "sqlite3 *"
+      - ["const char *", sql]
+      - ["void *", callback]
       - "void *"
-      - [ "char **", "errmsg" ]
+      - ["char **", errmsg]
 ```
 
-This example hooks the following method from the [SQLite function](https://sqlite.org/c3ref/exec.html):
+This hooks [`sqlite3_exec`](https://sqlite.org/c3ref/exec.html):
 
 ```c
 int sqlite3_exec(
@@ -127,13 +83,15 @@ int sqlite3_exec(
 );
 ```
 
-## Decoders
+Declare the parameters up to the last one you want to decode; the ones after it can be left out. How each type is decoded is described in [Decoders for Native Hooks](./decoders-native.md#how-frooky-picks-a-decoder).
 
-When hooking a method, frooky tries to decode arguments as well as return values. This is done using decoders, which can be configured per parameter (for example to control the time of decoding via `direction`, limit items with `maxItems`, or pass roles with `decoderArgs`) by adding a third element to the parameter tuple:
+## Decoder Settings
+
+The settings of a parameter override the decoder settings of its hook, collection and file. Only a parameter can have `direction`, `decoderArgs` and `argFilter`:
 
 ```yaml
 params:
-  - [ <type>, <name>, { <decoder settings> } ]
+  - [<type>, <name>, { direction: out, decoderArgs: { length: $ret }, maxItems: 256 }]
 ```
 
-See [Decoders](./decoders.md) for what decoders are, the full list of decoder settings (`direction`, `maxDepth`, `maxItems`, `argFilter`, `decoderArgs`), and how to configure them. Which decoders exist and how they use these settings is described per platform in [Decoders for Android Java Hooks](./decoders-java.md) and [Decoders for Native Hooks](./decoders-native.md).
+See [Decoder Settings](./decoders.md#decoder-settings) for every setting.

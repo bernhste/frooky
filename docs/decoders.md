@@ -99,18 +99,18 @@ hooks:
 
 **Java in-place mutation (`direction: inout`):**
 
-When a method mutates a byte array or collection in place:
+`toggleCase(data: ByteArray)` of the Java target app flips the case of every letter of `data` in place:
 
 ```yaml
-javaClass: com.example.CryptoHelper
+javaClass: org.owasp.mastestapp.MastgTest
 hooks:
-  - method: decryptInPlace
+  - method: toggleCase
     overloads:
       - params:
-          - [ "[B", buffer, { direction: inout } ]
+          - [ "[B", data, { direction: inout, decoder: string } ]
 ```
 
-The resulting event records both the input value and the output value after decryption.
+The event records `data` both on entry (`"frooky"` in `argsIn`) and on return (`"FROOKY"` in `argsOut`).
 
 See [`02_output_parameters.yaml` (Java)](examples/android/02_parameters_and_return_values/02_output_parameters.yaml) and [`02_output_parameters.yaml` (native)](examples/native/02_parameters_and_return_values/02_output_parameters.yaml).
 
@@ -463,7 +463,7 @@ The constants are numbers, so only numeric values can be decoded:
 `config: { constants }` maps the names to their values. YAML reads `0x40` as a number, so hex values can be written as they are in C headers:
 
 ```yaml
-module: libfoo.so
+module: libreceiveFundamentalValue.so
 hooks:
   - symbol: set_permissions
     params:
@@ -473,14 +473,15 @@ hooks:
 Java hooks can also read the constants from a class (see [below](#java-hooks-the-constants-of-a-class)). A map helps when no class declares them, or the app is obfuscated and its fields have no meaningful names:
 
 ```yaml
-javaClass: org.example.CryptoHelper
+javaClass: org.owasp.mastestapp.MastgTest
 hooks:
-  - method: process
+  - method: receiveMode
     overloads:
       - params:
-        - [int, mode, { decoder: constants, config: { constants: { ENCRYPT_MODE: 1, DECRYPT_MODE: 2 } } }]
-        - ["[B", data]
+        - [int, opmode, { decoder: constants, config: { constants: { ENCRYPT: 1, DECRYPT: 2 } } }]
 ```
+
+`receiveMode(MODE_DECRYPT)` is decoded as `"DECRYPT"`, the name from the map, not the class's own `MODE_DECRYPT`.
 
 **In Java hooks**, an `int` is compared as 32 bits, so a constant can be written in hex, e.g. `0x80000000` for `-2147483648`.
 
@@ -538,7 +539,7 @@ hooks:
         - [int, purposes, { decoder: bitmask, config: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" } }]
 ```
 
-`KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY` is decoded as `["PURPOSE_SIGN", "PURPOSE_VERIFY"]`. The same helps for an app's own wrapper around an API, e.g. `{ class: javax.crypto.Cipher, fields: "*_MODE" }` on the `mode` of `org.example.CryptoHelper.process(int mode, byte[] data)`.
+`KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY` is decoded as `["PURPOSE_SIGN", "PURPOSE_VERIFY"]`. The same helps for an app's own wrapper around an API, e.g. `{ class: javax.crypto.Cipher, fields: "*_MODE" }` on a wrapper method's parameter that takes a `Cipher` mode.
 
 frooky looks the class up when it installs the hook: in the app's default class loader, or else in the class loader of the hooked class, e.g. for a class of a dex the app loads itself. If the class isn't found or has no matching field of the type of the value, frooky logs a warning and decodes the value as it is.
 

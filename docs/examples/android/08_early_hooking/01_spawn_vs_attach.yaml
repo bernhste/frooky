@@ -17,7 +17,7 @@ metadata:
 #   frooky -U -N value_passing_java.frooky.target.app docs/examples/android/08_early_hooking/01_spawn_vs_attach.yaml
 #
 # A hook whose class or native library isn't loaded yet is installed as soon as it loads, also much later.
-# After 5 seconds (-t), frooky reports it as waiting.
+# Until then, frooky reports it as waiting once the app has started.
 
 hookCollection:
   # Docs: https://developer.android.com/reference/android/app/Activity#onCreate(android.os.Bundle)

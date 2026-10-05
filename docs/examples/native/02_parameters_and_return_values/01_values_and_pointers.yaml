@@ -9,7 +9,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/02_parameters_and_return_values/01_values_and_pointers.yaml
-# See:    docs/parameter-declaration.md#named-native-parameters
+# See:    docs/parameter-declaration.md#native-parameters
 
 hookCollection:
   # int receive_int(int minValue, int maxValue), double receive_double(double minValue, double maxValue)

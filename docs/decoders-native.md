@@ -77,24 +77,25 @@ See [`02_pointers_and_arrays.yaml`](examples/native/03_decoders/02_pointers_and_
 
 ## UTF-16 Strings
 
-Most native code on Android and iOS uses UTF-8, but some APIs pass UTF-16 strings:
+Most native code on Android uses UTF-8, but some APIs pass UTF-16 strings:
 
 - JNI: `GetStringChars` and `GetStringCritical` return a `const jchar *`, `NewString` takes one.
 - Binder (`android::String16`) and ICU (`const UChar *`) on Android.
-- CoreFoundation and Foundation on iOS, e.g. `CFStringGetCharacters` (`UniChar *`) and `-[NSString initWithCharacters:length:]` (`const unichar *`).
 
-A pointer to `char16_t`, `jchar`, `unichar`, `UniChar` or `UChar` is decoded as a UTF-16 string. For other types, e.g. `uint16_t *` or `void *`, use `decoder: utf16`. Without the role `length`, the string ends at a 0 code unit. JNI strings have no terminator, so they need the length, which JNI and CoreFoundation count in code units:
+A pointer to `char16_t`, `jchar`, `unichar`, `UniChar` or `UChar` is decoded as a UTF-16 string. For other types, e.g. `uint16_t *` or `void *`, use `decoder: utf16`. Without the role `length`, the string ends at a 0 code unit. JNI strings have no terminator, so they need the length, which JNI counts in code units. `receive_utf16` of the native target app gets a string like that:
 
 ```yaml
-module: libfoo.so
+module: libreceiveString.so
 hooks:
-  - symbol: Java_org_example_Native_process
+  - symbol: receive_utf16
     params:
-      - [ "const jchar *", chars, { decoderArgs: { length: len } } ]
-      - [ jsize, len ]
+      - [ "const char16_t *", s, { decoderArgs: { length: len } } ]
+      - [ int, len ]
 ```
 
-At most `maxItems` code units are decoded. A cut string ends with `...` and never ends with half of a character that takes two code units, such as an emoji. `wchar_t` isn't UTF-16 on Android and iOS, but 4 bytes per character, so `wchar_t *` isn't decoded as UTF-16.
+This decodes `s` as `"Grüezi"`, from its 6 code units.
+
+At most `maxItems` code units are decoded. A cut string ends with `...` and never ends with half of a character that takes two code units, such as an emoji. `wchar_t` isn't UTF-16 on Android, but 4 bytes per character, so `wchar_t *` isn't decoded as UTF-16.
 
 See [`01_strings_and_buffers.yaml`](examples/native/03_decoders/01_strings_and_buffers.yaml).
 
@@ -114,7 +115,7 @@ For a socket, frooky also reads its address family, socket type and addresses:
 
 - `local` and `peer` are `IP:port` (`[IPv6]:port` for IPv6) or, for `AF_UNIX`, a path. On Android, a name in the abstract namespace starts with `@`. They are `null` if the socket has no address, e.g. `peer` before `connect`.
 - Pipes and other kinds of fds only have a `path`, e.g. `pipe:[678]` or `anon_inode:[eventfd]`.
-- On Android, the `path` is read from `/proc/self/fd`. On iOS, it is read with `fcntl(F_GETPATH)`, which only has a path for files, so it is `null` for sockets and pipes.
+- The `path` is read from `/proc/self/fd`.
 - A negative fd, e.g. `-1` when `open` fails, and an fd that isn't open have `path: null`. For an fd that `close` closes, decode it at the call (the default), not with `direction: out`.
 
 The decoder only reads the state of the fd. It works on the return value too, e.g. `retType: [int, { decoder: fd }]` for `open` and `socket`.
@@ -145,12 +146,7 @@ See [`03_file_descriptors.yaml`](examples/native/03_decoders/03_file_descriptors
 | `socketDomain` | `domain` of `socket` (one constant)       | `"AF_INET6"`                         |
 | `socketType`   | `type` of `socket`                        | `["SOCK_STREAM", "SOCK_CLOEXEC"]`    |
 
-Each preset has two tables, and frooky picks the one for the platform of the app:
-
-- **Android** (and Linux), arm64 and x86_64: the values of the Linux kernel and Bionic. The kernel keeps them stable, but a few `O_*` flags differ between arm64 and x86_64, e.g. `O_DIRECTORY`.
-- **iOS** (and macOS): the values of the XNU kernel and libSystem, which are the same on every architecture. They differ from Android's, e.g. `O_CREAT` is `0x200` instead of `0x40`, and some constants only exist on one platform, e.g. `SOCK_CLOEXEC` only on Android and `MAP_JIT` only on iOS. frooky doesn't hook iOS apps yet, so the iOS values aren't tested against an app.
-
-On other platforms, a preset logs a warning and the value is decoded as a number.
+The values are those of the Linux kernel and Bionic. A few `O_*` flags differ between arm64 and x86_64, e.g. `O_DIRECTORY`, and frooky uses the ones of the app's architecture.
 
 ```yaml
 module: libc.so
@@ -175,7 +171,7 @@ Many C functions report an error by returning `-1` (or `NULL`) and set `errno` t
 ```
 
 - An error is `-1`, read with the size of the return type (32 bits for `int`, 64 bits for `ssize_t` or `long`), or `NULL` or `MAP_FAILED` (`(void *) -1`) for a pointer. For other return values, `errno` is `null`, since a function only sets `errno` on an error.
-- `name` is the name of the constant, `null` for a number frooky has no name for. The numbers differ between Android and iOS above 34, e.g. `11` is `EAGAIN` on Android and `EDEADLK` on iOS. `message` comes from `strerror` of the C library.
+- `name` is the name of the constant, `null` for a number frooky has no name for. `message` comes from `strerror` of the C library.
 - frooky reads `errno` right when the function returns, before anything else can change it.
 - Functions that return the error number themselves, such as `pthread_create`, don't use `errno`. Use `decoder: constants` for them.
 

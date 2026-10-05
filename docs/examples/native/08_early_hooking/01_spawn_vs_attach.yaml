@@ -18,7 +18,7 @@ metadata:
 #
 # A hook on a function in the app's own library (e.g. libreceiveString.so) is installed as soon as the
 # library loads, before its constructors and JNI_OnLoad run (see 02_calls_while_loading.yaml), also when the
-# app loads it much later. After 5 seconds (-t), frooky reports it as waiting.
+# app loads it much later. Until then, frooky reports it as waiting once the app has started.
 # Hook the loader, as below, to see which libraries the app loads.
 # Hooking the loader breaks loads from other linker namespaces, see docs/native-hook-declaration.md.
 
