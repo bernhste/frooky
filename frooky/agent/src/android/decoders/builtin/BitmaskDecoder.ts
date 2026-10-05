@@ -4,30 +4,7 @@ import { decodeBitmask } from "../../../shared/decoders/constantNames";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { logger } from "../../../shared/logger";
 import { configClassConstants } from "../utils/decodeConstants";
-
-const SIGN_BIT_64 = uint64("0x8000000000000000");
-const LOW_63_BITS = int64("0x7fffffffffffffff");
-
-// The bits of a Java integer as unsigned, e.g. -1 as an `int` is 0xffffffff. Undefined for other values.
-function javaBits(value: unknown, type: string): UInt64 | undefined {
-  const n = Number(String(value));
-  if (!Number.isInteger(n)) return undefined;
-  switch (type) {
-    case "byte":
-      return uint64(n & 0xff);
-    case "short":
-    case "char":
-      return uint64(n & 0xffff);
-    case "long": {
-      // a long beyond 2^53 is passed as a string; Int64 keeps all 64 bits
-      const long = int64(String(value));
-      const low = uint64(long.and(LOW_63_BITS).toString());
-      return long.compare(0) < 0 ? low.add(SIGN_BIT_64) : low;
-    }
-    default:
-      return uint64(n >>> 0);
-  }
-}
+import { javaBits } from "../utils/javaBits";
 
 // `decoder: bitmask`: the names of the constants whose bits are set in an integer bitmask, e.g.
 // `["PURPOSE_ENCRYPT", "PURPOSE_DECRYPT"]` for the purposes of a Keystore key. The constants are the map in

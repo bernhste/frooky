@@ -1,13 +1,12 @@
 # Decoders for Android Java Hooks
 
-How frooky decodes the parameters and return values of Java and Kotlin methods. The settings themselves are described in [Decoders](./decoders.md).
+How frooky decodes the parameters and return values of Java and Kotlin methods. The settings themselves and the decoders shared with native hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
 
 <!-- TOC -->
 
 - [How frooky Picks a Java Decoder](#how-frooky-picks-a-java-decoder)
 - [Built-in Decoders](#built-in-decoders)
-- [Named Decoders](#named-decoders)
-  - [Constants and Bitmasks](#constants-and-bitmasks)
+- [Java-Only Decoders](#java-only-decoders)
 - [`direction`: Output Parameters](#direction-output-parameters)
 - [`decoderArgs`: Offset and Length](#decoderargs-offset-and-length)
 - [Limits](#limits)
@@ -67,92 +66,39 @@ Interface decoders, in the order that decides between unrelated interfaces:
 
 The spec decoders show a `byte[]` as hex and a `char[]` as text. `Cipher`, `Mac` and `Signature` choose their provider when they are initialized, depending on the key. Their decoders never make them choose one early, so they show the provider only once it is chosen. See [`01_java_types.yaml`](examples/android/03_decoders/01_java_types.yaml), [`02_android_types.yaml`](examples/android/03_decoders/02_android_types.yaml) and [`05_crypto_types.yaml`](examples/android/03_decoders/05_crypto_types.yaml).
 
-## Named Decoders
+## Java-Only Decoders
 
-With `decoder`, a parameter or return value is decoded with one of these registered decoders instead of the one frooky would pick:
+Java hooks have the [shared decoders](./decoders.md#shared-decoders) `string`, `base64`, `hex`, `constants` and `bitmask`, and these two. See [`03_custom_decoders.yaml`](examples/android/03_decoders/03_custom_decoders.yaml).
 
-- `string`: decodes a `byte[]` or `char[]` as text, or calls `toString()` on any other reference type
-- `base64`: Base64-decodes a `String`, a `byte[]` or `char[]` of base64 text, or the `toString()` of any other value. Standard and URL-safe base64 are decoded, with or without padding, and whitespace such as line breaks is ignored. The decoded bytes are shown as text if they're printable UTF-8 text, otherwise as hex, e.g. a key. A value that isn't base64 is decoded as if no `decoder` were set
-- `getters`: decodes an object through its public `get*()` and `is*()` methods, including inherited ones, e.g. an app class without a decoder
-- `hashCode`: renders a reference type as `<class>@<hashCode>`, without invoking a custom `toString()` override
-- `constants`: decodes a value into the name of the constant with that value, see [Constants and Bitmasks](#constants-and-bitmasks)
-- `bitmask`: decodes an integer bitmask into the names of the constants whose bits are set, see [Constants and Bitmasks](#constants-and-bitmasks)
+### `getters`
 
-### Constants and Bitmasks
-
-Many APIs take an integer that stands for one or more named constants, e.g. the `opmode` of `Cipher.init()` or the `flags` of `Intent.setFlags()`. `decoder: constants` decodes such a value to the name of its constant, `decoder: bitmask` to the names of the constants whose bits are set. They take their constants from one of three places, set with `config`:
-
-| `config`                      | Constants                                                       |
-| ----------------------------- | --------------------------------------------------------------- |
-| none                          | the `static final` fields of the hooked class                   |
-| `fields: "*_MODE"`            | the `static final` fields of the hooked class whose names match |
-| `class: <class>` (+ `fields`) | the `static final` fields of that class (whose names match)     |
-| `constants: { NAME: value }`  | the map; it can't be combined with `class` or `fields`          |
-
-Only fields of the type of the value are used, e.g. the `int` fields for an `int` parameter. In `fields`, `*` matches any characters.
-
-**1. The constants of the hooked class.** `Cipher.init()` takes one of `Cipher`'s own constants:
+`decoder: getters` decodes an object through its public `get*()` and `is*()` methods, including inherited ones, e.g. an app class without a decoder:
 
 ```yaml
-javaClass: javax.crypto.Cipher
+javaClass: org.owasp.mastestapp.MastgTest
 hooks:
-  - method: init
+  - method: receiveProfile
     overloads:
       - params:
-        - [int, opmode, { decoder: constants, config: { fields: "*_MODE" } }]
-        - [java.security.Key, key]
+          - [org.owasp.mastestapp.UserProfile, profile, { decoder: getters }]
 ```
 
-This decodes the `opmode` argument of [`Cipher.init(int, Key)`](<https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key)>) to `"ENCRYPT_MODE"`, `"DECRYPT_MODE"`, etc. `fields` matters here: `Cipher` also declares `PUBLIC_KEY`, which is `1` like `ENCRYPT_MODE`, so without it `opmode` may be decoded as `"PUBLIC_KEY"`. A class without such duplicates needs no `config` at all, e.g. `{ decoder: constants }`.
+This decodes `profile` as `[{ "name": "age", "value": 42 }, { "name": "name", "value": "alice" }, { "name": "admin", "value": true }]`, in the order of reflection. Each getter value is decoded one `maxDepth` level deeper.
 
-The same works for a bitmask. The flags of [`Intent.setFlags(int)`](<https://developer.android.com/reference/android/content/Intent#setFlags(int)>) are `Intent`'s own `FLAG_*` constants:
+### `hashCode`
+
+`decoder: hashCode` renders an object as `<class>@<identity hash code in hex>`, like the default `Object.toString()`, without calling the object's own `toString()` or `hashCode()`:
 
 ```yaml
-javaClass: android.content.Intent
+javaClass: org.owasp.mastestapp.MastgTest
 hooks:
-  - method: setFlags
+  - method: receiveBigInteger
     overloads:
       - params:
-        - [int, flags, { decoder: bitmask, config: { fields: "FLAG_*" } }]
+          - [java.math.BigInteger, number, { decoder: hashCode }]
 ```
 
-`Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK` is decoded as `["FLAG_ACTIVITY_NEW_TASK", "FLAG_ACTIVITY_CLEAR_TASK"]`. Bits that no constant has are added as one hex string, e.g. `"0x100"`, a constant with the value `0` is only shown if no bit is set, and a constant with several bits wins over the constants it includes. Where several constants have the same bits, e.g. `FLAG_ACTIVITY_NO_HISTORY` and `FLAG_RECEIVER_REGISTERED_ONLY`, the first one of the class is shown; a narrower pattern such as `FLAG_ACTIVITY_*` picks the right one. `bitmask` works on `int`, `long`, `short`, `byte` and `char` values; other values are decoded as they are. It decodes the same as `decoder: bitmask` of [native hooks](./decoders-native.md#constants-and-bitmasks).
-
-**2. The constants of another class.** The purposes of a Keystore key are `KeyProperties.PURPOSE_*` constants, but the hooked method is on `KeyGenParameterSpec.Builder`:
-
-```yaml
-javaClass: android.security.keystore.KeyGenParameterSpec$Builder
-hooks:
-  - method: $init
-    overloads:
-      - params:
-        - [java.lang.String, keystoreAlias]
-        - [int, purposes, { decoder: bitmask, config: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" } }]
-```
-
-`KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY` is decoded as `["PURPOSE_SIGN", "PURPOSE_VERIFY"]`. The same helps for an app's own wrapper around an API, e.g. `{ class: javax.crypto.Cipher, fields: "*_MODE" }` on the `mode` of `org.example.CryptoHelper.process(int mode, byte[] data)`.
-
-frooky looks the class up when it installs the hook: in the app's default class loader, or else in the class loader of the hooked class, e.g. for a class of a dex the app loads itself. If the class isn't found or has no matching field of the type of the value, frooky logs a warning and decodes the value as it is.
-
-**3. A map.** When no class declares the constants, or the app is obfuscated and its fields have no meaningful names, declare them yourself:
-
-```yaml
-javaClass: org.example.CryptoHelper
-hooks:
-  - method: process
-    overloads:
-      - params:
-        - [int, mode, { decoder: constants, config: { constants: { ENCRYPT_MODE: 1, DECRYPT_MODE: 2 } } }]
-        - ["[B", data]
-```
-
-The value is compared with the map as a number, so a map only matches numeric values (`int`, `long`, `short`, `byte`, `float`, `double`). An `int` is compared as 32 bits, so a constant can be written in hex, e.g. `0x80000000` for `-2147483648`.
-
-`decoder: constants` decodes a value without a constant as the value itself. `config` is only accepted by `constants` and `bitmask`; on a value with any other decoder, frooky skips the hook with a warning.
-
-Other common bitmasks: the `flags` of `PendingIntent.getActivity()` (`{ fields: "FLAG_*" }` on `PendingIntent`), of `Context.registerReceiver()` (`{ class: android.content.Context, fields: "RECEIVER_*" }`) and of `Window.setFlags()` (`{ class: android.view.WindowManager$LayoutParams, fields: "FLAG_*" }`).
-
-See [`03_custom_decoders.yaml`](examples/android/03_decoders/03_custom_decoders.yaml).
+This decodes `number` as `"java.math.BigInteger@<identity hash code in hex>"`. The identity hash code (`System.identityHashCode()`) is the [`hashCode`](./output.md) of the events about the same object, e.g. of a hooked method that returns `this`, so decoded values and events can be matched. It doesn't change while the object changes, and two distinct objects have different ones, even if they are equal. Hash codes can collide. Primitives and strings have no identity, they are decoded as if no `decoder` were set.
 
 ## `direction`: Output Parameters
 
@@ -175,12 +121,13 @@ See [`02_output_parameters.yaml`](examples/android/02_parameters_and_return_valu
 
 Java can't pass a pointer into the middle of an array, so many APIs take an array with an offset and a length and only use that slice. `decoderArgs` passes these values to the decoder, each in its role (see [`decoderArgs`](./decoders.md#decoderargs-pass-values-to-the-decoder-by-role)). Java decoders accept these roles:
 
-| Decoder of the parameter                              | Role `offset`               | Role `length`                          |
-| ----------------------------------------------------- | --------------------------- | -------------------------------------- |
-| Arrays (`[B`, `[C`, `[I`, `[Ljava.lang.String;`, ...) | Elements to skip            | Elements to decode                     |
-| `decoder: string` on `[B` or `[C`                     | Bytes or characters to skip | Bytes or characters to decode as text  |
-| `decoder: base64` on `[B` or `[C`                     | Bytes or characters to skip | Bytes or characters of the base64 text |
-| All other types and decoders                          | –                           | –                                      |
+| Decoder of the parameter                                      | Role `offset`               | Role `length`                          |
+| ------------------------------------------------------------- | --------------------------- | -------------------------------------- |
+| Arrays (`[B`, `[C`, `[I`, `[Ljava.lang.String;`, ...)         | Elements to skip            | Elements to decode                     |
+| `decoder: string` on `[B` or `[C`                             | Bytes or characters to skip | Bytes or characters to decode as text  |
+| `decoder: base64` on `[B` or `[C`                             | Bytes or characters to skip | Bytes or characters of the base64 text |
+| `decoder: hex` on an array of numbers (`[B`, `[I`, `[D`, ...) | Elements to skip            | Elements to decode as hex              |
+| All other types and decoders                                  | –                           | –                                      |
 
 Without `offset`, the slice starts at index 0. Without `length`, it ends at the end of the array. A slice that reaches past the end of the array is cut to the array. At most `maxItems` elements of the slice are decoded.
 
@@ -228,11 +175,9 @@ What `maxItems` limits for each decoder, and whether it counts as a `maxDepth` l
 | `java.security.Key`, `Cipher`, `Mac`              | Bytes of the key or IV               | No                           |
 | `java.nio.ByteBuffer`                             | Remaining bytes                      | No                           |
 | `X509Certificate`                                 | Subject alternative names            | No                           |
-| `string` and `hex` (for `[B`), `string` for `[C`  | Bytes or characters                  | No                           |
-| `base64`                                          | Decoded bytes                        | No                           |
 | `java.lang.String`, other values via `toString()` | Characters                           | No                           |
 
-For `ContentValues`, whose output is a key/value object, the `"[truncated at N]"` marker is added as a key with the value `null`. Java strings, other values decoded with their `toString()`, byte arrays decoded with `string` or `hex`, and values decoded with `base64` end with `...` when they're cut.
+For `ContentValues`, whose output is a key/value object, the `"[truncated at N]"` marker is added as a key with the value `null`. Java strings and other values decoded with their `toString()` end with `...` when they're cut. For `string`, `base64` and `hex`, see their chapters in [Decoders](./decoders.md#shared-decoders).
 
 ```yaml
 javaClass: android.content.Intent
@@ -262,4 +207,4 @@ This example hooks the following method from the [Android Java Library](<https:/
 public int getFlags ()
 ```
 
-`getFlags()` returns a raw bitmask `int`. Instead of reporting the raw number, the return value is decoded with `decoder: bitmask` to the names of the `Intent.FLAG_*` constants set in it, see [Constants and Bitmasks](#constants-and-bitmasks).
+`getFlags()` returns a raw bitmask `int`. Instead of reporting the raw number, the return value is decoded with `decoder: bitmask` to the names of the `Intent.FLAG_*` constants set in it, see [`constants` and `bitmask`](./decoders.md#constants-and-bitmask-decode-named-constants).

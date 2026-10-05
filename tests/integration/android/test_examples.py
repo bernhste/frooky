@@ -193,6 +193,10 @@ class TestAndroidExamples:
         assert _values(text["argsIn"]) == ["Hello frooky"]
         [big_integer] = self._events(find_matched_events, "receiveBigInteger")
         assert re.fullmatch(r"java\.math\.BigInteger@[0-9a-f]+", big_integer["argsIn"][0]["value"])
+        [byte_array] = self._events(find_matched_events, "receiveByteArray")
+        assert _values(byte_array["argsIn"]) == ["0x010203"]
+        [number] = self._events(find_matched_events, "receiveInt")
+        assert _values(number["argsIn"]) == ["0x7fffffff"]
         [password] = self._events(find_matched_events, "receivePassword")
         assert password["argsIn"] == [{"type": "[C", "name": "password", "value": "s3cr3t"}]
         base64_values = sorted(event["argsIn"][0]["value"] for event in self._events(find_matched_events, "receiveBase64"))
@@ -447,9 +451,12 @@ class TestNativeExamples:
         assert _values(utf16["argsIn"]) == ["Grüezi", 6]
         [utf16_cstring] = self._events(find_matched_events, "receive_utf16_cstring")
         assert _values(utf16_cstring["argsIn"]) == ["Hello UTF-16"]
-        [read_message] = self._events(find_matched_events, "read_message")
-        assert read_message["argsOut"] == [{"type": "void *", "name": "buf", "value": "Hello frooky"}]
-        assert read_message["returnValue"]["value"] == 12
+        base64_values = sorted(event["argsIn"][0]["value"] for event in self._events(find_matched_events, "receive_base64"))
+        assert base64_values == ["0x000102030405060708090a0b0c0d0e0f", "Hello frooky"]
+        read_messages = {event["argsOut"][0]["name"]: event for event in self._events(find_matched_events, "read_message")}
+        assert read_messages["buf"]["argsOut"] == [{"type": "void *", "name": "buf", "value": "Hello frooky"}]
+        assert read_messages["buf"]["returnValue"]["value"] == 12
+        assert read_messages["bytes"]["argsOut"] == [{"type": "char *", "name": "bytes", "value": "0x48656c6c6f2066726f6f6b79"}]
 
     def test_pointers_and_arrays(self, run_frooky, find_matched_events):
         run_frooky(_example("native/03_decoders/02_pointers_and_arrays.yaml"), NATIVE_APP)
@@ -487,6 +494,13 @@ class TestNativeExamples:
         assert _values(log_level["argsIn"]) == ["LOG_LEVEL_WARN"]
         [permissions] = self._events(find_matched_events, "set_permissions")
         assert _values(permissions["argsIn"]) == [["PERMISSION_READ", "PERMISSION_SHARE", "0x100"]]
+        [receive_int] = self._events(find_matched_events, "receive_int")
+        assert _values(receive_int["argsIn"]) == ["0x80000000", "0x7fffffff"]
+        [receive_float] = self._events(find_matched_events, "receive_float")
+        assert _values(receive_float["argsIn"]) == ["0xff7fffff", "0x7f7fffff"]
+        [receive_double] = self._events(find_matched_events, "receive_double")
+        assert _values(receive_double["argsIn"]) == ["0xffefffffffffffff", "0x7fefffffffffffff"]
+        assert receive_double["returnValue"]["value"] == "0xffefffffffffffff"
         [open_log] = self._events(find_matched_events, "open_log")
         assert open_log["argsIn"][1] == {"type": "int", "name": "flags", "value": ["O_WRONLY", "O_CREAT", "O_TRUNC", "O_CLOEXEC"]}
         [open_socket] = self._events(find_matched_events, "open_socket")

@@ -57,6 +57,18 @@ describe("ConstantsDecoder", () => {
         );
       });
 
+      it("should match a long, as Frida passes it and as a number", () => {
+        const decoder = new ConstantsDecoder({
+          type: "long",
+          declaringClass: "org.example.Scheduler",
+          settings: { ...DEFAULT_DECODER_SETTINGS, config: { class: "android.text.format.DateUtils", fields: "*_IN_MILLIS" } },
+        });
+        const minute = Java.use("android.text.format.DateUtils").MINUTE_IN_MILLIS.value;
+
+        expect(decoder.decode(minute as unknown as Java.Wrapper).value).toBe("MINUTE_IN_MILLIS");
+        expect(decoder.decode(60000 as unknown as Java.Wrapper).value).toBe("MINUTE_IN_MILLIS");
+      });
+
       it("should use every field of config.class without config.fields", () => {
         const unwrapMode: number = Cipher.UNWRAP_MODE.value;
         const decoder = new ConstantsDecoder({

@@ -7,20 +7,16 @@ import { DecodedArgs, HookManager, mapResolution, ParamDecoder, Resolution } fro
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { logger } from "../../shared/logger";
 import { HookStackTrace, needsStackTrace, PlatformStackTrace, UnsafeContext } from "../../shared/platformStackTrace";
-import { formatHashCode, fromSource, plural } from "../../shared/utils";
+import { fromSource, plural } from "../../shared/utils";
 import { detectUnsafeContext } from "../../native/unsafeContext";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
+import { javaIdentityHashCode } from "../decoders/utils/javaValues";
 import { fixArtMethodAccessFlagsOffset, initializeClass, repairAccessFlags } from "../javaBridgeWorkarounds";
 import { JavaHook } from "./javaHook";
 import { countCalls, ReplacementCalls, RetiredReplacements } from "./retiredReplacements";
 import { resolveMethodHooks } from "./javaMethodResolver";
 import { JavaClassResolver, MethodObserver } from "./javaClassResolver";
 import { JavaHookEvent } from "./javaHookEvent";
-
-let javaSystem: Java.Wrapper | undefined;
-function getJavaSystem(): Java.Wrapper {
-  return (javaSystem ??= Java.use("java.lang.System"));
-}
 
 // frida-java-bridge looks up Class.isAssignableFrom() and Class.isInstance() of a ClassFactory when it first converts
 // a value of an object type, e.g. the return value of an original method. The lookup calls
@@ -342,8 +338,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     const decodeMs = call.decodeMs + Date.now() - decodeStart;
 
     const fieldType = this.buildFieldType(instance);
-    // identityHashCode() runs no app code, unlike an overridden hashCode(), and stays the same while the object mutates
-    const hashCode = fieldType.fieldType === "instance" ? formatHashCode(getJavaSystem().identityHashCode(instance)) : undefined;
+    const hashCode = fieldType.fieldType === "instance" ? javaIdentityHashCode(instance) : undefined;
     this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook, decodeMs);
   }
 

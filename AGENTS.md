@@ -38,7 +38,7 @@ npm run build:watch:android             # standalone agent with hook files embed
 
 Adding dependencies: Python: `uv add <pkg>` or `uv add --dev <pkg>` (managed in `pyproject.toml` and `uv.lock`). Node: `cd frooky/agent && npm install --save-dev <pkg>`; use no `--save-dev` for runtime dependencies like `zod`, which get bundled into the agent.
 
-CI (`.github/workflows/`) runs on every push: `verify-host.yml` (wheel build, unit tests, checks the agent is in the wheel), `test-agent-android.yaml` (agent tests on an emulator), and `test-host-android.yml` (integration tests on an emulator with Appium).
+CI (`.github/workflows/`) runs on every push: `verify-host.yml` (wheel build, unit tests, checks the agent is in the wheel and that the generated schemas are up to date), `test-agent-android.yaml` (agent tests on an emulator), and `test-host-android.yml` (integration tests on an emulator with Appium).
 
 Tests that need a device (`npm run test:android`, `pytest tests/integration/android`) are covered by the `device-testing` skill. In the devcontainer, adb, Appium and frida-server run on the host and are reached via `ADB_SERVER_SOCKET`, `APPIUM_URL` and `FRIDA_HOST`. Check `adb devices` before assuming a device is available. If none is, say so instead of skipping tests silently.
 

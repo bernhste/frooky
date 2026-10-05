@@ -1,25 +1,21 @@
 import Java from "frida-java-bridge";
 import { Decoder } from "../../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
+import { javaIdentityHashCode } from "../utils/javaValues";
 
-let javaObject: Java.Wrapper | undefined;
-function getJavaObject(): Java.Wrapper {
-  return (javaObject ??= Java.use("java.lang.Object"));
-}
-
-// Decodes an object as `<runtime class>@<hex hashCode()>`, like the default `Object.toString()`, without
-// calling an overridden `toString()`. Classes with a content-based `hashCode()` (e.g. Android Keystore keys,
-// by alias) get the same value for equal objects. Hash codes can collide.
+// Decodes an object as `<runtime class>@<hex System.identityHashCode()>`, without calling its `toString()` or
+// `hashCode()`. The hash code is the `hashCode` of the events about the same object, e.g. a hooked method that
+// returns `this`. Hash codes can collide.
 export class HashCodeDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "HashCodeDecoder";
-  readonly description = "Decodes an object as `<class>@<hashCode in hex>` without calling its `toString()`, to tell instances apart.";
+  readonly description = "Decodes an object as `<class>@<identity hash code in hex>`, the `hashCode` of the events about it.";
 
   decode(value: Java.Wrapper): DecodedValue {
     let decodedValue: string | null = null;
     if (value != null) {
-      const target = typeof value.hashCode === "function" ? value : Java.cast(value, getJavaObject());
-      const hash: number = target.hashCode();
-      decodedValue = `${value.$className}@${(hash >>> 0).toString(16)}`;
+      // primitives and strings, which Frida passes as JS values, have no identity; OverrideDecoder decodes them as they are
+      if (typeof value !== "object") throw new Error(`${typeof value} has no identity hash code`);
+      decodedValue = `${value.$className}@${javaIdentityHashCode(value)}`;
     }
     return {
       type: this.type,

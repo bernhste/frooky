@@ -29,6 +29,21 @@ jobs:
         working-directory: frooky/agent
         run: npm ci
 
+      # the schemas are generated from the hook-file types, so a difference means they weren't regenerated after a
+      # change to the types
+      - name: Check generated schemas
+        working-directory: frooky/agent
+        run: |
+          npm run build:zodSchema
+          npm run build:jsonSchema
+          changes=$(git status --porcelain -- src/shared/inputParsing/zodSchemas ../../docs/schema)
+          if [ -n "$changes" ]; then
+            echo "::error::The generated schemas are out of date. Run 'npm run build:zodSchema && npm run build:jsonSchema' in frooky/agent and commit the result."
+            echo "$changes"
+            git --no-pager diff -- src/shared/inputParsing/zodSchemas ../../docs/schema
+            exit 1
+          fi
+
       - name: Build frooky agent
         working-directory: frooky/agent
         run: npm run build:prod:android

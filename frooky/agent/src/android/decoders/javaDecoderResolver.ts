@@ -10,6 +10,7 @@ import { ConstantsDecoder } from "./builtin/ConstantsDecoder";
 import { BitmaskDecoder } from "./builtin/BitmaskDecoder";
 import { GetterDecoder } from "./builtin/GetterDecoder";
 import { HashCodeDecoder } from "./builtin/HashCodeDecoder";
+import { HexDecoder } from "./builtin/HexDecoder";
 import { OverrideDecoder } from "./builtin/OverrideDecoder";
 import { PrimitiveDecoder } from "./builtin/PrimitiveDecoder";
 import { ReferenceTypeDecoder } from "./builtin/ReferenceTypeDecoder";
@@ -23,6 +24,7 @@ function getCustomDecoderRegistry(): Record<JavaDecoderName, DecoderConstructor>
   return (customDecoderRegistry ??= {
     string: StringDecoder,
     base64: Base64Decoder,
+    hex: HexDecoder,
     hashCode: HashCodeDecoder,
     constants: ConstantsDecoder,
     bitmask: BitmaskDecoder,
@@ -64,15 +66,17 @@ export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
   },
 };
 
-// The `decoderArgs` roles the decoder of a parameter accepts, see docs/decoders-java.md
+// The `decoderArgs` roles the decoder of a parameter accepts, see the `decoderArgs` table in docs/decoders-java.md
 export function acceptedJavaDecoderArgs(decodable: Decodable): readonly DecoderArgRole[] {
   const decoder = decodable.settings.decoder;
   if (decoder === "string" || decoder === "base64") return decodable.type === "[B" || decodable.type === "[C" ? ["length", "offset"] : [];
+  if (decoder === "hex") return ["[B", "[S", "[C", "[I", "[J", "[F", "[D"].includes(decodable.type) ? ["length", "offset"] : [];
   if (decoder) return [];
   return decodable.type.startsWith("[") ? ["length", "offset"] : [];
 }
 
-// The `config` options the decoder of a value accepts, see docs/decoders-java.md
+// The `config` options the decoder of a value accepts: the map or the class constants of `constants` and `bitmask`,
+// see docs/decoders.md
 export function acceptedJavaDecoderConfig(settings: DecoderSettings): readonly (keyof DecoderConfig)[] {
   return settings.decoder === "constants" || settings.decoder === "bitmask" ? ["constants", "class", "fields"] : [];
 }

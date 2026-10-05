@@ -5,6 +5,7 @@ The app implements a native c library which passes various native values to func
 For the examples in `docs/examples/native/`, the libraries also have:
 
 - `get_secret`, which writes into an output buffer, and `send_message`, which takes a buffer without a terminator
+- `receive_base64`, which takes base64 text with its length, once text and once a key
 - `track_event`, called both directly by the JNI method and through `sdk_flush`, for stack traces and stack trace filters
 - `read_status`, which opens `/proc/self/status` through libc
 - `count_args`, which takes a NULL-terminated `argv`

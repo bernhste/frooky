@@ -37,8 +37,11 @@ export class ConstantsDecoder extends Decoder<Java.Wrapper> {
     return Object.entries(constants).find(([, c]) => matches(c))?.[0];
   }
 
-  // Frida passes `int`s as signed numbers, decodeConstantValues() returns them unsigned (`>>> 0`)
+  // Frida passes `int`s as signed numbers, decodeConstantValues() returns them unsigned (`>>> 0`), and `long`s as
+  // decimal strings, as a `long` beyond 2^53 has no exact JS number
   private normalize(value: Java.Wrapper): unknown {
-    return this.type === "int" ? Number(value) >>> 0 : value;
+    if (this.type === "int") return Number(value) >>> 0;
+    if (this.type === "long") return String(value);
+    return value;
   }
 }

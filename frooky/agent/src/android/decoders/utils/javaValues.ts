@@ -2,7 +2,7 @@ import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { DecoderSettings } from "../../../shared/frookySettings";
 import { logger } from "../../../shared/logger";
-import { readBytesLimited, toHex } from "../../../shared/utils";
+import { formatHashCode, readBytesLimited, toHex } from "../../../shared/utils";
 import { JavaDecoderResolver } from "../javaDecoderResolver";
 
 const classCache = new Map<string, Java.Wrapper>();
@@ -15,6 +15,13 @@ export function useJavaClass(className: string): Java.Wrapper {
     classCache.set(className, javaClass);
   }
   return javaClass;
+}
+
+// `System.identityHashCode()` of an object as hex, e.g. `c437358`: the `hashCode` of Java events and of
+// `decoder: hashCode`. Unlike an overridden `hashCode()`, it runs no app code and stays the same while the object
+// mutates.
+export function javaIdentityHashCode(instance: Java.Wrapper): string {
+  return formatHashCode(useJavaClass("java.lang.System").identityHashCode(instance));
 }
 
 // Java.use() of a class that `instance` can see, e.g. its own class or a superclass. Java.use() only knows the

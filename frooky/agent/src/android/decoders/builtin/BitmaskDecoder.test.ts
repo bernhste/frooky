@@ -29,6 +29,10 @@ describe("BitmaskDecoder", () => {
     expect(decode("long", "-9223372036854775807", { BIT_0: 1 })).toEqual(["BIT_0", "0x8000000000000000"]);
   });
 
+  it("reads a char, which Frida passes as a string of one character", () => {
+    expect(decode("char", "\u0003")).toEqual(["PURPOSE_ENCRYPT", "PURPOSE_DECRYPT"]);
+  });
+
   it("decodes 0 as the constant with value 0, or as an empty list", () => {
     expect(decode("int", 0, { NONE: 0, A: 1 })).toEqual(["NONE"]);
     expect(decode("int", 0)).toEqual([]);

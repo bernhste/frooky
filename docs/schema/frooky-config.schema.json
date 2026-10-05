@@ -77,6 +77,7 @@
               "enum": [
                 "string",
                 "base64",
+                "hex",
                 "hashCode",
                 "constants",
                 "bitmask",
@@ -143,6 +144,7 @@
                               "enum": [
                                 "string",
                                 "base64",
+                                "hex",
                                 "hashCode",
                                 "constants",
                                 "bitmask",
@@ -210,6 +212,7 @@
                                               "enum": [
                                                 "string",
                                                 "base64",
+                                                "hex",
                                                 "hashCode",
                                                 "constants",
                                                 "bitmask",
@@ -307,6 +310,7 @@
                                               "enum": [
                                                 "string",
                                                 "base64",
+                                                "hex",
                                                 "hashCode",
                                                 "constants",
                                                 "bitmask",
@@ -420,6 +424,7 @@
                                               "enum": [
                                                 "string",
                                                 "base64",
+                                                "hex",
                                                 "hashCode",
                                                 "constants",
                                                 "bitmask",
@@ -495,6 +500,7 @@
                                     "enum": [
                                       "string",
                                       "base64",
+                                      "hex",
                                       "hashCode",
                                       "constants",
                                       "bitmask",
@@ -592,6 +598,7 @@
                               "enum": [
                                 "string",
                                 "base64",
+                                "hex",
                                 "hashCode",
                                 "constants",
                                 "bitmask",
@@ -648,6 +655,7 @@
                     "enum": [
                       "string",
                       "base64",
+                      "hex",
                       "hashCode",
                       "constants",
                       "bitmask",
@@ -701,6 +709,7 @@
                               "enum": [
                                 "string",
                                 "base64",
+                                "hex",
                                 "utf16",
                                 "errno",
                                 "fd",
@@ -770,6 +779,7 @@
                                             "enum": [
                                               "string",
                                               "base64",
+                                              "hex",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -869,6 +879,7 @@
                                             "enum": [
                                               "string",
                                               "base64",
+                                              "hex",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -984,6 +995,7 @@
                                             "enum": [
                                               "string",
                                               "base64",
+                                              "hex",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1072,6 +1084,7 @@
                                           "enum": [
                                             "string",
                                             "base64",
+                                            "hex",
                                             "utf16",
                                             "errno",
                                             "fd",
@@ -1155,6 +1168,7 @@
                                           "enum": [
                                             "string",
                                             "base64",
+                                            "hex",
                                             "utf16",
                                             "errno",
                                             "fd",
@@ -1255,6 +1269,7 @@
                                   "enum": [
                                     "string",
                                     "base64",
+                                    "hex",
                                     "utf16",
                                     "errno",
                                     "fd",
@@ -1328,6 +1343,7 @@
                                             "enum": [
                                               "string",
                                               "base64",
+                                              "hex",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1427,6 +1443,7 @@
                                             "enum": [
                                               "string",
                                               "base64",
+                                              "hex",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1542,6 +1559,7 @@
                                             "enum": [
                                               "string",
                                               "base64",
+                                              "hex",
                                               "utf16",
                                               "errno",
                                               "fd",
@@ -1630,6 +1648,7 @@
                                           "enum": [
                                             "string",
                                             "base64",
+                                            "hex",
                                             "utf16",
                                             "errno",
                                             "fd",
@@ -1713,6 +1732,7 @@
                                           "enum": [
                                             "string",
                                             "base64",
+                                            "hex",
                                             "utf16",
                                             "errno",
                                             "fd",
@@ -1813,6 +1833,7 @@
                                   "enum": [
                                     "string",
                                     "base64",
+                                    "hex",
                                     "utf16",
                                     "errno",
                                     "fd",
@@ -1888,6 +1909,7 @@
                     "enum": [
                       "string",
                       "base64",
+                      "hex",
                       "utf16",
                       "errno",
                       "fd",

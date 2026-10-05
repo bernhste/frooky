@@ -46,7 +46,7 @@ Same implementation rules as above. The names are part of the hook-file format:
 1. Add the name to `JavaDecoderName` or `NativeDecoderName` (a native preset: `NativeBitmaskPresetName` / `NativeConstantsPresetName`) in `frooky/agent/src/shared/frookySettings.ts`.
 2. Add the entry to the registry, `getCustomDecoderRegistry()` in `javaDecoderResolver.ts` or `CUSTOM_DECODER_REGISTRY` in `nativeDecoderResolver.ts`. Both are typed `Record<...DecoderName, ...>`, so the build fails until name and entry match.
 3. Regenerate both schemas (`npm run build:zodSchema && npm run build:jsonSchema`); the JSON schema then offers the name for autocompletion in hooks of that platform.
-4. **Update the list of registered decoders in `docs/decoders-java.md` or `docs/decoders-native.md`** (the "Named Decoders" section).
+4. **Update the list of registered decoders**: the "Named Decoders" table in `docs/decoders.md`, and give the decoder a chapter: under "Shared Decoders" in `docs/decoders.md` if both platforms have it, else under "Java-Only Decoders" in `docs/decoders-java.md` or in `docs/decoders-native.md`.
 
 If the decoder needs other values, it receives them by role in the `args` parameter of `decode` (`{ length, offset }`, read with `countArg()` or `sliceBounds()` from `shared/decoders/decoderArgs.ts`). List the roles it accepts in `acceptedJavaDecoderArgs()` or `acceptedNativeDecoderArgs()`, which reject other roles when the hook file is validated, and in the `decoderArgs` table of `docs/decoders-java.md` or `docs/decoders-native.md`.
 
@@ -60,4 +60,4 @@ Type parsing lives in `nativeFridaType.ts`. Named native decoders (`decoder: fd`
 
 1. Build: `cd frooky/agent && npm run build:dev:android`.
 2. Test on a device: `npm run test:android` (see the `device-testing` skill). If no device is available, say that the new tests were not run.
-3. Update `docs/decoders-java.md` (the "Built-in Decoders" and "Limits" tables) or `docs/decoders-native.md` if user-visible output changed, and `docs/decoders.md` if a setting behaves differently. If the new decoder is worth showing, add it to `docs/examples/android/03_decoders/` (running against a target app) with a test in `tests/integration/android/test_examples.py`.
+3. Update `docs/decoders-java.md` (the "Built-in Decoders" and "Limits" tables) or `docs/decoders-native.md` if user-visible output changed, and `docs/decoders.md` if a setting or a shared decoder (`string`, `base64`, `constants`, `bitmask`) behaves differently. If the new decoder is worth showing, add it to `docs/examples/android/03_decoders/` (running against a target app) with a test in `tests/integration/android/test_examples.py`.

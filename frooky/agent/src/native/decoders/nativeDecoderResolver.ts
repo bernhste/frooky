@@ -9,6 +9,7 @@ import { resolvePreset } from "./nativeConstantPresets";
 import { NativeErrnoDecoder } from "./nativeErrnoDecoder";
 import { NativeFallbackDecoder } from "./nativeFallbackDecoder";
 import { NativeFdDecoder } from "./nativeFdDecoder";
+import { isNativePointerType, NativeHexDecoder } from "./nativeHexDecoder";
 import { parseNativeFridaType } from "./nativeFridaType";
 import { NativeNullTerminatedArrayDecoder, NativeReferenceDecoder } from "./nativeReferenceDecoder";
 import { NativeStringDecoder } from "./nativeStringDecoder";
@@ -56,6 +57,7 @@ const constantsPreset =
 const CUSTOM_DECODER_REGISTRY: Record<NativeDecoderName, NativeDecoderFactory> = {
   string: (decodable) => new NativeStringDecoder(decodable),
   base64: (decodable) => new NativeBase64Decoder(decodable),
+  hex: (decodable) => new NativeHexDecoder(decodable),
   utf16: (decodable) => new NativeUtf16Decoder(decodable),
   errno: (decodable) => new NativeErrnoDecoder(decodable, resolveTypeDecoder(decodable)),
   fd: (decodable) => new NativeFdDecoder(decodable),
@@ -87,17 +89,19 @@ export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
   },
 };
 
-// The `decoderArgs` roles the decoder of a parameter accepts, see docs/decoders-native.md
+// The `decoderArgs` roles the decoder of a parameter accepts, see the `decoderArgs` table in docs/decoders-native.md
 export function acceptedNativeDecoderArgs(decodable: Decodable): readonly DecoderArgRole[] {
   const decoder = decodable.settings.decoder;
   if (decoder === "string" || decoder === "utf16" || decoder === "base64") return ["length", "offset"];
+  if (decoder === "hex") return isNativePointerType(decodable.type) ? ["length", "offset"] : [];
   if (decoder === "nullTerminated") return ["offset"];
   if (decoder) return [];
   // pointers to fundamental types, e.g. `char *` or `int *`, and UTF-16 strings
   return typeof parseNativeFridaType(decodable.type) === "object" || isUtf16PointerType(decodable.type) ? ["length", "offset"] : [];
 }
 
-// The `config` options the decoder of a value accepts, see docs/decoders-native.md. The presets bring their own constants.
+// The `config` options the decoder of a value accepts: the map of `constants` and `bitmask`, see docs/decoders.md. The
+// presets bring their own constants.
 export function acceptedNativeDecoderConfig(settings: DecoderSettings): readonly (keyof DecoderConfig)[] {
   return settings.decoder === "constants" || settings.decoder === "bitmask" ? ["constants"] : [];
 }

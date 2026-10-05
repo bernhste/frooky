@@ -2,7 +2,7 @@ metadata:
   name: "Decoders (Native): Constants and Bitmasks"
   description: |
     `decoder: constants` decodes an integer to the name of its constant, `decoder: bitmask` decodes a bitmask to
-    the names of the bits that are set. The names come from `config: { constants }`, or from a built-in preset
+    the names of the bits that are set, and `decoder: hex` shows its bits as hex, also of a float or double. The names come from `config: { constants }`, or from a built-in preset
     for the flags and constants of system calls on Android and iOS, such as `openFlags` or `socketDomain`.
   version: 1
   author: frooky dev
@@ -10,7 +10,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/04_constants_and_bitmasks.yaml
-# See:    docs/decoders-native.md#constants-and-bitmasks
+# See:    docs/decoders.md#constants-and-bitmask-decode-named-constants
 
 hookCollection:
   - module: libreceiveFundamentalValue.so
@@ -25,6 +25,25 @@ hookCollection:
       - symbol: set_permissions
         params:
           - [unsigned int, permissions, { decoder: bitmask, config: { constants: { PERMISSION_READ: 0x1, PERMISSION_WRITE: 0x2, PERMISSION_SHARE: 0x4 } } }]
+
+      # int receive_int(int minValue, int maxValue) with INT_MIN and INT_MAX. `hex` shows the bits of an integer
+      # at the size of its type, e.g. INT_MIN as 0x80000000.
+      - symbol: receive_int
+        params:
+          - [int, minValue, { decoder: hex }]
+          - [int, maxValue, { decoder: hex }]
+
+      # float receive_float(float minValue, float maxValue) and double receive_double(double minValue, double maxValue)
+      # with -FLT_MAX, FLT_MAX, -DBL_MAX and DBL_MAX. `hex` shows the IEEE 754 bits of a float or double.
+      - symbol: receive_float
+        params:
+          - [float, minValue, { decoder: hex }]
+          - [float, maxValue, { decoder: hex }]
+      - symbol: receive_double
+        retType: [double, { decoder: hex }]
+        params:
+          - [double, minValue, { decoder: hex }]
+          - [double, maxValue, { decoder: hex }]
 
       # int open_log(const char *path, int flags) passes `flags` to open(2)
       # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
@@ -50,6 +69,9 @@ hookCollection:
 # Expected values:
 #   set_log_level:   argsIn[0].value "LOG_LEVEL_WARN"
 #   set_permissions: argsIn[0].value ["PERMISSION_READ", "PERMISSION_SHARE", "0x100"]
+#   receive_int:     argsIn values "0x80000000" and "0x7fffffff"
+#   receive_float:   argsIn values "0xff7fffff" and "0x7f7fffff"
+#   receive_double:  argsIn values "0xffefffffffffffff" and "0x7fefffffffffffff", returnValue "0xffefffffffffffff"
 #   open_log:        argsIn[1].value ["O_WRONLY", "O_CREAT", "O_TRUNC", "O_CLOEXEC"]
 #   open_socket:     argsIn[0].value "AF_INET", argsIn[1].value ["SOCK_DGRAM", "SOCK_CLOEXEC"]
 #   map_page:        argsIn[0].value ["PROT_READ", "PROT_WRITE"], argsIn[1].value ["MAP_PRIVATE", "MAP_ANONYMOUS"]

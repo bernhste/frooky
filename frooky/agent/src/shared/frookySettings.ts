@@ -118,11 +118,12 @@ export interface DecoderConfig {
 }
 
 /**
- * Decoders of Java hooks, selected with `decoder:`. See docs/decoders-java.md.
+ * Decoders of Java hooks, selected with `decoder:`: the decoders of every platform (`string`, `base64`, `hex`,
+ * `constants`, `bitmask`) and `getters` and `hashCode`. See docs/decoders.md.
  *
  * @public
  */
-export type JavaDecoderName = "string" | "base64" | "hashCode" | "constants" | "bitmask" | "getters";
+export type JavaDecoderName = "string" | "base64" | "hex" | "hashCode" | "constants" | "bitmask" | "getters";
 
 /**
  * Decoders of native hooks that decode an integer bitmask with built-in constants, like `decoder: bitmask`.
@@ -139,12 +140,23 @@ export type NativeBitmaskPresetName = "openFlags" | "mmapProt" | "mmapFlags" | "
 export type NativeConstantsPresetName = "socketDomain";
 
 /**
- * Decoders of native hooks, selected with `decoder:`. See docs/decoders-native.md.
+ * Decoders of native hooks, selected with `decoder:`: the decoders of every platform (`string`, `base64`, `hex`,
+ * `constants`, `bitmask`), `utf16`, `errno`, `fd`, `nullTerminated` and the presets. See docs/decoders.md.
  *
  * @public
  */
 export type NativeDecoderName =
-  "string" | "base64" | "utf16" | "errno" | "fd" | "constants" | "bitmask" | "nullTerminated" | NativeBitmaskPresetName | NativeConstantsPresetName;
+  | "string"
+  | "base64"
+  | "hex"
+  | "utf16"
+  | "errno"
+  | "fd"
+  | "constants"
+  | "bitmask"
+  | "nullTerminated"
+  | NativeBitmaskPresetName
+  | NativeConstantsPresetName;
 
 /**
  * Name of a decoder of any platform. Settings outside a hook collection, e.g. the top-level `decoderSettings`, accept

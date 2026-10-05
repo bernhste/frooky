@@ -266,6 +266,25 @@ class TestValuePassingJava:
         assert len(events) >= 1
         assert all(re.match(r"^android\.security\.keystore\.KeyGenParameterSpec@[0-9a-f]+$", e["returnValue"]["value"]) for e in events)
 
+    def test_hashcode_decoder_matches_event_hashcode(self, run_frooky, find_matched_events):
+        """`decoder: hashCode` on a builder setter that returns `this` shows the `hashCode` of the event's instance."""
+        hook_file = textwrap.dedent("""\
+            hookCollection:
+              - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
+                hooks:
+                  - method: setKeySize
+                    overloads:
+                      - params: [[int, keySize]]
+                        retType: {decoder: hashCode}
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        events = find_matched_events({"javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder", "method": "setKeySize"})
+        assert len(events) >= 1
+        for event in events:
+            assert event["returnValue"]["value"] == f"android.security.keystore.KeyGenParameterSpec$Builder@{event['hashCode']}"
+
     def test_string_decoder_on_static_method_return_value(self, run_frooky, count_matched_events, find_matched_events):
         """`decoder: string` on a reference return type calls toString(); also verifies a static fieldType."""
         hook_file = textwrap.dedent("""\

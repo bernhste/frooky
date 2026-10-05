@@ -4,13 +4,14 @@ metadata:
     `char *` is read as a NUL-terminated string. A `void *` buffer without a terminator needs its length,
     passed in the role `length` of `decoderArgs`, and is shown as hex, or as text with `decoder: string`.
     If the function returns the length, as `read` does, `decoderArgs: { length: $ret }` passes it.
+    `decoder: base64` shows the bytes that base64 text encodes.
   version: 1
   author: frooky dev
   platform: Android
 
 # Target: tests/target-apps/android/value-passing-native (cpp/*.c), press "Start".
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/01_strings_and_buffers.yaml
-# See:    docs/decoders-native.md#decoderarg-lengths-and-counts
+# See:    docs/decoders-native.md#decoderargs-length-and-offset
 
 hookCollection:
   # const char *receive_utf8(const char *s)
@@ -34,6 +35,14 @@ hookCollection:
         params:
           - ["const char16_t *", s]
 
+      # int receive_base64(const char *encoded, int len) gets `len` bytes of base64 text, followed by bytes that
+      # aren't part of it. `base64` shows the decoded bytes as text if they're printable, otherwise as hex.
+      # Docs: https://docs.openssl.org/3.0/man3/EVP_EncodeInit/
+      - symbol: receive_base64
+        params:
+          - ["const char *", encoded, { decoder: base64, decoderArgs: { length: len } }]
+          - [int, len]
+
   # int send_message(const void *buf, int len) is called with the 12 bytes of "Hello frooky", like write(2)
   - module: libreceiveFundamentalReference.so
     hooks:
@@ -53,9 +62,16 @@ hookCollection:
         params:
           - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
           - [int, len]
+      # `hex` shows the bytes of any pointer, even a `char *`, which is otherwise decoded as text
+      - symbol: read_message
+        params:
+          - ["char *", bytes, { direction: out, decoderArgs: { length: 12 }, decoder: hex }]
+          - [int, len]
 
 # Expected values (argsIn[0].value):
 #   receive_utf8: "Welcome the first OWASP MASCon 📱❤️"
 #   receive_utf16: "Grüezi", receive_utf16_cstring: "Hello UTF-16"
+#   receive_base64: "Hello frooky" and "0x000102030405060708090a0b0c0d0e0f", one event per call
 #   send_message: "0x48656c6c6f2066726f6f6b79" (hex) and "Hello frooky" (decoder: string), one event per hook
-#   read_message: argsOut [{name: buf, value: "Hello frooky"}], returnValue 12
+#   read_message: argsOut [{name: buf, value: "Hello frooky"}], returnValue 12, and
+#                 argsOut [{name: bytes, value: "0x48656c6c6f2066726f6f6b79"}] (decoder: hex)

@@ -35,7 +35,7 @@ const sizeOf = (type: string): number => {
 
 // The bits of an integer passed by value, unsigned and cut to the size of its declared type. Types frooky
 // doesn't know, such as `mode_t`, are read as 32 bits, the size of a C enum.
-function readUnsignedBits(value: NativePointer, type: string): UInt64 {
+export function readUnsignedBits(value: NativePointer, type: string): UInt64 {
   const size = sizeOf(type);
   const raw = uint64(value.toString());
   return size === 8 ? raw : raw.and(uint64(2 ** (size * 8) - 1));

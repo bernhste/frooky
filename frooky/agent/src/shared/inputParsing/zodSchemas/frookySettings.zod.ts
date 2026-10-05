@@ -15,13 +15,13 @@ export const decoderConfigSchema = z.object({
     fields: z.string().optional()
 });
 
-export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hashCode"), z.literal("constants"), z.literal("bitmask"), z.literal("getters")]);
+export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hex"), z.literal("hashCode"), z.literal("constants"), z.literal("bitmask"), z.literal("getters")]);
 
 export const nativeBitmaskPresetNameSchema = z.union([z.literal("openFlags"), z.literal("mmapProt"), z.literal("mmapFlags"), z.literal("dlopenFlags"), z.literal("socketType")]);
 
 export const nativeConstantsPresetNameSchema = z.literal("socketDomain");
 
-export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("constants"), z.literal("bitmask"), z.literal("nullTerminated"), nativeBitmaskPresetNameSchema, nativeConstantsPresetNameSchema]);
+export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hex"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("constants"), z.literal("bitmask"), z.literal("nullTerminated"), nativeBitmaskPresetNameSchema, nativeConstantsPresetNameSchema]);
 
 export const decoderNameSchema = z.union([javaDecoderNameSchema, nativeDecoderNameSchema]);
 

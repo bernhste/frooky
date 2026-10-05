@@ -44,6 +44,13 @@ NOINLINE EXPORT int receive_utf16_cstring(const char16_t *s)
     return length;
 }
 
+// Base64 text of `len` bytes, like the input of OpenSSL's EVP_DecodeBlock. The text isn't terminated after `len`.
+NOINLINE EXPORT int receive_base64(const char *encoded, int len)
+{
+    (void)encoded;
+    return len;
+}
+
 // Like unlink(2): fails with ENOENT for a file that doesn't exist.
 NOINLINE EXPORT int delete_cache(const char *path) { return unlink(path); }
 
@@ -60,6 +67,9 @@ Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI(JNIEnv *env, jobject thiz)
     receive_utf16(greeting, (int)(sizeof(greeting) / sizeof(greeting[0])) - 1);
     receive_utf16_cstring(u"Hello UTF-16");
     delete_cache("/proc/self/frooky-missing-cache");
+    // "Hello frooky", followed by bytes that aren't part of it, and 16 key bytes 0x00 to 0x0f
+    receive_base64("SGVsbG8gZnJvb2t5|trailer", 16);
+    receive_base64("AAECAwQFBgcICQoLDA0ODw==", 24);
 
     return (*env)->NewStringUTF(env, "Called functions which receive C-Sting, UTF-8-String and UTF-16-String.");
 }

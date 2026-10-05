@@ -27,16 +27,16 @@ hookCollection:
     hookSettings:
       maxStackFrames: 0
     hooks:
-      - offset: 0xb90             # receive_cstring
+      - offset: 0xc30             # receive_cstring
         params:
           - [char *, string]
-      - offset: 0xba0             # receive_utf8
+      - offset: 0xc40             # receive_utf8
         params:
           - [char *, string]
 
-      # Rejected, not hooked: 0x7c8 lies in .rodata, which this small library
+      # Rejected, not hooked: 0x822 lies in .rodata, which this small library
       # maps into its executable segment. Hooking it would overwrite a string
       # literal, which causes the same crash as the script.
-      - offset: 0x7c8
+      - offset: 0x822
         params:
           - [char *, string]

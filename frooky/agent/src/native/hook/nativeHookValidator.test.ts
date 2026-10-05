@@ -313,7 +313,7 @@ describe("NativeHookValidator", () => {
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
       const message = skipWarning();
-      expect(message).toContain("decoder 'hashCode' is no native decoder. The native decoders are: string, base64, utf16,");
+      expect(message).toContain("decoder 'hashCode' is no native decoder. The native decoders are: string, base64, hex, utf16,");
     });
 
     it("skips a hook that passes a role its decoder doesn't accept", () => {

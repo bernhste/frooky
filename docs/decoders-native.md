@@ -1,6 +1,6 @@
 # Decoders for Native Hooks
 
-How frooky decodes the parameters and return values of native (C/C++) functions. The settings themselves are described in [Decoders](./decoders.md).
+How frooky decodes the parameters and return values of native (C/C++) functions. The settings themselves and the decoders shared with Java hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
 
 <!-- TOC -->
 
@@ -9,9 +9,8 @@ How frooky decodes the parameters and return values of native (C/C++) functions.
 - [`decoderArgs`: Length and Offset](#decoderargs-length-and-offset)
 - [UTF-16 Strings](#utf-16-strings)
 - [File Descriptors](#file-descriptors)
-- [Constants and Bitmasks](#constants-and-bitmasks)
+- [Constant Presets](#constant-presets)
 - [errno](#errno)
-- [Named Decoders](#named-decoders)
 - [`direction`: Output Parameters](#direction-output-parameters)
 - [Limits](#limits)
 - [Return Values](#return-values)
@@ -88,14 +87,13 @@ See [`02_pointers_and_arrays.yaml`](examples/native/03_decoders/02_pointers_and_
 | `void *`, `unsigned char *`                                                                       | Bytes of the buffer, decoded as hex                                    | Bytes to skip                    |
 | `char *`, and `decoder: string` on any pointer                                                    | Bytes of the string. NUL bytes in it don't end it.                     | Bytes to skip                    |
 | `decoder: base64`                                                                                 | Bytes of the base64 text                                               | Bytes to skip                    |
+| `decoder: hex` on a pointer                                                                       | Bytes to decode as hex. NUL bytes in it don't end it.                  | Bytes to skip                    |
 | Other pointers (`int *`, `char **`, ...)                                                          | Elements of the array, see [Pointers and Arrays](#pointers-and-arrays) | Elements to skip                 |
 | `decoder: nullTerminated`                                                                         | –                                                                      | Elements to skip, e.g. `argv[0]` |
 | UTF-16 pointers (`const jchar *`, ...), and `decoder: utf16`                                      | Code units of the string (2 bytes each). 0 units in it don't end it.   | Code units to skip               |
 | Values passed by value, unknown types, and the other decoders (`fd`, `constants`, `bitmask`, ...) | –                                                                      | –                                |
 
 Without `offset`, decoding starts at the pointer. Without `length`, a `char *` ends at its `\0`, and other pointers are read as one element. C usually passes a slice as a pointer to its start (`buf + off`), so `offset` is only needed for APIs that pass the start and the offset separately.
-
-A value that isn't a non-negative integer, such as `-1` when `read` fails, decodes the parameter as `null`.
 
 [`send`](https://www.man7.org/linux/man-pages/man2/send.2.html) passes the length of `buf` as `len`:
 
@@ -109,19 +107,6 @@ hooks:
       - [const void *, buf, { decoderArgs: { length: len }, decoder: string }]
       - [size_t, len]
       - [int, flags]
-```
-
-[`read`](https://www.man7.org/linux/man-pages/man2/read.2.html) writes up to `count` bytes into `buf` and returns how many it wrote. `count` is only the size of the buffer, so the return value is the length. `$ret` needs `direction: out` and a `retType`:
-
-```yaml
-module: libc.so
-hooks:
-  - symbol: read
-    retType: ssize_t
-    params:
-      - [int, fd]
-      - [void *, buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
-      - [size_t, count]
 ```
 
 [`EVP_EncryptUpdate`](https://docs.openssl.org/3.0/man3/EVP_EncryptInit/) of OpenSSL encrypts `inl` bytes of `in` and writes the result into `out`. How many bytes it writes depends on the cipher, and it stores that number in `*outl`:
@@ -208,26 +193,9 @@ hooks:
 
 See [`03_file_descriptors.yaml`](examples/native/03_decoders/03_file_descriptors.yaml).
 
-## Constants and Bitmasks
+## Constant Presets
 
-An integer that stands for a named constant is decoded to that name:
-
-- `decoder: constants`: the name of the constant with exactly this value, e.g. `"LOG_LEVEL_WARN"`. A value without a constant is decoded as the number.
-- `decoder: bitmask`: the names of the constants whose bits are set, as a list, e.g. `["PERMISSION_READ", "PERMISSION_SHARE"]`. Bits that no constant has are added as one hex string, e.g. `"0x100"`. A constant with the value `0` is only shown if no bit is set, and a constant with several bits wins over the constants it includes.
-
-`config: { constants }` maps the names to their values. YAML reads `0x40` as a number, so hex values can be written as they are in C headers:
-
-```yaml
-module: libfoo.so
-hooks:
-  - symbol: set_permissions
-    params:
-      - [ unsigned int, permissions, { decoder: bitmask, config: { constants: { PERMISSION_READ: 0x1, PERMISSION_WRITE: 0x2, PERMISSION_SHARE: 0x4 } } } ]
-```
-
-The value is read with the size of its declared type, e.g. 32 bits for `int` and `unsigned int`. A type frooky doesn't know, e.g. `mode_t`, is read as 32 bits, the size of a C enum.
-
-For the flags and constants of system calls, frooky has presets. They have the constants built in and accept no `config`:
+`decoder: constants` and `decoder: bitmask` decode an integer to the names of its constants, see [`constants` and `bitmask`](./decoders.md#constants-and-bitmask-decode-named-constants). For the flags and constants of system calls, frooky has presets. They have the constants built in and accept no `config`:
 
 | Decoder        | For                                       | Example                              |
 | -------------- | ----------------------------------------- | ------------------------------------ |
@@ -287,31 +255,6 @@ hooks:
 
 See [`05_errno.yaml`](examples/native/03_decoders/05_errno.yaml).
 
-## Named Decoders
-
-Native hooks have these registered decoders:
-
-- `utf16`: decodes a pointer as a UTF-16 string, see [UTF-16 Strings](#utf-16-strings).
-- `errno`: on the return value, adds the `errno` of a call that failed, see [errno](#errno).
-- `fd`: decodes an `int` file descriptor to the file, socket or pipe it refers to, see [File Descriptors](#file-descriptors).
-- `constants` and `bitmask`: decode an integer to the names in `config: { constants }`, see [Constants and Bitmasks](#constants-and-bitmasks). The presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain` and `socketType` have the constants built in.
-- `nullTerminated`: decodes a pointer to pointers, e.g. `char **`, as an array that ends at a NULL pointer, see [Pointers and Arrays](#pointers-and-arrays).
-- `base64`: Base64-decodes the string a pointer points to. Without the role `length`, it ends at its NUL terminator, with it, it is that many bytes long. The role `offset` skips bytes at the start. Standard and URL-safe base64 are decoded, with or without padding, and whitespace such as line breaks is ignored. The decoded bytes are shown as text if they're printable UTF-8 text, otherwise as hex, e.g. a key. At most `maxItems` decoded bytes are shown, and longer output ends with `...`. Text that isn't base64 is decoded like with `string`, and frooky logs a warning.
-- `string`: decodes a pointer (`void *`, ...) as a UTF-8 string, or as ASCII if the bytes aren't valid UTF-8. Without the role `length`, the string ends at its NUL terminator. With it, exactly that many bytes are decoded, so buffers that aren't NUL-terminated can be decoded too. The role `offset` skips bytes at the start. NUL bytes inside the buffer don't end the string; they are decoded like any other byte (as `.` when decoded as ASCII). At most `maxItems` bytes are decoded, and a longer string ends with `...`.
-
-`char *` is always decoded this way, and so is `unsigned char *` without the role `length`, so they don't need `decoder: string`.
-
-```yaml
-module: libc.so
-hooks:
-  - symbol: read
-    retType: ssize_t
-    params:
-      - [int, fd]
-      - [void *, buf, { direction: out, decoderArgs: { length: $ret }, decoder: string, maxItems: 200 }]
-      - [size_t, count]
-```
-
 ## `direction`: Output Parameters
 
 OpenSSL's [`RAND_bytes`](https://docs.openssl.org/3.0/man3/RAND_bytes/) fills `buf` with `num` random bytes, so `buf` is only meaningful after the call:
@@ -335,12 +278,11 @@ What `maxItems` limits for each decoder (see [`maxItems` and `maxDepth`](./decod
 | Decoder                               | `maxItems` limits          |
 | ------------------------------------- | -------------------------- |
 | `char *`, `unsigned char *`, `void *` | Bytes read from the buffer |
-| `base64`                              | Decoded bytes              |
 | Other pointers with the role `length` | Elements of the array      |
 | `nullTerminated`                      | Elements of the array      |
 | UTF-16 pointers, `utf16`              | Code units of the string   |
 
-Strings and buffers decoded as hex end with `...` when they're cut, arrays end with a `"[truncated at N]"` marker.
+Strings and buffers decoded as hex end with `...` when they're cut, arrays end with a `"[truncated at N]"` marker. For `string`, `base64` and `hex`, see their chapters in [Decoders](./decoders.md#shared-decoders).
 
 ## Return Values
 

@@ -10,7 +10,7 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/03_custom_decoders.yaml
-# See:    docs/decoders-java.md#named-decoders
+# See:    docs/decoders.md#named-decoders
 
 hookCollection:
   - javaClass: org.owasp.mastestapp.MastgTest
@@ -27,6 +27,18 @@ hookCollection:
           - params:
               - ["[C", password, { decoder: string }]
 
+      # `hex`: a byte[] as one hex string, instead of a list of numbers
+      - method: receiveByteArray
+        overloads:
+          - params:
+              - ["[B", bytes, { decoder: hex }]
+
+      # `hex` on an integer: its bits as hex, e.g. Int.MAX_VALUE as 0x7fffffff
+      - method: receiveInt
+        overloads:
+          - params:
+              - [int, number, { decoder: hex }]
+
       # `base64`: the decoded bytes of base64 text, as text if they're printable, otherwise as hex, e.g. a key
       - method: receiveBase64
         overloads:
@@ -39,7 +51,8 @@ hookCollection:
           - params:
               - [org.owasp.mastestapp.UserProfile, profile, { decoder: getters }]
 
-      # `hashCode`: <class>@<hashCode>, without calling the object's own toString()
+      # `hashCode`: <class>@<System.identityHashCode()>, without calling the object's own toString() or hashCode().
+      # The hash code is the same as the `hashCode` of events about the same object.
       - method: receiveBigInteger
         overloads:
           - params:
@@ -102,9 +115,11 @@ hookCollection:
 # Expected values (argsIn):
 #   receiveTextBytes:  "Hello frooky"
 #   receivePassword:   "s3cr3t"
+#   receiveByteArray:  "0x010203"
+#   receiveInt:        "0x7fffffff"
 #   receiveBase64:     "Hello frooky", and "0x000102030405060708090a0b0c0d0e0f" (a second event)
 #   receiveProfile:    [{name: age, value: 42}, {name: name, value: "alice"}, {name: admin, value: true}] (in the order of reflection)
-#   receiveBigInteger: "java.math.BigInteger@<hashCode>"
+#   receiveBigInteger: "java.math.BigInteger@<identity hash code>"
 #   receiveMode:       mode "MODE_DECRYPT", and opmode "DECRYPT" (a second event)
 #   Builder.$init:     keystoreAlias "TestKeyPair", purposes ["PURPOSE_SIGN", "PURPOSE_VERIFY"]
 #   Cipher.init:       opmode "ENCRYPT_MODE"

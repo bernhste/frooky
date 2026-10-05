@@ -9,6 +9,12 @@
   - [`decoder`: Override the Default Decoder](#decoder-override-the-default-decoder)
   - [`maxItems` and `maxDepth`: Limit Large and Nested Values](#maxitems-and-maxdepth-limit-large-and-nested-values)
   - [`argFilter`: Capture Only Matching Values](#argfilter-capture-only-matching-values)
+- [Named Decoders](#named-decoders)
+- [Shared Decoders](#shared-decoders)
+  - [`string`: Decode Bytes as Text](#string-decode-bytes-as-text)
+  - [`base64`: Decode Base64 Text](#base64-decode-base64-text)
+  - [`hex`: Decode Bytes and Numbers as Hex](#hex-decode-bytes-and-numbers-as-hex)
+  - [`constants` and `bitmask`: Decode Named Constants](#constants-and-bitmask-decode-named-constants)
 - [Decoders for Return Types](#decoders-for-return-types)
 
 <!-- /TOC -->
@@ -21,7 +27,7 @@ Depending on the type, this can be fairly simple. Primitives, such as Integers, 
 
 frooky comes with a set of decoders for various use cases. By default, frooky chooses the best fitting decoder for the type. But you can change what decoder is used or its settings.
 
-This page covers what applies to every hook. How frooky picks a decoder, which decoders exist and how they use the settings differs per platform:
+This page covers what applies to every hook: the decoder settings and the decoders that both Java and native hooks have (`string`, `base64`, `hex`, `constants` and `bitmask`). How frooky picks a decoder, the decoders of only one platform and how they use the settings are described per platform:
 
 - [Decoders for Android Java Hooks](./decoders-java.md)
 - [Decoders for Native Hooks](./decoders-native.md)
@@ -30,15 +36,15 @@ This page covers what applies to every hook. How frooky picks a decoder, which d
 
 A decoder's behavior is controlled by `decoderSettings`:
 
-| Setting       | Type       | Default     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `direction`   | `string`   | `"in"`      | When to decode the value: `"in"` (on call), `"out"` (on return), or `"inout"` (both). Only available on parameters and return types, see [`direction`](#direction-declare-the-time-of-decoding).                                                                                                                                                                                                                                                                   |
-| `decoder`     | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder, see [`decoder`](#decoder-override-the-default-decoder).                                                                                                                                                                                                                                                                                                                                               |
-| `decoderArgs` | `object`   | `undefined` | Values the decoder needs, each in a role: `length` or `offset`, e.g. `{ length: len }`. Each value is another parameter, `$ret` or a number. See [`decoderArgs`](#decoderargs-pass-values-to-the-decoder-by-role).                                                                                                                                                                                                                                                 |
-| `config`      | `object`   | `undefined` | Options of the decoder selected with `decoder`. For `decoder: constants` and `decoder: bitmask`, `constants` maps names to values, e.g. `{ constants: { O_CREAT: 0x40 } }`; in [Java hooks](./decoders-java.md#constants-and-bitmasks), `class` and `fields` read them from a class instead, e.g. `{ class: javax.crypto.Cipher, fields: "*_MODE" }`. See also [native hooks](./decoders-native.md#constants-and-bitmasks). Any other decoder accepts no `config`. |
-| `maxDepth`    | `number`   | `10`        | Maximum number of nested levels decoded (arrays, lists, maps, bundles, etc.). Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                                                                                                                                                                                                                                                                            |
-| `maxItems`    | `number`   | `100`       | Maximum number of elements decoded per array, list, map, etc., bytes per buffer, or characters per Java string. Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                                                                                                                                                                                                                                          |
-| `argFilter`   | `string[]` | `undefined` | Regular expressions matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them, see [`argFilter`](#argfilter-capture-only-matching-values).                                                                                                                                                                                                                                        |
+| Setting       | Type       | Default     | Description                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `direction`   | `string`   | `"in"`      | When to decode the value: `"in"` (on call), `"out"` (on return), or `"inout"` (both). Only available on parameters and return types, see [`direction`](#direction-declare-the-time-of-decoding).                                                                                                                                                                                                                                |
+| `decoder`     | `string`   | `undefined` | Overrides the type decoder with a registered custom decoder, see [`decoder`](#decoder-override-the-default-decoder).                                                                                                                                                                                                                                                                                                            |
+| `decoderArgs` | `object`   | `undefined` | Values the decoder needs, each in a role: `length` or `offset`, e.g. `{ length: len }`. Each value is another parameter, `$ret` or a number. See [`decoderArgs`](#decoderargs-pass-values-to-the-decoder-by-role).                                                                                                                                                                                                              |
+| `config`      | `object`   | `undefined` | Options of the decoder selected with `decoder`. For `decoder: constants` and `decoder: bitmask`, `constants` maps names to values, e.g. `{ constants: { O_CREAT: 0x40 } }`; in Java hooks, `class` and `fields` read them from a class instead, e.g. `{ class: javax.crypto.Cipher, fields: "*_MODE" }`. See [`constants` and `bitmask`](#constants-and-bitmask-decode-named-constants). Any other decoder accepts no `config`. |
+| `maxDepth`    | `number`   | `10`        | Maximum number of nested levels decoded (arrays, lists, maps, bundles, etc.). Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                                                                                                                                                                                                                                         |
+| `maxItems`    | `number`   | `100`       | Maximum number of elements decoded per array, list, map, etc., bytes per buffer, or characters per Java string. Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                                                                                                                                                                                                       |
+| `argFilter`   | `string[]` | `undefined` | Regular expressions matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them, see [`argFilter`](#argfilter-capture-only-matching-values).                                                                                                                                                                                                     |
 
 `maxDepth`, `maxItems` and `decoder` can be declared at multiple levels of a hook file (file-level, hook collection, individual hook, or per-parameter/return-type). `decoderArgs`, `config` and `argFilter` can only be set on a single parameter (`config` also on a return type). On a parameter, decoder settings are attached as the third element of the parameter declaration tuple:
 
@@ -68,7 +74,7 @@ hooks:
     retType: ssize_t
     params:
       - [ int, fd ]
-      - [ "void *", buf, { direction: out, decoderArgs: { length: $ret } } ]
+      - [ "void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string } ]
       - [ size_t, count ]
 ```
 
@@ -120,18 +126,7 @@ hooks:
         - [ java.lang.String, algorithm ]
 ```
 
-[`read`](https://www.man7.org/linux/man-pages/man2/read.2.html) returns how many bytes it wrote into `buf`, so the return value has the role `length`:
-
-```yaml
-module: libc.so
-hooks:
-  - symbol: read
-    retType: ssize_t
-    params:
-      - [ int, fd ]
-      - [ "void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string } ]
-      - [ size_t, count ]
-```
+The [`read` example of `direction`](#direction-declare-the-time-of-decoding) passes the return value of `read`, the number of bytes it wrote, in the role `length`.
 
 A value that isn't a non-negative integer when the hook fires, such as `-1` when `read` fails, decodes the parameter as `null`. `decoderArgs` is only supported on parameters, not on the return value.
 
@@ -141,7 +136,12 @@ See [`04_decoder_args.yaml`](examples/android/04_decoder_settings/04_decoder_arg
 
 For some types, frooky's built-in decoders are not sufficient to give the captured value meaningful context (for example, a bitmask `int` where the individual flags matter more than the raw number). In these cases, you can select one of frooky's registered decoders by name using `decoder`.
 
-The decoder you choose always wins over the one frooky would pick for the value. The registered decoders differ per platform: [Java](./decoders-java.md#named-decoders), [native](./decoders-native.md#named-decoders).
+The decoder you choose always wins over the one frooky would pick for the value. The registered decoders differ per platform, see [Named Decoders](#named-decoders).
+
+If the decoder can't decode a value:
+
+- **Java hooks**: frooky logs a warning, once per parameter, and decodes the value with the decoder it would pick without `decoder`. For example, `decoder: hex` on a `String` gives the string, and `decoder: base64` on a `String` that isn't base64 gives the string.
+- **Native hooks**: there is no fallback. A NULL pointer, or a value in `decoderArgs` that isn't a non-negative integer, is decoded as `null`. Only `base64` falls back: text that isn't base64 is decoded like with `string`.
 
 A hook only accepts the decoders of its platform; frooky skips a hook with a decoder of the other platform, e.g. `decoder: fd` in a Java hook, with a warning that lists the valid names. The [JSON schema](./schema/frooky-config.schema.json) offers the names for autocompletion: the Java decoders below `javaClass`, the native decoders below `module`, and both in the top-level `settings`.
 
@@ -170,6 +170,237 @@ hooks:
         - [java.lang.String, name, { argFilter: ["^button_"] }]
 ```
 
+## Named Decoders
+
+These decoders can be selected with `decoder`, on a parameter and on a return value (see [Decoders for Return Types](#decoders-for-return-types)). `errno` only works on a return value.
+
+| Decoder                                                               | Java | Native | Description                                                               |
+| --------------------------------------------------------------------- | ---- | ------ | ------------------------------------------------------------------------- |
+| [`string`](#string-decode-bytes-as-text)                              | ✓    | ✓      | Bytes as text                                                             |
+| [`base64`](#base64-decode-base64-text)                                | ✓    | ✓      | Base64 text as the bytes it encodes                                       |
+| [`hex`](#hex-decode-bytes-and-numbers-as-hex)                         | ✓    | ✓      | Bytes or a number as hex                                                  |
+| [`constants`](#constants-and-bitmask-decode-named-constants)          | ✓    | ✓      | An integer as the name of its constant                                    |
+| [`bitmask`](#constants-and-bitmask-decode-named-constants)            | ✓    | ✓      | An integer as the names of the constants whose bits are set               |
+| [`getters`](./decoders-java.md#getters)                               | ✓    |        | An object through its public `get*()` and `is*()` methods                 |
+| [`hashCode`](./decoders-java.md#hashcode)                             | ✓    |        | An object as `<class>@<identity hash code>`, the `hashCode` of its events |
+| [`utf16`](./decoders-native.md#utf-16-strings)                        |      | ✓      | A pointer as a UTF-16 string                                              |
+| [`nullTerminated`](./decoders-native.md#pointers-and-arrays)          |      | ✓      | A pointer to pointers as an array that ends at a NULL pointer             |
+| [`fd`](./decoders-native.md#file-descriptors)                         |      | ✓      | An `int` file descriptor as the file, socket or pipe it refers to         |
+| [`errno`](./decoders-native.md#errno)                                 |      | ✓      | On the return value, adds the `errno` of a call that failed               |
+| [`openFlags`, `mmapProt`, ...](./decoders-native.md#constant-presets) |      | ✓      | `constants` and `bitmask` with the constants of system calls built in     |
+
+## Shared Decoders
+
+### `string`: Decode Bytes as Text
+
+`decoder: string` decodes bytes as text: as UTF-8, or as ASCII if the bytes aren't valid UTF-8.
+
+**In Java hooks**, it decodes a `byte[]` or a `char[]` as text, which are otherwise lists of numbers or characters. It calls `toString()` on any other reference type. `decoderArgs` can select a slice of a `[B` or `[C` (see [Java `decoderArgs`](./decoders-java.md#decoderargs-offset-and-length)).
+
+```yaml
+javaClass: org.owasp.mastestapp.MastgTest
+hooks:
+  - method: receiveTextBytes
+    overloads:
+      - params:
+          - ["[B", text, { decoder: string }]
+```
+
+This decodes `text` as `"Hello frooky"` instead of `[72, 101, 108, ...]`.
+
+**In native hooks**, it decodes the memory a pointer (`void *`, ...) points to. Without the role `length`, the string ends at its NUL terminator. With it, NUL bytes inside the buffer don't end the string; they are decoded like any other byte (as `.` when decoded as ASCII). `char *` is always decoded this way, and so is `unsigned char *` without the role `length`, so they don't need `decoder: string`. See [native `decoderArgs`](./decoders-native.md#decoderargs-length-and-offset) for the roles.
+
+```yaml
+module: libreceiveFundamentalReference.so
+hooks:
+  - symbol: send_message
+    params:
+      - ["void *", buf, { decoderArgs: { length: len }, decoder: string }]
+      - [int, len]
+```
+
+This decodes `buf` as `"Hello frooky"` instead of `"0x48656c6c6f2066726f6f6b79"`.
+
+At most `maxItems` bytes or characters are decoded, and a longer string ends with `...`. See [`03_custom_decoders.yaml`](examples/android/03_decoders/03_custom_decoders.yaml) and [`01_strings_and_buffers.yaml`](examples/native/03_decoders/01_strings_and_buffers.yaml).
+
+### `base64`: Decode Base64 Text
+
+`decoder: base64` Base64-decodes a value. Standard and URL-safe base64 are decoded, with or without padding, and whitespace such as line breaks is ignored. The decoded bytes are shown as text if they're printable UTF-8 text, otherwise as hex, e.g. a key.
+
+**In Java hooks**, it decodes a `String`, a `byte[]` or `char[]` of base64 text, or the `toString()` of any other value. `decoderArgs` can select a slice of a `[B` or `[C`. A value that isn't base64 is decoded as if no `decoder` were set.
+
+```yaml
+javaClass: org.owasp.mastestapp.MastgTest
+hooks:
+  - method: receiveBase64
+    overloads:
+      - params:
+          - [java.lang.String, encoded, { decoder: base64 }]
+```
+
+This decodes `"SGVsbG8gZnJvb2t5"` as `"Hello frooky"`, and the base64 of the bytes `0x00` to `0x0f` as `"0x000102030405060708090a0b0c0d0e0f"`.
+
+**In native hooks**, it decodes the string a pointer points to, which ends at its NUL terminator unless the role `length` gives its length. Text that isn't base64 is decoded like with `string`, and frooky logs a warning. Base64 text in a buffer usually has a length, e.g. the input of OpenSSL's [`EVP_DecodeBlock`](https://docs.openssl.org/3.0/man3/EVP_EncodeInit/):
+
+```yaml
+module: libreceiveString.so
+hooks:
+  - symbol: receive_base64
+    params:
+      - ["const char *", encoded, { decoder: base64, decoderArgs: { length: len } }]
+      - [int, len]
+```
+
+This decodes the first 16 bytes of `"SGVsbG8gZnJvb2t5|trailer"` as `"Hello frooky"`, and `"AAECAwQFBgcICQoLDA0ODw=="` as `"0x000102030405060708090a0b0c0d0e0f"`.
+
+At most `maxItems` decoded bytes are shown, and longer output ends with `...`. See [`03_custom_decoders.yaml`](examples/android/03_decoders/03_custom_decoders.yaml) and [`01_strings_and_buffers.yaml`](examples/native/03_decoders/01_strings_and_buffers.yaml).
+
+### `hex`: Decode Bytes and Numbers as Hex
+
+`decoder: hex` decodes a value as hexadecimal, e.g. `"0x48656c6c6f"`. A number is shown with the bits of its type: `-1` is `"0xffffffff"` as an `int` and `"0xff"` as a `byte`, and a `float` or `double` is shown as its IEEE 754 bits, e.g. `1.5` as a `float` is `"0x3fc00000"`.
+
+**In Java hooks**, it decodes a `byte[]` as one hex string, which is otherwise a list of numbers, a number (`byte`, `short`, `char`, `int`, `long`, `float`, `double`) as hex, and an array of other numbers (`short[]`, `char[]`, `int[]`, `long[]`, `float[]`, `double[]`) as a list of them in hex, e.g. `["0x48", "0xffffffff"]`. `decoderArgs` can select a slice of an array. Any other value is decoded as if no `decoder` were set.
+
+```yaml
+javaClass: org.owasp.mastestapp.MastgTest
+hooks:
+  - method: receiveByteArray
+    overloads:
+      - params:
+          - ["[B", bytes, { decoder: hex }]
+```
+
+This decodes `bytes` as `"0x010203"` instead of `[1, 2, 3]`.
+
+**In native hooks**, it decodes the bytes a pointer points to as one hex string, also for a `char *`, which is otherwise decoded as text. Without the role `length`, the bytes end at a NUL byte, so binary data needs its length. A number passed by value is decoded as hex, also a `float` or `double` return value; a type frooky doesn't know, e.g. `mode_t`, is read as 32 bits.
+
+```yaml
+module: libreceiveFundamentalValue.so
+hooks:
+  - symbol: receive_int
+    params:
+      - [int, minValue, { decoder: hex }]
+      - [int, maxValue, { decoder: hex }]
+```
+
+This decodes `INT_MIN` and `INT_MAX` as `"0x80000000"` and `"0x7fffffff"`. On `receive_double`, `-DBL_MAX` is `"0xffefffffffffffff"`.
+
+At most `maxItems` bytes or array elements are decoded. A cut hex string ends with `...`, a cut list with a `"[truncated at N]"` marker. See [`03_custom_decoders.yaml`](examples/android/03_decoders/03_custom_decoders.yaml), [`01_strings_and_buffers.yaml`](examples/native/03_decoders/01_strings_and_buffers.yaml) and [`04_constants_and_bitmasks.yaml`](examples/native/03_decoders/04_constants_and_bitmasks.yaml).
+
+### `constants` and `bitmask`: Decode Named Constants
+
+Many APIs take an integer that stands for one or more named constants, e.g. the `opmode` of `Cipher.init()`, the `flags` of `Intent.setFlags()` or the `flags` of `open`. Such an integer is decoded to the names of its constants:
+
+- `decoder: constants`: the name of the constant with exactly this value, e.g. `"LOG_LEVEL_WARN"`. A value without a constant is decoded as the value itself.
+- `decoder: bitmask`: the names of the constants whose bits are set, as a list, e.g. `["PERMISSION_READ", "PERMISSION_SHARE"]`. Bits that no constant has are added as one hex string, e.g. `"0x100"`. A constant with the value `0` is only shown if no bit is set, and a constant with several bits wins over the constants it includes.
+
+`config` is only accepted by `constants` and `bitmask`; on a value with any other decoder, frooky skips the hook with a warning.
+
+The constants are numbers, so only numeric values can be decoded:
+
+- **Native hooks**: integers passed by value, e.g. `int`, `unsigned long` or `uint32_t`. A pointer, e.g. `int *`, isn't followed, so its address is decoded. `float` and `double` aren't supported.
+- **Java hooks**: values of a primitive type. A map in `config: { constants }` matches `int`, `long`, `short`, `byte`, `float` and `double` values. The constants of a class are its fields of the type of the value, so a `boolean` or `char` value can be decoded too. Fields of other types, e.g. `String` constants such as `KeyProperties.KEY_ALGORITHM_AES`, are never matched. `bitmask` only decodes `int`, `long`, `short`, `byte` and `char` values.
+
+#### A Map of Constants
+
+`config: { constants }` maps the names to their values. YAML reads `0x40` as a number, so hex values can be written as they are in C headers:
+
+```yaml
+module: libfoo.so
+hooks:
+  - symbol: set_permissions
+    params:
+      - [ unsigned int, permissions, { decoder: bitmask, config: { constants: { PERMISSION_READ: 0x1, PERMISSION_WRITE: 0x2, PERMISSION_SHARE: 0x4 } } } ]
+```
+
+Java hooks can also read the constants from a class (see [below](#java-hooks-the-constants-of-a-class)). A map helps when no class declares them, or the app is obfuscated and its fields have no meaningful names:
+
+```yaml
+javaClass: org.example.CryptoHelper
+hooks:
+  - method: process
+    overloads:
+      - params:
+        - [int, mode, { decoder: constants, config: { constants: { ENCRYPT_MODE: 1, DECRYPT_MODE: 2 } } }]
+        - ["[B", data]
+```
+
+**In Java hooks**, an `int` is compared as 32 bits, so a constant can be written in hex, e.g. `0x80000000` for `-2147483648`.
+
+**In native hooks**, the value is read with the size of its declared type, e.g. 32 bits for `int` and `unsigned int`. A type frooky doesn't know, e.g. `mode_t`, is read as 32 bits, the size of a C enum. For the flags and constants of system calls, frooky has [presets](./decoders-native.md#constant-presets) with the constants built in.
+
+#### Java Hooks: The Constants of a Class
+
+In Java hooks, `constants` and `bitmask` can also take their constants from the `static final` fields of a class, set with `config`:
+
+| `config`                      | Constants                                                       |
+| ----------------------------- | --------------------------------------------------------------- |
+| none                          | the `static final` fields of the hooked class                   |
+| `fields: "*_MODE"`            | the `static final` fields of the hooked class whose names match |
+| `class: <class>` (+ `fields`) | the `static final` fields of that class (whose names match)     |
+| `constants: { NAME: value }`  | the map; it can't be combined with `class` or `fields`          |
+
+Only fields of the type of the value are used, e.g. the `int` fields for an `int` parameter. In `fields`, `*` matches any characters.
+
+**The constants of the hooked class.** `Cipher.init()` takes one of `Cipher`'s own constants:
+
+```yaml
+javaClass: javax.crypto.Cipher
+hooks:
+  - method: init
+    overloads:
+      - params:
+        - [int, opmode, { decoder: constants, config: { fields: "*_MODE" } }]
+        - [java.security.Key, key]
+```
+
+This decodes the `opmode` argument of [`Cipher.init(int, Key)`](<https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key)>) to `"ENCRYPT_MODE"`, `"DECRYPT_MODE"`, etc. `fields` matters here: `Cipher` also declares `PUBLIC_KEY`, which is `1` like `ENCRYPT_MODE`, so without it `opmode` may be decoded as `"PUBLIC_KEY"`. A class without such duplicates needs no `config` at all, e.g. `{ decoder: constants }`.
+
+The same works for a bitmask. The flags of [`Intent.setFlags(int)`](<https://developer.android.com/reference/android/content/Intent#setFlags(int)>) are `Intent`'s own `FLAG_*` constants:
+
+```yaml
+javaClass: android.content.Intent
+hooks:
+  - method: setFlags
+    overloads:
+      - params:
+        - [int, flags, { decoder: bitmask, config: { fields: "FLAG_*" } }]
+```
+
+`Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK` is decoded as `["FLAG_ACTIVITY_NEW_TASK", "FLAG_ACTIVITY_CLEAR_TASK"]`. Where several constants have the same bits, e.g. `FLAG_ACTIVITY_NO_HISTORY` and `FLAG_RECEIVER_REGISTERED_ONLY`, the first one of the class is shown; a narrower pattern such as `FLAG_ACTIVITY_*` picks the right one.
+
+**The constants of another class.** The purposes of a Keystore key are `KeyProperties.PURPOSE_*` constants, but the hooked method is on `KeyGenParameterSpec.Builder`:
+
+```yaml
+javaClass: android.security.keystore.KeyGenParameterSpec$Builder
+hooks:
+  - method: $init
+    overloads:
+      - params:
+        - [java.lang.String, keystoreAlias]
+        - [int, purposes, { decoder: bitmask, config: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" } }]
+```
+
+`KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY` is decoded as `["PURPOSE_SIGN", "PURPOSE_VERIFY"]`. The same helps for an app's own wrapper around an API, e.g. `{ class: javax.crypto.Cipher, fields: "*_MODE" }` on the `mode` of `org.example.CryptoHelper.process(int mode, byte[] data)`.
+
+frooky looks the class up when it installs the hook: in the app's default class loader, or else in the class loader of the hooked class, e.g. for a class of a dex the app loads itself. If the class isn't found or has no matching field of the type of the value, frooky logs a warning and decodes the value as it is.
+
+Other common bitmasks: the `flags` of `PendingIntent.getActivity()` (`{ fields: "FLAG_*" }` on `PendingIntent`), of `Context.registerReceiver()` (`{ class: android.content.Context, fields: "RECEIVER_*" }`) and of `Window.setFlags()` (`{ class: android.view.WindowManager$LayoutParams, fields: "FLAG_*" }`).
+
+See [`03_custom_decoders.yaml`](examples/android/03_decoders/03_custom_decoders.yaml) and [`04_constants_and_bitmasks.yaml`](examples/native/03_decoders/04_constants_and_bitmasks.yaml).
+
 ## Decoders for Return Types
 
-Return values are always decoded once the function or method completes (see [Return Type Declaration](./return-type-declaration.md)). To customize how a return value is decoded, add decoder settings to the `retType`: [Java](./decoders-java.md#return-values), [native](./decoders-native.md#return-values).
+Return values are always decoded once the function or method completes (see [Return Type Declaration](./return-type-declaration.md)). To customize how a return value is decoded, add decoder settings to the `retType`: [Java](./decoders-java.md#return-values), [native](./decoders-native.md#return-values). Every [named decoder](#named-decoders) works on a return value, e.g. `base64`:
+
+```yaml
+javaClass: org.owasp.mastestapp.MastgTest
+hooks:
+  - method: receiveBase64
+    overloads:
+      - params:
+          - [java.lang.String, encoded]
+        retType: { decoder: base64 }
+```
+
+`decoderArgs` is only supported on parameters, so a buffer that a native function returns can't get a length.

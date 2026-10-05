@@ -148,7 +148,7 @@ describe("AndroidHookValidator", () => {
 
       expect(result.map((hook) => hook.method)).toEqual(["foo"]);
       const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain("decoder 'fd' is no Java decoder. The Java decoders are: string, base64, hashCode,");
+      expect(message).toContain("decoder 'fd' is no Java decoder. The Java decoders are: string, base64, hex, hashCode,");
     });
 
     it("ignores argFilter and config in the decoderSettings of a hook and a [method, decoderSettings] tuple", () => {
