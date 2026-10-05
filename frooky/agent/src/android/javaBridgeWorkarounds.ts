@@ -61,11 +61,11 @@ type ArtMethodMangler = { hookedMethodId?: NativePointer; replacementMethodId?: 
 // still compile an intrinsic and code compiled afterwards would inline it, both skipping the hook. Unhooking
 // restores its flags. The signature polymorphic methods of MethodHandle and VarHandle are left alone. Call after
 // setting `implementation`, and after fixArtMethodAccessFlagsOffset() (issue 3), whose offset it uses.
-export function repairAccessFlags(method: Java.Method): void {
+// `target`: e.g. `java.lang.Integer.reverse`, for messages
+export function repairAccessFlags(method: Java.Method, target: string): void {
   const mangler = (method.implementation as { _m?: ArtMethodMangler } | null)?._m;
   const { hookedMethodId, replacementMethodId, originalMethod } = mangler ?? {};
   if (!hookedMethodId || !replacementMethodId || !originalMethod) return;
-  const target = `${method.holder.$className}.${method.methodName}`;
   const originalFlags = originalMethod.accessFlags >>> 0;
   if ((originalFlags & kAccNative) !== 0 && SIGNATURE_POLYMORPHIC_CLASSES.has(method.holder.$className)) {
     logger.debug(`Kept the access flags of ${target}: signature polymorphic`);

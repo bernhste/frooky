@@ -66,19 +66,21 @@ function resolveMethod(javaClass: Java.Wrapper, inputHook: JavaHookDeclaration):
 function resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDeclaration, matched = false): JavaHook[] {
   const result: JavaHook[] = [];
   const declaringClass = method.holder.$className;
+  // e.g. `$init`, which Frida's method objects name after the class
+  const methodName = inputHook.method;
   if (inputHook.overloads?.length) {
     // only the declared overloads
     for (const overload of inputHook.overloads) {
       const params: Param[] = overload.params.map((param) => ({ ...param, declaringClass }));
       const paramTypes: string[] = params.map((param) => param.type);
-      const blocked = findBlockedMethod(declaringClass, method.methodName, paramTypes);
+      const blocked = findBlockedMethod(declaringClass, methodName, paramTypes);
       if (blocked) {
-        warnBlockedMethod(declaringClass, method.methodName, blocked, paramTypes);
+        warnBlockedMethod(declaringClass, methodName, blocked, paramTypes);
         continue;
       }
       try {
         result.push({
-          methodName: method.methodName,
+          methodName,
           method: method.overload(...paramTypes),
           params,
           hookSettings: inputHook.hookSettings,
@@ -93,14 +95,14 @@ function resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDecl
     // all overloads
     for (const javaMethod of method.overloads) {
       const paramTypes = javaMethod.argumentTypes.map((type) => type.className ?? type.name);
-      const blocked = findBlockedMethod(declaringClass, method.methodName, paramTypes);
+      const blocked = findBlockedMethod(declaringClass, methodName, paramTypes);
       if (blocked) {
-        warnBlockedMethod(declaringClass, method.methodName, blocked, paramTypes);
+        warnBlockedMethod(declaringClass, methodName, blocked, paramTypes);
         continue;
       }
       const params: Param[] = buildParamsFromArgumentTypes(javaMethod.argumentTypes, inputHook.decoderSettings, declaringClass);
       result.push({
-        methodName: method.methodName,
+        methodName,
         method: javaMethod,
         params: params,
         hookSettings: inputHook.hookSettings,

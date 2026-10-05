@@ -178,13 +178,19 @@ def _format_target(row: dict, waits_for: Optional[str] = None) -> Text:
     hooks it too, see _describe_also_hooked()"""
     target = Text(row["target"])
     declaration = row.get("declaration")
-    if declaration and declaration != row["target"]:
+    if declaration and _is_pattern(declaration):
         target.append(f"\nvia {_short_pattern(declaration, row['target'])}", style="dim")
     if waits_for:
         target.append(f"\nwaits for {waits_for}", style="dim")
     for other in row.get("alsoHookedBy", []):
         target.append(f"\n{_describe_also_hooked(row, other)}", style="dim")
     return target
+
+
+def _is_pattern(declaration: str) -> bool:
+    """A declaration that names the target it hooks differently is no pattern, e.g. `com.example.Foo.$init` for the
+    constructor `com.example.Foo.Foo`"""
+    return "*" in declaration
 
 
 def _short_pattern(declaration: str, target: str) -> str:
@@ -204,11 +210,12 @@ def _describe_also_hooked(row: dict, other: dict) -> str:
     alias = other["target"] != row["target"]
     if alias:
         text += f" as {other['target']}"
-    if other["declaration"] != other["target"]:
+    pattern = _is_pattern(other["declaration"])
+    if pattern:
         text += f" via {_short_pattern(other['declaration'], other['target'])}"
     if other["config"] != row["config"]:
         text += f" in {other['config']}"
-    elif not alias and other["declaration"] == other["target"]:
+    elif not alias and not pattern:
         text += " by another declaration"
     return text
 

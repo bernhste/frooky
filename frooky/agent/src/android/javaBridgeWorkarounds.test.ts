@@ -50,7 +50,7 @@ describe("repairAccessFlags()", () => {
       return bitCount.call(this, value);
     });
     try {
-      repairAccessFlags(bitCount);
+      repairAccessFlags(bitCount, "java.lang.Integer.bitCount");
       const { hookedMethodId, replacementMethodId } = (bitCount.implementation as unknown as Mangled)._m;
       const hookedFlags = accessFlagsOf(hookedMethodId);
       const replacementFlags = accessFlagsOf(replacementMethodId);

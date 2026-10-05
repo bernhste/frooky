@@ -103,7 +103,7 @@ hooks:
 This declaration hooks all constructor overloads of `WebView`, plus all overloads of `loadUrl`.
 
 > [!NOTE]
-> `$init` is the constructor name.
+> `$init` is the constructor name. Events and hook statistics name constructors `$init` too.
 
 This declaration hooks the following methods:
 

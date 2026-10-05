@@ -51,7 +51,7 @@ In addition to the [common fields](#common-event-fields), `hook-java` events car
 | Field           | Type     | Description                                                                     |
 | --------------- | -------- | ------------------------------------------------------------------------------- |
 | `javaClassName` | `string` | The hooked Java/Kotlin class.                                                   |
-| `method`        | `string` | The hooked method name.                                                         |
+| `method`        | `string` | The hooked method name, `$init` for constructors.                               |
 | `fieldType`     | `object` | `{ "fieldType": "static" \| "instance" }`, whether the hooked method is static. |
 
 **Example:**

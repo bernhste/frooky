@@ -197,6 +197,20 @@ class TestHookStatistics:
         assert re.match(r"^hooked\s+1\s+0\s+0\s+0 ms\s+org\.example\.Zeta\.runFast\s+hooks\.yaml$", lines[7])
         assert re.match(r"^\s+via run\*$", lines[8])
 
+    def test_shows_a_constructor_without_its_declared_init(self):
+        feed, buffer = make_feed(width=160)
+        constructor = "org.example.Secret.Secret"
+        init = "org.example.Secret.$init"
+        statistics = [
+            {"config": "a.yaml", "target": constructor, "declaration": init, "state": "installed", "waitsFor": "", "overloads": 1, "events": 1, "filtered": 0, "decodeMs": 0, "alsoHookedBy": [{"config": "b.yaml", "declaration": init, "target": constructor, "overloads": 1}]},
+        ]
+
+        feed.hook_statistics(statistics)
+
+        lines = [line.strip() for line in buffer.getvalue().splitlines()][4:]
+        assert re.match(r"^hooked\s+1\s+1\s+0\s+0 ms\s+org\.example\.Secret\.Secret\s+a\.yaml$", lines[0])
+        assert lines[1:] == ["also hooked in b.yaml"]
+
     def test_names_the_other_declarations_that_hook_a_target_too(self):
         feed, buffer = make_feed(width=160)
 

@@ -27,5 +27,5 @@ hookCollection:
       - receiveStatic
 
 # Expected events:
-#   Secret:        argsIn [{type: java.lang.String, name: value, value: "s3cr3t"}], returnValue {type: void}
+#   Secret.$init:  argsIn [{type: java.lang.String, name: value, value: "s3cr3t"}], returnValue {type: void}
 #   receiveStatic: argsIn [{type: java.lang.String, value: "static"}], fieldType {fieldType: static}

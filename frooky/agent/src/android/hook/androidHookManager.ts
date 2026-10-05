@@ -47,7 +47,8 @@ type InstalledJavaHook = {
 
 // `observers` run after the original method, e.g. JavaClassResolver's on new class loaders
 // counts the calls in the dispatcher, see RetiredReplacements
-type HookedOverload = ReplacementCalls & { method: Java.Method; hooks: InstalledJavaHook[]; observers: MethodObserver[] };
+// `target`: e.g. `java.lang.Integer.reverse` or `com.example.Foo.$init`
+type HookedOverload = ReplacementCalls & { method: Java.Method; target: string; hooks: InstalledJavaHook[]; observers: MethodObserver[] };
 
 // what a hook captured before the original method ran
 // `logTarget`: see callLogTarget()
@@ -63,7 +64,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     // before the first hook, also where the agent's entry point didn't run it, e.g. in tests
     fixArtMethodAccessFlagsOffset();
     this.classResolver = new JavaClassResolver(
-      (method, observer) => this.observe(method, observer),
+      (method, methodName, observer) => this.observe(method, methodName, observer),
       () => Promise.resolve(this.frookyAgent.targetReady),
     );
   }
@@ -107,14 +108,15 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     return results;
   }
 
-  // Runs `observer` after every call of `method`, next to the hooks installed on it
-  observe(method: Java.Method, observer: MethodObserver): void {
-    const overload = this.hookedOverload(method);
+  // Runs `observer` after every call of `method`, next to the hooks installed on it. `methodName`: the name `method` was
+  // looked up by, e.g. `$init`
+  observe(method: Java.Method, methodName: string, observer: MethodObserver): void {
+    const overload = this.hookedOverload(method, `${method.holder.$className}.${methodName}`);
     overload.observers = [...overload.observers, observer];
   }
 
   // The HookedOverload of `method`, created and installed on first use. Throws if the method can't be hooked.
-  private hookedOverload(method: Java.Method): HookedOverload {
+  private hookedOverload(method: Java.Method, target: string): HookedOverload {
     const key = method.handle.toString();
     let overload = this.hookedOverloads.get(key);
     if (!overload) {
@@ -125,9 +127,9 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
         this.preparedFactories.add(factory);
       }
       initializeClass(method);
-      const newOverload: HookedOverload = { method, hooks: [], observers: [], inFlight: 0, finished: 0 };
+      const newOverload: HookedOverload = { method, target, hooks: [], observers: [], inFlight: 0, finished: 0 };
       newOverload.method.implementation = this.createDispatcher(newOverload);
-      repairAccessFlags(newOverload.method);
+      repairAccessFlags(newOverload.method, target);
       overload = newOverload;
       this.hookedOverloads.set(key, overload);
     }
@@ -147,7 +149,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
 
       let overload: HookedOverload;
       try {
-        overload = this.hookedOverload(hook.method);
+        overload = this.hookedOverload(hook.method, target);
       } catch (e) {
         logger.warn(`Failed to hook ${target}: ${e}`);
         continue;
@@ -192,7 +194,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       try {
         this.retiredReplacements.revert(overload.method, overload);
       } catch (e) {
-        logger.warn(`Failed to unhook ${hook.method.holder.$className}.${hook.methodName}: ${e}`);
+        logger.warn(`Failed to unhook ${overload.target}: ${e}`);
       }
     }
   }
@@ -206,7 +208,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       try {
         this.retiredReplacements.revert(overload.method, overload);
       } catch (e) {
-        logger.warn(`Failed to unhook ${overload.method.holder.$className}.${overload.method.methodName}: ${e}`);
+        logger.warn(`Failed to unhook ${overload.target}: ${e}`);
       }
     }
     this.hookedOverloads.clear();
@@ -295,7 +297,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       try {
         observer(instance, args, returnValue);
       } catch (e) {
-        logger.error(`Error in an observer of ${overload.method.holder.$className}.${overload.method.methodName}: ${e}`);
+        logger.error(`Error in an observer of ${overload.target}: ${e}`);
       }
     }
   }

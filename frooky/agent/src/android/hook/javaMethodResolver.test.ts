@@ -41,6 +41,26 @@ describe("resolveMethodHooks()", () => {
     expect(hooks.length).toBe(javaClass.forName.overloads.length - 1);
   });
 
+  it("names the constructors `$init`", () => {
+    const stringBuilder = Java.use("java.lang.StringBuilder");
+    const hooks = resolveMethodHooks([stringBuilder], javaHook("$init", { javaClass: "java.lang.StringBuilder" }))!;
+
+    expect(hooks.length).toBe(stringBuilder.$init.overloads.length);
+    expect(hooks.every((hook) => hook.methodName === "$init")).toBeTruthy();
+  });
+
+  it("skips blocked constructors", () => {
+    const warnSpy = spyOn(logger, "warn");
+    const overloads = [{ params: [{ type: "java.lang.String", direction: "in" as const, settings: DEFAULT_DECODER_SETTINGS }] }];
+
+    const all = resolveMethodHooks([string()], javaHook("$init"));
+    const declared = resolveMethodHooks([string()], javaHook("$init", { overloads }));
+    warnSpy.mockRestore();
+
+    expect(all).toBeNull();
+    expect(declared).toBeNull();
+  });
+
   it("returns null if the method doesn't exist in any of the classes", () => {
     expect(resolveMethodHooks([string()], javaHook("doesNotExist"))).toBeNull();
   });

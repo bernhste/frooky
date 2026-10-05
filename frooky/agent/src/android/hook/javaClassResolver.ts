@@ -5,7 +5,7 @@ import { plural, wildcardPatternToRegExp } from "../../shared/utils";
 
 // Runs after every call of `method`, see AndroidHookManager.observe()
 export type MethodObserver = (instance: Java.Wrapper, args: any[], returnValue: any) => void;
-export type ObserveMethod = (method: Java.Method, observer: MethodObserver) => void;
+export type ObserveMethod = (method: Java.Method, methodName: string, observer: MethodObserver) => void;
 
 // Called with the classes found for a lookup. With `installNow`, hooks are installed in the callback, e.g. while
 // a new class loader is created, so they are in place before the app runs code of these classes.
@@ -162,7 +162,7 @@ export class JavaClassResolver {
       }
       try {
         for (const constructor of wrapper.$init.overloads) {
-          this.observe(constructor, (loader) => this.onNewLoader(loader));
+          this.observe(constructor, "$init", (loader) => this.onNewLoader(loader));
         }
       } catch (e) {
         logger.warn(`Failed to watch new instances of ${loaderClass}, classes in them are not found: ${e}`);
@@ -249,7 +249,9 @@ export class JavaClassResolver {
       return;
     }
     try {
-      this.observe(this.mostDerivedLoadClass(loaderClass), (loader, args, loadedClass) => this.onLoadClass(classLoader, loader, args, loadedClass));
+      this.observe(this.mostDerivedLoadClass(loaderClass), "loadClass", (loader, args, loadedClass) =>
+        this.onLoadClass(classLoader, loader, args, loadedClass),
+      );
     } catch (e) {
       logger.warn(`Failed to watch class loader '${classLoader}': ${e}`);
     }

@@ -55,7 +55,7 @@ class TestAndroidExamples:
     def test_constructors_and_static_methods(self, run_frooky, find_matched_events):
         run_frooky(_example("android/01_basic_hooking/03_constructors_and_static_methods.yaml"), JAVA_APP)
 
-        [constructor] = find_matched_events({"javaClassName": "org.owasp.mastestapp.Secret"})
+        [constructor] = self._events(find_matched_events, "$init", "org.owasp.mastestapp.Secret")
         assert constructor["argsIn"] == [{"type": "java.lang.String", "name": "value", "value": "s3cr3t"}]
         assert constructor["returnValue"] == {"type": "void"}
         [static] = self._events(find_matched_events, "receiveStatic", "org.owasp.mastestapp.MastgTestKt")
