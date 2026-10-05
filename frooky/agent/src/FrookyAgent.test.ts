@@ -1,5 +1,5 @@
 import { FrookyAgent } from "./FrookyAgent";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS, PROGRESS_INTERVAL_MS } from "./shared/defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS, PROGRESS_INTERVAL_MS } from "./shared/defaultValues";
 import { stopEventSender } from "./shared/event/eventSender";
 import { InputFrookyConfig } from "./shared/frookyConfig";
 import { countFilteredCall, Hook } from "./shared/hook/hook";
@@ -13,7 +13,7 @@ import { PlatformStackTrace } from "./shared/platformStackTrace";
 const fakeStackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
 
 function fakeHook(overrides: Partial<Hook> = {}): Hook {
-  return { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };
+  return { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS, ...overrides };
 }
 
 // FrookyAgent only calls resolveHooks()/registerHooks()/unregisterHooks() on the platform hook manager
@@ -72,7 +72,7 @@ function createAgent(
 function makeConfig(overrides: Partial<InputFrookyConfig> = {}): InputFrookyConfig {
   return {
     metadata: { name: "Test Config", platform: "Android" },
-    settings: { hookSettings: { ...DEFAULT_HOOK_SETTINGS }, decoderSettings: { ...DEFAULT_DECODER_SETTINGS } },
+    settings: { hookSettings: { ...DEFAULT_HOOK_SETTINGS }, decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS } },
     hookCollection: [],
     ...overrides,
   };

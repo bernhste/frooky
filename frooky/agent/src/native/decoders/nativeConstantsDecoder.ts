@@ -2,7 +2,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { logger } from "../../shared/logger";
-import { ConstantSet, decodeEnum, decodeFlags } from "../../shared/decoders/constantNames";
+import { ConstantSet, decodeConstant, decodeBitmask } from "../../shared/decoders/constantNames";
 import { FridaFundamentalType, parseNativeFridaType } from "./nativeFridaType";
 
 const BYTE_SIZES: Partial<Record<FridaFundamentalType, () => number>> = {
@@ -59,19 +59,25 @@ function toSignedValue(bits: UInt64, type: string): number | string {
   return n >= signBit ? n - 2 * signBit : n;
 }
 
-// `decoder: enum`: the name of the constant in `constants` with the value of an integer.
-export class NativeEnumDecoder extends Decoder<NativePointer> {
-  readonly decoderName = "NativeEnumDecoder";
-  readonly description = "Decodes an integer to the name of the constant with that value, from `constants` or a preset.";
+// `config.constants` of a native hook, which can only be a map: the native validator rejects a Java class
+const constantsMap = (decodable: Decodable): Record<string, number> | undefined => {
+  const constants = decodable.settings.config?.constants;
+  return typeof constants === "object" ? constants : undefined;
+};
+
+// `decoder: constants`: the name of the constant in `config.constants` with the value of an integer.
+export class NativeConstantsDecoder extends Decoder<NativePointer> {
+  readonly decoderName = "NativeConstantsDecoder";
+  readonly description = "Decodes an integer to the name of the constant with that value, from `config.constants` or a preset.";
 
   private constants: Record<string, number> | undefined;
 
   // `preset` is a built-in decoder such as `socketDomain`, undefined on a platform it has no values for
   constructor(decodable: Decodable, preset?: ConstantSet | null) {
     super(decodable);
-    this.constants = preset === undefined ? decodable.settings.constants : preset?.constants;
+    this.constants = preset === undefined ? constantsMap(decodable) : preset?.constants;
     if (!this.constants && preset === undefined) {
-      logger.warn(`decoder: enum on '${decodable.name ?? decodable.type}' needs 'constants', it is decoded as a number.`);
+      logger.warn(`decoder: constants on '${decodable.name ?? decodable.type}' needs 'config: { constants }', it is decoded as a number.`);
     }
   }
 
@@ -80,15 +86,15 @@ export class NativeEnumDecoder extends Decoder<NativePointer> {
     return {
       type: this.type,
       name: this.name,
-      value: this.constants ? decodeEnum(signed, this.constants) : signed,
+      value: this.constants ? decodeConstant(signed, this.constants) : signed,
     };
   }
 }
 
-// `decoder: flags`: the names of the constants in `constants` whose bits are set in an integer.
-export class NativeFlagsDecoder extends Decoder<NativePointer> {
-  readonly decoderName = "NativeFlagsDecoder";
-  readonly description = "Decodes an integer bitmask to the names of the constants whose bits are set, from `constants` or a preset.";
+// `decoder: bitmask`: the names of the constants in `config.constants` whose bits are set in an integer.
+export class NativeBitmaskDecoder extends Decoder<NativePointer> {
+  readonly decoderName = "NativeBitmaskDecoder";
+  readonly description = "Decodes an integer bitmask to the names of the constants whose bits are set, from `config.constants` or a preset.";
 
   private constantSet: ConstantSet | undefined;
 
@@ -96,11 +102,12 @@ export class NativeFlagsDecoder extends Decoder<NativePointer> {
     super(decodable);
     if (preset !== undefined) {
       this.constantSet = preset ?? undefined;
-    } else if (decodable.settings.constants) {
-      this.constantSet = { constants: decodable.settings.constants };
+    } else {
+      const constants = constantsMap(decodable);
+      if (constants) this.constantSet = { constants };
     }
     if (!this.constantSet && preset === undefined) {
-      logger.warn(`decoder: flags on '${decodable.name ?? decodable.type}' needs 'constants', it is decoded as a number.`);
+      logger.warn(`decoder: bitmask on '${decodable.name ?? decodable.type}' needs 'config: { constants }', it is decoded as a number.`);
     }
   }
 
@@ -109,7 +116,7 @@ export class NativeFlagsDecoder extends Decoder<NativePointer> {
     return {
       type: this.type,
       name: this.name,
-      value: this.constantSet ? decodeFlags(bits, this.constantSet) : toJsonNumber(bits),
+      value: this.constantSet ? decodeBitmask(bits, this.constantSet) : toJsonNumber(bits),
     };
   }
 }

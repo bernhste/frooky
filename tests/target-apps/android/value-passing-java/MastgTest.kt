@@ -91,7 +91,7 @@ class ThirdPartySdk {
 
 class MastgTest(private val context: Context) {
         companion object {
-                // compiled to static final fields of MastgTest, for the `constant` decoder
+                // compiled to static final fields of MastgTest, for the `constants` decoder
                 const val MODE_ENCRYPT = 1
                 const val MODE_DECRYPT = 2
         }

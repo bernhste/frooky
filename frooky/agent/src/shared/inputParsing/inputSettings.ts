@@ -1,5 +1,5 @@
 import { Direction } from "../decoders/decodable";
-import { DecoderSettings, HookSettings } from "../frookySettings";
+import { DecoderSettings, HookSettings, BaseDecoderSettings } from "../frookySettings";
 
 /**
  * Top-level settings of a hook file.
@@ -22,18 +22,25 @@ export type InputFrookySettings = {
 export type InputHookSettings = Partial<HookSettings>;
 
 /**
- * Decoder settings in a hook file. Every field is optional; missing fields are inherited.
+ * Decoder settings of the file, a hook collection or a hook. Every field is optional; missing fields are inherited.
  *
  * @public
  */
-export type InputDecoderSettings = Partial<DecoderSettings>;
+export type InputDecoderSettings = Partial<BaseDecoderSettings>;
+
+/**
+ * Decoder settings of a single parameter or return value. Every field is optional; missing fields are inherited.
+ *
+ * @public
+ */
+export type InputValueDecoderSettings = Partial<DecoderSettings>;
 
 /**
  * Inline settings of a single parameter.
  *
  * @public
  */
-export type InputParamSettings = Partial<DecoderSettings> & {
+export type InputParamSettings = InputValueDecoderSettings & {
   /** When the parameter is decoded. Default: `"in"`. */
   direction?: Direction;
 };

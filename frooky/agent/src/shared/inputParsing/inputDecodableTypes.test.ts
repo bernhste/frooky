@@ -5,6 +5,7 @@ import {
   normalizeInputRetType,
   normalizeInputRetTypeSettings,
   validateDecoderArgRoles,
+  validateDecoderConfig,
   validateDecoderNames,
 } from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
@@ -157,6 +158,43 @@ describe("inputDecodableTypes", () => {
         "decoderArgs of 'key': the decoder of '[B' doesn't accept the role 'offset'. It accepts: length.",
       );
       expect(() => validateDecoderArgRoles(params, () => [])).toThrow("doesn't accept the roles 'offset', 'length'. It accepts no decoderArgs.");
+    });
+  });
+
+  describe("validateDecoderConfig()", () => {
+    const withConstants = { ...DEFAULT_DECODER_SETTINGS, config: { constants: { A: 1 } } };
+    const acceptsConstants = () => ["constants"];
+
+    it("accepts options the decoder accepts, and values without config", () => {
+      expect(() =>
+        validateDecoderConfig(
+          [
+            ["mode", { ...withConstants, decoder: "bitmask" }],
+            ["len", DEFAULT_DECODER_SETTINGS],
+            ["return value", undefined],
+          ],
+          acceptsConstants,
+        ),
+      ).not.toThrow();
+    });
+
+    it("throws for an option the decoder doesn't accept, naming the value and the decoder", () => {
+      expect(() => validateDecoderConfig([["data", { ...withConstants, decoder: "base64" }]], () => [])).toThrow(
+        "config of 'data': decoder 'base64' doesn't accept 'constants'. It accepts no config.",
+      );
+    });
+
+    it("throws for config without a decoder, naming the decoder of the type", () => {
+      expect(() => validateDecoderConfig([["return value", withConstants]], () => [])).toThrow(
+        "config of 'return value': the decoder of its type doesn't accept 'constants'. It accepts no config.",
+      );
+    });
+
+    it("lists the accepted options", () => {
+      const settings = { ...DEFAULT_DECODER_SETTINGS, decoder: "constants" as const, config: { constants: { A: 1 }, other: 1 } as never };
+      expect(() => validateDecoderConfig([["mode", settings]], acceptsConstants)).toThrow(
+        "config of 'mode': decoder 'constants' doesn't accept 'other'. It accepts: constants.",
+      );
     });
   });
 

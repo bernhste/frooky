@@ -38,11 +38,12 @@ export interface HookSettings {
 }
 
 /**
- * Settings that control how parameter and return values are decoded.
+ * Decoder settings that the file, a hook collection, a hook, a parameter and a return value can set. Each level passes
+ * them on to the levels inside it, which can override them.
  *
  * @public
  */
-export interface DecoderSettings {
+export interface BaseDecoderSettings {
   /**
    * Maximum number of nested levels decoded. Default: `10`.
    *
@@ -63,7 +64,15 @@ export interface DecoderSettings {
    * own decoders, see {@link JavaDecoderName} and {@link NativeDecoderName}.
    */
   decoder?: DecoderName;
+}
 
+/**
+ * Settings that control how a parameter or return value is decoded: the {@link BaseDecoderSettings} and the settings
+ * that only a single parameter or return value can have.
+ *
+ * @public
+ */
+export interface DecoderSettings extends BaseDecoderSettings {
   /**
    * Values the decoder needs to decode the parameter, by their role, e.g. `{ length: len }` for a buffer whose length is
    * in the parameter `len`. Each decoder accepts some roles; any other role makes the hook invalid.
@@ -71,10 +80,10 @@ export interface DecoderSettings {
   decoderArgs?: DecoderArgs;
 
   /**
-   * Names of the values of an integer, e.g. `{ O_CREAT: 0x40 }`. Used by `decoder: enum` and `decoder: flags` for native
-   * hooks, and by `decoder: constant` for Java hooks instead of the constants of the hooked class.
+   * Options of the decoder selected with `decoder:`, e.g. `{ constants: { O_CREAT: 0x40 } }`. Each decoder accepts some
+   * options; any other option makes the hook invalid.
    */
-  constants?: Record<string, number>;
+  config?: DecoderConfig;
 
   /**
    * Regular expressions matched against the decoded value. The event is only captured if at least one
@@ -84,25 +93,40 @@ export interface DecoderSettings {
 }
 
 /**
+ * Options of a decoder, set with `config:` next to `decoder:`.
+ *
+ * @public
+ */
+export interface DecoderConfig {
+  /**
+   * Names of the values of an integer, for `decoder: constants` and `decoder: bitmask`: a map, e.g.
+   * `{ O_CREAT: 0x40 }`, or in Java hooks a class whose `static final` fields are the constants, e.g.
+   * `javax.crypto.Cipher`, optionally with a pattern for the field names after `#`, e.g. `javax.crypto.Cipher#*_MODE`.
+   * Java `constants` without it uses the constants of the hooked class.
+   */
+  constants?: Record<string, number> | string;
+}
+
+/**
  * Decoders of Java hooks, selected with `decoder:`. See docs/decoders-java.md.
  *
  * @public
  */
-export type JavaDecoderName = "string" | "base64" | "hashCode" | "intentFlag" | "intentUriFlag" | "constant" | "flags" | "getters";
+export type JavaDecoderName = "string" | "base64" | "hashCode" | "intentFlag" | "intentUriFlag" | "constants" | "bitmask" | "getters";
 
 /**
- * Decoders of native hooks that decode an integer bitmask with built-in constants, like `decoder: flags`.
+ * Decoders of native hooks that decode an integer bitmask with built-in constants, like `decoder: bitmask`.
  *
  * @public
  */
-export type NativeFlagsPresetName = "openFlags" | "mmapProt" | "mmapFlags" | "dlopenFlags" | "socketType";
+export type NativeBitmaskPresetName = "openFlags" | "mmapProt" | "mmapFlags" | "dlopenFlags" | "socketType";
 
 /**
- * Decoders of native hooks that decode an integer with built-in constants, like `decoder: enum`.
+ * Decoders of native hooks that decode an integer with built-in constants, like `decoder: constants`.
  *
  * @public
  */
-export type NativeEnumPresetName = "socketDomain";
+export type NativeConstantsPresetName = "socketDomain";
 
 /**
  * Decoders of native hooks, selected with `decoder:`. See docs/decoders-native.md.
@@ -110,16 +134,7 @@ export type NativeEnumPresetName = "socketDomain";
  * @public
  */
 export type NativeDecoderName =
-  | "string"
-  | "base64"
-  | "utf16"
-  | "errno"
-  | "fd"
-  | "enum"
-  | "flags"
-  | "nullTerminated"
-  | NativeFlagsPresetName
-  | NativeEnumPresetName;
+  "string" | "base64" | "utf16" | "errno" | "fd" | "constants" | "bitmask" | "nullTerminated" | NativeBitmaskPresetName | NativeConstantsPresetName;
 
 /**
  * Name of a decoder of any platform. Settings outside a hook collection, e.g. the top-level `decoderSettings`, accept
@@ -156,5 +171,5 @@ export interface DecoderArgs {
 
 export interface FrookySettings {
   hookSettings: HookSettings;
-  decoderSettings: DecoderSettings;
+  decoderSettings: BaseDecoderSettings;
 }

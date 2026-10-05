@@ -41,6 +41,8 @@ Both `hookSettings` and [`decoderSettings`](./decoders.md#decoder-settings) can 
 
 Each level only needs to set the fields it wants to override; anything it leaves out falls through to the next level out. The closest level always wins for the fields it sets.
 
+Of the decoder settings, only `maxDepth`, `maxItems` and `decoder` are passed down through these levels. `direction`, `decoderArgs`, `config` and `argFilter` describe one value, so they are only set on a parameter or return type (see [Decoder Settings](./decoders.md#decoder-settings)).
+
 **Example:**
 
 ```yaml
@@ -84,7 +86,7 @@ A Java method or native function can be hooked more than once, e.g. by two hook 
 - The events of all hooks on one call carry the same [`hashCode`](./output.md): of the Java instance, or of the native function's address.
 - Two native symbols can be the same function, e.g. `memcpy` and `memmove` in some libcs. Hooking both records each call twice, and frooky warns: `libc.so!memmove is the same function as libc.so!memcpy`.
 
-**Example:** record every `Cipher.init` call, and additionally decode `opmode` of the `init(int, Key)` overload with the `constant` decoder:
+**Example:** record every `Cipher.init` call, and additionally decode `opmode` of the `init(int, Key)` overload with the `constants` decoder:
 
 ```yaml
 hookCollection:
@@ -94,7 +96,7 @@ hookCollection:
       - method: init
         overloads:
           - params:
-              - [int, opmode, { decoder: constant }]
+              - [int, opmode, { decoder: constants }]
               - [java.security.Key, key]
 ```
 

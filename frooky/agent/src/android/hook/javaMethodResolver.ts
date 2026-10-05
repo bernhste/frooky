@@ -1,6 +1,6 @@
 import Java from "frida-java-bridge";
 import { Param } from "../../shared/decoders/decodable";
-import { DecoderSettings } from "../../shared/frookySettings";
+import { BaseDecoderSettings } from "../../shared/frookySettings";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { logger } from "../../shared/logger";
 import { namePatternToRegExp } from "../../shared/utils";
@@ -37,7 +37,7 @@ function declaredMethodNames(javaClass: Java.Wrapper): string[] {
   return [...new Set(methods.map((method) => String(method.getName())))];
 }
 
-function buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: DecoderSettings, declaringClass: string): Param[] {
+function buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: BaseDecoderSettings, declaringClass: string): Param[] {
   return argTypes.reduce((params: Param[], type: Java.Type) => {
     if (type.className) {
       params.push({

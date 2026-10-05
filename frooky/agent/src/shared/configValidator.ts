@@ -1,11 +1,11 @@
 import z from "zod";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_FROOKY_SETTINGS, DEFAULT_HOOK_SETTINGS } from "./defaultValues";
+import { DEFAULT_DECODER_SETTINGS, DEFAULT_FROOKY_SETTINGS, DEFAULT_HOOK_SETTINGS, DEFAULT_BASE_DECODER_SETTINGS } from "./defaultValues";
 import { InputFrookyConfig } from "./frookyConfig";
 import { FrookyMetadata, Platform } from "./frookyMetadata";
-import { DecoderSettings, FrookySettings, HookSettings } from "./frookySettings";
-import { InputDecoderSettings, InputFrookySettings, InputHookSettings } from "./inputParsing/inputSettings";
+import { DecoderSettings, FrookySettings, HookSettings, BaseDecoderSettings } from "./frookySettings";
+import { InputDecoderSettings, InputFrookySettings, InputHookSettings, InputValueDecoderSettings } from "./inputParsing/inputSettings";
 import { frookyMetadataSchema } from "./inputParsing/zodSchemas/frookyMetadata.zod";
-import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputParsing/zodSchemas/inputSettings.zod";
+import { inputDecoderSettingsSchema, inputHookSettingsSchema, inputValueDecoderSettingsSchema } from "./inputParsing/zodSchemas/inputSettings.zod";
 import { logger } from "./logger";
 
 // Validates the metadata and settings of a config and replaces invalid settings with defaults.
@@ -98,29 +98,42 @@ function isValidRegExp(pattern: string): boolean {
   }
 }
 
-// Replaces invalid and missing decoder settings with defaults.
-export function validateAndRepairDecoderSettings(settings: InputDecoderSettings): DecoderSettings {
+// Replaces invalid and missing decoder settings of the file, a hook collection or a hook with defaults. Unknown fields
+// are dropped, so only the base settings are passed on to the parameters and return values.
+export function validateAndRepairDecoderSettings(settings: InputDecoderSettings): BaseDecoderSettings {
+  const { maxDepth, maxItems, decoder } = repairDecoderSettings(settings, inputDecoderSettingsSchema, DEFAULT_BASE_DECODER_SETTINGS);
+  return { maxDepth, maxItems, decoder };
+}
+
+// Replaces invalid and missing decoder settings of a parameter or return value with defaults.
+export function validateAndRepairValueDecoderSettings(settings: InputValueDecoderSettings): DecoderSettings {
+  return repairDecoderSettings(settings, inputValueDecoderSettingsSchema, DEFAULT_DECODER_SETTINGS);
+}
+
+// Resets the invalid fields of `settings` to `defaults` and fills in the missing ones. Unknown fields are kept, so
+// later checks can name a misspelled one, e.g. `decoderArg`.
+function repairDecoderSettings<T extends BaseDecoderSettings>(settings: Partial<T>, schema: z.ZodType, defaults: T): T {
   logger.debug(`Validating frooky decoder settings`);
-  const result = inputDecoderSettingsSchema.safeParse(settings);
+  const result = schema.safeParse(settings);
 
   if (!result.success) {
     for (const issue of result.error.issues) {
-      const key = issue.path[0] as keyof DecoderSettings;
-      (settings as Record<keyof DecoderSettings, unknown>)[key] = DEFAULT_DECODER_SETTINGS[key];
+      const key = issue.path[0] as keyof T;
+      (settings as Record<keyof T, unknown>)[key] = defaults[key];
       logger.warn(
-        `Decoder setting "'${String(key)}'" contains invalid data:\n${z.prettifyError(result.error)}\nThe value for '${String(key)}' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS[key])}`,
+        `Decoder setting "'${String(key)}'" contains invalid data:\n${z.prettifyError(result.error)}\nThe value for '${String(key)}' was reset to the default: ${String(defaults[key])}`,
       );
     }
   }
 
-  const knownKeys = Object.keys(DEFAULT_DECODER_SETTINGS);
+  const knownKeys = Object.keys(defaults);
   const extraKeys = Object.keys(settings).filter((k) => !knownKeys.includes(k));
   if (extraKeys.length > 0) {
     logger.warn(`Decoder settings contain unknown properties: ${extraKeys.join(", ")}`);
   }
 
   logger.debug(`frooky decoder settings are valid`);
-  return { ...DEFAULT_DECODER_SETTINGS, ...settings };
+  return { ...defaults, ...settings };
 }
 
 export function validateMetadata(metadata: FrookyMetadata, platform: Platform) {

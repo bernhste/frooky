@@ -80,13 +80,12 @@
                 "hashCode",
                 "intentFlag",
                 "intentUriFlag",
-                "constant",
-                "flags",
+                "constants",
+                "bitmask",
                 "getters",
                 "utf16",
                 "errno",
                 "fd",
-                "enum",
                 "nullTerminated",
                 "openFlags",
                 "mmapProt",
@@ -95,38 +94,6 @@
                 "socketType",
                 "socketDomain"
               ]
-            },
-            "decoderArgs": {
-              "type": "object",
-              "properties": {
-                "length": {
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                },
-                "offset": {
-                  "type": [
-                    "string",
-                    "number"
-                  ]
-                }
-              }
-            },
-            "constants": {
-              "type": "object",
-              "propertyNames": {
-                "type": "string"
-              },
-              "additionalProperties": {
-                "type": "number"
-              }
-            },
-            "argFilter": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
             }
           }
         }
@@ -181,42 +148,10 @@
                                 "hashCode",
                                 "intentFlag",
                                 "intentUriFlag",
-                                "constant",
-                                "flags",
+                                "constants",
+                                "bitmask",
                                 "getters"
                               ]
-                            },
-                            "decoderArgs": {
-                              "type": "object",
-                              "properties": {
-                                "length": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
-                                },
-                                "offset": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
-                                }
-                              }
-                            },
-                            "constants": {
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {
-                                "type": "number"
-                              }
-                            },
-                            "argFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
                             }
                           }
                         }
@@ -282,8 +217,8 @@
                                                 "hashCode",
                                                 "intentFlag",
                                                 "intentUriFlag",
-                                                "constant",
-                                                "flags",
+                                                "constants",
+                                                "bitmask",
                                                 "getters"
                                               ]
                                             },
@@ -304,13 +239,26 @@
                                                 }
                                               }
                                             },
-                                            "constants": {
+                                            "config": {
                                               "type": "object",
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "additionalProperties": {
-                                                "type": "number"
+                                              "properties": {
+                                                "constants": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "propertyNames": {
+                                                        "type": "string"
+                                                      },
+                                                      "additionalProperties": {
+                                                        "type": "number"
+                                                      }
+                                                    },
+                                                    {
+                                                      "type": "string",
+                                                      "pattern": "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$"
+                                                    }
+                                                  ]
+                                                }
                                               }
                                             },
                                             "argFilter": {
@@ -370,8 +318,8 @@
                                                 "hashCode",
                                                 "intentFlag",
                                                 "intentUriFlag",
-                                                "constant",
-                                                "flags",
+                                                "constants",
+                                                "bitmask",
                                                 "getters"
                                               ]
                                             },
@@ -392,13 +340,26 @@
                                                 }
                                               }
                                             },
-                                            "constants": {
+                                            "config": {
                                               "type": "object",
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "additionalProperties": {
-                                                "type": "number"
+                                              "properties": {
+                                                "constants": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "propertyNames": {
+                                                        "type": "string"
+                                                      },
+                                                      "additionalProperties": {
+                                                        "type": "number"
+                                                      }
+                                                    },
+                                                    {
+                                                      "type": "string",
+                                                      "pattern": "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$"
+                                                    }
+                                                  ]
+                                                }
                                               }
                                             },
                                             "argFilter": {
@@ -474,8 +435,8 @@
                                                 "hashCode",
                                                 "intentFlag",
                                                 "intentUriFlag",
-                                                "constant",
-                                                "flags",
+                                                "constants",
+                                                "bitmask",
                                                 "getters"
                                               ]
                                             },
@@ -496,13 +457,26 @@
                                                 }
                                               }
                                             },
-                                            "constants": {
+                                            "config": {
                                               "type": "object",
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "additionalProperties": {
-                                                "type": "number"
+                                              "properties": {
+                                                "constants": {
+                                                  "anyOf": [
+                                                    {
+                                                      "type": "object",
+                                                      "propertyNames": {
+                                                        "type": "string"
+                                                      },
+                                                      "additionalProperties": {
+                                                        "type": "number"
+                                                      }
+                                                    },
+                                                    {
+                                                      "type": "string",
+                                                      "pattern": "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$"
+                                                    }
+                                                  ]
+                                                }
                                               }
                                             },
                                             "argFilter": {
@@ -540,8 +514,8 @@
                                       "hashCode",
                                       "intentFlag",
                                       "intentUriFlag",
-                                      "constant",
-                                      "flags",
+                                      "constants",
+                                      "bitmask",
                                       "getters"
                                     ]
                                   },
@@ -562,13 +536,26 @@
                                       }
                                     }
                                   },
-                                  "constants": {
+                                  "config": {
                                     "type": "object",
-                                    "propertyNames": {
-                                      "type": "string"
-                                    },
-                                    "additionalProperties": {
-                                      "type": "number"
+                                    "properties": {
+                                      "constants": {
+                                        "anyOf": [
+                                          {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          },
+                                          {
+                                            "type": "string",
+                                            "pattern": "^[\\w$]+(\\.[\\w$]+)*(#[\\w$*]+)?$"
+                                          }
+                                        ]
+                                      }
                                     }
                                   },
                                   "argFilter": {
@@ -628,42 +615,10 @@
                                 "hashCode",
                                 "intentFlag",
                                 "intentUriFlag",
-                                "constant",
-                                "flags",
+                                "constants",
+                                "bitmask",
                                 "getters"
                               ]
-                            },
-                            "decoderArgs": {
-                              "type": "object",
-                              "properties": {
-                                "length": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
-                                },
-                                "offset": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
-                                }
-                              }
-                            },
-                            "constants": {
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {
-                                "type": "number"
-                              }
-                            },
-                            "argFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
                             }
                           }
                         }
@@ -718,42 +673,10 @@
                       "hashCode",
                       "intentFlag",
                       "intentUriFlag",
-                      "constant",
-                      "flags",
+                      "constants",
+                      "bitmask",
                       "getters"
                     ]
-                  },
-                  "decoderArgs": {
-                    "type": "object",
-                    "properties": {
-                      "length": {
-                        "type": [
-                          "string",
-                          "number"
-                        ]
-                      },
-                      "offset": {
-                        "type": [
-                          "string",
-                          "number"
-                        ]
-                      }
-                    }
-                  },
-                  "constants": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {
-                      "type": "number"
-                    }
-                  },
-                  "argFilter": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
                   }
                 }
               }
@@ -805,8 +728,8 @@
                                 "utf16",
                                 "errno",
                                 "fd",
-                                "enum",
-                                "flags",
+                                "constants",
+                                "bitmask",
                                 "nullTerminated",
                                 "openFlags",
                                 "mmapProt",
@@ -815,38 +738,6 @@
                                 "socketType",
                                 "socketDomain"
                               ]
-                            },
-                            "decoderArgs": {
-                              "type": "object",
-                              "properties": {
-                                "length": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
-                                },
-                                "offset": {
-                                  "type": [
-                                    "string",
-                                    "number"
-                                  ]
-                                }
-                              }
-                            },
-                            "constants": {
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {
-                                "type": "number"
-                              }
-                            },
-                            "argFilter": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
                             }
                           }
                         }
@@ -906,8 +797,8 @@
                                               "utf16",
                                               "errno",
                                               "fd",
-                                              "enum",
-                                              "flags",
+                                              "constants",
+                                              "bitmask",
                                               "nullTerminated",
                                               "openFlags",
                                               "mmapProt",
@@ -934,13 +825,22 @@
                                               }
                                             }
                                           },
-                                          "constants": {
+                                          "config": {
                                             "type": "object",
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "additionalProperties": {
-                                              "type": "number"
+                                            "properties": {
+                                              "constants": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "additionalProperties": {
+                                                      "type": "number"
+                                                    }
+                                                  }
+                                                ]
+                                              }
                                             }
                                           },
                                           "argFilter": {
@@ -1000,8 +900,8 @@
                                               "utf16",
                                               "errno",
                                               "fd",
-                                              "enum",
-                                              "flags",
+                                              "constants",
+                                              "bitmask",
                                               "nullTerminated",
                                               "openFlags",
                                               "mmapProt",
@@ -1028,13 +928,22 @@
                                               }
                                             }
                                           },
-                                          "constants": {
+                                          "config": {
                                             "type": "object",
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "additionalProperties": {
-                                              "type": "number"
+                                            "properties": {
+                                              "constants": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "additionalProperties": {
+                                                      "type": "number"
+                                                    }
+                                                  }
+                                                ]
+                                              }
                                             }
                                           },
                                           "argFilter": {
@@ -1110,8 +1019,8 @@
                                               "utf16",
                                               "errno",
                                               "fd",
-                                              "enum",
-                                              "flags",
+                                              "constants",
+                                              "bitmask",
                                               "nullTerminated",
                                               "openFlags",
                                               "mmapProt",
@@ -1138,13 +1047,22 @@
                                               }
                                             }
                                           },
-                                          "constants": {
+                                          "config": {
                                             "type": "object",
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "additionalProperties": {
-                                              "type": "number"
+                                            "properties": {
+                                              "constants": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "additionalProperties": {
+                                                      "type": "number"
+                                                    }
+                                                  }
+                                                ]
+                                              }
                                             }
                                           },
                                           "argFilter": {
@@ -1193,8 +1111,8 @@
                                             "utf16",
                                             "errno",
                                             "fd",
-                                            "enum",
-                                            "flags",
+                                            "constants",
+                                            "bitmask",
                                             "nullTerminated",
                                             "openFlags",
                                             "mmapProt",
@@ -1221,13 +1139,22 @@
                                             }
                                           }
                                         },
-                                        "constants": {
+                                        "config": {
                                           "type": "object",
-                                          "propertyNames": {
-                                            "type": "string"
-                                          },
-                                          "additionalProperties": {
-                                            "type": "number"
+                                          "properties": {
+                                            "constants": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "additionalProperties": {
+                                                    "type": "number"
+                                                  }
+                                                }
+                                              ]
+                                            }
                                           }
                                         },
                                         "argFilter": {
@@ -1271,8 +1198,8 @@
                                             "utf16",
                                             "errno",
                                             "fd",
-                                            "enum",
-                                            "flags",
+                                            "constants",
+                                            "bitmask",
                                             "nullTerminated",
                                             "openFlags",
                                             "mmapProt",
@@ -1299,13 +1226,22 @@
                                             }
                                           }
                                         },
-                                        "constants": {
+                                        "config": {
                                           "type": "object",
-                                          "propertyNames": {
-                                            "type": "string"
-                                          },
-                                          "additionalProperties": {
-                                            "type": "number"
+                                          "properties": {
+                                            "constants": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "additionalProperties": {
+                                                    "type": "number"
+                                                  }
+                                                }
+                                              ]
+                                            }
                                           }
                                         },
                                         "argFilter": {
@@ -1366,8 +1302,8 @@
                                     "utf16",
                                     "errno",
                                     "fd",
-                                    "enum",
-                                    "flags",
+                                    "constants",
+                                    "bitmask",
                                     "nullTerminated",
                                     "openFlags",
                                     "mmapProt",
@@ -1376,38 +1312,6 @@
                                     "socketType",
                                     "socketDomain"
                                   ]
-                                },
-                                "decoderArgs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "length": {
-                                      "type": [
-                                        "string",
-                                        "number"
-                                      ]
-                                    },
-                                    "offset": {
-                                      "type": [
-                                        "string",
-                                        "number"
-                                      ]
-                                    }
-                                  }
-                                },
-                                "constants": {
-                                  "type": "object",
-                                  "propertyNames": {
-                                    "type": "string"
-                                  },
-                                  "additionalProperties": {
-                                    "type": "number"
-                                  }
-                                },
-                                "argFilter": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
                                 }
                               }
                             },
@@ -1471,8 +1375,8 @@
                                               "utf16",
                                               "errno",
                                               "fd",
-                                              "enum",
-                                              "flags",
+                                              "constants",
+                                              "bitmask",
                                               "nullTerminated",
                                               "openFlags",
                                               "mmapProt",
@@ -1499,13 +1403,22 @@
                                               }
                                             }
                                           },
-                                          "constants": {
+                                          "config": {
                                             "type": "object",
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "additionalProperties": {
-                                              "type": "number"
+                                            "properties": {
+                                              "constants": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "additionalProperties": {
+                                                      "type": "number"
+                                                    }
+                                                  }
+                                                ]
+                                              }
                                             }
                                           },
                                           "argFilter": {
@@ -1565,8 +1478,8 @@
                                               "utf16",
                                               "errno",
                                               "fd",
-                                              "enum",
-                                              "flags",
+                                              "constants",
+                                              "bitmask",
                                               "nullTerminated",
                                               "openFlags",
                                               "mmapProt",
@@ -1593,13 +1506,22 @@
                                               }
                                             }
                                           },
-                                          "constants": {
+                                          "config": {
                                             "type": "object",
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "additionalProperties": {
-                                              "type": "number"
+                                            "properties": {
+                                              "constants": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "additionalProperties": {
+                                                      "type": "number"
+                                                    }
+                                                  }
+                                                ]
+                                              }
                                             }
                                           },
                                           "argFilter": {
@@ -1675,8 +1597,8 @@
                                               "utf16",
                                               "errno",
                                               "fd",
-                                              "enum",
-                                              "flags",
+                                              "constants",
+                                              "bitmask",
                                               "nullTerminated",
                                               "openFlags",
                                               "mmapProt",
@@ -1703,13 +1625,22 @@
                                               }
                                             }
                                           },
-                                          "constants": {
+                                          "config": {
                                             "type": "object",
-                                            "propertyNames": {
-                                              "type": "string"
-                                            },
-                                            "additionalProperties": {
-                                              "type": "number"
+                                            "properties": {
+                                              "constants": {
+                                                "anyOf": [
+                                                  {
+                                                    "type": "object",
+                                                    "propertyNames": {
+                                                      "type": "string"
+                                                    },
+                                                    "additionalProperties": {
+                                                      "type": "number"
+                                                    }
+                                                  }
+                                                ]
+                                              }
                                             }
                                           },
                                           "argFilter": {
@@ -1758,8 +1689,8 @@
                                             "utf16",
                                             "errno",
                                             "fd",
-                                            "enum",
-                                            "flags",
+                                            "constants",
+                                            "bitmask",
                                             "nullTerminated",
                                             "openFlags",
                                             "mmapProt",
@@ -1786,13 +1717,22 @@
                                             }
                                           }
                                         },
-                                        "constants": {
+                                        "config": {
                                           "type": "object",
-                                          "propertyNames": {
-                                            "type": "string"
-                                          },
-                                          "additionalProperties": {
-                                            "type": "number"
+                                          "properties": {
+                                            "constants": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "additionalProperties": {
+                                                    "type": "number"
+                                                  }
+                                                }
+                                              ]
+                                            }
                                           }
                                         },
                                         "argFilter": {
@@ -1836,8 +1776,8 @@
                                             "utf16",
                                             "errno",
                                             "fd",
-                                            "enum",
-                                            "flags",
+                                            "constants",
+                                            "bitmask",
                                             "nullTerminated",
                                             "openFlags",
                                             "mmapProt",
@@ -1864,13 +1804,22 @@
                                             }
                                           }
                                         },
-                                        "constants": {
+                                        "config": {
                                           "type": "object",
-                                          "propertyNames": {
-                                            "type": "string"
-                                          },
-                                          "additionalProperties": {
-                                            "type": "number"
+                                          "properties": {
+                                            "constants": {
+                                              "anyOf": [
+                                                {
+                                                  "type": "object",
+                                                  "propertyNames": {
+                                                    "type": "string"
+                                                  },
+                                                  "additionalProperties": {
+                                                    "type": "number"
+                                                  }
+                                                }
+                                              ]
+                                            }
                                           }
                                         },
                                         "argFilter": {
@@ -1931,8 +1880,8 @@
                                     "utf16",
                                     "errno",
                                     "fd",
-                                    "enum",
-                                    "flags",
+                                    "constants",
+                                    "bitmask",
                                     "nullTerminated",
                                     "openFlags",
                                     "mmapProt",
@@ -1941,38 +1890,6 @@
                                     "socketType",
                                     "socketDomain"
                                   ]
-                                },
-                                "decoderArgs": {
-                                  "type": "object",
-                                  "properties": {
-                                    "length": {
-                                      "type": [
-                                        "string",
-                                        "number"
-                                      ]
-                                    },
-                                    "offset": {
-                                      "type": [
-                                        "string",
-                                        "number"
-                                      ]
-                                    }
-                                  }
-                                },
-                                "constants": {
-                                  "type": "object",
-                                  "propertyNames": {
-                                    "type": "string"
-                                  },
-                                  "additionalProperties": {
-                                    "type": "number"
-                                  }
-                                },
-                                "argFilter": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
-                                  }
                                 }
                               }
                             },
@@ -2038,8 +1955,8 @@
                       "utf16",
                       "errno",
                       "fd",
-                      "enum",
-                      "flags",
+                      "constants",
+                      "bitmask",
                       "nullTerminated",
                       "openFlags",
                       "mmapProt",
@@ -2048,38 +1965,6 @@
                       "socketType",
                       "socketDomain"
                     ]
-                  },
-                  "decoderArgs": {
-                    "type": "object",
-                    "properties": {
-                      "length": {
-                        "type": [
-                          "string",
-                          "number"
-                        ]
-                      },
-                      "offset": {
-                        "type": [
-                          "string",
-                          "number"
-                        ]
-                      }
-                    }
-                  },
-                  "constants": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string"
-                    },
-                    "additionalProperties": {
-                      "type": "number"
-                    }
-                  },
-                  "argFilter": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
                   }
                 }
               }

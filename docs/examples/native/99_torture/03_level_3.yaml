@@ -71,7 +71,7 @@ hookCollection:
         params:
           - [int, fd, { decoder: fd }]
           - [off_t, offset]
-          - [int, whence, { decoder: enum, constants: { SEEK_SET: 0, SEEK_CUR: 1, SEEK_END: 2 } }]
+          - [int, whence, { decoder: constants, config: { constants: { SEEK_SET: 0, SEEK_CUR: 1, SEEK_END: 2 } } }]
       - symbol: strerror
         retType: "char *"
         params:

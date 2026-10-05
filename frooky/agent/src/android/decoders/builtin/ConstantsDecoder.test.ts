@@ -1,11 +1,12 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
-import { ConstantDecoder } from "./ConstantDecoder";
+import { logger } from "../../../shared/logger";
+import { ConstantsDecoder } from "./ConstantsDecoder";
 
-describe("ConstantDecoder", () => {
+describe("ConstantsDecoder", () => {
   describe("decode()", () => {
     const Cipher = Java.use("javax.crypto.Cipher");
-    const decoder = new ConstantDecoder({
+    const decoder = new ConstantsDecoder({
       type: "int",
       declaringClass: "javax.crypto.Cipher",
       settings: DEFAULT_DECODER_SETTINGS,
@@ -26,7 +27,7 @@ describe("ConstantDecoder", () => {
     });
 
     it("should fall back to the raw value when the declaring class is unknown", () => {
-      const decoderWithoutClass = new ConstantDecoder({ type: "int", settings: DEFAULT_DECODER_SETTINGS });
+      const decoderWithoutClass = new ConstantsDecoder({ type: "int", settings: DEFAULT_DECODER_SETTINGS });
 
       const unwrapMode: number = Cipher.UNWRAP_MODE.value;
       const result = decoderWithoutClass.decode(unwrapMode as unknown as Java.Wrapper);
@@ -34,14 +35,48 @@ describe("ConstantDecoder", () => {
       expect(result).toEqual({ type: "int", name: undefined, value: unwrapMode });
     });
 
-    describe("with constants in the decoder settings", () => {
-      const withConstants = (type: string, constants: Record<string, number>) =>
-        new ConstantDecoder({ type, declaringClass: "javax.crypto.Cipher", settings: { ...DEFAULT_DECODER_SETTINGS, constants } });
+    describe("with a class in config.constants", () => {
+      const withClass = (constants: string) =>
+        new ConstantsDecoder({
+          type: "int",
+          declaringClass: "javax.crypto.Cipher",
+          settings: { ...DEFAULT_DECODER_SETTINGS, config: { constants } },
+        });
 
-      it("should use the constants of the settings instead of the ones of the hooked class", () => {
+      it("should use the constants of the class whose names match the pattern", () => {
+        const encryptMode: number = Cipher.ENCRYPT_MODE.value;
+        const publicKey: number = Cipher.PUBLIC_KEY.value;
+
+        // both are 1
+        expect(withClass("javax.crypto.Cipher#*_MODE").decode(encryptMode as unknown as Java.Wrapper).value).toBe("ENCRYPT_MODE");
+        expect(withClass("javax.crypto.Cipher#*_KEY").decode(publicKey as unknown as Java.Wrapper).value).toBe("PUBLIC_KEY");
+      });
+
+      it("should use another class than the hooked one", () => {
+        const actionDown: number = Java.use("android.view.MotionEvent").ACTION_DOWN.value;
+
+        expect(withClass("android.view.MotionEvent#ACTION_*").decode(actionDown as unknown as Java.Wrapper).value).toBe("ACTION_DOWN");
+      });
+
+      it("should fall back to the raw value, with a warning, for a class that isn't found", () => {
+        const warnSpy = spyOn(logger, "warn");
+        try {
+          expect(withClass("com.example.Missing").decode(1 as unknown as Java.Wrapper).value).toBe(1);
+          expect(warnSpy).toHaveBeenCalledTimes(1);
+        } finally {
+          warnSpy.mockRestore();
+        }
+      });
+    });
+
+    describe("with config.constants", () => {
+      const withConstants = (type: string, constants: Record<string, number>) =>
+        new ConstantsDecoder({ type, declaringClass: "javax.crypto.Cipher", settings: { ...DEFAULT_DECODER_SETTINGS, config: { constants } } });
+
+      it("should use config.constants instead of the constants of the hooked class", () => {
         const decoder = withConstants("int", { MODE_ONE: 1, MODE_TWO: 2 });
 
-        // 1 is Cipher.ENCRYPT_MODE, but the settings win
+        // 1 is Cipher.ENCRYPT_MODE, but config.constants wins
         expect(decoder.decode(1 as unknown as Java.Wrapper).value).toBe("MODE_ONE");
       });
 

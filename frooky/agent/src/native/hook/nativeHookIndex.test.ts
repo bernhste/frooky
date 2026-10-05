@@ -1,4 +1,4 @@
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { NativeHook } from "./nativeHook";
 import { NativeHookIndex } from "./nativeHookIndex";
 
@@ -11,7 +11,7 @@ function libcHook(symbol: string): NativeHook {
     symbolName: symbol,
     symbolAddress: libc.getExportByName(symbol),
     hookSettings: DEFAULT_HOOK_SETTINGS,
-    decoderSettings: DEFAULT_DECODER_SETTINGS,
+    decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
   };
 }
 

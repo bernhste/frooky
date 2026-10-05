@@ -1,11 +1,11 @@
 import Java from "frida-java-bridge";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { logger } from "../../shared/logger";
 import { resolveMethodHooks } from "./javaMethodResolver";
 
 function javaHook(method: string, overrides: Partial<JavaHookDeclaration> = {}): JavaHookDeclaration {
-  return { javaClass: "java.lang.String", method, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };
+  return { javaClass: "java.lang.String", method, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS, ...overrides };
 }
 
 describe("resolveMethodHooks()", () => {

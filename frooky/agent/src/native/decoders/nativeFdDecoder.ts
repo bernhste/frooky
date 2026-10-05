@@ -2,7 +2,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { logger } from "../../shared/logger";
 import { bytesToString } from "../../shared/utils";
-import { decodeEnum } from "../../shared/decoders/constantNames";
+import { decodeConstant } from "../../shared/decoders/constantNames";
 import { presetConstants } from "./nativeConstantPresets";
 
 // size of sockaddr_storage
@@ -160,13 +160,13 @@ export function decodeFd(fd: number): DecodedFd {
   if (!local) return decoded;
 
   const families = presetConstants("socketDomain")?.constants ?? {};
-  decoded.family = decodeEnum(local.family, families);
+  decoded.family = decodeConstant(local.family, families);
   getsockopt ??= new NativeFunction(fn("getsockopt"), "int", ["int", "int", "int", "pointer", "pointer"]);
   const type = Memory.alloc(4);
   const typeLength = Memory.alloc(4);
   typeLength.writeU32(4);
   if (getsockopt(fd, p.solSocket, p.soType, type, typeLength) === 0) {
-    decoded.socketType = decodeEnum(type.readS32(), presetConstants("socketType")?.enumConstants ?? {});
+    decoded.socketType = decodeConstant(type.readS32(), presetConstants("socketType")?.enumConstants ?? {});
   }
   decoded.local = local.address;
   getpeername ??= new NativeFunction(fn("getpeername"), "int", ["int", "pointer", "pointer"]);

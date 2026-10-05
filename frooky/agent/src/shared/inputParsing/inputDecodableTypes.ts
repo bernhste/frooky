@@ -1,9 +1,9 @@
-import { validateAndRepairDecoderSettings } from "../configValidator";
+import { validateAndRepairValueDecoderSettings } from "../configValidator";
 import { Direction, Param, RetType } from "../decoders/decodable";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_DECODE_AT } from "../defaultValues";
-import { DecoderSettings } from "../frookySettings";
+import { DEFAULT_DECODE_AT, DEFAULT_BASE_DECODER_SETTINGS } from "../defaultValues";
+import { DecoderSettings, BaseDecoderSettings } from "../frookySettings";
 import { DECODER_ARG_ROLES, DecoderArgRole, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
-import { InputDecoderSettings, InputParamSettings } from "./inputSettings";
+import { InputParamSettings, InputValueDecoderSettings } from "./inputSettings";
 
 /**
  * A parameter declared as an object.
@@ -21,7 +21,7 @@ export interface InputParamObject {
   direction?: Direction;
 
   /** Decoder settings for this parameter. Override the hook's settings. */
-  settings?: InputDecoderSettings;
+  settings?: InputValueDecoderSettings;
 }
 
 /**
@@ -39,13 +39,13 @@ export interface InputParamObject {
  */
 export type InputParam = string | [string, string] | [string, InputParamSettings] | [string, string, InputParamSettings] | InputParamObject;
 
-function normalizeInputParam(input: InputParam, decoderSettings: DecoderSettings): Param {
+function normalizeInputParam(input: InputParam, decoderSettings: BaseDecoderSettings): Param {
   // the param's own settings override the merged file, collection and hook settings field by field
-  const toParam = (type: string, name?: string, direction?: Direction, paramSettings?: InputDecoderSettings): Param => ({
+  const toParam = (type: string, name?: string, direction?: Direction, paramSettings?: InputValueDecoderSettings): Param => ({
     type,
     ...(name !== undefined && { name }),
     direction: direction ?? DEFAULT_DECODE_AT,
-    settings: paramSettings ? validateAndRepairDecoderSettings({ ...decoderSettings, ...paramSettings }) : decoderSettings,
+    settings: paramSettings ? validateAndRepairValueDecoderSettings({ ...decoderSettings, ...paramSettings }) : decoderSettings,
   });
 
   // Case 1: Type only - "java.lang.String"
@@ -71,7 +71,7 @@ function normalizeInputParam(input: InputParam, decoderSettings: DecoderSettings
 }
 
 // Throws unless the `decoderArgs` of every parameter are valid, see validateDecoderArgs().
-export function normalizeInputParams(inputs: InputParam[], decoderSettings: DecoderSettings = DEFAULT_DECODER_SETTINGS): Param[] {
+export function normalizeInputParams(inputs: InputParam[], decoderSettings: BaseDecoderSettings = DEFAULT_BASE_DECODER_SETTINGS): Param[] {
   const params = inputs.map((input) => normalizeInputParam(input, decoderSettings));
   params.forEach((param, paramIndex) => validateDecoderArgs(param, paramIndex, params));
   return params;
@@ -146,6 +146,26 @@ export function validateDecoderArgRoles(params: Param[] | undefined, acceptedRol
   }
 }
 
+// Throws if a value sets a `config` option its decoder doesn't accept, e.g. `constants` with `decoder: base64`.
+// `values` are pairs of a label for the message and the value's settings; `acceptedOptions` lists them per platform.
+export function validateDecoderConfig(
+  values: [label: string, settings: DecoderSettings | undefined][],
+  acceptedOptions: (settings: DecoderSettings) => readonly string[],
+): void {
+  for (const [label, settings] of values) {
+    const options = Object.keys(settings?.config ?? {});
+    if (!settings || options.length === 0) continue;
+    const accepted = acceptedOptions(settings);
+    const rejected = options.filter((option) => !accepted.includes(option));
+    if (rejected.length > 0) {
+      const decoder = settings.decoder ? `decoder '${settings.decoder}'` : "the decoder of its type";
+      throw new Error(
+        `config of '${label}': ${decoder} doesn't accept ${rejected.map((o) => `'${o}'`).join(", ")}. ${accepted.length ? `It accepts: ${accepted.join(", ")}.` : "It accepts no config."}`,
+      );
+    }
+  }
+}
+
 // Throws if a value uses a decoder of another platform, e.g. `decoder: fd` in a Java hook. `names` lists the
 // decoders of the hook's platform.
 export function validateDecoderNames(settings: (Partial<DecoderSettings> | undefined)[], names: readonly string[], platform: string): void {
@@ -169,7 +189,7 @@ export interface InputRetTypeObject {
   name?: string;
 
   /** Decoder settings for the return value. Override the hook's settings. */
-  settings?: InputDecoderSettings;
+  settings?: InputValueDecoderSettings;
 }
 
 /**
@@ -183,9 +203,9 @@ export interface InputRetTypeObject {
  *
  * @public
  */
-export type InputRetType = string | [string, InputDecoderSettings] | InputRetTypeObject;
+export type InputRetType = string | [string, InputValueDecoderSettings] | InputRetTypeObject;
 
-export function normalizeInputRetType(input: InputRetType, decoderSettings: DecoderSettings = DEFAULT_DECODER_SETTINGS): RetType {
+export function normalizeInputRetType(input: InputRetType, decoderSettings: BaseDecoderSettings = DEFAULT_BASE_DECODER_SETTINGS): RetType {
   // Case 1: Type only - "int"
   if (typeof input === "string") {
     return { type: input, settings: decoderSettings };
@@ -197,7 +217,7 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings: Deco
   return {
     type,
     ...(name !== undefined && { name }),
-    settings: settings ? validateAndRepairDecoderSettings({ ...decoderSettings, ...settings }) : decoderSettings,
+    settings: settings ? validateAndRepairValueDecoderSettings({ ...decoderSettings, ...settings }) : decoderSettings,
   };
 }
 
@@ -211,12 +231,12 @@ export function normalizeInputRetType(input: InputRetType, decoderSettings: Deco
  *
  * @public
  */
-export type InputRetTypeSettings = InputDecoderSettings;
+export type InputRetTypeSettings = InputValueDecoderSettings;
 
 export function normalizeInputRetTypeSettings(
   input: InputRetTypeSettings,
-  decoderSettings: DecoderSettings = DEFAULT_DECODER_SETTINGS,
+  decoderSettings: BaseDecoderSettings = DEFAULT_BASE_DECODER_SETTINGS,
 ): DecoderSettings {
   rejectRetTypeDecoderArgs(input);
-  return validateAndRepairDecoderSettings({ ...decoderSettings, ...input });
+  return validateAndRepairValueDecoderSettings({ ...decoderSettings, ...input });
 }

@@ -1,4 +1,4 @@
-// Names of the values of an integer, for the enum and flags decoders of both platforms.
+// Names of the values of an integer, for the constants and bitmask decoders of both platforms.
 
 // Constant names and values. A preset can also have an enum field inside the flags, e.g. the access mode
 // `O_RDONLY`/`O_WRONLY`/`O_RDWR` in the lowest two bits of the `open` flags.
@@ -13,7 +13,7 @@ const popcount = (n: UInt64): number =>
   Array.from(n.toString(16)).reduce((count, digit) => count + parseInt(digit, 16).toString(2).replace(/0/g, "").length, 0);
 
 // The name of the constant with exactly this value, or the value itself if there is none.
-export function decodeEnum(value: number | string, constants: Record<string, number>): string | number {
+export function decodeConstant(value: number | string, constants: Record<string, number>): string | number {
   for (const [name, constant] of Object.entries(constants)) {
     if (typeof value === "number" ? constant === value : String(constant) === value) return name;
   }
@@ -23,7 +23,7 @@ export function decodeEnum(value: number | string, constants: Record<string, num
 // The names of the constants whose bits are all set, e.g. `["O_WRONLY", "O_CREAT"]`. Constants with more bits
 // are matched first and use up their bits, so `O_SYNC` (which includes `O_DSYNC`) isn't also shown as `O_DSYNC`.
 // Bits no constant matches are added as one hex string. A constant of 0 is only shown if no bit is set.
-export function decodeFlags(bits: UInt64, set: ConstantSet): string[] {
+export function decodeBitmask(bits: UInt64, set: ConstantSet): string[] {
   const names: string[] = [];
   let remaining = bits;
   if (set.enumMask !== undefined && set.enumConstants) {

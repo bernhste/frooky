@@ -1,9 +1,9 @@
 import { RetType } from "../decoders/decodable";
-import { DecoderSettings, HookSettings } from "../frookySettings";
+import { HookSettings, BaseDecoderSettings } from "../frookySettings";
 
 export interface Hook {
   hookSettings: HookSettings;
-  decoderSettings: DecoderSettings;
+  decoderSettings: BaseDecoderSettings;
   retType?: RetType;
   // calls dropped by the callerFilter or an argFilter, for the host's hook statistics
   filteredCalls?: number;

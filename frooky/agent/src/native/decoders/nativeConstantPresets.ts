@@ -1,6 +1,6 @@
 import { logger } from "../../shared/logger";
 import { ConstantSet } from "../../shared/decoders/constantNames";
-import { NativeEnumPresetName, NativeFlagsPresetName } from "../../shared/frookySettings";
+import { NativeConstantsPresetName, NativeBitmaskPresetName } from "../../shared/frookySettings";
 
 // Constants of system calls and libc for 64-bit processes, one table per platform:
 // - linux: Android (and Linux), from the Linux UAPI headers and Bionic. The kernel keeps the values stable per
@@ -137,7 +137,7 @@ const socketType: Preset = {
   darwin: () => ({ enumMask: 0xf, enumConstants: SOCKET_TYPES, constants: {} }),
 };
 
-type PresetName = NativeFlagsPresetName | NativeEnumPresetName;
+type PresetName = NativeBitmaskPresetName | NativeConstantsPresetName;
 
 const PRESETS: Record<PresetName, Preset> = { openFlags, mmapProt, mmapFlags, dlopenFlags, socketDomain, socketType };
 

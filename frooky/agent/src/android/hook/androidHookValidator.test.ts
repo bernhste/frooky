@@ -1,4 +1,4 @@
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
 import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
@@ -9,7 +9,7 @@ import { AndroidHookValidator } from "./androidHookValidator";
 
 const defaultSettings: FrookySettings = {
   hookSettings: { ...DEFAULT_HOOK_SETTINGS },
-  decoderSettings: { ...DEFAULT_DECODER_SETTINGS },
+  decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS },
 };
 
 describe("AndroidHookValidator", () => {
@@ -63,7 +63,7 @@ describe("AndroidHookValidator", () => {
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result).toEqual([
-        { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
+        { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS },
       ]);
       expect(warnSpy).not.toHaveBeenCalled();
     });
@@ -149,6 +149,111 @@ describe("AndroidHookValidator", () => {
       expect(result.map((hook) => hook.method)).toEqual(["foo"]);
       const [message] = warnSpy.mock.calls[0] as [string];
       expect(message).toContain("decoder 'fd' is no Java decoder. The Java decoders are: string, base64, hashCode,");
+    });
+
+    it("ignores argFilter and config in the decoderSettings of a hook and a [method, decoderSettings] tuple", () => {
+      const javaCollection = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: [
+          {
+            method: "bar",
+            decoderSettings: { maxItems: 3, argFilter: ["^a"], config: { constants: { A: 1 } } },
+            overloads: [{ params: ["java.lang.String"] }],
+          },
+          ["baz", { decoder: "hashCode", argFilter: ["^b"] }],
+        ],
+      } as unknown as InputJavaHookCollection;
+
+      const [bar, baz] = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
+
+      expect(bar.overloads?.[0].params[0].settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
+      expect(bar.overloads?.[0].params[0].settings.argFilter).toBeUndefined();
+      expect(baz.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "hashCode" });
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages).toContain(
+        "Hook for java method 'bar' from class 'com.example.Foo' contains unknown properties, which are ignored: decoderSettings.argFilter, decoderSettings.config",
+      );
+      expect(messages).toContain(
+        "Hook for java method 'baz' from class 'com.example.Foo' contains unknown properties, which are ignored: [1].argFilter",
+      );
+    });
+
+    it("ignores argFilter in the decoderSettings of a hook collection, with a warning", () => {
+      const javaCollection = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        decoderSettings: { maxItems: 3, argFilter: ["^a"] },
+        hooks: [{ method: "bar", overloads: [{ params: ["java.lang.String"] }] }],
+      } as unknown as InputJavaHookCollection;
+
+      const [bar] = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
+
+      expect(bar.overloads?.[0].params[0].settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
+      expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: argFilter");
+    });
+
+    it("accepts config.constants for the constants and bitmask decoders, also with the decoder of the hook", () => {
+      const javaCollection: InputJavaHookCollection = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: [
+          { method: "a", overloads: [{ params: [["int", "mode", { decoder: "constants", config: { constants: { A: 1 } } }]] }] },
+          {
+            method: "b",
+            decoderSettings: { decoder: "bitmask" },
+            overloads: [{ params: [["int", "flags", { config: { constants: { B: 2 } } }]], retType: { config: { constants: { C: 4 } } } }],
+          },
+        ],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["a", "b"]);
+      expect(result[1].overloads?.[0].params[0].settings).toEqual({
+        ...DEFAULT_DECODER_SETTINGS,
+        decoder: "bitmask",
+        config: { constants: { B: 2 } },
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("accepts a class in config.constants and skips a hook with a malformed one", () => {
+      const javaCollection: InputJavaHookCollection = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: [
+          { method: "ok", overloads: [{ params: [["int", "mode", { decoder: "constants", config: { constants: "javax.crypto.Cipher#*_MODE" } }]] }] },
+          { method: "bad", overloads: [{ params: [["int", "mode", { decoder: "bitmask", config: { constants: "Cipher#" } }]] }] },
+        ],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["ok"]);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain(
+        "config of 'mode': 'Cipher#' is no class with constants. Name a class and optionally a pattern for its fields, e.g. 'javax.crypto.Cipher#*_MODE'.",
+      );
+    });
+
+    it("skips a hook with config its decoder doesn't accept", () => {
+      const javaCollection: InputJavaHookCollection = {
+        type: "java",
+        javaClass: "com.example.Foo",
+        hooks: [
+          "ok",
+          { method: "a", overloads: [{ params: [["[B", "data", { decoder: "base64", config: { constants: { A: 1 } } }]] }] },
+          { method: "b", overloads: [{ params: ["int"], retType: { config: { constants: { A: 1 } } } }] },
+        ],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [javaCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["ok"]);
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages[0]).toContain("config of 'data': decoder 'base64' doesn't accept 'constants'. It accepts no config.");
+      expect(messages[1]).toContain("config of 'return value': the decoder of its type doesn't accept 'constants'. It accepts no config.");
     });
 
     it("warns about an unknown property and still installs the hook", () => {

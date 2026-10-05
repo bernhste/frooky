@@ -1,7 +1,8 @@
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS, DEFAULT_BASE_DECODER_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings } from "../frookySettings";
 import { normalizeInputParams } from "./inputDecodableTypes";
 import { InputJavaHookCollection, InputJavaHookDetails, isJavaHookScope, normalizeJavaHookCollection } from "./inputJavaHookCollection";
+import { logger } from "../logger";
 import { inputJavaHookSchema } from "./zodSchemas/inputJavaHookCollection.zod";
 
 describe("inputJavaHookCollection", () => {
@@ -35,7 +36,7 @@ describe("inputJavaHookCollection", () => {
   describe("normalizeJavaHookCollection()", () => {
     const defaultSettings: FrookySettings = {
       hookSettings: { ...DEFAULT_HOOK_SETTINGS },
-      decoderSettings: { ...DEFAULT_DECODER_SETTINGS },
+      decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS },
     };
 
     describe("settings merging", () => {
@@ -52,7 +53,7 @@ describe("inputJavaHookCollection", () => {
         const hookCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.Foo", hooks: [] };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 },
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
+          decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeJavaHookCollection(hookCollection, settings);
@@ -71,7 +72,7 @@ describe("inputJavaHookCollection", () => {
         };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 },
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
+          decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeJavaHookCollection(hookCollection, settings);
@@ -92,7 +93,7 @@ describe("inputJavaHookCollection", () => {
             {
               method: "bar",
               hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 },
-              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
+              decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 40 },
             },
           ],
         };
@@ -155,7 +156,7 @@ describe("inputJavaHookCollection", () => {
           hooks: [
             {
               method: "bar",
-              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
+              decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 40 },
               overloads: [{ params: ["int"] }],
             },
           ],
@@ -175,7 +176,7 @@ describe("inputJavaHookCollection", () => {
         const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
         expect(result.hooks).toEqual([
-          { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
+          { javaClass: "com.example.Foo", method: "bar", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS },
         ]);
       });
 
@@ -202,7 +203,7 @@ describe("inputJavaHookCollection", () => {
             },
           ],
           hookSettings: DEFAULT_HOOK_SETTINGS,
-          decoderSettings: DEFAULT_DECODER_SETTINGS,
+          decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
         });
       });
 
@@ -272,9 +273,126 @@ describe("inputJavaHookCollection", () => {
             javaClass: "com.example.Foo",
             method: "bar",
             hookSettings: DEFAULT_HOOK_SETTINGS,
-            decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "string" },
+            decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 30, decoder: "string" },
           },
         ]);
+      });
+    });
+
+    describe("settings of single values", () => {
+      let warnSpy: Mock;
+      beforeEach(() => {
+        warnSpy = spyOn(logger, "warn");
+      });
+      afterEach(() => {
+        warnSpy.mockRestore();
+      });
+
+      it("passes the limits and decoder of the file, collection and hook on to the params and the retType", () => {
+        const settings: FrookySettings = {
+          hookSettings: DEFAULT_HOOK_SETTINGS,
+          decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 3 },
+        };
+        const hookCollection: InputJavaHookCollection = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          decoderSettings: { maxItems: 7 },
+          hooks: [
+            { method: "bar", decoderSettings: { decoder: "hashCode" }, overloads: [{ params: ["java.lang.Object"], retType: { maxItems: 9 } }] },
+          ],
+        };
+
+        const overload = normalizeJavaHookCollection(hookCollection, settings).hooks[0].overloads![0];
+
+        expect(overload.params[0].settings).toEqual({ maxDepth: 3, maxItems: 7, decoder: "hashCode" });
+        expect(overload.retType).toEqual({ maxDepth: 3, maxItems: 9, decoder: "hashCode" });
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("lets a param override the decoder of its hook", () => {
+        const hookCollection: InputJavaHookCollection = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [
+            { method: "bar", decoderSettings: { decoder: "hashCode" }, overloads: [{ params: [["java.lang.String", { decoder: "base64" }]] }] },
+          ],
+        };
+
+        const param = normalizeJavaHookCollection(hookCollection, defaultSettings).hooks[0].overloads![0].params[0];
+
+        expect(param.settings.decoder).toBe("base64");
+      });
+
+      it("ignores argFilter, decoderArgs and config of a collection and a hook, with a warning", () => {
+        const hookCollection = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          decoderSettings: { maxItems: 7, argFilter: ["^a"] },
+          hooks: [
+            {
+              method: "bar",
+              decoderSettings: { config: { constants: { A: 1 } }, decoderArgs: { length: 1 } },
+              overloads: [{ params: ["int"], retType: {} }],
+            },
+          ],
+        } as unknown as InputJavaHookCollection;
+
+        const hook = normalizeJavaHookCollection(hookCollection, defaultSettings).hooks[0];
+        const param = hook.overloads![0].params[0];
+
+        for (const settings of [hook.decoderSettings, param.settings, hook.overloads![0].retType!]) {
+          const defined = Object.entries(settings)
+            .filter(([, value]) => value !== undefined)
+            .map(([key]) => key);
+          expect(defined).not.toContain("argFilter");
+          expect(defined).not.toContain("config");
+          expect(defined).not.toContain("decoderArgs");
+        }
+        expect(param.settings.maxItems).toBe(7);
+        expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: argFilter");
+        expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: config, decoderArgs");
+      });
+
+      it("ignores argFilter in the decoderSettings of a [method, decoderSettings] tuple", () => {
+        const hookCollection = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [["bar", { maxItems: 4, argFilter: ["^a"] }]],
+        } as unknown as InputJavaHookCollection;
+
+        const hook = normalizeJavaHookCollection(hookCollection, defaultSettings).hooks[0];
+
+        expect(hook.decoderSettings).toEqual({ ...DEFAULT_BASE_DECODER_SETTINGS, maxItems: 4 });
+        expect(Object.keys(hook.decoderSettings)).not.toContain("argFilter");
+        expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: argFilter");
+      });
+
+      it("keeps argFilter, decoderArgs and config of a param and config of a retType", () => {
+        const hookCollection: InputJavaHookCollection = {
+          type: "java",
+          javaClass: "com.example.Foo",
+          hooks: [
+            {
+              method: "bar",
+              overloads: [
+                {
+                  params: [
+                    ["[B", "data", { argFilter: ["^a"], decoderArgs: { length: "len" } }],
+                    ["int", "len", { decoder: "bitmask", config: { constants: { A: 1 } } }],
+                  ],
+                  retType: { decoder: "bitmask", config: { constants: { B: 2 } } },
+                },
+              ],
+            },
+          ],
+        };
+
+        const overload = normalizeJavaHookCollection(hookCollection, defaultSettings).hooks[0].overloads![0];
+
+        expect(overload.params[0].settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, argFilter: ["^a"], decoderArgs: { length: "len" } });
+        expect(overload.params[1].settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "bitmask", config: { constants: { A: 1 } } });
+        expect(overload.retType).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "bitmask", config: { constants: { B: 2 } } });
+        expect(warnSpy).not.toHaveBeenCalled();
       });
     });
 

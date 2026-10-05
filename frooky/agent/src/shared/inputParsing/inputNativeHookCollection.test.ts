@@ -1,4 +1,4 @@
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS, DEFAULT_BASE_DECODER_SETTINGS } from "../defaultValues";
 import { DecoderSettings, FrookySettings } from "../frookySettings";
 import { InputParam, normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
 import {
@@ -8,6 +8,8 @@ import {
   normalizeModuleOffset,
   normalizeNativeHookCollection,
 } from "./inputNativeHookCollection";
+
+import { logger } from "../logger";
 
 describe("inputNativeHookCollection", () => {
   describe("isNativeHookCollection()", () => {
@@ -44,7 +46,7 @@ describe("inputNativeHookCollection", () => {
   describe("normalizeNativeHookCollection()", () => {
     const defaultSettings: FrookySettings = {
       hookSettings: { ...DEFAULT_HOOK_SETTINGS },
-      decoderSettings: { ...DEFAULT_DECODER_SETTINGS },
+      decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS },
     };
 
     describe("settings merging", () => {
@@ -61,7 +63,7 @@ describe("inputNativeHookCollection", () => {
         const hookCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 },
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
+          decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeNativeHookCollection(hookCollection, settings);
@@ -80,7 +82,7 @@ describe("inputNativeHookCollection", () => {
         };
         const settings: FrookySettings = {
           hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 5 },
-          decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 42 },
+          decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 42 },
         };
 
         const result = normalizeNativeHookCollection(hookCollection, settings);
@@ -101,7 +103,7 @@ describe("inputNativeHookCollection", () => {
             {
               symbol: "malloc",
               hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 40 },
-              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
+              decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 40 },
             },
           ],
         };
@@ -164,7 +166,7 @@ describe("inputNativeHookCollection", () => {
           hooks: [
             {
               symbol: "memcpy",
-              decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 40 },
+              decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 40 },
               params: ["void *"],
               retType: "void *",
             },
@@ -186,7 +188,7 @@ describe("inputNativeHookCollection", () => {
         const result = normalizeNativeHookCollection(hookCollection, defaultSettings);
 
         expect(result.hooks).toEqual([
-          { symbol: "malloc", module: "libc.so", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
+          { symbol: "malloc", module: "libc.so", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS },
         ]);
       });
 
@@ -221,7 +223,7 @@ describe("inputNativeHookCollection", () => {
           module: "libc.so",
           params: normalizeInputParams(["void *", "void *", "size_t"], DEFAULT_DECODER_SETTINGS),
           hookSettings: DEFAULT_HOOK_SETTINGS,
-          decoderSettings: DEFAULT_DECODER_SETTINGS,
+          decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
         });
       });
 
@@ -289,7 +291,7 @@ describe("inputNativeHookCollection", () => {
             symbol: "malloc",
             module: "libc.so",
             hookSettings: DEFAULT_HOOK_SETTINGS,
-            decoderSettings: { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30, decoder: "string" },
+            decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS, maxDepth: 30, decoder: "string" },
           },
         ]);
       });
@@ -310,9 +312,83 @@ describe("inputNativeHookCollection", () => {
             params: undefined,
             retType: undefined,
             hookSettings: DEFAULT_HOOK_SETTINGS,
-            decoderSettings: DEFAULT_DECODER_SETTINGS,
+            decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
           },
         ]);
+      });
+    });
+
+    describe("settings of single values", () => {
+      let warnSpy: Mock;
+      beforeEach(() => {
+        warnSpy = spyOn(logger, "warn");
+      });
+      afterEach(() => {
+        warnSpy.mockRestore();
+      });
+
+      it("passes the limits and decoder of the collection and hook on to the params and the retType", () => {
+        const hookCollection: InputNativeHookCollection = {
+          type: "native",
+          module: "libfoo.so",
+          decoderSettings: { maxItems: 7 },
+          hooks: [{ symbol: "foo", decoderSettings: { decoder: "fd" }, params: ["int"], retType: ["int", { maxItems: 9 }] }],
+        };
+
+        const hook = normalizeNativeHookCollection(hookCollection, defaultSettings).hooks[0];
+
+        expect(hook.params![0].settings).toEqual({ ...DEFAULT_BASE_DECODER_SETTINGS, maxItems: 7, decoder: "fd" });
+        expect(hook.retType!.settings).toEqual({ ...DEFAULT_BASE_DECODER_SETTINGS, maxItems: 9, decoder: "fd" });
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("ignores argFilter, decoderArgs and config of a collection, a hook and a [symbol, decoderSettings] tuple, with a warning", () => {
+        const hookCollection = {
+          type: "native",
+          module: "libfoo.so",
+          decoderSettings: { argFilter: ["^a"] },
+          hooks: [
+            { symbol: "foo", decoderSettings: { config: { constants: { A: 1 } }, decoderArgs: { length: 1 } }, params: ["int"], retType: "int" },
+            ["bar", { maxItems: 4, argFilter: ["^b"] }],
+          ],
+        } as unknown as InputNativeHookCollection;
+
+        const [foo, bar] = normalizeNativeHookCollection(hookCollection, defaultSettings).hooks;
+
+        for (const settings of [foo.decoderSettings, foo.params![0].settings, foo.retType!.settings, bar.decoderSettings]) {
+          const defined = Object.entries(settings)
+            .filter(([, value]) => value !== undefined)
+            .map(([key]) => key);
+          expect(defined).not.toContain("argFilter");
+          expect(defined).not.toContain("config");
+          expect(defined).not.toContain("decoderArgs");
+        }
+        expect(bar.decoderSettings.maxItems).toBe(4);
+        expect(warnSpy).toHaveBeenCalledTimes(3);
+      });
+
+      it("keeps argFilter, decoderArgs and config of a param and config of a retType", () => {
+        const hookCollection: InputNativeHookCollection = {
+          type: "native",
+          module: "libfoo.so",
+          hooks: [
+            {
+              symbol: "foo",
+              params: [
+                ["char *", "buf", { argFilter: ["^a"], decoderArgs: { length: "len" } }],
+                ["int", "len", { decoder: "bitmask", config: { constants: { A: 1 } } }],
+              ],
+              retType: ["int", { decoder: "constants", config: { constants: { OK: 0 } } }],
+            },
+          ],
+        };
+
+        const hook = normalizeNativeHookCollection(hookCollection, defaultSettings).hooks[0];
+
+        expect(hook.params![0].settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, argFilter: ["^a"], decoderArgs: { length: "len" } });
+        expect(hook.params![1].settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "bitmask", config: { constants: { A: 1 } } });
+        expect(hook.retType!.settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "constants", config: { constants: { OK: 0 } } });
+        expect(warnSpy).not.toHaveBeenCalled();
       });
     });
 

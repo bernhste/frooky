@@ -1,5 +1,5 @@
 import { Param, RetType } from "../decoders/decodable";
-import { DecoderSettings, HookSettings } from "../frookySettings";
+import { DecoderSettings, HookSettings, BaseDecoderSettings } from "../frookySettings";
 
 // Hook declarations as the agent processes them, produced from the `Input*` hook-file types by the `normalize*`
 // functions: shorthands are expanded, the class or module is inherited from the collection, and every settings
@@ -19,7 +19,7 @@ export interface JavaHookDeclaration {
   // without overloads, every overload of the method is hooked
   overloads?: JavaOverloadDeclaration[];
   hookSettings: HookSettings;
-  decoderSettings: DecoderSettings;
+  decoderSettings: BaseDecoderSettings;
 }
 
 interface NativeHookDeclarationBase {
@@ -29,7 +29,7 @@ interface NativeHookDeclarationBase {
   // without retType, the return value isn't decoded
   retType?: RetType;
   hookSettings: HookSettings;
-  decoderSettings: DecoderSettings;
+  decoderSettings: BaseDecoderSettings;
 }
 
 export interface NativeSymbolHookDeclaration extends NativeHookDeclarationBase {

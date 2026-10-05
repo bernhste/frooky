@@ -3,13 +3,13 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
-import { JavaDecoderName } from "../../shared/frookySettings";
+import { DecoderConfig, DecoderSettings, JavaDecoderName } from "../../shared/frookySettings";
 import { IntentFlagDecoder } from "./android/content/IntentFlagDecoder";
 import { IntentUriFlagDecoder } from "./android/content/IntentUriFlagDecoder";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
 import { Base64Decoder } from "./builtin/Base64Decoder";
-import { ConstantDecoder } from "./builtin/ConstantDecoder";
-import { FlagsDecoder } from "./builtin/FlagsDecoder";
+import { ConstantsDecoder } from "./builtin/ConstantsDecoder";
+import { BitmaskDecoder } from "./builtin/BitmaskDecoder";
 import { GetterDecoder } from "./builtin/GetterDecoder";
 import { HashCodeDecoder } from "./builtin/HashCodeDecoder";
 import { OverrideDecoder } from "./builtin/OverrideDecoder";
@@ -28,8 +28,8 @@ function getCustomDecoderRegistry(): Record<JavaDecoderName, DecoderConstructor>
     hashCode: HashCodeDecoder,
     intentFlag: IntentFlagDecoder,
     intentUriFlag: IntentUriFlagDecoder,
-    constant: ConstantDecoder,
-    flags: FlagsDecoder,
+    constants: ConstantsDecoder,
+    bitmask: BitmaskDecoder,
     getters: GetterDecoder,
   });
 }
@@ -74,4 +74,9 @@ export function acceptedJavaDecoderArgs(decodable: Decodable): readonly DecoderA
   if (decoder === "string" || decoder === "base64") return decodable.type === "[B" || decodable.type === "[C" ? ["length", "offset"] : [];
   if (decoder) return [];
   return decodable.type.startsWith("[") ? ["length", "offset"] : [];
+}
+
+// The `config` options the decoder of a value accepts, see docs/decoders-java.md
+export function acceptedJavaDecoderConfig(settings: DecoderSettings): readonly (keyof DecoderConfig)[] {
+  return settings.decoder === "constants" || settings.decoder === "bitmask" ? ["constants"] : [];
 }

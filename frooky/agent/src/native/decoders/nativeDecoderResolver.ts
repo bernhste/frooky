@@ -2,9 +2,9 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
-import { NativeDecoderName, NativeEnumPresetName, NativeFlagsPresetName } from "../../shared/frookySettings";
+import { DecoderConfig, DecoderSettings, NativeBitmaskPresetName, NativeConstantsPresetName, NativeDecoderName } from "../../shared/frookySettings";
 import { NativeBase64Decoder } from "./nativeBase64Decoder";
-import { NativeEnumDecoder, NativeFlagsDecoder } from "./nativeConstantDecoder";
+import { NativeConstantsDecoder, NativeBitmaskDecoder } from "./nativeConstantsDecoder";
 import { resolvePreset } from "./nativeConstantPresets";
 import { NativeErrnoDecoder } from "./nativeErrnoDecoder";
 import { NativeFallbackDecoder } from "./nativeFallbackDecoder";
@@ -44,14 +44,14 @@ function resolveTypeDecoder(decodable: Decodable): Decoder<NativePointer> {
   }
 }
 
-const flagsPreset =
-  (name: NativeFlagsPresetName): NativeDecoderFactory =>
+const bitmaskPreset =
+  (name: NativeBitmaskPresetName): NativeDecoderFactory =>
   (decodable) =>
-    new NativeFlagsDecoder(decodable, resolvePreset(name) ?? null);
-const enumPreset =
-  (name: NativeEnumPresetName): NativeDecoderFactory =>
+    new NativeBitmaskDecoder(decodable, resolvePreset(name) ?? null);
+const constantsPreset =
+  (name: NativeConstantsPresetName): NativeDecoderFactory =>
   (decodable) =>
-    new NativeEnumDecoder(decodable, resolvePreset(name) ?? null);
+    new NativeConstantsDecoder(decodable, resolvePreset(name) ?? null);
 
 const CUSTOM_DECODER_REGISTRY: Record<NativeDecoderName, NativeDecoderFactory> = {
   string: (decodable) => new NativeStringDecoder(decodable),
@@ -59,15 +59,15 @@ const CUSTOM_DECODER_REGISTRY: Record<NativeDecoderName, NativeDecoderFactory> =
   utf16: (decodable) => new NativeUtf16Decoder(decodable),
   errno: (decodable) => new NativeErrnoDecoder(decodable, resolveTypeDecoder(decodable)),
   fd: (decodable) => new NativeFdDecoder(decodable),
-  enum: (decodable) => new NativeEnumDecoder(decodable),
-  flags: (decodable) => new NativeFlagsDecoder(decodable),
+  constants: (decodable) => new NativeConstantsDecoder(decodable),
+  bitmask: (decodable) => new NativeBitmaskDecoder(decodable),
   nullTerminated: nullTerminatedArray,
-  openFlags: flagsPreset("openFlags"),
-  mmapProt: flagsPreset("mmapProt"),
-  mmapFlags: flagsPreset("mmapFlags"),
-  dlopenFlags: flagsPreset("dlopenFlags"),
-  socketType: flagsPreset("socketType"),
-  socketDomain: enumPreset("socketDomain"),
+  openFlags: bitmaskPreset("openFlags"),
+  mmapProt: bitmaskPreset("mmapProt"),
+  mmapFlags: bitmaskPreset("mmapFlags"),
+  dlopenFlags: bitmaskPreset("dlopenFlags"),
+  socketType: bitmaskPreset("socketType"),
+  socketDomain: constantsPreset("socketDomain"),
 };
 
 // The names of `decoder:` in native hooks
@@ -95,4 +95,9 @@ export function acceptedNativeDecoderArgs(decodable: Decodable): readonly Decode
   if (decoder) return [];
   // pointers to fundamental types, e.g. `char *` or `int *`, and UTF-16 strings
   return typeof parseNativeFridaType(decodable.type) === "object" || isUtf16PointerType(decodable.type) ? ["length", "offset"] : [];
+}
+
+// The `config` options the decoder of a value accepts, see docs/decoders-native.md. The presets bring their own constants.
+export function acceptedNativeDecoderConfig(settings: DecoderSettings): readonly (keyof DecoderConfig)[] {
+  return settings.decoder === "constants" || settings.decoder === "bitmask" ? ["constants"] : [];
 }

@@ -1,4 +1,4 @@
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { FrookySettings } from "../../shared/frookySettings";
 import { InputJavaHookCollection } from "../../shared/inputParsing/inputJavaHookCollection";
@@ -8,7 +8,7 @@ import { NativeHookValidator } from "./nativeHookValidator";
 
 const defaultSettings: FrookySettings = {
   hookSettings: { ...DEFAULT_HOOK_SETTINGS },
-  decoderSettings: { ...DEFAULT_DECODER_SETTINGS },
+  decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS },
 };
 
 describe("NativeHookValidator", () => {
@@ -64,7 +64,7 @@ describe("NativeHookValidator", () => {
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result).toEqual([
-        { symbol: "custom_func", module: "libfoo.so", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS },
+        { symbol: "custom_func", module: "libfoo.so", hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS },
       ]);
       expect(warnSpy).not.toHaveBeenCalled();
     });
@@ -97,6 +97,72 @@ describe("NativeHookValidator", () => {
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["funcA", "SSL_write"]);
+    });
+
+    it("ignores argFilter and decoderArgs in the decoderSettings of a hook collection, a hook and a [symbol, decoderSettings] tuple", () => {
+      const nativeCollection = {
+        type: "native",
+        module: "libfoo.so",
+        decoderSettings: { argFilter: ["^x"] },
+        hooks: [
+          { symbol: "funcA", decoderSettings: { maxItems: 3, decoderArgs: { length: 4 } }, params: ["char *"] },
+          ["funcB", { decoder: "fd", argFilter: ["^b"] }],
+        ],
+      } as unknown as InputNativeHookCollection;
+
+      const [funcA, funcB] = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+
+      expect(funcA.params?.[0].settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
+      expect(funcA.params?.[0].settings.argFilter).toBeUndefined();
+      expect(funcA.params?.[0].settings.decoderArgs).toBeUndefined();
+      expect(funcB.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "fd" });
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages).toContain("Decoder settings contain unknown properties: argFilter");
+      expect(messages).toContain(
+        "Hook for native function 'funcA' from module 'libfoo.so' contains unknown properties, which are ignored: decoderSettings.decoderArgs",
+      );
+      expect(messages).toContain(
+        "Hook for native function 'funcB' from module 'libfoo.so' contains unknown properties, which are ignored: [1].argFilter",
+      );
+    });
+
+    it("accepts config.constants for the constants and bitmask decoders, and rejects it for a preset and other decoders", () => {
+      const nativeCollection: InputNativeHookCollection = {
+        type: "native",
+        module: "libfoo.so",
+        hooks: [
+          {
+            symbol: "ok",
+            params: [["int", "mode", { decoder: "constants", config: { constants: { A: 1 } } }]],
+            retType: ["int", { decoder: "bitmask", config: { constants: { B: 2 } } }],
+          },
+          { symbol: "preset", params: [["int", "flags", { decoder: "openFlags", config: { constants: { A: 1 } } }]] },
+          { symbol: "fd", params: [["int", "fd", { decoder: "fd", config: { constants: { A: 1 } } }]] },
+        ],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.symbol)).toEqual(["ok"]);
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages[0]).toContain("config of 'flags': decoder 'openFlags' doesn't accept 'constants'. It accepts no config.");
+      expect(messages[1]).toContain("config of 'fd': decoder 'fd' doesn't accept 'constants'. It accepts no config.");
+    });
+
+    it("skips a hook with a class in config.constants, which only Java hooks support", () => {
+      const nativeCollection: InputNativeHookCollection = {
+        type: "native",
+        module: "libfoo.so",
+        hooks: ["ok", { symbol: "bad", params: [["int", "flags", { decoder: "bitmask", config: { constants: "android.os.Foo#FLAG_*" } }]] }],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.symbol)).toEqual(["ok"]);
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain(
+        "config of 'flags': constants must map names to values, e.g. '{ O_CREAT: 0x40 }'. A class of constants is only supported in Java hooks.",
+      );
     });
 
     it("uses the hook collection's module and warns about a module set on the hook itself", () => {

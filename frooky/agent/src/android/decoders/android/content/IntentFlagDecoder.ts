@@ -8,7 +8,7 @@ export class IntentFlagDecoder extends Decoder<Java.Wrapper> {
   readonly description =
     "Decodes an `int` bitmask of Intent flags to the names of the `Intent.FLAG_*` constants that are set, e.g. `FLAG_ACTIVITY_NEW_TASK`.";
 
-  flags = decodeConstantValues("android.content.Intent", "FLAG_");
+  flags = decodeConstantValues("android.content.Intent", "FLAG_*");
 
   decode(value: Java.Wrapper): DecodedValue {
     const bitmask = Number(value) >>> 0;

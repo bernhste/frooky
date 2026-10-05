@@ -3,7 +3,7 @@ import { Decoder } from "../decoders/baseDecoder";
 import { Decodable, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { LogEvent } from "../event/logEvent";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
@@ -119,7 +119,7 @@ describe("HookManager", () => {
     });
 
     it("counts a FilterMismatchError as a filtered call without logging it", () => {
-      const hook: Hook = { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
+      const hook: Hook = { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS };
 
       createManager().exposedReportHookError(hook, new FilterMismatchError(), "Error during 'onEnter' of foo");
 
@@ -128,7 +128,7 @@ describe("HookManager", () => {
     });
 
     it("logs any other error with the message", () => {
-      const hook: Hook = { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
+      const hook: Hook = { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS };
 
       createManager().exposedReportHookError(hook, new Error("boom"), "Error during 'onEnter' of foo");
 

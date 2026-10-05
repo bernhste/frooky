@@ -1,11 +1,12 @@
-import { acceptedJavaDecoderArgs, javaDecoderNames } from "../decoders/javaDecoderResolver";
+import { acceptedJavaDecoderArgs, acceptedJavaDecoderConfig, javaDecoderNames } from "../decoders/javaDecoderResolver";
+import { parseConstantsClass } from "../decoders/utils/decodeConstants";
 import z from "zod";
 import { hasHookList, validateInputHook } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
-import { FrookySettings } from "../../shared/frookySettings";
+import { DecoderSettings, FrookySettings } from "../../shared/frookySettings";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { HookValidator } from "../../shared/hook/hookValidator";
-import { validateDecoderArgRoles, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
+import { validateDecoderArgRoles, validateDecoderConfig, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
 import {
   InputJavaHookCollection,
   isJavaHookScope,
@@ -39,6 +40,12 @@ export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, 
           );
           const overloads = normalizedJavaHook.overloads ?? [];
           overloads.forEach((overload) => validateDecoderArgRoles(overload.params, acceptedJavaDecoderArgs));
+          const values = overloads.flatMap((overload) => [
+            ...overload.params.map((p): [string, DecoderSettings] => [p.name ?? p.type, p.settings]),
+            ["return value", overload.retType] as [string, DecoderSettings | undefined],
+          ]);
+          validateDecoderConfig(values, acceptedJavaDecoderConfig);
+          validateConstantsClasses(values);
           validateDecoderNames(
             [normalizedJavaHook.decoderSettings, ...overloads.flatMap((overload) => [overload.retType, ...overload.params.map((p) => p.settings)])],
             javaDecoderNames(),
@@ -153,4 +160,18 @@ function describeJavaMethod(inputHook: unknown): string {
   if (typeof inputHook === "string") return inputHook;
   if (Array.isArray(inputHook)) return String(inputHook[0]);
   return String((inputHook as { method?: unknown } | null)?.method);
+}
+
+// Throws if a class in `config.constants` is no class name with an optional pattern, e.g. `javax.crypto.Cipher#*_MODE`.
+// Whether the class exists is only known once the hook is installed.
+function validateConstantsClasses(values: [label: string, settings: DecoderSettings | undefined][]): void {
+  for (const [label, settings] of values) {
+    const constants = settings?.config?.constants;
+    if (typeof constants !== "string") continue;
+    try {
+      parseConstantsClass(constants);
+    } catch (e) {
+      throw new Error(`config of '${label}': ${e instanceof Error ? e.message : e}`);
+    }
+  }
 }

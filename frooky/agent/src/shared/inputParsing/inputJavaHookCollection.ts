@@ -1,6 +1,6 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
-import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { BaseDecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
 import { JavaHookDeclaration, JavaOverloadDeclaration } from "../hook/hookDeclaration";
 import { InputParam, InputRetTypeSettings, normalizeInputParams, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
@@ -87,7 +87,7 @@ export function isJavaHookScope(hookScopeInput: object): hookScopeInput is Input
   return "javaClass" in hookScopeInput;
 }
 
-function normalizeOverload(overload: InputOverload, decoderSettings: DecoderSettings): JavaOverloadDeclaration {
+function normalizeOverload(overload: InputOverload, decoderSettings: BaseDecoderSettings): JavaOverloadDeclaration {
   return {
     params: normalizeInputParams(overload.params, decoderSettings),
     ...(overload.retType && { retType: normalizeInputRetTypeSettings(overload.retType, decoderSettings) }),
@@ -100,7 +100,7 @@ export function normalizeJavaHook(
   javaClass: string,
   inputHook: InputJavaHook,
   hookSettings: HookSettings,
-  decoderSettings: DecoderSettings,
+  decoderSettings: BaseDecoderSettings,
   classLoader?: string,
 ): JavaHookDeclaration {
   const inherited = classLoader === undefined ? { javaClass } : { javaClass, classLoader };
@@ -136,14 +136,14 @@ export function normalizeJavaHook(
 export function mergeJavaHookCollectionSettings(
   hookCollection: InputJavaHookCollection,
   settings: FrookySettings,
-): { hookSettings: HookSettings; decoderSettings: DecoderSettings } {
+): { hookSettings: HookSettings; decoderSettings: BaseDecoderSettings } {
   const hookSettings: HookSettings = validateAndRepairHookSettings({
     ...DEFAULT_HOOK_SETTINGS,
     ...settings.hookSettings,
     ...hookCollection.hookSettings,
   });
-  const decoderSettings: DecoderSettings = validateAndRepairDecoderSettings({
-    ...DEFAULT_DECODER_SETTINGS,
+  const decoderSettings: BaseDecoderSettings = validateAndRepairDecoderSettings({
+    ...DEFAULT_BASE_DECODER_SETTINGS,
     ...settings.decoderSettings,
     ...hookCollection.decoderSettings,
   });
@@ -154,7 +154,7 @@ export function mergeJavaHookCollectionSettings(
 export function normalizeJavaHookCollection(
   hookCollection: InputJavaHookCollection,
   settings: FrookySettings,
-): Omit<InputJavaHookCollection, "hooks"> & { hooks: JavaHookDeclaration[]; hookSettings: HookSettings; decoderSettings: DecoderSettings } {
+): Omit<InputJavaHookCollection, "hooks"> & { hooks: JavaHookDeclaration[]; hookSettings: HookSettings; decoderSettings: BaseDecoderSettings } {
   const { hookSettings, decoderSettings } = mergeJavaHookCollectionSettings(hookCollection, settings);
   return {
     ...hookCollection,

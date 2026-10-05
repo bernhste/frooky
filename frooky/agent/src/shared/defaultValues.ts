@@ -1,14 +1,18 @@
 import { Direction } from "./decoders/decodable";
-import { DecoderSettings, FrookySettings, HookSettings } from "./frookySettings";
+import { DecoderSettings, FrookySettings, HookSettings, BaseDecoderSettings } from "./frookySettings";
 
 export const DEFAULT_DECODE_AT: Direction = "in";
 
-export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
+export const DEFAULT_BASE_DECODER_SETTINGS: BaseDecoderSettings = {
   maxDepth: 10,
   maxItems: 100,
   decoder: undefined,
+};
+
+export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
+  ...DEFAULT_BASE_DECODER_SETTINGS,
   decoderArgs: undefined,
-  constants: undefined,
+  config: undefined,
   argFilter: undefined,
 };
 
@@ -22,7 +26,7 @@ export const DEFAULT_HOOK_SETTINGS: HookSettings = {
 
 export const DEFAULT_FROOKY_SETTINGS: FrookySettings = {
   hookSettings: DEFAULT_HOOK_SETTINGS,
-  decoderSettings: DEFAULT_DECODER_SETTINGS,
+  decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
 };
 
 export const DEFAULT_SETTING_LOG_LEVEL = "info";

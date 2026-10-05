@@ -3,13 +3,14 @@ import {
   validateAndRepairFrookyConfig,
   validateAndRepairFrookySettings,
   validateAndRepairHookSettings,
+  validateAndRepairValueDecoderSettings,
   validateMetadata,
 } from "./configValidator";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_FROOKY_SETTINGS, DEFAULT_HOOK_SETTINGS } from "./defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_FROOKY_SETTINGS, DEFAULT_HOOK_SETTINGS } from "./defaultValues";
 import { InputFrookyConfig } from "./frookyConfig";
 import { FrookyMetadata } from "./frookyMetadata";
 import { FrookySettings } from "./frookySettings";
-import { InputDecoderSettings, InputHookSettings } from "./inputParsing/inputSettings";
+import { InputDecoderSettings, InputHookSettings, InputValueDecoderSettings } from "./inputParsing/inputSettings";
 import { logger } from "./logger";
 
 describe("configValidator", () => {
@@ -124,7 +125,7 @@ describe("configValidator", () => {
 
   describe("validateAndRepairDecoderSettings()", () => {
     it("returns the same settings when they already match the schema", () => {
-      expect(validateAndRepairDecoderSettings(DEFAULT_DECODER_SETTINGS)).toEqual(DEFAULT_DECODER_SETTINGS);
+      expect(validateAndRepairDecoderSettings(DEFAULT_BASE_DECODER_SETTINGS)).toEqual(DEFAULT_BASE_DECODER_SETTINGS);
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
@@ -167,6 +168,62 @@ describe("configValidator", () => {
       validateAndRepairDecoderSettings(unknownInputDecoderSettings as InputDecoderSettings);
       expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: someOtherSetting");
     });
+
+    it("keeps decoder, which every level can set", () => {
+      expect(validateAndRepairDecoderSettings({ decoder: "hashCode" })).toEqual({ maxDepth: 10, maxItems: 100, decoder: "hashCode" });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("drops unknown fields, e.g. the settings of a single parameter, with a warning", () => {
+      const settings = { maxItems: 5, argFilter: ["^a"], decoderArgs: { length: "len" }, config: { constants: { A: 1 } } };
+
+      const result = validateAndRepairDecoderSettings(settings as InputDecoderSettings);
+
+      expect(result).toEqual({ maxDepth: 10, maxItems: 5 });
+      expect(Object.keys(result)).not.toContain("argFilter");
+      expect(Object.keys(result)).not.toContain("decoderArgs");
+      expect(Object.keys(result)).not.toContain("config");
+      expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: argFilter, decoderArgs, config");
+    });
+
+    it("doesn't modify the settings passed in", () => {
+      const settings = { maxItems: 5, argFilter: ["^a"] };
+      validateAndRepairDecoderSettings(settings as InputDecoderSettings);
+      expect(settings).toEqual({ maxItems: 5, argFilter: ["^a"] });
+    });
+  });
+
+  describe("validateAndRepairValueDecoderSettings()", () => {
+    it("keeps the settings that only a parameter or return value can have", () => {
+      const settings: InputValueDecoderSettings = {
+        decoder: "bitmask",
+        argFilter: ["^a"],
+        decoderArgs: { length: "len" },
+        config: { constants: { A: 1 } },
+      };
+
+      expect(validateAndRepairValueDecoderSettings(settings)).toEqual({ ...DEFAULT_DECODER_SETTINGS, ...settings });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("fills in the default value for a missing property", () => {
+      expect(validateAndRepairValueDecoderSettings({ argFilter: ["^a"] })).toEqual({ maxDepth: 10, maxItems: 100, argFilter: ["^a"] });
+    });
+
+    it("resets a property to its default and warns when it does not match the schema", () => {
+      const result = validateAndRepairValueDecoderSettings({ argFilter: "^a" as unknown as string[] });
+
+      expect(result.argFilter).toBeUndefined();
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain(`Decoder setting "'argFilter'" contains invalid data:`);
+    });
+
+    it("warns about unknown properties and keeps them, so a misspelled setting can be named later", () => {
+      const result = validateAndRepairValueDecoderSettings({ decoderArg: 3 } as InputValueDecoderSettings);
+
+      expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: decoderArg");
+      expect((result as unknown as Record<string, unknown>).decoderArg).toBe(3);
+    });
   });
 
   describe("validateAndRepairFrookySettings()", () => {
@@ -189,6 +246,13 @@ describe("configValidator", () => {
       const result = validateAndRepairFrookySettings({ decoderSettings: { maxDepth: 42 } });
       expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, maxDepth: 42 });
       expect(result.hookSettings).toEqual(pristineFrookySettings.hookSettings);
+    });
+
+    it("drops the settings of a single value from the file's decoderSettings", () => {
+      const result = validateAndRepairFrookySettings({ decoderSettings: { maxDepth: 42, argFilter: ["^a"] } as InputDecoderSettings });
+      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, maxDepth: 42 });
+      expect(Object.keys(result.decoderSettings)).not.toContain("argFilter");
+      expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: argFilter");
     });
 
     it("repairs both hookSettings and decoderSettings when both are provided", () => {

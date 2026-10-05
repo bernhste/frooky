@@ -9,13 +9,17 @@ export const hookSettingsSchema = z.object({
     early: z.boolean()
 });
 
-export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hashCode"), z.literal("intentFlag"), z.literal("intentUriFlag"), z.literal("constant"), z.literal("flags"), z.literal("getters")]);
+export const decoderConfigSchema = z.object({
+    constants: z.union([z.record(z.string(), z.number()), z.string()]).optional()
+});
 
-export const nativeFlagsPresetNameSchema = z.union([z.literal("openFlags"), z.literal("mmapProt"), z.literal("mmapFlags"), z.literal("dlopenFlags"), z.literal("socketType")]);
+export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hashCode"), z.literal("intentFlag"), z.literal("intentUriFlag"), z.literal("constants"), z.literal("bitmask"), z.literal("getters")]);
 
-export const nativeEnumPresetNameSchema = z.literal("socketDomain");
+export const nativeBitmaskPresetNameSchema = z.union([z.literal("openFlags"), z.literal("mmapProt"), z.literal("mmapFlags"), z.literal("dlopenFlags"), z.literal("socketType")]);
 
-export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("enum"), z.literal("flags"), z.literal("nullTerminated"), nativeFlagsPresetNameSchema, nativeEnumPresetNameSchema]);
+export const nativeConstantsPresetNameSchema = z.literal("socketDomain");
+
+export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("constants"), z.literal("bitmask"), z.literal("nullTerminated"), nativeBitmaskPresetNameSchema, nativeConstantsPresetNameSchema]);
 
 export const decoderNameSchema = z.union([javaDecoderNameSchema, nativeDecoderNameSchema]);
 
@@ -26,16 +30,19 @@ export const decoderArgsSchema = z.object({
     offset: decoderArgValueSchema.optional()
 });
 
-export const decoderSettingsSchema = z.object({
+export const baseDecoderSettingsSchema = z.object({
     maxDepth: z.number().min(1),
     maxItems: z.number().min(1),
-    decoder: decoderNameSchema.optional(),
+    decoder: decoderNameSchema.optional()
+});
+
+export const decoderSettingsSchema = baseDecoderSettingsSchema.extend({
     decoderArgs: decoderArgsSchema.optional(),
-    constants: z.record(z.string(), z.number()).optional(),
+    config: decoderConfigSchema.optional(),
     argFilter: z.array(z.string()).optional()
 });
 
 export const frookySettingsSchema = z.object({
     hookSettings: hookSettingsSchema,
-    decoderSettings: decoderSettingsSchema
+    decoderSettings: baseDecoderSettingsSchema
 });

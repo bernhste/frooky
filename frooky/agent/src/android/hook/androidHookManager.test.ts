@@ -1,6 +1,6 @@
 import Java from "frida-java-bridge";
 import { FrookyAgent } from "../../FrookyAgent";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
 import { HookSettings } from "../../shared/frookySettings";
@@ -50,7 +50,7 @@ function identityHashCode(object: Java.Wrapper): number {
 }
 
 function javaHook(javaClass: string, method: string): JavaHookDeclaration {
-  return { javaClass, method, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
+  return { javaClass, method, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS };
 }
 
 describe("AndroidHookManager", () => {
@@ -210,7 +210,7 @@ describe("AndroidHookManager", () => {
         javaClass: "java.lang.String",
         method: "indexOf",
         hookSettings: DEFAULT_HOOK_SETTINGS,
-        decoderSettings: DEFAULT_DECODER_SETTINGS,
+        decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
         overloads: [{ params: normalizeInputParams(["int"]), retType: retTypeSettings }],
       };
 
@@ -227,7 +227,7 @@ describe("AndroidHookManager", () => {
         javaClass: "java.lang.String",
         method: "indexOf",
         hookSettings: DEFAULT_HOOK_SETTINGS,
-        decoderSettings: DEFAULT_DECODER_SETTINGS,
+        decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
         overloads: [{ params: normalizeInputParams(["int"]) }],
       };
 
@@ -656,7 +656,7 @@ describe("AndroidHookManager", () => {
         method: (StringBuilder.toString as unknown as Java.MethodDispatcher).overload(),
         params: [],
         hookSettings: DEFAULT_HOOK_SETTINGS,
-        decoderSettings: DEFAULT_DECODER_SETTINGS,
+        decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
       };
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
       const manager = new AndroidHookManager(stackTrace, agent);

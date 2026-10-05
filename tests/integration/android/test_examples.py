@@ -203,6 +203,10 @@ class TestAndroidExamples:
         assert modes == ["mode=MODE_DECRYPT", "opmode=DECRYPT"]
         builders = find_matched_events({"javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder"})
         assert ["TestKeyPair", ["PURPOSE_SIGN", "PURPOSE_VERIFY"]] in [_values(event["argsIn"]) for event in builders]
+        # init is a framework method, so the app process may call it more than once
+        opmodes = [event["argsIn"][0]["value"] for event in self._events(find_matched_events, "init", "javax.crypto.Cipher")]
+        assert "ENCRYPT_MODE" in opmodes
+        assert "PUBLIC_KEY" not in opmodes
         # setFlags is a framework method, so the app process may call it more than once
         flags = [event["argsIn"][0] for event in self._events(find_matched_events, "setFlags", "android.content.Intent")]
         expected_flags = {
@@ -476,8 +480,8 @@ class TestNativeExamples:
         [open_log] = self._events(find_matched_events, "open_log")
         assert open_log["returnValue"]["value"] == {"fd": writes["started"]["fd"], "path": "/dev/null"}
 
-    def test_flags_and_enums(self, run_frooky, find_matched_events):
-        run_frooky(_example("native/03_decoders/04_flags_and_enums.yaml"), NATIVE_APP)
+    def test_constants_and_bitmasks(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/03_decoders/04_constants_and_bitmasks.yaml"), NATIVE_APP)
 
         [log_level] = self._events(find_matched_events, "set_log_level")
         assert _values(log_level["argsIn"]) == ["LOG_LEVEL_WARN"]

@@ -2,13 +2,13 @@
 import { z } from "zod";
 
 import { directionSchema } from "./decodable.zod";
-import { inputDecoderSettingsSchema, inputParamSettingsSchema } from "./inputSettings.zod";
+import { inputParamSettingsSchema, inputValueDecoderSettingsSchema } from "./inputSettings.zod";
 
 export const inputParamObjectSchema = z.object({
     type: z.string(),
     name: z.string().optional(),
     direction: directionSchema.optional(),
-    settings: inputDecoderSettingsSchema.optional()
+    settings: inputValueDecoderSettingsSchema.optional()
 });
 
 export const inputParamSchema = z.union([z.string(), z.tuple([z.string(), z.string()]), z.tuple([z.string(), inputParamSettingsSchema]), z.tuple([z.string(), z.string(), inputParamSettingsSchema]), inputParamObjectSchema]);
@@ -16,9 +16,9 @@ export const inputParamSchema = z.union([z.string(), z.tuple([z.string(), z.stri
 export const inputRetTypeObjectSchema = z.object({
     type: z.string(),
     name: z.string().optional(),
-    settings: inputDecoderSettingsSchema.optional()
+    settings: inputValueDecoderSettingsSchema.optional()
 });
 
-export const inputRetTypeSchema = z.union([z.string(), z.tuple([z.string(), inputDecoderSettingsSchema]), inputRetTypeObjectSchema]);
+export const inputRetTypeSchema = z.union([z.string(), z.tuple([z.string(), inputValueDecoderSettingsSchema]), inputRetTypeObjectSchema]);
 
-export const inputRetTypeSettingsSchema = inputDecoderSettingsSchema;
+export const inputRetTypeSettingsSchema = inputValueDecoderSettingsSchema;

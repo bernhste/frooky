@@ -1,10 +1,10 @@
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
 import { LoadedHookEntry } from "./configDiff";
 import { Hook } from "./hook";
 import { HookRegistry } from "./hookRegistry";
 
 function fakeHook(): Hook {
-  return { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
+  return { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS };
 }
 
 function entry(state: LoadedHookEntry["state"], overrides: Partial<LoadedHookEntry> = {}): LoadedHookEntry {

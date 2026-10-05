@@ -1,5 +1,5 @@
 import { FrookyAgent } from "../../FrookyAgent";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
 import { normalizeInputParams, normalizeInputRetType } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputParamSettings } from "../../shared/inputParsing/inputSettings";
 import { NativeOffsetHookDeclaration, NativeSymbolHookDeclaration } from "../../shared/hook/hookDeclaration";
@@ -106,11 +106,11 @@ async function resultsOf<T>(resolutions: Resolution<T>[]): Promise<T[]> {
 }
 
 function nativeHook(module: string, symbol: string, overrides: Partial<NativeSymbolHookDeclaration> = {}): NativeSymbolHookDeclaration {
-  return { module, symbol, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS, ...overrides };
+  return { module, symbol, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS, ...overrides };
 }
 
 function nativeOffsetHook(module: string, offset: string): NativeOffsetHookDeclaration {
-  return { module, offset, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_DECODER_SETTINGS };
+  return { module, offset, hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS };
 }
 
 describe("NativeHookManager", () => {

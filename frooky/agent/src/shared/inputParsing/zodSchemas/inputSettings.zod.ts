@@ -2,13 +2,15 @@
 import { z } from "zod";
 
 import { directionSchema } from "./decodable.zod";
-import { decoderSettingsSchema, hookSettingsSchema } from "./frookySettings.zod";
+import { decoderSettingsSchema, hookSettingsSchema, baseDecoderSettingsSchema } from "./frookySettings.zod";
 
 export const inputHookSettingsSchema = hookSettingsSchema.partial();
 
-export const inputDecoderSettingsSchema = decoderSettingsSchema.partial();
+export const inputDecoderSettingsSchema = baseDecoderSettingsSchema.partial();
 
-export const inputParamSettingsSchema = decoderSettingsSchema.partial().and(z.object({
+export const inputValueDecoderSettingsSchema = decoderSettingsSchema.partial();
+
+export const inputParamSettingsSchema = inputValueDecoderSettingsSchema.and(z.object({
     direction: directionSchema.optional()
 }));
 

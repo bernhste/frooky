@@ -1,6 +1,6 @@
 import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
-import { DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
-import { DecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
+import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { BaseDecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
 import { RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
 import { NativeHookDeclaration } from "../hook/hookDeclaration";
 import { InputParam, InputRetType, normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
@@ -105,7 +105,7 @@ export function normalizeNativeHook(
   inputHook: InputNativeHook,
   module: string,
   hookSettings: HookSettings,
-  decoderSettings: DecoderSettings,
+  decoderSettings: BaseDecoderSettings,
 ): NativeHookDeclaration {
   if (typeof inputHook === "string") {
     return { symbol: inputHook, module, hookSettings, decoderSettings };
@@ -167,14 +167,14 @@ export function describeNativeTarget(module: string, target: { symbol?: string; 
 export function mergeNativeHookCollectionSettings(
   hookCollection: InputNativeHookCollection,
   settings: FrookySettings,
-): { hookSettings: HookSettings; decoderSettings: DecoderSettings } {
+): { hookSettings: HookSettings; decoderSettings: BaseDecoderSettings } {
   const hookSettings: HookSettings = validateAndRepairHookSettings({
     ...DEFAULT_HOOK_SETTINGS,
     ...settings.hookSettings,
     ...hookCollection.hookSettings,
   });
-  const decoderSettings: DecoderSettings = validateAndRepairDecoderSettings({
-    ...DEFAULT_DECODER_SETTINGS,
+  const decoderSettings: BaseDecoderSettings = validateAndRepairDecoderSettings({
+    ...DEFAULT_BASE_DECODER_SETTINGS,
     ...settings.decoderSettings,
     ...hookCollection.decoderSettings,
   });
@@ -185,7 +185,11 @@ export function mergeNativeHookCollectionSettings(
 export function normalizeNativeHookCollection(
   hookCollection: InputNativeHookCollection,
   settings: FrookySettings,
-): Omit<InputNativeHookCollection, "hooks"> & { hooks: NativeHookDeclaration[]; hookSettings: HookSettings; decoderSettings: DecoderSettings } {
+): Omit<InputNativeHookCollection, "hooks"> & {
+  hooks: NativeHookDeclaration[];
+  hookSettings: HookSettings;
+  decoderSettings: BaseDecoderSettings;
+} {
   const { hookSettings, decoderSettings } = mergeNativeHookCollectionSettings(hookCollection, settings);
   return {
     ...hookCollection,

@@ -76,8 +76,8 @@ With `decoder`, a parameter or return value is decoded with one of these registe
 - `hashCode`: renders a reference type as `<class>@<hashCode>`, without invoking a custom `toString()` override
 - `intentFlag`: decodes an `int` bitmask into the matching `Intent.FLAG_*` constant names
 - `intentUriFlag`: decodes an `int` bitmask into the matching `Intent.URI_*` constant names
-- `flags`: decodes an integer bitmask into the names of the `constants` whose bits are set, see below
-- `constant`: decodes a value into the name of the matching `static final` constant declared on the hooked method's own class (e.g. `1` -> `"ENCRYPT_MODE"` for `javax.crypto.Cipher`'s `opmode`), or of the `constants` you declare
+- `constants`: decodes a value into the name of the matching `static final` constant declared on the hooked method's own class (e.g. `1` -> `"ENCRYPT_MODE"` for `javax.crypto.Cipher`'s `opmode`), or of the class or map in `config`, see below
+- `bitmask`: decodes an integer bitmask into the names of the constants in `config` whose bits are set, see below
 
 ```yaml
 javaClass: android.content.Intent
@@ -90,7 +90,7 @@ hooks:
 
 This decodes the `flags` argument of [`Intent.setFlags(int)`](<https://developer.android.com/reference/android/content/Intent#setFlags(int)>) using the `android.content.IntentFlagDecoder`, which resolves the individual `Intent.FLAG_*` constants set in the bitmask instead of just reporting the raw integer.
 
-The `constant` decoder resolves any value to the name of the constant with that value, declared on the same class the hook is on - no class needs to be specified:
+The `constants` decoder resolves any value to the name of the constant with that value, declared on the same class the hook is on - no class needs to be specified:
 
 ```yaml
 javaClass: javax.crypto.Cipher
@@ -98,13 +98,32 @@ hooks:
   - method: init
     overloads:
       - params:
-        - [int, opmode, { decoder: constant }]
+        - [int, opmode, { decoder: constants }]
         - [java.security.Key, key]
 ```
 
-This decodes the `opmode` argument of [`Cipher.init(int, Key)`](<https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key)>) to `"ENCRYPT_MODE"`, `"DECRYPT_MODE"`, etc. instead of the raw `int`, by matching it against `Cipher`'s own declared constants.
+This decodes the `opmode` argument of [`Cipher.init(int, Key)`](<https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key)>) to `"ENCRYPT_MODE"`, `"DECRYPT_MODE"`, etc. instead of the raw `int`, by matching it against the `static final` fields of `Cipher` of the same type.
 
-With `constants`, the `constant` decoder uses the names you declare instead of the constants of the hooked class. This helps when the constants are declared on another class than the one you hook, e.g. an app's own wrapper around `Cipher`, or when the app is obfuscated and its fields have no meaningful names:
+`config: { constants }` tells the `constants` and `bitmask` decoders which constants to use, in one of two forms:
+
+- **A class**, optionally with a pattern for the field names after `#`, in which `*` matches any characters: `javax.crypto.Cipher#*_MODE`. Its `static final` fields of the type of the value are the constants. Without a pattern, all of them are.
+- **A map** of names to values: `{ ENCRYPT_MODE: 1, DECRYPT_MODE: 2 }`.
+
+A class helps when the constants are declared on another class than the one you hook, and its pattern when a class declares several constants with the same value. `Cipher` declares `ENCRYPT_MODE` and `PUBLIC_KEY`, both `1`, so without a pattern `opmode` may be decoded as `"PUBLIC_KEY"`:
+
+```yaml
+javaClass: javax.crypto.Cipher
+hooks:
+  - method: init
+    overloads:
+      - params:
+        - [int, opmode, { decoder: constants, config: { constants: "javax.crypto.Cipher#*_MODE" } }]
+        - [java.security.Key, key]
+```
+
+frooky looks the class up when it installs the hook: in the app's default class loader, or else in the class loader of the hooked class, e.g. for a class of a dex the app loads itself. If the class isn't found or has no matching field of the type of the value, frooky logs a warning and decodes the value as it is.
+
+A map helps when the app is obfuscated and its fields have no meaningful names, or when the constants aren't declared in any class:
 
 ```yaml
 javaClass: org.example.CryptoHelper
@@ -112,13 +131,13 @@ hooks:
   - method: process
     overloads:
       - params:
-        - [int, mode, { decoder: constant, constants: { ENCRYPT_MODE: 1, DECRYPT_MODE: 2 } }]
+        - [int, mode, { decoder: constants, config: { constants: { ENCRYPT_MODE: 1, DECRYPT_MODE: 2 } } }]
         - ["[B", data]
 ```
 
-The value is compared as a number, so `constants` only matches numeric values (`int`, `long`, `short`, `byte`, `float`, `double`). An `int` is compared as 32 bits, so a constant can be written in hex, e.g. `0x80000000` for `-2147483648`. A value without a constant is decoded as the value itself; frooky doesn't fall back to the constants of the hooked class.
+The value is compared with the map as a number, so a map only matches numeric values (`int`, `long`, `short`, `byte`, `float`, `double`). An `int` is compared as 32 bits, so a constant can be written in hex, e.g. `0x80000000` for `-2147483648`. A value without a constant is decoded as the value itself; with `config`, frooky doesn't fall back to the constants of the hooked class.
 
-The `flags` decoder decodes a bitmask into the names of the constants in `constants` whose bits are set, e.g. the purposes of a Keystore key. The constants are often declared on another class than the hooked one, here `KeyProperties`:
+The `bitmask` decoder decodes a bitmask into the names of the constants in `config.constants` whose bits are set, e.g. the purposes of a Keystore key. The constants are often declared on another class than the hooked one, here `KeyProperties`, which also declares other groups of constants, so the pattern picks the purposes:
 
 ```yaml
 javaClass: android.security.keystore.KeyGenParameterSpec$Builder
@@ -127,10 +146,12 @@ hooks:
     overloads:
       - params:
         - [java.lang.String, keystoreAlias]
-        - [int, purposes, { decoder: flags, constants: { PURPOSE_ENCRYPT: 1, PURPOSE_DECRYPT: 2, PURPOSE_SIGN: 4, PURPOSE_VERIFY: 8 } }]
+        - [int, purposes, { decoder: bitmask, config: { constants: "android.security.keystore.KeyProperties#PURPOSE_*" } }]
 ```
 
-`KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY` is decoded as `["PURPOSE_SIGN", "PURPOSE_VERIFY"]`. Bits that no constant has are added as one hex string, e.g. `"0x100"`, and a constant with the value `0` is only shown if no bit is set. `flags` works on `int`, `long`, `short`, `byte` and `char` values; other values are decoded as they are. It decodes the same as `decoder: flags` of [native hooks](./decoders-native.md#flags-and-enums).
+`KeyProperties.PURPOSE_SIGN | KeyProperties.PURPOSE_VERIFY` is decoded as `["PURPOSE_SIGN", "PURPOSE_VERIFY"]`. Bits that no constant has are added as one hex string, e.g. `"0x100"`, and a constant with the value `0` is only shown if no bit is set. `bitmask` works on `int`, `long`, `short`, `byte` and `char` values; other values are decoded as they are. It decodes the same as `decoder: bitmask` of [native hooks](./decoders-native.md#constants-and-bitmasks), which only take a map.
+
+`config` is only accepted by the decoders that use it, `constants` and `bitmask`. On a value with any other decoder, frooky skips the hook with a warning.
 
 Other common bitmasks: the `flags` of `PendingIntent.getActivity()` (`FLAG_IMMUTABLE`, `FLAG_MUTABLE`, ...), of `Context.registerReceiver()` (`RECEIVER_EXPORTED`, ...) and of `Window.setFlags()` (`FLAG_SECURE`, ...).
 

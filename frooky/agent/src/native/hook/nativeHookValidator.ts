@@ -3,7 +3,7 @@ import z from "zod";
 
 import { hasHookList, validateInputHook } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
-import { FrookySettings } from "../../shared/frookySettings";
+import { DecoderSettings, FrookySettings } from "../../shared/frookySettings";
 import { NativeHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { HookValidator } from "../../shared/hook/hookValidator";
 import {
@@ -15,8 +15,8 @@ import {
 } from "../../shared/inputParsing/inputNativeHookCollection";
 import { inputNativeHookSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
 import { logger } from "../../shared/logger";
-import { validateDecoderArgRoles, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
-import { acceptedNativeDecoderArgs, NATIVE_DECODER_NAMES } from "../decoders/nativeDecoderResolver";
+import { validateDecoderArgRoles, validateDecoderConfig, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
+import { acceptedNativeDecoderArgs, acceptedNativeDecoderConfig, NATIVE_DECODER_NAMES } from "../decoders/nativeDecoderResolver";
 
 export class NativeHookValidator implements HookValidator<NativeHookDeclaration, InputNativeHookCollection> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): NativeHookDeclaration[] {
@@ -35,6 +35,12 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
           );
           const validatedHook = normalizeNativeHook(validInputHook, nativeHookCollection.module, hookSettings, decoderSettings);
           validateDecoderArgRoles(validatedHook.params, acceptedNativeDecoderArgs);
+          const values: [string, DecoderSettings | undefined][] = [
+            ...(validatedHook.params ?? []).map((p): [string, DecoderSettings] => [p.name ?? p.type, p.settings]),
+            ["return value", validatedHook.retType?.settings],
+          ];
+          validateDecoderConfig(values, acceptedNativeDecoderConfig);
+          rejectConstantsClasses(values);
           validateDecoderNames(
             [validatedHook.decoderSettings, validatedHook.retType?.settings, ...(validatedHook.params ?? []).map((p) => p.settings)],
             NATIVE_DECODER_NAMES,
@@ -206,4 +212,15 @@ function describeNativeFunction(inputHook: unknown): string {
   const { symbol, offset } = (inputHook ?? {}) as { symbol?: unknown; offset?: unknown };
   if (symbol !== undefined) return `function '${symbol}'`;
   return offset !== undefined ? `function at offset '${offset}'` : "function";
+}
+
+// `config.constants` of a native hook must be a map; reading the constants of a class is only for Java hooks
+function rejectConstantsClasses(values: [label: string, settings: DecoderSettings | undefined][]): void {
+  for (const [label, settings] of values) {
+    if (typeof settings?.config?.constants === "string") {
+      throw new Error(
+        `config of '${label}': constants must map names to values, e.g. '{ O_CREAT: 0x40 }'. A class of constants is only supported in Java hooks.`,
+      );
+    }
+  }
 }
