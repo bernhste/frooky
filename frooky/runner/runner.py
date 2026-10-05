@@ -181,9 +181,9 @@ class FrookyRunner:
             "\\/     /_/  |_|  \\___/ \\___/ |_|\\_\\  \\__, |",
             "                                     |___/",
             "",
-            "   .------.      .-------.      .------.",
-            "   | YAML |----->| FRIDA |----->| JSON |",
-            "   '------'      '-------'      '------'",
+            "  .------.      .-------.      .------.",
+            "  | YAML |----->| FRIDA |----->| JSON |",
+            "  '------'      '-------'      '------'",
         ]
 
         def fmt_version(v: Optional[str]) -> str:
@@ -198,24 +198,25 @@ class FrookyRunner:
             "Frida device": fmt_version(self.device_frida_version),
             "Frida agent": fmt_version(agent_frida_version),
         }
-        target_info = {
+        session_info = {
             "Device": self.device.name + (f" ({self.device.id})" if self.device.id else ""),
             "Target": describe_target(self.device, self.options),
-        }
-        output_info = {
             "Output": str(self.options.output_path),
             # no runtime means Frida's default, QuickJS
             "Runtime": {"qjs": "QuickJS", "v8": "V8"}[self.options.runtime or "qjs"],
+            "Keys": "R reload  S stats  E events  ^C stop" if self._key_listener.active else "^C stop",
         }
+        # one group so the values share a column, with Keys set apart by an empty line
+        *session_lines, keys_line = fmt_group(session_info)
 
         info = [
             f"Frooky v{frooky_version}",
             "",
             *fmt_group(frida_versions),
             "",
-            *fmt_group(target_info),
+            *session_lines,
             "",
-            *fmt_group(output_info),
+            keys_line,
         ]
 
         logo_width = max(len(line) for line in logo)
@@ -226,15 +227,6 @@ class FrookyRunner:
             info_part = info[i] if i < len(info) else ""
             lines.append(f"{logo_part}   {info_part}")
 
-        lines.append("")
-        if self._key_listener.active:
-            lines.append("  Key     Function")
-            lines.append("  R       Reload the hook files and retry hooks that were not found")
-            lines.append("  S       Show hook statistics")
-            lines.append("  E       Show / hide events")
-            lines.append("  Ctrl+C  Stop")
-        else:
-            lines.append("  Press Ctrl+C to stop...")
         lines.append("")
 
         self.feed.print("\n".join(lines))

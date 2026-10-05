@@ -158,17 +158,12 @@ $ frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_bas
 / /     / / | | | (_) | (_) ||  <   | |_| |   Frida device: v17.17.0
 \/     /_/  |_|  \___/ \___/ |_|\_\  \__, |   Frida agent:  v17.18.0
                                      |___/
-                                              Device: Android Emulator 5554 (emulator-5554)
-                                              Target: org.owasp.mastestapp (spawned)
+                                              Device:  Android Emulator 5554 (emulator-5554)
+  .------.      .-------.      .------.       Target:  value_passing_java.frooky.target.app (spawned)
+  | YAML |----->| FRIDA |----->| JSON |       Output:  output.json
+  '------'      '-------'      '------'       Runtime: QuickJS
 
-                                              Output:  output.json
-                                              Runtime: QuickJS
-
-  Key     Function
-  R       Reload the hook files and retry hooks that were not found
-  S       Show hook statistics
-  E       Show / hide events
-  Ctrl+C  Stop
+                                              Keys:    R reload  S stats  E events  ^C stop
 
 ┌─ java (static) ──────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ time:         2026-09-16T20:24:24.094Z
