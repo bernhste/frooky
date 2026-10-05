@@ -27,6 +27,9 @@ This page explains how frooky works internally: what happens to a hook from the 
 - [Collecting Events](#collecting-events)
   - [Capture an Event](#capture-an-event)
   - [Sending Event Batches to the Host](#sending-event-batches-to-the-host)
+- [Crash Reporter](#crash-reporter)
+- [User Scripts](#user-scripts)
+- [JavaScript Runtimes](#javascript-runtimes)
 - [Caching](#caching)
 
 <!-- /TOC -->
@@ -101,7 +104,7 @@ The hook-file format is described twice in TypeScript, once for the user and onc
 - **Input types** (the public interface, `Input*` in `frooky/agent/src/shared/inputParsing/`) describe what a hook file may contain. They are loose on purpose: most things can be written in several forms, e.g. a hook as just a method or symbol name or as an object, and settings can be left out. `npm run build:zodSchema` generates the Zod schemas in `zodSchemas/` from them, and `npm run build:jsonSchema` turns those into [`docs/schema/frooky-config.schema.json`](./schema/frooky-config.schema.json), which editors use to check and autocomplete hook files.
 - **Normalized types** (`JavaHookDeclaration` and `NativeHookDeclaration` in `frooky/agent/src/shared/hook/hookDeclaration.ts`, with `Param` and `RetType`) are what the rest of the agent works with. They are not part of the schemas. Each normalized hook declaration is self-contained and always has the same shape: it carries its class or module, its fully merged `hookSettings` and `decoderSettings`, and each parameter and return value carries its own merged decoder settings. The hook managers, decoders and the diff in [Keeping Hooks Current](#keeping-hooks-current) never need to look at the collection or the file's settings, and never handle shorthands.
 
-Normalization turns one into the other. For example, a parameter (`InputParam`) can be written in five forms:
+Normalization turns one into the other, e.g. this hook collection:
 
 ```yaml
 - module: libcrypto.so
@@ -110,24 +113,18 @@ Normalization turns one into the other. For example, a parameter (`InputParam`) 
   hooks:
     - symbol: EVP_EncryptInit_ex
       params:
-        - "EVP_CIPHER_CTX *"                               # type only
-        - ["const EVP_CIPHER *", cipher]                   # type + name
-        - ["ENGINE *", { maxDepth: 2 }]                    # type + settings
-        - ["const unsigned char *", key, { maxItems: 16 }] # type + name + settings
-        - { type: "const unsigned char *", name: iv }      # object
+        - "EVP_CIPHER_CTX *"
+        - ["const unsigned char *", key, { maxItems: 16 }]
 ```
 
-After normalization, every parameter is a `Param` object with its `type`, its `name` if it has one, its `direction` and its complete decoder `settings`: the defaults, overridden by the file's settings, the collection's, the hook's and finally the parameter's own. The hook itself has inherited its `module` and has its complete settings:
+Every parameter becomes a `Param` object with its `type`, its `name` if it has one, its `direction` and its complete decoder `settings`: the defaults, overridden by the file's settings, the collection's, the hook's and finally the parameter's own. The hook itself inherits its `module` and gets its complete settings:
 
 ```yaml
 module: libcrypto.so
 symbol: EVP_EncryptInit_ex
 params:
   - { type: "EVP_CIPHER_CTX *", direction: in, settings: { maxDepth: 10, maxItems: 32 } }
-  - { type: "const EVP_CIPHER *", name: cipher, direction: in, settings: { maxDepth: 10, maxItems: 32 } }
-  - { type: "ENGINE *", direction: in, settings: { maxDepth: 2, maxItems: 32 } }
   - { type: "const unsigned char *", name: key, direction: in, settings: { maxDepth: 10, maxItems: 16 } }
-  - { type: "const unsigned char *", name: iv, direction: in, settings: { maxDepth: 10, maxItems: 32 } }
 hookSettings: { maxStackFrames: 5, nativeStackTrace: false, platformStackTrace: false, callerFilter: [], early: false }
 decoderSettings: { maxDepth: 10, maxItems: 32 }
 ```
@@ -204,6 +201,8 @@ A **Java class**, e.g. `javax.crypto.Cipher` or `org.owasp.mastestapp.MainActivi
 1. In the default class loader with `Java.use()`. It has the Android framework's classes, also before the app runs, so a framework class is found right away.
 2. Otherwise at `targetReady`, in every class loader the app has by then (`Java.enumerateClassLoadersSync()`), e.g. the `PathClassLoader` with the app's own classes.
 3. Otherwise the declaration is `waiting`. Since step 1 missed, frooky watches the constructors of `BaseDexClassLoader` and its subclasses, which every class loader that reads dex files runs, and looks the class up in each new class loader while it is created, before any of its classes are used. This also catches class loaders created before `targetReady`.
+
+With `classLoader`, the class is only looked up in instances of that class loader class: frooky hooks its `loadClass(String)`, or the one it inherits, and checks each class it returns, before the app gets it.
 
 A **native module**, e.g. `libc.so` or `libnative-lib.so`, is looked up by `NativeHookManager`:
 
@@ -408,7 +407,7 @@ sequenceDiagram
     end
 ```
 
-`early: true` skips the wait for `targetReady`. Use it for code that runs before `targetReady`, e.g. ELF constructors in `.init_array`, `JNI_OnLoad` of a library loaded at startup, or anti-tampering checks, and give a high-frequency function a `callerFilter`, see [Early Hooking](./additional-features.md#early-hooking) and the examples in [`08_early_hooking`](./examples/native/08_early_hooking/). `early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
+`early: true` skips the wait for `targetReady` (see [Early Hooking](./additional-features.md#early-hooking) for when to use it). When attaching, the app is already past `targetReady`, so `early` changes nothing.
 
 A hook is installed as soon as its module is found: before the app is resumed (stage 1) if the module is already loaded, otherwise inside the linker while the module loads (stage 2), so its constructors and `JNI_OnLoad` run hooked.
 
@@ -467,9 +466,9 @@ These checks cover the known ways a stack walk crashes or hangs the app, not eve
 
 A high-frequency function, e.g. `malloc`, is called mostly by code you aren't interested in: ART, the framework, system libraries and SDKs. A `callerFilter` drops these calls before frooky decodes any value, builds a stack trace or creates an event. A native hook's filter needs no stack walk, so it is also checked in the calls in which stack traces are skipped, e.g. on an alternate signal stack (`signal-stack`) or near the end of a thread's stack (`low-stack`).
 
-`callerFilter` is a list of regular expressions, compiled once per hook (`new RegExp(pattern)`, not anchored). A plain string such as `libapp.so` therefore matches every name that contains it. What the expressions are matched against depends on the hook:
+`callerFilter` is a list of regular expressions, compiled once per hook (`new RegExp(pattern)`, not anchored). What the expressions are matched against depends on the hook:
 
-- **Native hooks:** the names of the loaded modules. frooky turns the matching modules into address ranges and compares the return address of each call with them, see [Keeping the Module Ranges Current](#keeping-the-module-ranges-current).
+- **Native hooks:** the names of the loaded modules. frooky turns the matching modules into address ranges and compares the return address of each call with them: the address `bl` stores in the link register on arm64, or `call` pushes onto the stack on x86_64, read when the function is entered, see [Keeping the Module Ranges Current](#keeping-the-module-ranges-current).
 - **Java hooks:** each frame of the Java stack as `<class>.<method>`, see [Caller Filters on Java Hooks](#caller-filters-on-java-hooks).
 
 See [Caller Filters](./additional-features.md#caller-filters) for how to write them, examples and pitfalls.
@@ -568,15 +567,15 @@ The walk needs the Java VM, so the filter can't be checked before `targetReady`,
 
 Most risky hooks only need care, e.g. a `callerFilter` or no stack traces, and the validator warns about them. A few functions break the app however they are hooked, because Frida, the JavaScript engine or the stack walker depend on them themselves, or because hooking changes what they do. A warning wouldn't help there, so frooky drops hooks on these functions (or, for `sigprocmask`, their stack traces) while it [validates the hook file](#validation) and logs a warning instead:
 
-| Function                                                 | Runtime | Blocked      | Why                                                                                                                                                                                                                                            |
-| -------------------------------------------------------- | ------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | all     | hook         | Frida's Interceptor uses them itself: installing the hook hangs the app.                                                                                                                                                                       |
-| `dlopen` (`libdl.so`)                                    | all     | hook         | The linker picks the namespace by the caller's address, which the hook changes, so system libraries (e.g. graphics drivers) fail to load.                                                                                                      |
-| `memset`, `clock_gettime` (`libc.so`)                    | V8      | hook         | V8 calls them itself while it runs a hook, which re-enters V8 and crashes the app (`SIGTRAP`). Use QuickJS to hook them.                                                                                                                       |
-| `sigprocmask` (`libc.so`)                                | all     | stack traces | Its calls come from ART's signal chain wrapper in `libsigchain.so`, and Frida's accurate stack walker crashes the app (`SIGSEGV`) when it walks from there, also after `targetReady`. A `callerFilter` still works, as it needs no stack walk. |
-| `mmap` (`libc.so`), with `early: true`                   | V8      | stack traces | Before `targetReady`, a stack trace in it stops the app's start-up: `targetReady` never resolves. After `targetReady`, and under QuickJS, stack traces in it work.                                                                             |
+| Function                                          | Why                                                                                                                                                                                                                         |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pthread_getspecific`, `pthread_setspecific`      | Frida's Interceptor uses them itself: installing the hook hangs the app.                                                                                                                                                    |
+| `dlopen` (`libdl.so`)                             | The linker picks the namespace by the caller's address, which the hook changes, so system libraries (e.g. graphics drivers) fail to load.                                                                                   |
+| `memset`, `clock_gettime` under V8                | V8 calls them itself while it runs a hook, which re-enters V8 and crashes the app (`SIGTRAP`).                                                                                                                              |
+| `sigprocmask` (stack traces)                      | Its calls come from ART's signal chain wrapper in `libsigchain.so`, and Frida's accurate stack walker crashes the app (`SIGSEGV`) when it walks from there, also after `targetReady`. A `callerFilter` needs no stack walk. |
+| `mmap` with `early: true` under V8 (stack traces) | Before `targetReady`, a stack trace in it stops the app's start-up: `targetReady` never resolves.                                                                                                                           |
 
-The function is matched by its symbol and module, also if the hook names the module by path or without `.so`, e.g. `/apex/com.android.runtime/lib64/bionic/libc.so` or `libc`. The V8 entries only apply when the agent runs on V8, the `early: true` entry only to hooks with that setting. A hook by `offset:` on one of these functions isn't detected.
+`findBlockedFunction()` matches the symbol and the module, ignoring case: its name, its name without `.so`, or a path that ends in it. The V8 entries only match under V8 (`Script.runtime`), the `mmap` entry only with `early: true`. See [Blocked Functions](./additional-features.md#blocked-functions) for the list with alternatives.
 
 **Source:**
 
@@ -586,15 +585,15 @@ The function is matched by its symbol and module, also if the hook names the mod
 
 A few Java methods break the app however they are hooked, also with a plain Frida script that only calls the original method. Most of them look up their caller on the stack: frida-java-bridge calls the original method from its replacement of it, whose class is the hooked method's own class. These methods then see a boot class as their caller instead of the app's class. frooky drops hooks on them while it [validates the hook file](#validation), and logs a warning instead:
 
-| Method                                                                                                                           | Overloads            | Why                                                                                                                                                                                                                                         |
-| -------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `java.lang.String.$init`                                                                                                         | all                  | ART runs each `String` constructor as a `java.lang.StringFactory` method, so the hook never runs. On Android 12, ART finds no `StringFactory` method for the hooked constructor and aborts the app. Hook `java.lang.StringFactory` instead. |
-| `java.lang.Class.forName`                                                                                                        | `(java.lang.String)` | It loads the class with its caller's class loader, which becomes the boot class loader: the app's classes aren't found (`ClassNotFoundException`). The overload with a `ClassLoader` parameter can be hooked.                               |
-| `java.lang.System.loadLibrary`                                                                                                   | all                  | It loads the library with its caller's class loader, which becomes the boot class loader: the app's libraries aren't found (`UnsatisfiedLinkError`).                                                                                        |
-| `newUpdater` of `java.util.concurrent.atomic.AtomicIntegerFieldUpdater`, `AtomicLongFieldUpdater`, `AtomicReferenceFieldUpdater` | all                  | It checks its caller's access to the field, and the caller becomes the updater class: it throws `IllegalAccessException` on private fields, e.g. those of Kotlin coroutines.                                                                |
-| `dalvik.system.VMStack.getStackClass2`, `sun.reflect.Reflection.getCallerClass`                                                  | all                  | The hook adds a frame, so they return the wrong caller and e.g. `Class.forName()` doesn't find the app's classes. On Android 15, `getCallerClass` didn't break the app.                                                                     |
+| Method                                                | Why                                                                                                                                                                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `java.lang.String.$init`                              | ART runs each `String` constructor as a `java.lang.StringFactory` method, so the hook never runs. On Android 12, ART finds no `StringFactory` method for the hooked constructor and aborts the app. |
+| `java.lang.Class.forName(String)`                     | It loads the class with its caller's class loader, which becomes the boot class loader: the app's classes aren't found (`ClassNotFoundException`).                                                  |
+| `java.lang.System.loadLibrary`                        | It loads the library with its caller's class loader, which becomes the boot class loader: the app's libraries aren't found (`UnsatisfiedLinkError`).                                                |
+| `newUpdater` of the `Atomic*FieldUpdater` classes     | It checks its caller's access to the field, and the caller becomes the updater class: it throws `IllegalAccessException` on private fields, e.g. those of Kotlin coroutines.                        |
+| `VMStack.getStackClass2`, `Reflection.getCallerClass` | The hook adds a frame, so they return the wrong caller and e.g. `Class.forName()` doesn't find the app's classes. On Android 15, `getCallerClass` didn't break the app.                             |
 
-The method is matched by the exact class name and, for `forName`, by the parameter types. A hook that declares `overloads` loses the blocked ones while it is validated; a hook on every overload, e.g. `- forName`, skips the blocked ones when the class is resolved. Measured on Android 12 and 15 (x86_64). Whether a hook breaks the app can depend on whether it's installed before the app's first call, e.g. during start-up. On the Android 17 emulator, Frida 17.22.1 can't hook Java methods in a spawned app at all.
+The method is matched by the exact class name and, for `forName`, by the parameter types. Declared `overloads` are filtered while the hook file is validated; a hook on every overload skips the blocked ones when the class is resolved (`resolveOverloads()`). Measured on Android 12 and 15 (x86_64). See [Blocked Functions](./additional-features.md#blocked-functions) for the list with alternatives.
 
 **Source:**
 
@@ -655,6 +654,38 @@ Progress reports (at most every 250 ms) and crash reports are separate messages.
 - [`defaultValues.ts`](../frooky/agent/src/shared/defaultValues.ts) (`SEND_BATCH_SIZE`, `SEND_INTERVAL_MS`, `PROGRESS_INTERVAL_MS`)
 - [`index.frooky.ts`](../frooky/agent/src/android/index.frooky.ts) (progress and crash messages)
 - [`messages.py`](../frooky/runner/messages.py) (agent messages, `output.json`)
+
+## Crash Reporter
+
+`installCrashReporter()` installs Frida's exception handler (`Process.setExceptionHandler()`) when the agent starts. It runs in the signal handler, usually on the thread's 32KB signal stack, for every native exception, including the many access violations ART raises and handles itself (implicit null and suspend checks, stack walks). So it decides first, by comparing addresses, whether an exception is worth reporting: an abort, illegal instruction or arithmetic error always, an access violation only if the faulting instruction is in a module with a native hook. Only then does it walk the stack (fuzzy backtracer, up to 16 frames) and symbolize the frames, which would overflow the signal stack under QuickJS.
+
+The report names the frames that lie in a module, and the installed native hooks in these modules and on these frames. It is sent once, and the handler returns `false`, so ART's fault handler or the default handler still handles the exception. Frida's own crash report, with the `detached` signal, is empty for some crashes, e.g. ART aborting after a JNI error, and doesn't name hooks.
+
+Under V8, an installed exception handler makes a hook on e.g. libc's `strlen` crash the app with a `SIGTRAP` inside Frida's agent, even if the hook is never called. So the crash reporter isn't installed under V8.
+
+**Sources:**
+
+- [`crashReporter.ts`](../frooky/agent/src/shared/crashReporter.ts)
+- [`nativeHookIndex.ts`](../frooky/agent/src/native/hook/nativeHookIndex.ts) (hooked modules and functions)
+
+## User Scripts
+
+Each script passed with `-l` is loaded into the same Frida session as its own script, in the order of the command line, before the agent:
+
+1. A `.ts` file is compiled with Frida's compiler (`frida.Compiler`) into one script, with the bridges (`frida-java-bridge`, ...) left as externals.
+2. Imports and `require()` calls of a bridge are rewritten to its global, e.g. `Java`, and a `require()` shim is added for the bridges.
+3. The bridge code from frida-tools is put in front of the script if the script uses it. On Android, the Java bridge is always added.
+
+**Source:**
+
+- [`config.py`](../frooky/runner/config.py) (`compile_user_script()`, `prepare_user_script()`, `load_user_scripts()`)
+
+## JavaScript Runtimes
+
+Frida runs the agent and the user scripts in QuickJS (default) or V8 (`--runtime v8`). A hook's JavaScript code runs on the thread that called the hooked function:
+
+- **QuickJS** interprets the code on that thread's native stack, so deep JavaScript calls, e.g. while decoding nested values, use the app thread's stack. On a thread with a small stack or on a signal stack, this can overflow it.
+- **V8** keeps more of its state on its own heap and uses less of the calling thread's stack. It needs more memory and starts slower. It calls `memset` and `clock_gettime` itself while it runs a hook, so hooks on them are [blocked](#danger-zone-blocked-native-functions), and the [crash reporter](#crash-reporter) is off.
 
 ## Caching
 

@@ -190,4 +190,4 @@ Please refer to the following documentation for more information about various t
 - [Understanding Output Format](./docs/output.md)
 - [Additional Features](./docs/additional-features.md)
 - [Development / Local Testing](./docs/develop.md)
-- [Under the Hood: Agent Start and Hook Loading](./docs/under-the-hood.md)
+- [Under the Hood: How frooky Works Internally](./docs/under-the-hood.md)

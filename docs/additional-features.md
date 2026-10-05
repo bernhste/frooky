@@ -198,14 +198,14 @@ Stack traces are disabled by default (`nativeStackTrace: false`, `platformStackT
 
 Some calls happen where walking the stack can crash or hang the app. frooky detects these per call and leaves out the frames it can't capture safely. If requested frames are missing, the `stackTrace` object has a `skipped` field with the reason:
 
-| `skipped`      | Situation                                                                                                     | Why it's unsafe                                                                                                                                                                                                                        | Frames captured                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `signal-stack` | The call runs in a signal handler on an alternate signal stack (`sigaltstack`), which is usually only 32KB.   | Symbolizing the native frames or walking the Java stack can overflow it and crash the app.                                                                                                                                             | none                                                                                |
-| `linker-busy`  | Another thread is inside `dlopen()`/`dlclose()`, e.g. while the app starts.                                   | That thread can hold the linker's lock while it waits until frooky's agent is free, e.g. in a hook in a library constructor. The accurate native stack walk would wait for the linker's lock (`dl_iterate_phdr()`), and the app hangs. | native frames from the fuzzy backtracer; Java frames from shortly after start-up on |
-| `low-stack`    | Less than 64KB are left on the thread's stack. Native hooks only, as Java hooks have no CPU context to check. | A stack walk, symbolizing and the JavaScript engine's own frames can overflow the rest of the stack.                                                                                                                                   | none                                                                                |
-| `before-ready` | The app's own code hasn't started yet (spawn mode, before `Java.perform()`).                                  | A native hook can run on a thread that is still attaching to the Java VM, and walking its Java stack crashes the app.                                                                                                                  | native hooks: native frames only; Java hooks: everything                            |
+| `skipped`      | When                                                                                                  | Frames captured                                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `signal-stack` | The call runs in a signal handler, on its small alternate signal stack.                               | none                                                                  |
+| `linker-busy`  | Another thread is loading or unloading a library (`dlopen()`/`dlclose()`), e.g. while the app starts. | approximate native frames; Java frames from shortly after start-up on |
+| `low-stack`    | Less than 64KB are left on the thread's stack. Native hooks only.                                     | none                                                                  |
+| `before-ready` | The app's own code hasn't started yet (spawn mode, before `targetReady`).                             | native hooks: native frames only; Java hooks: everything              |
 
-At `linker-busy`, the `skipped` field is only set if the Java frames are missing. The native frames come from Frida's fuzzy backtracer, which scans the stack for values that look like return addresses and can include some that aren't, see [Stack Traces During Early Hooking](./under-the-hood.md#stack-traces-during-early-hooking). A call inside `dlopen()` on its own thread, e.g. in a library constructor, isn't affected and gets full stack traces.
+At `linker-busy`, the `skipped` field is only set if the Java frames are missing. The native frames are approximate and can include addresses that aren't return addresses. Calls from a library's constructor, inside `dlopen()` on their own thread, get full stack traces. See [Stack Traces During Early Hooking](./under-the-hood.md#stack-traces-during-early-hooking) for how frooky detects these calls and why a stack walk in them is unsafe.
 
 ```json
 "stackTrace": {
@@ -229,11 +229,11 @@ frooky distinguishes between managed runtime frames and native C/C++ frames:
   - **Native hooks:** If the native function was invoked from Java via JNI, captures the Java frames that led to the native call. If the native function was called from a native thread without Java on its stack, `platformStackTrace` is `[]`.
 
 - **`nativeStackTrace` (C / C++ Native Context):**
-  - Captures C/C++ return addresses from the CPU context (`CpuContext`), resolving each address to its module and symbol.
+  - Captures the C/C++ return addresses of the call, resolved to their module and symbol.
   - Frame format: `<symbol>+<offset> (<module>:<address>)`, for example:
     `Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI+0x42 (libreceiveString.so:0x763e4c3a33b4)`
   - **Native hooks:** Starts with the direct caller of the hooked function (the hooked function itself is at the hook point and not in the backtrace).
-  - **Java hooks:** Java hooks execute within the managed runtime without an explicit native CPU context, so `nativeStackTrace` is always `[]`.
+  - **Java hooks:** `nativeStackTrace` is always `[]`.
 
 - **Independent Limits:**
   - `maxStackFrames` applies to `platformStackTrace` and `nativeStackTrace` independently. If both are enabled and `maxStackFrames: 2`, the event contains up to 2 platform frames and up to 2 native frames (4 frames total).
@@ -242,7 +242,7 @@ See [`examples/android/05_hook_settings/01_platform_stack_trace.yaml`](./example
 
 ## Caller Filters
 
-Widely used methods and functions (such as `SharedPreferences`, crypto APIs, or libc's `fopen` and `strstr`) generate a lot of noise, because the framework, system libraries and third-party SDKs call them constantly. `callerFilter` records a call only if it comes from code you are interested in, usually the app's own packages or native libraries. It is a list of regular expressions under `hookSettings`, and what it matches depends on the hook:
+Widely used methods and functions (such as `SharedPreferences`, crypto APIs, or libc's `fopen` and `strstr`) generate a lot of noise, because the framework, system libraries and third-party SDKs call them constantly. `callerFilter` records a call only if it comes from code you are interested in, usually the app's own packages or native libraries. It is a list of regular expressions under `hookSettings`. They aren't anchored: `libapp.so` also matches `mylibapp.so`, so write `'^libapp\.so$'` to match one module exactly. What they match depends on the hook:
 
 | Hook        | Matches                            | Searches               | Cost per call                  |
 | ----------- | ---------------------------------- | ---------------------- | ------------------------------ |
@@ -281,8 +281,8 @@ The same applies to library code the app uses: `EncryptedSharedPreferences` (Goo
 
 For a native hook, `callerFilter` checks the module of the call's return address, i.e. the module that called the function directly:
 
-- On arm64, `bl` stores the return address in the link register; on x86/x86_64, `call` pushes it onto the stack. frooky reads it when the function is entered, without a stack walk or symbol lookup.
-- frooky keeps the address ranges of the modules whose name matches a pattern, and updates them when such a module is loaded or unloaded. A call is recorded if its return address is inside one of these ranges. Before a matching module is loaded, no call is recorded.
+- It needs no stack walk, so it's cheap and is also checked in the calls whose stack traces are [skipped](#skipped-stack-traces).
+- Only the modules loaded at the time of the call count. Before a matching module is loaded, no call is recorded.
 - The patterns are matched against module names (e.g. `libreceiveString.so`), not paths.
 - Java frames aren't searched: a native function that Java code calls through JNI has `libart.so`, the JNI method's library or JIT-compiled code as its caller.
 
@@ -327,12 +327,9 @@ The figures below are orders of magnitude on an arm64 device, not measurements:
 | Native stack trace                                 | + ~35 µs per frame to symbolize              |
 | Java stack trace, or `callerFilter` of a Java hook | + 100 µs to several ms                       |
 
-On a native hook, a call that `callerFilter` drops is never decoded, gets no stack walk, no check for [unsafe calls](#skipped-stack-traces) and no event. Where the filter runs depends on the other hooks of the function:
+On a native hook, a call that `callerFilter` drops is never decoded, gets no stack walk and no event. It is cheapest, without entering the JavaScript engine at all, if every hook of the function has a `callerFilter`, none records native stack traces and none decodes `float` or `double` values. This makes hooks on functions that run millions of times, such as `malloc` or `free`, affordable. Otherwise every call still costs a few µs, which is fine for functions such as `open` or `strstr` but takes seconds of CPU time per second on `malloc`.
 
-- **In native code**, if every hook of the function has a `callerFilter`, none records native stack traces and none decodes `float` or `double` values. A dropped call then never enters the JavaScript engine. This makes hooks on functions that run millions of times, such as `malloc` or `free`, affordable.
-- **In JavaScript** otherwise. Every call still enters the JavaScript engine twice and waits for the lock all hooks share, which is fine for functions such as `open` or `strstr` but takes seconds of CPU time per second on `malloc`.
-
-`frooky -vv` logs which of the two a function uses. See [Caller Filters in Under the Hood](./under-the-hood.md#caller-filters) for how it works.
+`frooky -vv` logs which case applies to a function. See [Caller Filters in Under the Hood](./under-the-hood.md#caller-filters) for how it works.
 
 ### Pitfalls
 
@@ -379,26 +376,45 @@ See [`01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_a
 
 ## Dangerous Low-Level and High-Frequency Hooks
 
-Capturing stack traces and hooking low-level primitives carries stability and recursion risks, especially on high-frequency libc functions such as `open`, `openat`, `close`, `read`, `write`, `mmap`, `mprotect`, `malloc`, `free`, `memcpy`, or `memset`:
+Hooks on low-level libc functions that the app calls very often, such as `open`, `openat`, `close`, `read`, `write`, `mmap`, `mprotect`, `malloc`, `free`, `memcpy` or `memset`, can break or slow down the app, especially with stack traces:
 
-- **Recursion loops:** A native stack walk or JNI call can call the hooked function again. For example, resolving symbols during a stack walk reads `/proc/self/maps` using libc's `open` and `read`. If `open` or `read` is hooked with stack traces enabled, the hook recurses indefinitely and crashes the process.
-- **Thread and signal stack exhaustion:** Low-level functions often run on Android background threads with small default stack sizes (typically 512 KB–1 MB) or on signal stacks (32 KB–64 KB); because QuickJS executes entirely on the calling thread's native C-stack, recursive callbacks and deep hook chains can quickly exhaust the remaining stack and trigger a stack overflow (`SIGSEGV` / `SEGV_ACCERR`). frooky detects alternate signal stacks (`sigaltstack`) and skips backtracing on them, but the hook itself still runs there.
-- **Hangs:** A platform stack trace enters the Java VM from inside the hooked call. If the caller holds a lock the VM then waits for, the app hangs; `platformStackTrace` on libc's `write` does this during startup (ANR).
-- **Performance degradation:** Resolving symbols for native frames takes ~35 µs per frame. On functions invoked thousands of times per second, capturing stack traces causes noticeable application stutter or ANR timeouts.
+- **Crashes:** these functions often run on threads with small stacks (512KB–1MB) or in signal handlers (32–64KB). The hook, a stack walk and, under QuickJS, the JavaScript engine itself use that stack and can overflow it (`SIGSEGV` / `SEGV_ACCERR`). frooky leaves out the stack traces of such calls (see [Skipped Stack Traces](#skipped-stack-traces)), but the hook still runs.
+- **Hangs:** a Java stack trace (`platformStackTrace`) in a native hook enters the Java VM from inside the hooked call. If the caller holds a lock the VM waits for, the app hangs (ANR).
+- **Slowdowns:** symbolizing native frames takes ~35µs per frame. On functions called thousands of times per second, the app stutters or stops responding.
 
 **Recommendations for low-level and high-frequency hooks:**
 
 1. **Keep `early: false` (the default)** unless you need to record code that runs during startup, and then give these functions a `callerFilter`, see [Early Hooking](#early-hooking).
 2. **Keep stack traces disabled** on high-frequency libc functions (`nativeStackTrace: false`, `platformStackTrace: false`).
-3. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: [libapp.so]`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
+3. **Use `callerFilter`** to record only the calls of the app's own native libraries (e.g. `callerFilter: ['^libapp\.so$']`). The calls of every other module are dropped before decoding, see [Caller Filters](#performance).
 4. **Use `argFilter`** to restrict capture to specific paths, descriptors, or buffers of interest (e.g. `argFilter: ['^/data/']`). `argFilter` is evaluated before any stack trace is captured, keeping non-matching calls fast and avoiding OS noise.
 5. **Switch to V8 (`--runtime v8`)** if hooking many native functions or dealing with deep native call stacks, as V8's execution model requires significantly less native C-stack memory than QuickJS.
 
 ### Blocked Functions
 
-Hooking a few low-level functions makes the app hang or crash, e.g. `pthread_getspecific`, `dlopen` in `libdl.so`, and under V8 `memset` and `clock_gettime`. frooky doesn't install hooks on these functions (or, for `sigprocmask`, and for `mmap` with `early: true` under V8, doesn't capture their stack traces) and logs a warning instead. See [Blocked Native Functions](./under-the-hood.md#danger-zone-blocked-native-functions) in Under the Hood for the full list and why each one is blocked.
+A few functions and methods break the app however they are hooked. frooky doesn't install these hooks, or leaves out their stack traces, and logs a warning instead:
 
-The same goes for a few Java methods, e.g. `java.lang.String.$init`, `Class.forName(String)` and `System.loadLibrary`: hooking them breaks the app even with a plain Frida script, so frooky skips them with a warning. To see the strings an app creates, hook the `newStringFrom*` methods of `java.lang.StringFactory` instead of `String.$init`. See [Blocked Java Methods](./under-the-hood.md#danger-zone-blocked-java-methods) for the full list.
+| Native function                                          | Runtime | Blocked      | Instead                      |
+| -------------------------------------------------------- | ------- | ------------ | ---------------------------- |
+| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | all     | hook         | –                            |
+| `dlopen` (`libdl.so`)                                    | all     | hook         | –                            |
+| `memset`, `clock_gettime` (`libc.so`)                    | V8      | hook         | QuickJS, the default runtime |
+| `sigprocmask` (`libc.so`)                                | all     | stack traces | A `callerFilter` still works |
+| `mmap` (`libc.so`), with `early: true`                   | V8      | stack traces | QuickJS, or `early: false`   |
+
+A function is matched by its symbol and module, also if the hook names the module by path or without `.so`, e.g. `/apex/com.android.runtime/lib64/bionic/libc.so` or `libc`. A hook by `offset:` on one of these functions isn't detected.
+
+| Java method                                                                                                                      | Overloads            | Instead                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------- | -------------------- | --------------------------------------------------------- |
+| `java.lang.String.$init`                                                                                                         | all                  | The `newStringFrom*` methods of `java.lang.StringFactory` |
+| `java.lang.Class.forName`                                                                                                        | `(java.lang.String)` | The overload with a `ClassLoader` parameter               |
+| `java.lang.System.loadLibrary`                                                                                                   | all                  | –                                                         |
+| `newUpdater` of `java.util.concurrent.atomic.AtomicIntegerFieldUpdater`, `AtomicLongFieldUpdater`, `AtomicReferenceFieldUpdater` | all                  | –                                                         |
+| `dalvik.system.VMStack.getStackClass2`, `sun.reflect.Reflection.getCallerClass`                                                  | all                  | –                                                         |
+
+A hook that declares `overloads` loses the blocked ones; a hook on every overload, e.g. `- forName`, skips them. Whether a hook breaks the app can also depend on whether it's installed before the app's first call, e.g. during start-up. On the Android 17 emulator, Frida 17.22.1 can't hook Java methods in a spawned app at all.
+
+Why each one is blocked is explained in [Blocked Native Functions](./under-the-hood.md#danger-zone-blocked-native-functions) and [Blocked Java Methods](./under-the-hood.md#danger-zone-blocked-java-methods) in Under the Hood.
 
 See [`03_low_level_functions.yaml`](./examples/native/05_hook_settings/03_low_level_functions.yaml).
 
@@ -418,9 +434,7 @@ The `-l` (or `--load`) option can be specified multiple times to execute several
 - **Root and Integrity Bypass:** Overriding common detection checks (e.g. `File.exists` checks for `/system/bin/su` or root beer detectors) before application logic runs.
 - **Environment Setup:** Setting global variables, configuring instrumentation hooks, or monkey-patching libraries before the frooky agent installs its YAML-declared hooks.
 
-User scripts can be written in plain JavaScript (`.js`) or TypeScript (`.ts`). When a `.ts` file is passed, frooky compiles it automatically using Frida's built-in compiler (`frida.Compiler`).
-
-In both JavaScript and TypeScript, scripts have access to the platform runtime bridges (`Java`, `ObjC`, and `Swift`). frooky automatically resolves bridge imports, provides dependencies, and injects the runtime bridge:
+User scripts can be written in JavaScript (`.js`) or TypeScript (`.ts`), which frooky compiles. Both can use the Java bridge (`Java`):
 
 ```typescript
 // unlock.ts
@@ -438,7 +452,7 @@ Java.perform(() => {
 });
 ```
 
-ESM import syntax (`import Java from "frida-java-bridge";`), CommonJS (`require("frida-java-bridge")`), and direct global access (`Java.perform(...)` without imports) are all supported.
+The bridge can be imported (`import Java from "frida-java-bridge";`), required (`require("frida-java-bridge")`) or used as a global (`Java.perform(...)`). See [User Scripts](./under-the-hood.md#user-scripts) in Under the Hood for how frooky loads them.
 
 See [`examples/native/09_custom_scripts/`](./examples/native/09_custom_scripts/) for an example using custom scripts.
 
@@ -450,14 +464,11 @@ Frida supports two JavaScript runtimes: **QuickJS** and **Google V8**. By defaul
 frooky -U -f com.example.app --runtime v8 hooks.yaml
 ```
 
-| Runtime                 | Pros                                                                                                                                | Considerations                                                                                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **QuickJS** (default)   | Extremely fast agent startup, minimal memory footprint (~2 MB).                                                                     | Executes JavaScript directly on the calling thread's native C-stack. Constrained on small Android background thread stacks (512 KB–1 MB) or signal stacks. |
-| **V8** (`--runtime v8`) | JIT-compiled performance for high-throughput hooks; uses dedicated heap memory with significantly lower native C-stack consumption. | Larger memory overhead (~30–40 MB) and slightly longer initial injection startup time.                                                                     |
+QuickJS starts faster and needs less memory. V8 uses less of the hooked thread's stack, so low-level hooks crash less often, at the cost of more memory and a slower start. See [JavaScript Runtimes](./under-the-hood.md#javascript-runtimes) in Under the Hood.
 
 **When to switch to V8:**
 
-- **Low-level native hooks:** When hooking frequently called libc functions (e.g. `open`, `read`, `write`, `malloc`) or native code with deep call stacks, QuickJS can exhaust the thread stack and cause a crash (`SIGSEGV` / `SEGV_ACCERR`). V8 avoids C-stack exhaustion because its execution model uses far less calling-thread C-stack space.
+- **Low-level native hooks:** When hooking frequently called libc functions (e.g. `open`, `read`, `write`, `malloc`) or native code with deep call stacks, QuickJS can exhaust the thread stack and cause a crash (`SIGSEGV` / `SEGV_ACCERR`).
 - **Complex decoders and heavy throughput:** If decoding large collections, high-frequency events, or running demanding user scripts loaded via `-l`.
 
 **Limitations of V8:**
@@ -480,7 +491,7 @@ When hooking native functions or memory buffers, invalid pointers or hook side-e
 When a crash occurs, frooky captures the native thread backtrace and matches the faulting instruction pointer and caller addresses against all installed native hooks:
 
 - If the crash occurred inside or directly following an installed hook, frooky highlights the matching hook symbol, module, and offset in the terminal and logs.
-- Access violations are only reported if the faulting instruction is in a module with a native hook. ART raises and handles access violations itself all the time (e.g. implicit null checks), and the exception handler runs on the thread's small signal stack, so frooky decides by comparing addresses before it walks the stack. An access violation in code a hooked function calls, outside a hooked module, is not reported.
+- Access violations are only reported if the faulting instruction is in a module with a native hook, as ART raises and handles them itself all the time (e.g. implicit null checks). An access violation in code a hooked function calls, outside a hooked module, is not reported.
 - Safe termination: frooky reports the crash reason and faulting context before allowing the OS process to terminate.
 
-The crash reporter is disabled under V8 (`--runtime v8`): there, an installed exception handler makes hooks on functions such as libc's `strlen` crash the app. Frida still reports the crash signal, e.g. `process crashed (SIGTRAP SI_KERNEL)`, but without the backtrace and the hooked functions involved.
+The crash reporter is disabled under V8 (`--runtime v8`), see [Crash Reporter](./under-the-hood.md#crash-reporter) in Under the Hood for why. Frida still reports the crash signal, e.g. `process crashed (SIGTRAP SI_KERNEL)`, but without the backtrace and the hooked functions involved.

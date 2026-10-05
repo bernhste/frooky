@@ -157,7 +157,7 @@ hooks:
   - greet
 ```
 
-frooky hooks `loadClass(String)` of that class loader, or the one it inherits, which runs for every class it loads. See [`04_custom_class_loaders.yaml`](./examples/android/01_basic_hooking/04_custom_class_loaders.yaml).
+See [`04_custom_class_loaders.yaml`](./examples/android/01_basic_hooking/04_custom_class_loaders.yaml).
 
 ## Hook and Decoder Settings
 
