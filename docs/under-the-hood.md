@@ -65,12 +65,16 @@ sequenceDiagram
     HM->>App: hook the methods and functions
     FA-->>Host: loadFrookyConfigs() returns
     Host->>App: resume (spawn only)
-    App-->>FA: targetReady
+    App-->>FA: targetReady (Java.perform)
     FA->>R: look up what is still resolving
-    R->>HM: install the hooks found now and the<br/>native hooks that waited for targetReady
-    Note over R: classes and modules not loaded yet: waiting
+    R-->>FA: resolved hooks
+    FA->>HM: install the hooks found now and the<br/>native hooks that waited for targetReady
+    HM->>App: hook the methods and functions
+    Note over FA,R: classes and modules not loaded yet: waiting
     App-->>R: later: loads a library or creates a class loader
-    R->>HM: install the hooks that waited for it
+    R-->>FA: resolved hooks
+    FA->>HM: install the hooks that waited for it
+    HM->>App: hook the methods and functions
     FA-->>Host: progress reports
 ```
 
@@ -105,13 +109,13 @@ flowchart LR
 
     subgraph file["File validation and repair"]
         direction TB
-        vcfg["validateAndRepairFrookyConfig()"] --> hasColl{"has hookCollection?"}
+        vcfg["validateAndRepairFrookyConfig()"] --> vmeta["validate metadata<br/>(frookyMetadataSchema)"]
+        vmeta --> hasColl{"has hookCollection?"}
         hasColl -->|no| skip(["skip file with error"])
-        hasColl -->|yes| vmeta["validate metadata<br/>(frookyMetadataSchema)"]
-        vmeta --> vsettings["validate and repair settings:<br/>reset invalid settings to defaults,<br/>drop invalid callerFilter patterns"]
+        hasColl -->|yes| vsettings["validate and repair settings:<br/>reset invalid settings to defaults,<br/>drop invalid callerFilter patterns"]
     end
 
-    coll["for each hook collection:<br/>merge collection and file settings"]
+    coll["for each hook collection:<br/>• check that hooks is a list<br/>• merge collection and file settings"]
 
     subgraph decl["Declaration validation and normalization"]
         direction TB
