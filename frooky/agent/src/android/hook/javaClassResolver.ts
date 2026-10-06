@@ -88,10 +88,10 @@ export class JavaClassResolver {
 
       logger.debug(`Waiting for Java class '${javaClass}'${classLoader ? ` from class loader '${classLoader}'` : ""}.`);
       this.lookups.add(lookup);
-      this.watchNewLoaders();
       // in spawn mode on the app's main thread, before its code runs: hooks found here are installed in time
       void this.targetReady().then(() => {
         if (!this.lookups.has(lookup)) return;
+        this.watchNewLoaders();
         if (classLoader) this.watchLoaderClass(classLoader);
         if (!lookup.pattern) {
           if (this.lookups.has(lookup)) this.findInLoaders(lookup, this.existingLoaders());
