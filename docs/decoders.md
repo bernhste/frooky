@@ -318,7 +318,7 @@ Strings and buffers decoded as hex end with `...` when they're cut, arrays end w
 
 `argFilter` is a list of regular expressions or numeric comparisons (`>`, `>=`, `<`, `<=`, `==`, `!=`). An event is only captured if the decoded value of the parameter matches one of them:
 
-- **Numeric comparisons**: A filter starting with a comparison operator and a number (e.g. `"> 100"`, `"<= 0"`, `"-1"` or `"!= 0"`) compares numerically against decoded numbers or decimal numeric strings (such as 64-bit integers decoded as text). Non-numeric strings or other types do not match numeric comparisons.
+- **Numeric comparisons**: A filter starting with a comparison operator and a number (e.g. `"> 100"`, `"<= 0"`, `"== -1"` or `"!= 0"`) compares numerically against decoded numbers or decimal numeric strings (such as 64-bit integers decoded as text). Non-numeric strings or other types do not match numeric comparisons.
 - **Regular expressions**: Any other filter is treated as a regular expression and matched against the value's string representation.
 
 An object matches if one of its string or number fields matches, e.g. the `path` or `fd` of a file descriptor decoded with `decoder: fd`. A value decoded with its runtime type, e.g. a `String` passed as a `java.lang.Object` parameter, is matched by its inner value. Lists, booleans and `null` always pass. Several hooks on the same function or method each apply their own filters.

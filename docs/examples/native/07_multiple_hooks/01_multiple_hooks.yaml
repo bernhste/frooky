@@ -37,7 +37,7 @@ hookCollection:
         hookSettings:
           nativeStackTrace: true
         params:
-          - [long, minValue, { argFilter: ["^-2147483648$"] }]
+          - [long, minValue, { argFilter: ["== -2147483648"] }]
 
   # An identical repeated declaration is hooked only once: one event per call.
   - module: libreceiveFundamentalValue.so

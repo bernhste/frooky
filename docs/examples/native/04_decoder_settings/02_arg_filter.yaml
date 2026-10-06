@@ -1,7 +1,7 @@
 metadata:
   name: "Decoder Settings (Native): argFilter"
   description: |
-    `argFilter` only records a call if the decoded argument matches one of the regular expressions.
+    `argFilter` only records a call if the decoded argument matches one of the regular expressions or numeric comparisons.
     It matches the decoded value as it appears in the event, so after `maxItems` cut it.
   version: 1
   author: frooky dev

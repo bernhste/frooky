@@ -39,7 +39,7 @@ hookCollection:
           platformStackTrace: true
         overloads:
           - params:
-              - [int, maxValue, { argFilter: ["^2147483647$"]}]
+              - [int, maxValue, { argFilter: ["== 2147483647"] }]
 
   # An identical repeated declaration is hooked only once: one event per call.
   - javaClass: org.owasp.mastestapp.MastgTest
