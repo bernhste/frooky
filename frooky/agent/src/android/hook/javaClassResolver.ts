@@ -18,9 +18,8 @@ type Lookup = {
   found: (classes: Java.Wrapper[], installNow: boolean) => void;
 };
 
-// Watched for new class loaders. In spawn mode, the constructors are hooked before the app runs, and then
-// `new PathClassLoader(...)` doesn't reach the hook on its BaseDexClassLoader super constructor, only the
-// framework's own calls do. So the framework's subclasses are watched too. Not every Android version has all of them.
+// Watched for new class loaders once targetReady resolves. `new PathClassLoader(...)` doesn't reach the hook
+// on its BaseDexClassLoader super constructor, so the subclasses are watched too. Not every Android version has all of them.
 const LOADER_CLASSES = [
   "dalvik.system.BaseDexClassLoader",
   "dalvik.system.PathClassLoader",

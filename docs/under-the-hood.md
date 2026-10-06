@@ -228,7 +228,7 @@ A **Java class**, e.g. `javax.crypto.Cipher` or `org.owasp.mastestapp.MainActivi
 
 1. In the default class loader with `Java.use()`. It has the Android framework's classes, also before the app runs, so a framework class is found right away.
 2. Otherwise at `targetReady`, in every class loader the app has by then (`Java.enumerateClassLoadersSync()`), e.g. the `PathClassLoader` with the app's own classes.
-3. Otherwise the declaration is `waiting`. Since step 1 missed, frooky watches the constructors of `BaseDexClassLoader` and its subclasses, which every class loader that reads dex files runs, and looks the class up in each new class loader while it is created, before any of its classes are used. This also catches class loaders created before `targetReady`.
+3. Otherwise the declaration is `waiting`. At `targetReady`, frooky watches the constructors of `BaseDexClassLoader` and its subclasses, which every class loader that reads dex files runs, and looks the class up in each new class loader while it is created, before any of its classes are used.
 
 With `classLoader`, the class is only looked up in instances of that class loader class: frooky hooks its `loadClass(String)`, or the one it inherits, and checks each class it returns, before the app gets it.
 
@@ -399,7 +399,7 @@ A native hook without `early: true` is resolved as soon as its module is found, 
 
 When attaching, the app is already in stage 3, so every native hook is installed as soon as its module is found.
 
-Java hooks don't wait: a class of the default class loader is hooked in stage 1, an app class in stage 3 at `targetReady`, or already in stage 2 while a new class loader that has it is created.
+Java hooks don't wait: a class of the default class loader is hooked in stage 1, an app class in stage 3 at `targetReady`, or later while a new class loader that has it is created.
 
 **Source:**
 
