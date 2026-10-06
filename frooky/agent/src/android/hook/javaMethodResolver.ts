@@ -25,10 +25,23 @@ export function resolveMethodHooks(javaClasses: Java.Wrapper[], inputHook: JavaH
         if (method) hooks.push(...resolveOverloads(method, { ...inputHook, method: methodName }, true));
       }
     } catch (e) {
-      logger.warn(e instanceof Error ? e.message : String(e));
+      if (inputHook.javaClass.includes("*") && e instanceof Error && e.message.includes("declares no constructors")) {
+        logger.debug(e.message);
+      } else {
+        logger.warn(e instanceof Error ? e.message : String(e));
+      }
     }
   }
   return hooks.length > 0 ? hooks : null;
+}
+
+// Classes without constructors (interfaces, Kotlin file facades) make Frida fall back to Object.<init>
+function hasDeclaredConstructors(javaClass: Java.Wrapper): boolean {
+  try {
+    return Array.from(javaClass.class?.getDeclaredConstructors?.() ?? []).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 // Overloads share a name, so each name once
@@ -54,6 +67,9 @@ function buildParamsFromArgumentTypes(argTypes: Java.Type[], decoderSettings: Ba
 }
 
 function resolveMethod(javaClass: Java.Wrapper, inputHook: JavaHookDeclaration): Java.MethodDispatcher {
+  if (inputHook.method === "$init" && !hasDeclaredConstructors(javaClass)) {
+    throw Error(`Skipping hook for '$init'. Class '${javaClass.$className}' declares no constructors.`);
+  }
   const resolvedMethod = javaClass[inputHook.method];
   if (resolvedMethod) {
     return resolvedMethod;

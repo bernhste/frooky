@@ -105,6 +105,11 @@ export const BLOCKED_METHODS: BlockedMethod[] = [
     reason:
       "ART runs a String constructor as a java.lang.StringFactory method, so the hook never runs, and on Android 12 the app aborts as ART finds no StringFactory method for the hooked constructor. Hook the newStringFrom* methods of java.lang.StringFactory instead",
   },
+  {
+    javaClass: "java.lang.Object",
+    method: "$init",
+    reason: "every object allocation in the runtime calls Object.<init>, hooking it floods the event log and destabilizes ART",
+  },
   { javaClass: "java.lang.Class", method: "forName", params: ["java.lang.String"], reason: `${CALLER_LOADER_REASON} classes` },
   { javaClass: "java.lang.System", method: "loadLibrary", reason: `${CALLER_LOADER_REASON} native libraries` },
   ...["AtomicIntegerFieldUpdater", "AtomicLongFieldUpdater", "AtomicReferenceFieldUpdater"].map((updater) => ({
