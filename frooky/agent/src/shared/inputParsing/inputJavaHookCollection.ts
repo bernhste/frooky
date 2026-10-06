@@ -29,8 +29,8 @@ export interface InputOverload {
  */
 export interface InputJavaHookDetails {
   /**
-   * Method name. Use `$init` for constructors. A `*` matches any characters, e.g. `get*` hooks every method of the
-   * class whose name starts with `get`, but no inherited method and no constructor.
+   * Method name. Use `$init` for constructors. A `*` or `**` matches any characters, e.g. `get*` hooks every method of
+   * the class whose name starts with `get`, but no inherited method and no constructor.
    */
   method: string;
 
@@ -45,8 +45,8 @@ export interface InputJavaHookDetails {
 }
 
 /**
- * A Java method hook: a method name, a `[method, decoderSettings]` tuple, or a detailed declaration. A `*` in the
- * method name matches any characters.
+ * A Java method hook: a method name, a `[method, decoderSettings]` tuple, or a detailed declaration. A `*` or `**` in
+ * the method name matches any characters.
  *
  * @public
  */
@@ -62,7 +62,11 @@ export interface InputJavaHookCollection {
   /** Collection kind. Optional in hook files; inferred from `javaClass`. */
   type: "java";
 
-  /** Fully qualified name of the class to hook, e.g. `android.content.Intent`. */
+  /**
+   * Fully qualified name of the class to hook, e.g. `android.content.Intent`. A `*` matches within a single package
+   * segment, while `**` matches across package segments (e.g. `android.**` hooks all matching classes in `android`
+   * and its subpackages).
+   */
   javaClass: string;
 
   /**

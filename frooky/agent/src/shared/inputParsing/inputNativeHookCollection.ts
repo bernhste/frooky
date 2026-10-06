@@ -32,8 +32,8 @@ export interface InputNativeHookBase {
  */
 export interface InputNativeSymbolHook extends InputNativeHookBase {
   /**
-   * Exported symbol name of the function. A `*` matches any characters, e.g. `SSL_*` hooks every exported function of
-   * the module whose name starts with `SSL_`.
+   * Exported symbol name of the function. A `*` or `**` matches any characters, e.g. `SSL_*` hooks every exported
+   * function of the module whose name starts with `SSL_`.
    */
   symbol: string;
 
@@ -65,8 +65,8 @@ export interface InputNativeOffsetHook extends InputNativeHookBase {
 export type InputNativeHookDetails = InputNativeSymbolHook | InputNativeOffsetHook;
 
 /**
- * A native function hook: a symbol name, a `[symbol, decoderSettings]` tuple, or a detailed declaration. A `*` in the
- * symbol name matches any characters.
+ * A native function hook: a symbol name, a `[symbol, decoderSettings]` tuple, or a detailed declaration. A `*` or `**`
+ * in the symbol name matches any characters.
  *
  * @public
  */
@@ -83,8 +83,8 @@ export interface InputNativeHookCollection {
   type: "native";
 
   /**
-   * Name of the module that exports the functions, e.g. `libssl.so`. A `*` matches any characters, e.g. `libssl*.so`
-   * hooks the functions in every module whose name matches, also in modules that load later.
+   * Name of the module that exports the functions, e.g. `libssl.so`. A `*` or `**` matches any characters, e.g.
+   * `libssl*.so` hooks the functions in every module whose name matches, also in modules that load later.
    */
   module: string;
 

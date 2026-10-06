@@ -84,6 +84,7 @@ This decodes the `byte[]` arguments and return values of every `doFinal` overloa
 ## Class Wildcards
 
 A `*` in `javaClass` matches one package segment or part of one, e.g. `org.owasp.*.HttpClient` or `org.owasp.net.*Client`. It never matches across a `.`.
+A `**` matches across package segments, e.g. `android.**` hooks all matching classes in `android` and its subpackages, and `org.owasp.**.HttpClient` matches any package depth including none (`org.owasp.HttpClient`).
 
 - frooky hooks every matching class of the app and of its class loaders, also classes the app hasn't used yet.
 - If no class matches, frooky hooks the matching classes of the first class loader the app creates that has any.
@@ -93,7 +94,7 @@ See [`06_class_wildcards.yaml`](./examples/android/01_basic_hooking/06_class_wil
 
 ## Method Wildcards
 
-A `*` in a method name matches any characters, also none. frooky hooks every overload of each matching method.
+A `*` or `**` in a method name matches any characters, also none. frooky hooks every overload of each matching method.
 
 ```yaml
 javaClass: javax.crypto.Cipher

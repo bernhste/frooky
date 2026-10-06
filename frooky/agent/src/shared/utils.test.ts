@@ -33,6 +33,15 @@ describe("Utils", () => {
       expect(pattern.test("lambda$onCreate$01")).toBeFalsy();
       expect(namePatternToRegExp("foo.cold*").test("fooXcold")).toBeFalsy();
     });
+
+    it("treats consecutive wildcards '**' the same as '*'", () => {
+      const pattern = namePatternToRegExp("SSL_**");
+
+      expect(pattern.test("SSL_read")).toBeTruthy();
+      expect(pattern.test("SSL_write")).toBeTruthy();
+      expect(pattern.test("SSL_")).toBeTruthy();
+      expect(pattern.test("other_SSL_read")).toBeFalsy();
+    });
   });
 
   describe("wildcardPatternToRegExp()", () => {
@@ -63,6 +72,50 @@ describe("Utils", () => {
 
       expect(pattern.test("org.owasp.network.HttpClient")).toBeTruthy();
       expect(pattern.test("org.owasp.HttpClient")).toBeFalsy();
+    });
+
+    it("matches '**' across package boundaries", () => {
+      const pattern = wildcardPatternToRegExp("android.**");
+
+      expect(pattern.test("android.R$attr")).toBeTruthy();
+      expect(pattern.test("android.content.Intent")).toBeTruthy();
+      expect(pattern.test("android.app.Activity")).toBeTruthy();
+      expect(pattern.test("android.os.storage.VolumeInfo")).toBeTruthy();
+      expect(pattern.test("com.android.Foo")).toBeFalsy();
+    });
+
+    it("matches '**' with zero or more intermediate package levels", () => {
+      const pattern = wildcardPatternToRegExp("org.owasp.**.HttpClient");
+
+      expect(pattern.test("org.owasp.HttpClient")).toBeTruthy();
+      expect(pattern.test("org.owasp.network.HttpClient")).toBeTruthy();
+      expect(pattern.test("org.owasp.network.extra.HttpClient")).toBeTruthy();
+      expect(pattern.test("org.owasp.network.HttpClientOther")).toBeFalsy();
+      expect(pattern.test("com.owasp.HttpClient")).toBeFalsy();
+    });
+
+    it("matches leading '**' with or without a package", () => {
+      const pattern = wildcardPatternToRegExp("**.HttpClient");
+
+      expect(pattern.test("HttpClient")).toBeTruthy();
+      expect(pattern.test("org.owasp.HttpClient")).toBeTruthy();
+      expect(pattern.test("com.example.sub.HttpClient")).toBeTruthy();
+      expect(pattern.test("HttpClientOther")).toBeFalsy();
+    });
+
+    it("matches '**' alone against any class name", () => {
+      const pattern = wildcardPatternToRegExp("**");
+
+      expect(pattern.test("MainActivity")).toBeTruthy();
+      expect(pattern.test("android.content.Intent")).toBeTruthy();
+    });
+
+    it("supports combining '**' and '*'", () => {
+      const pattern = wildcardPatternToRegExp("android.**.Test*");
+
+      expect(pattern.test("android.TestOne")).toBeTruthy();
+      expect(pattern.test("android.app.TestTwo")).toBeTruthy();
+      expect(pattern.test("android.app.Test.Other")).toBeFalsy();
     });
 
     it("escapes regex-special characters in the literal segments", () => {

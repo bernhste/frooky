@@ -81,7 +81,7 @@ hooks:
 
 ## Symbol Wildcards
 
-A `*` in a symbol matches any characters, also none. frooky hooks every exported function of the module whose name matches.
+A `*` or `**` in a symbol matches any characters, also none. frooky hooks every exported function of the module whose name matches.
 
 ```yaml
 module: libc.so
@@ -100,7 +100,7 @@ See [`03_symbol_wildcards.yaml`](./examples/native/01_basic_hooking/03_symbol_wi
 
 ## Module Wildcards
 
-A `*` in `module` matches any characters, also none. frooky hooks each declared function in every matching module that exports it: in the modules loaded already, and in each matching module that loads later, while it loads.
+A `*` or `**` in `module` matches any characters, also none. frooky hooks each declared function in every matching module that exports it: in the modules loaded already, and in each matching module that loads later, while it loads.
 
 ```yaml
 module: libssl*.so      # libssl.so, libssl3.so, libssl_static.so, ...

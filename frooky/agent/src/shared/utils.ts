@@ -4,15 +4,33 @@ export class FilterMismatchError extends Error {
 
 // `*` matches exactly one dot-separated segment, e.g. `org.owasp.*.HttpClient` matches
 // `org.owasp.net.HttpClient` but not `org.owasp.net.http.HttpClient`.
+// `**` matches across package segments, e.g. `android.**` matches `android.content.Intent`,
+// and `org.owasp.**.HttpClient` matches any package depth including none (`org.owasp.HttpClient`).
 export function wildcardPatternToRegExp(pattern: string): RegExp {
-  const segments = pattern.split("*").map((segment) => segment.replace(/[.+?^${}()|[\]\\]/g, "\\$&"));
-  return new RegExp(`^${segments.join("[^.]+")}$`);
+  const marked = pattern
+    .replace(/\.\*{2,}\./g, "\0SEG\0")
+    .replace(/^\*{2,}\./g, "\0PREFIX\0")
+    .replace(/\.\*{2,}$/g, "\0SUFFIX\0")
+    .replace(/\*{2,}/g, "\0ANY\0")
+    .replace(/\*/g, "\0SINGLE\0");
+
+  const escaped = marked.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+
+  const regex = escaped
+    .replace(/\0SEG\0/g, "\\.(?:.*\\.)?")
+    .replace(/\0PREFIX\0/g, "(?:.*\\.)?")
+    .replace(/\0SUFFIX\0/g, "\\..*")
+    .replace(/\0ANY\0/g, ".*")
+    .replace(/\0SINGLE\0/g, "[^.]+");
+
+  return new RegExp(`^${regex}$`);
 }
 
 // For method and symbol names: `*` matches any characters, also none, e.g. `get*Key` matches `getKey` and
-// `getPublicKey`.
+// `getPublicKey`. Consecutive wildcards (e.g. `**`) are treated the same as `*`.
 export function namePatternToRegExp(pattern: string): RegExp {
-  const segments = pattern.split("*").map((segment) => segment.replace(/[.+?^${}()|[\]\\]/g, "\\$&"));
+  const normalized = pattern.replace(/\*+/g, "*");
+  const segments = normalized.split("*").map((segment) => segment.replace(/[.+?^${}()|[\]\\]/g, "\\$&"));
   return new RegExp(`^${segments.join(".*")}$`);
 }
 

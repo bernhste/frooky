@@ -83,6 +83,8 @@ class TestAndroidExamples:
 
         [string_event] = self._events(find_matched_events, "receiveString")
         assert string_event["argsIn"] == [{"type": "java.lang.String", "value": "Welcome the first OWASP MASCon 📱❤️"}]
+        [byte_event] = self._events(find_matched_events, "receiveByte")
+        assert byte_event["argsIn"] == [{"type": "byte", "value": 127}]
         for backup, returned in [("CloudBackup", "cloud:notes"), ("LocalBackup", "local:notes")]:
             [event] = self._events(find_matched_events, "upload", f"org.owasp.mastestapp.{backup}")
             assert event["argsIn"] == [{"type": "java.lang.String", "value": "notes"}]

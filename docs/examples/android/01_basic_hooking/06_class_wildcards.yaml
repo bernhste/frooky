@@ -1,8 +1,8 @@
 metadata:
   name: "Basic Hooking (Android): Class Wildcards"
   description: |
-    A `*` in a class name matches one segment of the name, or part of one, but no dot. frooky hooks the
-    method in every class of the app whose name matches.
+    A `*` in a class name matches one segment of the name, or part of one, but no dot; `**` matches
+    across package segments. frooky hooks the method in every class of the app whose name matches.
   version: 1
   author: frooky dev
   platform: Android
@@ -16,6 +16,10 @@ hookCollection:
   - javaClass: org.owasp.*.MastgTest
     hooks:
       - receiveString
+  # org.owasp.mastestapp.MastgTest: `**` matches across package segments
+  - javaClass: org.**.MastgTest
+    hooks:
+      - receiveByte
   # org.owasp.mastestapp.CloudBackup and org.owasp.mastestapp.LocalBackup
   - javaClass: org.owasp.mastestapp.*Backup
     hooks:
@@ -23,5 +27,6 @@ hookCollection:
 
 # Expected events:
 #   MastgTest.receiveString: argsIn [{type: java.lang.String, value: "Welcome the first OWASP MASCon 📱❤️"}]
+#   MastgTest.receiveByte:   argsIn [{type: byte, value: 127}]
 #   CloudBackup.upload:      argsIn [{type: java.lang.String, value: notes}], returnValue "cloud:notes"
 #   LocalBackup.upload:      argsIn [{type: java.lang.String, value: notes}], returnValue "local:notes"
