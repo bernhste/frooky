@@ -86,8 +86,9 @@ export interface DecoderSettings extends BaseDecoderSettings {
   config?: DecoderConfig;
 
   /**
-   * Regular expressions matched against the decoded value. The event is only captured if at least one
-   * matches. Only string and number values are filtered; other values always pass.
+   * Filter patterns matched against the decoded value: numeric comparisons (`> 100`, `>= 0`, `< 10`, `<= 50`, `== 42`,
+   * `!= -1`) against numbers, or regular expressions against strings and numbers. The event is only captured if at least
+   * one matches. Lists, booleans and `null` always pass.
    */
   argFilter?: string[];
 }

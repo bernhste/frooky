@@ -412,6 +412,32 @@ class TestValuePassingJava:
         run_frooky(non_matching_hook_file, TARGET_APP, expect_events=False)
         assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 0
 
+    def test_arg_filter_numeric_comparison(self, run_frooky, count_matched_events):
+        """Numeric comparisons in `argFilter` filter values by relational operator."""
+        matching_hook_file = textwrap.dedent(f"""\
+            hookCollection:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: receiveInt
+                    overloads:
+                      - params:
+                          - [int, arg, {{argFilter: ['> 1000']}}]
+            """)
+        run_frooky(matching_hook_file, TARGET_APP)
+        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 1
+
+        non_matching_hook_file = textwrap.dedent(f"""\
+            hookCollection:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: receiveInt
+                    overloads:
+                      - params:
+                          - [int, arg, {{argFilter: ['<= 1024']}}]
+            """)
+        run_frooky(non_matching_hook_file, TARGET_APP, expect_events=False)
+        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 0
+
     def test_same_method_hooked_twice_records_one_event_per_declaration(self, run_frooky, find_matched_events):
         """Multiple hooks (see additional-features.md): two declarations of the same method each record their own
         event per call, decoded with their own params. `hashCode` shows both events are about the same instance, the

@@ -9,6 +9,74 @@ import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError, previewValue } from "../utils";
 import { countFilteredCall, Hook } from "./hook";
 
+export type NumberComparator = ">" | ">=" | "<" | "<=" | "==" | "!=" | "=";
+
+export type NumberFilter = {
+  operator: NumberComparator;
+  operand: number;
+};
+
+export type ArgFilter = RegExp | NumberFilter;
+
+const COMPARISON_REGEX = /^([<>]=?|==|!=|=)\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
+
+// Compiles an argFilter pattern into a numeric comparison or a regular expression
+export function compileArgFilter(pattern: string | RegExp | ArgFilter): ArgFilter {
+  if (pattern instanceof RegExp || (typeof pattern === "object" && pattern !== null && "operator" in pattern)) {
+    return pattern;
+  }
+  const match = String(pattern).match(COMPARISON_REGEX);
+  if (match) {
+    return {
+      operator: match[1] as NumberComparator,
+      operand: Number(match[2]),
+    };
+  }
+  return new RegExp(pattern);
+}
+
+function asNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed !== "" && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(trimmed)) {
+      const num = Number(trimmed);
+      return Number.isFinite(num) ? num : null;
+    }
+  }
+  return null;
+}
+
+function evaluateComparison(val: number, op: NumberComparator, target: number): boolean {
+  switch (op) {
+    case ">":
+      return val > target;
+    case ">=":
+      return val >= target;
+    case "<":
+      return val < target;
+    case "<=":
+      return val <= target;
+    case "==":
+    case "=":
+      return val === target;
+    case "!=":
+      return val !== target;
+    default:
+      return false;
+  }
+}
+
+function matchesArgFilter(filter: ArgFilter, value: unknown): boolean {
+  if ("operator" in filter) {
+    const num = asNumber(value);
+    return num !== null && evaluateComparison(num, filter.operator, filter.operand);
+  }
+  return filter.test(String(value));
+}
+
 export type ParamDecoder<TValue> = {
   decoder: Decoder<TValue>;
   argIndex: number;
@@ -16,7 +84,7 @@ export type ParamDecoder<TValue> = {
   name?: string;
   // where the value of each role in `decoderArgs` comes from
   decoderArgs?: Partial<Record<DecoderArgRole, DecoderArgSource<TValue>>>;
-  argFilter?: RegExp[];
+  argFilter?: ArgFilter[];
 };
 
 // The value of a role: another parameter, decoded with its own decoder, the return value, or a number
@@ -87,7 +155,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
         direction: param.direction,
         name: param.name,
         decoderArgs: this.resolveDecoderArgSources(param, params),
-        argFilter: param.settings.argFilter?.map((pattern) => new RegExp(pattern)),
+        argFilter: param.settings.argFilter?.map(compileArgFilter),
       };
       logger.debug(
         `Decoder for param '${param.type} ${param.name}' resolved: ${JSON.stringify({ ...paramDecoder, decoder: paramDecoder.decoder.decoderName, settings: param.settings }, null, 2)}`,
@@ -135,9 +203,9 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return this.decoderResolver.resolveDecoder(retType);
   }
 
-  protected matchesFilter(decodedValue: DecodedValue, argFilter?: RegExp[]): boolean {
+  protected matchesFilter(decodedValue: DecodedValue, argFilter?: ArgFilter[]): boolean {
     if (!argFilter || argFilter.length === 0) return true;
-    const matches = (value: string | number) => argFilter.some((pattern) => pattern.test(String(value)));
+    const matches = (value: unknown) => argFilter.some((filter) => matchesArgFilter(filter, value));
     const value = filteredValue(decodedValue.value);
     if (typeof value === "string" || typeof value === "number") return matches(value);
     // e.g. `{ fd: 42, path: "/data/..." }` of `decoder: fd`

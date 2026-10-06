@@ -48,7 +48,7 @@ A decoder's behavior is controlled by `decoderSettings`:
 | `config`      | `object`   | `undefined` | Options of the decoder selected with `decoder`. For `decoder: constants` and `decoder: bitmask`, `constants` maps names to values, e.g. `{ constants: { O_CREAT: 0x40 } }`; in Java hooks, `class` and `fields` read them from a class instead, e.g. `{ class: javax.crypto.Cipher, fields: "*_MODE" }`. See [`constants` and `bitmask`](#constants-and-bitmask-decode-named-constants). Any other decoder accepts no `config`. |
 | `maxDepth`    | `number`   | `10`        | Maximum number of nested levels decoded (arrays, lists, maps, bundles, etc.). Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                                                                                                                                                                                                                                         |
 | `maxItems`    | `number`   | `100`       | Maximum number of elements decoded per array, list, map, etc., bytes per buffer, or characters per Java string. Must be at least `1`, see [limits](#maxitems-and-maxdepth-limit-large-and-nested-values).                                                                                                                                                                                                                       |
-| `argFilter`   | `string[]` | `undefined` | Regular expressions matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them, see [`argFilter`](#argfilter-capture-only-matching-values).                                                                                                                                                                                                     |
+| `argFilter`   | `string[]` | `undefined` | Regular expressions or numeric comparisons matched against the decoded argument value (not the parameter's type or name). The event is only captured if the value matches one of them, see [`argFilter`](#argfilter-capture-only-matching-values).                                                                                                                                                                                                     |
 
 `maxDepth`, `maxItems` and `decoder` can be declared at multiple levels of a hook file (file-level, hook collection, individual hook, or per-parameter/return-type). `decoderArgs`, `config` and `argFilter` can only be set on a single parameter (`config` also on a return type). On a parameter, decoder settings are attached as the third element of the parameter declaration tuple:
 
@@ -316,15 +316,30 @@ Strings and buffers decoded as hex end with `...` when they're cut, arrays end w
 
 ### `argFilter`: Capture Only Matching Values
 
-`argFilter` is a list of regular expressions. An event is only captured if the decoded value of the parameter matches one of them. String and number values are matched as they are. An object matches if one of its string or number fields matches, e.g. the `path` or `fd` of a file descriptor decoded with `decoder: fd`. A value decoded with its runtime type, e.g. a `String` passed as a `java.lang.Object` parameter, is matched by its inner value. Lists, booleans and `null` always pass. Several hooks on the same function or method each apply their own filters.
+`argFilter` is a list of regular expressions or numeric comparisons (`>`, `>=`, `<`, `<=`, `==`, `!=`). An event is only captured if the decoded value of the parameter matches one of them:
+
+- **Numeric comparisons**: A filter starting with a comparison operator and a number (e.g. `"> 100"`, `"<= 0"`, `"-1"` or `"!= 0"`) compares numerically against decoded numbers or decimal numeric strings (such as 64-bit integers decoded as text). Non-numeric strings or other types do not match numeric comparisons.
+- **Regular expressions**: Any other filter is treated as a regular expression and matched against the value's string representation.
+
+An object matches if one of its string or number fields matches, e.g. the `path` or `fd` of a file descriptor decoded with `decoder: fd`. A value decoded with its runtime type, e.g. a `String` passed as a `java.lang.Object` parameter, is matched by its inner value. Lists, booleans and `null` always pass. Several hooks on the same function or method each apply their own filters.
 
 ```yaml
+# Regex filter: only record events with specific name prefixes
 javaClass: org.owasp.mastestapp.MastgTest
 hooks:
   - method: trackEvent
     overloads:
       - params:
-        - [java.lang.String, name, { argFilter: ["^button_"] }]
+          - [java.lang.String, name, { argFilter: ["^button_"] }]
+
+# Numeric comparison: only collect connections to well-known ports (<= 1024)
+javaClass: java.net.Socket
+hooks:
+  - method: $init
+    overloads:
+      - params:
+          - [java.lang.String, host]
+          - [int, port, { argFilter: ["<=1024"] }]
 ```
 
 ## Built-in Decoders

@@ -1,7 +1,7 @@
 metadata:
   name: "Decoder Settings (Android): argFilter"
   description: |
-    `argFilter` only records a call if the decoded argument matches one of the regular expressions.
+    `argFilter` only records a call if the decoded argument matches one of the regular expressions or numeric comparisons.
     It matches the decoded value as it appears in the event, so after `maxItems` cut it.
   version: 1
   author: frooky dev
@@ -20,11 +20,11 @@ hookCollection:
           - params:
               - [java.lang.String, name, { argFilter: ["^button_"] }]
 
-      # a filter on a number matches its decimal text
+      # a numeric filter captures values matching a comparison operator (>, >=, <, <=, ==, !=)
       - method: receiveInt
         overloads:
           - params:
-              - [int, value, { argFilter: ["^2147483647$"] }]
+              - [int, value, { argFilter: ["> 1000"] }]
 
 # Expected events:
 #   trackEvent: only name "button_click"

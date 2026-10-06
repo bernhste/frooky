@@ -9,7 +9,7 @@ import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError } from "../utils";
 import { filteredCallCount, Hook } from "./hook";
-import { HookManager, ParamDecoder, Resolution } from "./hookManager";
+import { ArgFilter, compileArgFilter, HookManager, ParamDecoder, Resolution } from "./hookManager";
 
 function createFakeFrookyAgent(targetReady: Promise<void> = Promise.resolve()): FrookyAgent {
   return { addEventToLog: (_event: LogEvent) => {}, targetReady } as unknown as FrookyAgent;
@@ -87,8 +87,8 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     return this.resolveRetTypeDecoder(retType);
   }
 
-  public exposedMatchesFilter(decodedValue: DecodedValue, argFilter?: RegExp[]): boolean {
-    return this.matchesFilter(decodedValue, argFilter);
+  public exposedMatchesFilter(decodedValue: DecodedValue, argFilter?: (string | RegExp | ArgFilter)[]): boolean {
+    return this.matchesFilter(decodedValue, argFilter?.map(compileArgFilter));
   }
 
   public exposedDecodeArgs(args: TestValue[], paramDecoders: ParamDecoder<TestValue>[], target?: string, returnValue?: DecodedValue): DecodedValue[] {
@@ -200,6 +200,20 @@ describe("HookManager", () => {
       expect(result[1].direction).toBe("out");
       expect(result[1].name).toBe("b");
       expect(result[1].argFilter).toEqual([/^x/]);
+    });
+
+    it("compiles numeric comparisons in argFilter into NumberFilter objects", () => {
+      const manager = createManager();
+      const params: Param[] = [
+        makeParam({ name: "a", type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, argFilter: ["> 100", "<= -5"] } }),
+      ];
+
+      const result = manager.exposedResolveParamDecoders(params);
+
+      expect(result[0].argFilter).toEqual([
+        { operator: ">", operand: 100 },
+        { operator: "<=", operand: -5 },
+      ]);
     });
 
     it("does not forward the 'direction' field to the decoder resolver", () => {
@@ -330,6 +344,47 @@ describe("HookManager", () => {
       const manager = createManager();
       expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, [/^42$/])).toBeTruthy();
       expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, [/^43$/])).toBeFalsy();
+    });
+
+    it("evaluates numeric comparisons against numbers and numeric strings", () => {
+      const manager = createManager();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 101 }, ["> 100"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 100 }, ["> 100"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 100 }, [">= 100"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 50 }, ["< 50"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 49 }, ["<= 50"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["== 42"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["= 42"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["!= 42"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["!= 0"])).toBeTruthy();
+      // decimal strings (e.g. from 64-bit int / long)
+      expect(manager.exposedMatchesFilter({ type: "long", value: "200" }, ["> 100"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "long", value: "50" }, ["> 100"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "long", value: "-10" }, ["< 0"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "float", value: 3.14 }, [">= 3.14"])).toBeTruthy();
+    });
+
+    it("does not match non-numeric strings or empty values against numeric comparisons", () => {
+      const manager = createManager();
+      expect(manager.exposedMatchesFilter({ type: "string", value: "hello" }, ["> 100"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "string", value: "" }, ["> 0"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "string", value: "   " }, ["== 0"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "string", value: "100abc" }, ["> 50"])).toBeFalsy();
+    });
+
+    it("matches if any pattern matches when mixed numeric comparisons and regexes are given", () => {
+      const manager = createManager();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 150 }, ["> 100", "^0$"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 0 }, ["> 100", "^0$"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 50 }, ["> 100", "^0$"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "string", value: "prefix_123" }, ["> 100", "^prefix_"])).toBeTruthy();
+    });
+
+    it("matches an object if any of its fields matches a numeric comparison", () => {
+      const manager = createManager();
+      const fd = { type: "int", value: { fd: 42, path: "/dev/null" } };
+      expect(manager.exposedMatchesFilter(fd, ["> 10"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter(fd, ["> 100"])).toBeFalsy();
     });
   });
 
