@@ -99,7 +99,7 @@ Each hook file is processed on its own, all of them concurrently. Its hook decla
 
 ### Validation
 
-```[mermaid]
+```mermaid
 flowchart LR
     yaml["Input YAML (hook file):<br/>InputFrookyConfig"]
 
