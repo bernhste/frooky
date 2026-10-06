@@ -99,6 +99,34 @@ Each hook file is processed on its own, all of them concurrently. Its hook decla
 
 ### Validation
 
+```[mermaid]
+flowchart LR
+    yaml["Input YAML (hook file):<br/>InputFrookyConfig"]
+
+    subgraph file["File validation and repair"]
+        direction TB
+        vcfg["validateAndRepairFrookyConfig()"] --> hasColl{"has hookCollection?"}
+        hasColl -->|no| skip(["skip file with error"])
+        hasColl -->|yes| vmeta["validate metadata<br/>(frookyMetadataSchema)"]
+        vmeta --> vsettings["validate and repair settings:<br/>reset invalid settings to defaults,<br/>drop invalid callerFilter patterns"]
+    end
+
+    coll["for each hook collection:<br/>merge collection and file settings"]
+
+    subgraph decl["Declaration validation and normalization"]
+        direction TB
+        vhook{"validate input hook<br/>(inputJavaHookSchema /<br/>inputNativeHookSchema)"}
+        vhook -->|invalid| drop(["drop declaration with warning"])
+        vhook -->|valid| norm["normalize hook declaration:<br/>• unpack shorthands (names, param tuples)<br/>• cascade merged settings to hook, params and retType<br/>• attach class or module scope"]
+        norm --> sem{"semantic checks:<br/>• decoder args, config and names<br/>• drop blocked methods or functions<br/>• adjust early hooking on Java"}
+        sem -->|rejected| drop
+    end
+
+    normHook(["Normalized internal types:<br/>JavaHookDeclaration / NativeHookDeclaration"])
+
+    yaml --> file --> coll --> decl --> normHook
+```
+
 The hook-file format is described twice in TypeScript, once for the user and once for the code that processes it:
 
 - **Input types** (the public interface, `Input*` in `frooky/agent/src/shared/inputParsing/`) describe what a hook file may contain. They are loose on purpose: most things can be written in several forms, e.g. a hook as just a method or symbol name or as an object, and settings can be left out. `npm run build:zodSchema` generates the Zod schemas in `zodSchemas/` from them, and `npm run build:jsonSchema` turns those into [`docs/schema/frooky-config.schema.json`](./schema/frooky-config.schema.json), which editors use to check and autocomplete hook files.
