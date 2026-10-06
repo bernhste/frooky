@@ -147,12 +147,39 @@ class TestFridaFlags:
         assert "Runtime: V8" in stdout
         assert "Hooks ready:" in stdout
 
-    def test_load_script_flag(self, running_app, hook_file, tmp_path, frooky_device_args):
-        script_file = tmp_path / "user_script.js"
-        script_file.write_text("console.log('frooky user script loaded');", encoding="utf-8")
+    @pytest.mark.parametrize(
+        ("filename", "code_content", "expected_log"),
+        [
+            ("plain.js", "console.log('plain user script loaded');", "plain user script loaded"),
+            (
+                "default_import.ts",
+                'import Java from "frida-java-bridge";\nJava.perform(() => console.log("bridge default import loaded"));',
+                "bridge default import loaded",
+            ),
+            (
+                "named_import.js",
+                'import { Java } from "frida-java-bridge";\nJava.perform(() => console.log("bridge named import loaded"));',
+                "bridge named import loaded",
+            ),
+            (
+                "bound_methods.ts",
+                'import { perform, use } from "frida-java-bridge";\nperform(() => { use("java.lang.String"); console.log("bridge bound methods loaded"); });',
+                "bridge bound methods loaded",
+            ),
+            (
+                "destructured.js",
+                'const { Java, perform } = require("frida-java-bridge");\nperform(() => console.log("bridge destructured loaded"));',
+                "bridge destructured loaded",
+            ),
+        ],
+    )
+    def test_load_script_flag(self, running_app, hook_file, tmp_path, frooky_device_args, filename, code_content, expected_log):
+        script_file = tmp_path / filename
+        script_file.write_text(code_content, encoding="utf-8")
         stdout, stderr, code = run_frooky([*frooky_device_args, "-N", running_app.identifier, "-l", str(script_file), str(hook_file)])
         assert code == 0, f"frooky failed with stderr: {stderr}\nstdout: {stdout}"
         assert "Hooks ready:" in stdout
+        assert expected_log in stdout
 
     def test_spawn_flag(self, hook_file, frooky_device_args):
         stdout, stderr, code = run_frooky([*frooky_device_args, "-f", TARGET_APP, str(hook_file)])

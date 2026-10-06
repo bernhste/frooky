@@ -434,7 +434,13 @@ The `-l` (or `--load`) option can be specified multiple times to execute several
 - **Root and Integrity Bypass:** Overriding common detection checks (e.g. `File.exists` checks for `/system/bin/su` or root beer detectors) before application logic runs.
 - **Environment Setup:** Setting global variables, configuring instrumentation hooks, or monkey-patching libraries before the frooky agent installs its YAML-declared hooks.
 
-User scripts can be written in JavaScript (`.js`) or TypeScript (`.ts`), which frooky compiles. Both can use the Java bridge (`Java`):
+User scripts can be written in JavaScript (`.js`) or TypeScript (`.ts`), which frooky compiles using Frida's built-in compiler into an IIFE.
+
+### Script Types
+
+#### 1. Java Bridge Scripts
+
+Scripts interacting with the Android runtime can access `frida-java-bridge` using any standard import or require style:
 
 ```typescript
 // unlock.ts
@@ -452,13 +458,87 @@ Java.perform(() => {
 });
 ```
 
-The bridge can be imported (`import Java from "frida-java-bridge";`), required (`require("frida-java-bridge")`) or used as a global (`Java.perform(...)`). A script that uses it runs in the frooky agent's script and shares the agent's bridge, so it works when frooky attaches and when it spawns the app (`-f`). Other scripts, e.g. ones that only use `Interceptor`, run as their own Frida script.
+All common import and require patterns are supported:
+
+- **Default import:**
+  ```javascript
+  import Java from "frida-java-bridge";
+  Java.perform(() => { ... });
+  ```
+- **Named global import:**
+  ```javascript
+  import { Java } from "frida-java-bridge";
+  Java.perform(() => { ... });
+  ```
+- **Named method imports (automatically bound):**
+  ```javascript
+  import { perform, use } from "frida-java-bridge";
+  perform(() => {
+    const MainActivity = use("com.example.app.MainActivity");
+    MainActivity.isPremium.implementation = () => true;
+  });
+  ```
+- **Namespace import:**
+  ```javascript
+  import * as Java from "frida-java-bridge";
+  Java.perform(() => { ... });
+  ```
+- **CommonJS require:**
+  ```javascript
+  const Java = require("frida-java-bridge");
+  // or destructuring:
+  const { Java, perform, use } = require("frida-java-bridge");
+  ```
+- **Global reference (no import required):**
+  ```javascript
+  Java.perform(() => { ... });
+  ```
+
+A script using the Java bridge runs inside the frooky agent's script context and shares the agent's bridge instance, so it works reliably in both spawn (`-f`) and attach modes without bridge conflict or stack overflow.
 
 A script that uses the Java bridge:
 
 - **Shares hooks with the hook files:** a Java method has one replacement at a time. If a script and a hook file hook the same method, the one installed later replaces the other, and frooky logs a warning naming the method. When frooky spawns the app, the script's `Java.perform()` callbacks run once the app is ready: a script's hook replaces frooky's hooks on framework classes, which frooky installs before, and frooky's hooks on the app's classes replace the script's.
 - **Prints its output with its name:** `console.log()` and `send()` show up in the terminal tagged with the script's file name, e.g. `[unlock.ts]`.
 - **Has no `rpc.exports`:** they would replace the agent's, so a script's `rpc.exports` are ignored.
+
+#### 2. Native Frida Scripts
+
+Scripts that only use Frida's native APIs (e.g. `Interceptor`, `Memory`, `Process`, or `Module`) run as their own independent Frida script with their own JavaScript lock:
+
+```javascript
+// patch_memory.js
+const module = Process.findModuleByName("libnative.so");
+if (module) {
+  Memory.protect(module.base, 4096, "rwx");
+}
+
+Interceptor.attach(Module.getExportByName("libc.so", "open"), {
+  onEnter(args) {
+    console.log("Opening file:", args[0].readUtf8String());
+  }
+});
+```
+
+#### 3. Hybrid Scripts
+
+Scripts can freely mix native Frida APIs with `frida-java-bridge`. When `frida-java-bridge` or `Java` is referenced, the script runs in the agent's context where all Frida globals (`Interceptor`, `Memory`, `Process`, `ptr`) remain fully accessible:
+
+```javascript
+// hybrid.js
+import { perform, use } from "frida-java-bridge";
+
+Interceptor.attach(Module.getExportByName("libc.so", "dlopen"), {
+  onEnter(args) {
+    console.log("dlopen:", args[0].readUtf8String());
+  }
+});
+
+perform(() => {
+  const Security = use("com.example.app.Security");
+  Security.isTampered.implementation = () => false;
+});
+```
 
 See [User Scripts](./under-the-hood.md#user-scripts) in Under the Hood for how frooky loads them.
 

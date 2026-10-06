@@ -79,6 +79,15 @@ class TestCompileUserScript:
         assert '__require("frida-java-bridge")' in compiled
         assert "import Java" not in compiled
 
+    def test_compiles_javascript_with_named_import(self, tmp_path):
+        js_file = tmp_path / "unlock.js"
+        js_file.write_text('import { Java, perform } from "frida-java-bridge";\nperform(() => {});')
+
+        compiled = compile_user_script(js_file)
+
+        assert '__require("frida-java-bridge")' in compiled
+        assert "import {" not in compiled
+
     def test_compilation_failure_raises_value_error(self, tmp_path):
         ts_file = tmp_path / "broken.ts"
         ts_file.write_text("const x = ;")
@@ -93,6 +102,7 @@ class TestUsesJavaBridge:
         [
             'var import_bridge = __toESM(__require("frida-java-bridge"));',
             'var Java = __require("frida-java-bridge");',
+            'const { Java, perform } = require("frida-java-bridge");',
             "Java.perform(() => {});",
         ],
     )

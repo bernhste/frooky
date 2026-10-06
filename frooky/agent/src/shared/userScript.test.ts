@@ -1,6 +1,12 @@
 import { runUserScript, UserScriptBridge, UserScriptMessage } from "./userScript";
 
-const bridge = { perform: (cb: () => void) => cb() };
+const bridge = {
+  _ready: true,
+  perform(cb: () => void) {
+    if (!this._ready) throw new Error("bridge method not bound");
+    cb();
+  },
+};
 const BRIDGES: UserScriptBridge[] = [{ module: "frida-java-bridge", global: "Java", value: bridge }];
 
 // runs `source` as script.js, returning what it posted
@@ -25,6 +31,22 @@ describe("runUserScript()", () => {
     expect(posted).toEqual([
       { frooky: "userLog", script: "script.js", level: "info", text: "true true" },
       { frooky: "userLog", script: "script.js", level: "info", text: "performed" },
+    ]);
+  });
+
+  it("supports named, namespace and destructured bridge imports with bound methods", () => {
+    const posted = run(`
+      "use strict";
+      (() => {
+        const { Java, perform } = require("frida-java-bridge");
+        console.log(Java === require("frida-java-bridge"));
+        perform(() => console.log("bound perform"));
+      })();
+    `);
+
+    expect(posted).toEqual([
+      { frooky: "userLog", script: "script.js", level: "info", text: "true" },
+      { frooky: "userLog", script: "script.js", level: "info", text: "bound perform" },
     ]);
   });
 
