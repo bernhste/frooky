@@ -411,7 +411,86 @@ Java hooks don't wait: a class of the default class loader is hooked in stage 1,
 
 ### Danger Zone: Early Hooking
 
-Before `targetReady`, the runtime (ART) is still starting its own threads, and hooks on functions like `read` or `close` collide with them: the app can deadlock or stop responding (ANR).
+"Early" refers to any instrumentation executed **before `targetReady` resolves**. In a spawned process (`-f`), frooky advances through distinct startup phases before any app-controlled code runs.
+
+The diagram below shows the high-level startup flow in **spawn mode** and identifies exactly when the app's native libraries (`lib*.so`) are loaded earliest:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Host as Frooky Host<br/>(CLI)
+    participant Agent as Frooky Agent<br/>(Injected in app)
+    participant App as App Process<br/>(Android Runtime)
+
+    rect rgb(235, 235, 250)
+    Note over Host,App: Phase 1 — Paused at spawn (Stage 1 early hooks)
+    Host->>App: Spawn suspended: frooky -f com.example.app<br/>Process paused right after Zygote fork
+    Host->>Agent: Inject agent & send hook files
+    Agent->>App: Stage 1 hooks: Java framework classes (boot ClassLoader)<br/>& native functions in libc.so (if early: true)
+    Agent->>App: Queue Java.perform() — waits for app ClassLoader
+    Note over Agent,App: System libs loaded (libc.so); app classes & APK libs (libapp.so) not loaded
+    end
+
+    rect rgb(250, 240, 230)
+    Note over Host,App: Phase 2 — Resumed (Stage 2 framework startup)
+    Host->>App: Host calls resume()
+    App->>App: ActivityThread.main() starts & binds to system_server
+    Note over Agent,App: Framework/drivers can dlopen() system libs here<br/>(with early: true, hooked inside linker)
+    App->>App: system_server sends BIND_APPLICATION
+    Note over App: Framework constructs LoadedApk & app PathClassLoader
+    end
+
+    rect rgb(250, 235, 235)
+    Note over Agent,App: Phase 3 — targetReady (Java.perform resolves)
+    App->>Agent: PathClassLoader is created → Java.perform() resolves!
+    Agent->>Agent: targetReady fires
+    Agent->>App: Stage 3 Java: hook app classes (com.example.app.*)
+    Agent->>App: Stage 3 Native: arm module watcher for app libraries (lib*.so)
+    end
+
+    rect rgb(245, 245, 220)
+    Note over Agent,App: Phase 4 — App code & EARLIEST native library load (lib*.so)
+    App->>App: LoadedApk.makeApplication() loads custom Application class
+    Note over App: ⚡ EARLIEST POINT: static initializer (Application.<clinit>)<br/>calls System.loadLibrary("app")
+    App->>Agent: dlopen("libapp.so") triggers linker hook
+    Agent->>App: Attach native hooks inside linker<br/>BEFORE .init_array constructors and JNI_OnLoad run
+    App->>App: Linker runs .init_array constructors (hooked!)
+    App->>App: ART runs JNI_OnLoad (hooked!)
+    App->>App: Application.attachBaseContext()
+    App->>App: installContentProviders() → ContentProvider.onCreate()
+    App->>App: Application.onCreate()
+    App->>App: UI thread enters Looper.loop() → Activity.onCreate()
+    end
+```
+
+#### What "Early" Means
+
+There are two distinct periods of "early" hooking before app code executes:
+
+1. **Stage 1 (Paused at spawn, Phase 1):** The app child process is physically paused immediately after the Zygote fork. Zero app bytecode has run, and not even `ActivityThread.main()` has started. Frooky installs hooks on preloaded Java framework classes (`Java.use()` via ART's boot ClassLoader) and native hooks with `early: true` on already loaded system libraries (`libc.so`, `libcrypto.so`). App classes cannot be resolved yet because the app's `PathClassLoader` does not exist.
+2. **Stage 2 (Resumed but pre-`targetReady`, Phase 2):** The host resumes the app. The process executes Android runtime initialization and enters `ActivityThread.main()`. Any native library loaded via `dlopen()` during this window triggers `NativeModuleWatcher`: with `early: true`, the hook is installed inside the linker before constructors and `JNI_OnLoad` run.
+
+#### Where Native Libraries (`lib*.so`) Are Loaded Earliest
+
+Native libraries packaged inside the APK (`lib/<abi>/lib*.so`) **cannot load before `targetReady`** under standard Android app startup because:
+
+- In **Phase 1** (paused), the process is frozen at the Zygote fork. Only system libraries preloaded in Zygote (`libc.so`, `libart.so`) are in memory.
+- In **Phase 2** (resumed), only Android framework code (`RuntimeInit`, `ActivityThread`) is running. The app's `PathClassLoader` and native library search paths have not been created yet.
+- In **Phase 3**, `targetReady` resolves synchronously as soon as `LoadedApk` and `PathClassLoader` are created, **before** any app code runs.
+
+The earliest points where an app's native libraries load are:
+
+1. **⚡ Earliest standard point: `Application.<clinit>` (Phase 4):**
+   Immediately after `targetReady`, Android calls `LoadedApk.makeApplication()`, which loads the app's custom `Application` class. If the class has a static initializer (`static { System.loadLibrary("foo"); }`), it executes right then.
+   Because `targetReady` has already resolved, frooky's module watcher intercepts the `dlopen("libfoo.so")` inside the linker. Frooky attaches native hooks **before** the library's `.init_array` constructors and `JNI_OnLoad` execute.
+2. **Next earliest: `Application.attachBaseContext()`:**
+   Called immediately after the class static initializer, often used by security SDKs or unpackers to load native code.
+3. **Next earliest: `ContentProvider.<clinit>` / `onCreate()`:**
+   Android initializes declared `ContentProvider` components *before* `Application.onCreate()`. Many third-party analytics and security SDKs use custom providers to initialize native libraries early.
+4. **`Application.onCreate()` and `Activity.onCreate()`:**
+   Standard app-level initialization.
+
+**Why early hooking is a danger zone:** Before `targetReady`, ART is actively spinning up runtime threads, setting up signal chains, and initializing binder. Interceptor hooks on high-frequency libc functions (`read`, `close`, `malloc`) without a `callerFilter` collide with ART startup threads and can cause the process to deadlock or trigger an Application Not Responding (ANR) timeout. Furthermore, stack walks cannot safely capture Java frames (`before-ready`) because threads are still attaching to the Java VM.
 
 ```mermaid
 sequenceDiagram

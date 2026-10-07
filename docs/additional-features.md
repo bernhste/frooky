@@ -26,6 +26,10 @@ How to work with a running frooky, the settings that apply to every hook (stack 
 - [Dangerous Low-Level and High-Frequency Hooks](#dangerous-low-level-and-high-frequency-hooks)
   - [Blocked Functions](#blocked-functions)
 - [Custom User Scripts](#custom-user-scripts)
+  - [Script Types](#script-types)
+    - [1. Java Bridge Scripts](#1-java-bridge-scripts)
+    - [2. Native Frida Scripts](#2-native-frida-scripts)
+    - [3. Hybrid Scripts](#3-hybrid-scripts)
 - [JavaScript Runtime: QuickJS vs. V8](#javascript-runtime-quickjs-vs-v8)
 - [Native Crash Reporter](#native-crash-reporter)
 
@@ -394,13 +398,13 @@ Hooks on low-level libc functions that the app calls very often, such as `open`,
 
 A few functions and methods break the app however they are hooked. frooky doesn't install these hooks, or leaves out their stack traces, and logs a warning instead:
 
-| Native function                                          | Description                                                                                       | Runtime | Blocked      | Reason                                                                                   | Instead                                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------- | ------------ | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | Gets and sets thread-local storage (TLS) values by key.                                           | all     | hook         | Used by Frida's Interceptor; hooking hangs the app                                       | –                                                                         |
-| `dlopen` (`libdl.so`)                                    | Dynamically loads a shared library into the process address space.                                | all     | hook         | Changes caller address, breaking linker namespace selection and library loading          | –                                                                         |
-| `memset`, `clock_gettime` (`libc.so`)                    | `memset` fills memory with a byte; `clock_gettime` reads current clock time.                      | V8      | hook         | Called by V8 during hooks; causes recursive re-entry and crashes (`SIGTRAP`)             | QuickJS, the default runtime                                              |
-| `sigprocmask` (`libc.so`)                                | Examines or changes the calling thread's blocked signal mask.                                     | all     | stack traces | Called from ART's signal chain wrapper; stack walk crashes the app (`SIGSEGV`)           | A `callerFilter` still works (checks return address without a stack walk) |
-| `mmap` (`libc.so`), with `early: true`                   | Maps files or anonymous virtual memory into the process address space.                             | V8      | stack traces | Stack trace before `targetReady` under V8 stalls startup (`targetReady` never resolves) | QuickJS, or `early: false`                                                |
+| Native function                                          | Description                                                                  | Runtime | Blocked      | Reason                                                                                  | Instead                                                                   |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------- | ------- | ------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `pthread_getspecific`, `pthread_setspecific` (`libc.so`) | Gets and sets thread-local storage (TLS) values by key.                      | all     | hook         | Used by Frida's Interceptor; hooking hangs the app                                      | –                                                                         |
+| `dlopen` (`libdl.so`)                                    | Dynamically loads a shared library into the process address space.           | all     | hook         | Changes caller address, breaking linker namespace selection and library loading         | –                                                                         |
+| `memset`, `clock_gettime` (`libc.so`)                    | `memset` fills memory with a byte; `clock_gettime` reads current clock time. | V8      | hook         | Called by V8 during hooks; causes recursive re-entry and crashes (`SIGTRAP`)            | QuickJS, the default runtime                                              |
+| `sigprocmask` (`libc.so`)                                | Examines or changes the calling thread's blocked signal mask.                | all     | stack traces | Called from ART's signal chain wrapper; stack walk crashes the app (`SIGSEGV`)          | A `callerFilter` still works (checks return address without a stack walk) |
+| `mmap` (`libc.so`), with `early: true`                   | Maps files or anonymous virtual memory into the process address space.       | V8      | stack traces | Stack trace before `targetReady` under V8 stalls startup (`targetReady` never resolves) | QuickJS, or `early: false`                                                |
 
 A function is matched by its symbol and module, also if the hook names the module by path or without `.so`, e.g. `/apex/com.android.runtime/lib64/bionic/libc.so` or `libc`. A hook by `offset:` on one of these functions isn't detected.
 
