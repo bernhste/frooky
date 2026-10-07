@@ -428,7 +428,7 @@ sequenceDiagram
     Host->>Agent: Inject agent & send hook files
     Agent->>App: Stage 1 hooks: Java framework classes (boot ClassLoader)<br/>& native functions in libc.so (if early: true)
     Agent->>App: Queue Java.perform() — waits for app ClassLoader
-    Note over Agent,App: System libs loaded (libc.so); app classes & APK libs (libapp.so) not loaded
+    Note over Agent,App: System libs loaded (libc.so) — app classes & APK libs (libapp.so) not loaded
     end
 
     rect rgb(250, 240, 230)
