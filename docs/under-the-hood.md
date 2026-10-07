@@ -422,33 +422,17 @@ sequenceDiagram
     participant Agent as Frooky Agent<br/>(Injected in app)
     participant App as App Process<br/>(Android Runtime)
 
-    rect rgb(235, 235, 250)
-    Note over Host,App: Phase 1 — Paused at spawn (Stage 1 early hooks)
-    Host->>App: Spawn suspended: frooky -f com.example.app<br/>Process paused right after Zygote fork
-    Host->>Agent: Inject agent & send hook files
-    Agent->>App: Stage 1 hooks: Java framework classes (boot ClassLoader)<br/>& native functions in libc.so (if early: true)
-    Agent->>App: Queue Java.perform() — waits for app ClassLoader
-    Note over Agent,App: System libs loaded (libc.so) — app classes & APK libs (libapp.so) not loaded
-    end
+    Note over Host,App: Phase 1 — Paused at spawn: inject agent & stage 1 early hooks
+    Host->>App: Spawn suspended & inject agent
+    Agent->>App: Stage 1 hooks installed & queue Java.perform()
 
-    rect rgb(250, 240, 230)
-    Note over Host,App: Phase 2 — Resumed (Stage 2 framework startup)
-    Host->>App: Host calls resume()
-    App->>App: ActivityThread.main() starts & binds to system_server
-    Note over Agent,App: Framework/drivers can dlopen() system libs here<br/>(with early: true, hooked inside linker)
-    App->>App: system_server sends BIND_APPLICATION
-    Note over App: Framework constructs LoadedApk & app PathClassLoader
-    end
+    Note over Host,App: Phase 2 — Resumed: Android runtime startup
+    Host->>App: resume()
 
-    rect rgb(250, 235, 235)
-    Note over Agent,App: Phase 3 — targetReady (Java.perform resolves)
-    App->>Agent: PathClassLoader is created → Java.perform() resolves!
-    Agent->>Agent: targetReady fires
-    Agent->>App: Stage 3 Java: hook app classes (com.example.app.*)
-    Agent->>App: Stage 3 Native: arm module watcher for app libraries (lib*.so)
-    end
+    Note over Agent,App: Phase 3 — targetReady: ClassLoader ready, targetReady resolves
+    App->>Agent: PathClassLoader created → targetReady resolves!
+    Agent->>App: Stage 3 hooks armed & module watcher ready
 
-    rect rgb(245, 245, 220)
     Note over Agent,App: Phase 4 — App code & EARLIEST native library load (lib*.so)
     App->>App: LoadedApk.makeApplication() loads custom Application class
     Note over App: ⚡ EARLIEST POINT: static initializer (Application.<clinit>)<br/>calls System.loadLibrary("app")
@@ -456,11 +440,8 @@ sequenceDiagram
     Agent->>App: Attach native hooks inside linker<br/>BEFORE .init_array constructors and JNI_OnLoad run
     App->>App: Linker runs .init_array constructors (hooked!)
     App->>App: ART runs JNI_OnLoad (hooked!)
-    App->>App: Application.attachBaseContext()
-    App->>App: installContentProviders() → ContentProvider.onCreate()
-    App->>App: Application.onCreate()
+    App->>App: attachBaseContext() → ContentProvider.onCreate() → Application.onCreate()
     App->>App: UI thread enters Looper.loop() → Activity.onCreate()
-    end
 ```
 
 #### What "Early" Means
