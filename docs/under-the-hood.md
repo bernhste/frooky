@@ -429,8 +429,8 @@ sequenceDiagram
     Note over Host,App: Phase 2 — Resumed: Android runtime startup
     Host->>App: resume()
 
-    Note over Agent,App: Phase 3 — targetReady: ClassLoader ready, targetReady resolves
-    App->>Agent: PathClassLoader created → targetReady resolves!
+    Note over Agent,App: Phase 3 — targetReady (Java.perform() resolves)
+    App->>Agent: BIND_APPLICATION creates PathClassLoader → Java.perform() callback fires (targetReady resolves!)
     Agent->>App: Stage 3 hooks armed & module watcher ready
 
     Note over Agent,App: Phase 4 — App code & EARLIEST native library load (lib*.so)
@@ -457,7 +457,7 @@ Native libraries packaged inside the APK (`lib/<abi>/lib*.so`) **cannot load bef
 
 - In **Phase 1** (paused), the process is frozen at the Zygote fork. Only system libraries preloaded in Zygote (`libc.so`, `libart.so`) are in memory.
 - In **Phase 2** (resumed), only Android framework code (`RuntimeInit`, `ActivityThread`) is running. The app's `PathClassLoader` and native library search paths have not been created yet.
-- In **Phase 3**, `targetReady` resolves synchronously as soon as `LoadedApk` and `PathClassLoader` are created, **before** any app code runs.
+- In **Phase 3**, `targetReady` resolves synchronously (when the `Java.perform()` callback fires) as soon as `LoadedApk` and `PathClassLoader` are created, **before** any app code runs.
 
 The earliest points where an app's native libraries load are:
 
