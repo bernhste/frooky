@@ -466,6 +466,16 @@ The validator warns about an `early: true` hook on a high-frequency libc functio
 
 A stack walk runs on the app's thread and stack, inside the hooked call. In some calls it can crash or hang the app, e.g. while another thread holds the linker's lock. Instead of capturing no stack traces at all until `targetReady`, frooky checks every call that needs one and only leaves out the frames whose walk is unsafe in that call. So hooks with `early: true` can record stack traces during startup.
 
+```mermaid
+flowchart TD
+    hook["Java or native hook:<br/>needs stack trace or caller filter"] --> check["detectUnsafeContext()"]
+    check -->|"signal-stack"| skip["skip stack traces entirely"]
+    check -->|"low-stack"| skip
+    check -->|"linker-busy"| fallback["avoid linker lock:<br/>fuzzy native backtrace"]
+    check -->|"before-ready"| noJava["skip Java frames on native hooks"]
+    check -->|"undefined"| safe["capture full stack trace safely"]
+```
+
 `detectUnsafeContext()` runs once per call, if a hook needs a stack trace, or for a Java hook a `callerFilter`. On a native hook, it only runs once the call has passed the hook's [caller filter](#caller-filters). It returns the first of these reasons, or none:
 
 | Reason         | How frooky detects it, and why it matters                                                                                                                                                                                                                                                                                     | Native frames         | Java frames                                                     |
