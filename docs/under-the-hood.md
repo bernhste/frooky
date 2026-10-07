@@ -528,12 +528,12 @@ A stack walk runs on the app's thread and stack, inside the hooked call. In some
 
 ```mermaid
 flowchart TD
-    check["&nbsp; detectUnsafeContext() &nbsp;"]
-    check -->|"signal-stack"| skip["skip stack<br/>traces &nbsp;"]
+    check["detectUnsafeContext()"]
+    check -->|"signal-stack"| skip["skip stack<br/>traces"]
     check -->|"low-stack"| skip
-    check -->|"linker-busy"| fallback["avoid linker lock:<br/>fuzzy backtrace &nbsp;"]
-    check -->|"before-ready"| noJava["skip Java frames<br/>(native hooks) &nbsp;"]
-    check -->|"undefined"| safe["capture full<br/>stack trace &nbsp;"]
+    check -->|"linker-busy"| fallback["avoid linker lock:<br/>fuzzy backtrace"]
+    check -->|"before-ready"| noJava["skip Java frames<br/>(native hooks)"]
+    check -->|"undefined"| safe["capture full<br/>stack trace"]
 ```
 
 `detectUnsafeContext()` runs once per call, if a hook needs a stack trace, or for a Java hook a `callerFilter`. On a native hook, it only runs once the call has passed the hook's [caller filter](#caller-filters). It returns the first of these reasons, or none:
