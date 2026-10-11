@@ -31,9 +31,6 @@ Requirements:
 
 frooky is tested on Android 12 to 15.
 
-> [!NOTE]
-> Android 16 and 17 are not fully supported. frooky tries to work around known issues on these versions (e.g. hookig intrinsic methods, concurrent garbace collection), which makes it more stable there, but use it at your own risk.
-
 Install the `frooky` CLI tool via uv or pip:
 
 ```bash
@@ -99,10 +96,10 @@ Depending on the platform, the `<hook_declaration>` may look different. Please r
 
 At the moment, frooky supports these types of hooks:
 
-| Hook Type   | Platform | Description                                 | Documentation                                                |
-| ----------- | -------- | ------------------------------------------- | ------------------------------------------------------------ |
-| Java hook   | Android  | Hook for Java/Kotlin methods                | [Java Hook Declaration](./docs/java-hook-declaration.md)     |
-| Native hook | Android  | Hook for native functions (C/C++/Rust etc.) | [Native Hook Declaration](./docs/native-hook-declaration.md) |
+| Hook Type   | Platform | Description                       | Documentation                                                |
+| ----------- | -------- | --------------------------------- | ------------------------------------------------------------ |
+| Java hook   | Android  | Hook for Java/Kotlin methods      | [Java Hook Declaration](./docs/java-hook-declaration.md)     |
+| Native hook | Android  | Hook for native functions (C/C++) | [Native Hook Declaration](./docs/native-hook-declaration.md) |
 
 > [!NOTE]
 > frooky supports Android only. iOS support is [planned](https://github.com/bernhste/frooky/tree/feature/ios-agent-poc).
