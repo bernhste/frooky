@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-EXAMPLES = Path(__file__).parents[3] / "docs" / "examples"
+EXAMPLES = Path(__file__).parents[4] / "docs" / "examples"
 JAVA_APP = "value-passing-java"
 NATIVE_APP = "value-passing-native"
 MASTG_CLASS = "org.owasp.mastestapp.MastgTest"

@@ -177,7 +177,7 @@ def check_device(serial: str, device: tuple[dict[str, str], set[str], str], appi
     out = out / name
     out.mkdir(parents=True, exist_ok=True)
     print("Device:", json.dumps(info, indent=2) if info else error)
-    # the tests' device selection (tests/integration/conftest.py); DEVICE_UDID would override it for Appium
+    # the tests' device selection (tests/host/integration/conftest.py); DEVICE_UDID would override it for Appium
     env = {**{k: v for k, v in os.environ.items() if k != "DEVICE_UDID"}, "ANDROID_SERIAL": serial, "APPIUM_URL": appium_url}
     results: list[StepResult] = []
 
@@ -208,7 +208,7 @@ def check_device(serial: str, device: tuple[dict[str, str], set[str], str], appi
             results.append(StepResult("integration", "skipped", note=f"Appium not reachable at {appium_url}"))
         else:
             report = out / "test-results-integration.jsonl"
-            cmd = ["uv", "run", "pytest", "tests/integration/android", f"--report-log={report}"]
+            cmd = ["uv", "run", "pytest", "tests/host/integration/android", f"--report-log={report}"]
             if pattern:
                 cmd += ["-k", pattern]
             results.append(step("integration", cmd, log, report=("pytest", report, f"Integration tests ({serial})"), env=env))
@@ -257,7 +257,7 @@ def main() -> int:
             results.append(StepResult("unit", "skipped", note="--skip"))
         else:
             report = out / "test-results-unit.jsonl"
-            results.append(step("unit", ["uv", "run", "pytest", "tests/unit", f"--report-log={report}"], log, report=("pytest", report, "Host unit tests")))
+            results.append(step("unit", ["uv", "run", "pytest", "tests/host/unit", f"--report-log={report}"], log, report=("pytest", report, "Host unit tests")))
         devices = [check_device(serial, device, appium_url, out, skip, args.pattern) for serial, device in targets.items()]
 
     environment = {"host": host, "adbServer": os.environ.get("ADB_SERVER_SOCKET", "local"), "appium": appium_url, "devices": [{"serial": d.serial, "device": d.info, "deviceError": d.error} for d in devices]}

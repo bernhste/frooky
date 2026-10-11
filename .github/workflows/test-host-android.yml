@@ -78,7 +78,7 @@ jobs:
             find target-apps-android/ -name "*.apk" -exec adb install {} \;
 
             echo "Run tests"
-            pytest tests/integration/android --report-log=test-results-android.json
+            pytest tests/host/integration/android --report-log=test-results-android.json
 
       - name: Summarize test results
         if: always()

@@ -158,6 +158,29 @@ describe("wildcardPatternToRegExp()", () => {
 
 The test app is a system app, not one of the target apps. A test that needs a specific Java method or native function belongs in an integration test against a [target app](#building-target-app).
 
+### Running Tests in VS Code
+
+The **Testing** view of VS Code lists all tests below `tests/`. It needs the [Python extension](https://marketplace.visualstudio.com/items?itemName=ms-python.python), which the devcontainer installs.
+
+| Folder in the view | Tests |
+| --- | --- |
+| `host/unit` | `tests/host/unit`, no device needed |
+| `host/integration` | `tests/host/integration` |
+| `agent/unit` | the `*.test.ts` files in `frooky/agent/src/` |
+
+The agent tests stay next to the agent code. The pytest plugin `tests/agent/unit/frida_test.py`, which the `conftest.py` in the repository root loads, lists every `it()` of them as a pytest test, named after its `describe()` blocks, e.g. `Utils > toHex() > returns '0x' for an empty array`. The same works on the command line:
+
+```bash
+uv run pytest tests/agent/unit                 # all agent tests
+uv run pytest tests/agent/unit -k "toHex"      # some of them
+uv run pytest "frooky/agent/src/shared/utils.test.ts::Utils > toHex() > returns '0x' for an empty array"
+```
+
+- All selected agent tests run in one frida-test run through `scripts/test-android.sh`, so the device is picked the same way: the only attached one, or `ANDROID_SERIAL`.
+- frida-test runs whole files. Running a single test runs its file and shows only that test's result.
+- The tests are found by reading the source, not by running it: a `describe(` or `it(` has to start its line and have its title on the same line. A title with `${...}` is one test in the view and passes if every test it creates passes.
+- `uv run pytest` without a path runs everything below `tests/`, so the agent tests too.
+
 ## Development Scripts
 
 The scripts in `scripts/` set up Android devices and run the tests on one or several of them. Run them with `uv run` from the repository root. Each one prints its options with `--help`.
@@ -237,13 +260,13 @@ Builds are incremental: they copy the sources over the previous build. Use `-c` 
 
 ### run_integration_tests.py
 
-Runs the Android integration tests in `tests/integration/android` with pytest. It passes the device to the tests as `ANDROID_SERIAL`, so frooky, frida, adb and Appium all use the same device. Arguments it doesn't know go to pytest. Without a test path, it runs the whole folder.
+Runs the Android integration tests in `tests/host/integration/android` with pytest. It passes the device to the tests as `ANDROID_SERIAL`, so frooky, frida, adb and Appium all use the same device. Arguments it doesn't know go to pytest. Without a test path, it runs the whole folder.
 
 ```bash
 uv run scripts/run_integration_tests.py -k receive_int                    # the only attached device or $ANDROID_SERIAL
 uv run scripts/run_integration_tests.py -s emulator-5554 -k receive_int   # one of several devices
 uv run scripts/run_integration_tests.py -a -x                             # every device, stop each run at the first failure
-uv run scripts/run_integration_tests.py tests/integration/android/test_frida_flags.py
+uv run scripts/run_integration_tests.py tests/host/integration/android/test_frida_flags.py
 uv run scripts/run_integration_tests.py --appium 192.168.1.10             # another Appium server (default port 4723)
 ```
 
@@ -254,7 +277,7 @@ uv run scripts/run_integration_tests.py --appium 192.168.1.10             # anot
 Plain pytest works too. With several devices attached, set `ANDROID_SERIAL`:
 
 ```bash
-ANDROID_SERIAL=emulator-5554 uv run pytest tests/integration/android -k receive_int
+ANDROID_SERIAL=emulator-5554 uv run pytest tests/host/integration/android -k receive_int
 ```
 
 ### platform_check.py

@@ -13,7 +13,7 @@ class TestCompileAgent:
     @patch("subprocess.run")
     def test_compile_agent_dev(self, mock_run, _mock_which):
         compile_agent("dev")
-        agent_dir = Path(__file__).resolve().parent.parent.parent / "frooky" / "agent"
+        agent_dir = Path(__file__).resolve().parents[3] / "frooky" / "agent"
         assert mock_run.call_count == 2
         mock_run.assert_any_call(["npm", "ci"], cwd=agent_dir, check=True)
         mock_run.assert_any_call(["npm", "run", "build:dev:android"], cwd=agent_dir, check=True)
@@ -22,7 +22,7 @@ class TestCompileAgent:
     @patch("subprocess.run")
     def test_compile_agent_prod(self, mock_run, _mock_which):
         compile_agent("prod")
-        agent_dir = Path(__file__).resolve().parent.parent.parent / "frooky" / "agent"
+        agent_dir = Path(__file__).resolve().parents[3] / "frooky" / "agent"
         assert mock_run.call_count == 2
         mock_run.assert_any_call(["npm", "ci"], cwd=agent_dir, check=True)
         mock_run.assert_any_call(["npm", "run", "build:prod:android"], cwd=agent_dir, check=True)

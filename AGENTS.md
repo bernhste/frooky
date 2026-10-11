@@ -21,7 +21,8 @@ Target platforms to support (keep cross-platform compatibility in mind so fixes 
 ```bash
 uv run compile-agent --dev                 # build agent -> frooky/agent/dist/agent-android.js (runs npm ci)
 uv sync                                 # sync dependencies and install host in editable mode (.venv)
-uv run pytest tests/unit                # host unit tests, no device needed
+uv run pytest tests/host/unit           # host unit tests, no device needed
+uv run pytest tests/agent/unit          # agent tests through pytest, same tests as `npm run test:android` (docs/develop.md)
 uv run ruff check . && uv run ruff format --check .   # Python lint/format (config in pyproject.toml)
 uv run scripts/platform_check.py       # all tests on the host and every attached device (-s <serial> for one), writes a report (docs/develop.md)
 uv run scripts/list_android_devices.py      # serial, Android version, API level, ABI and model of every attached device
@@ -40,13 +41,13 @@ Adding dependencies: Python: `uv add <pkg>` or `uv add --dev <pkg>` (managed in 
 
 CI (`.github/workflows/`) runs on every push: `verify-host.yml` (wheel build, unit tests, checks the agent is in the wheel and that the generated schemas are up to date), `test-agent-android.yaml` (agent tests on an emulator), and `test-host-android.yml` (integration tests on an emulator with Appium).
 
-Tests that need a device (`npm run test:android`, `pytest tests/integration/android`) are covered by the `device-testing` skill. In the devcontainer, adb, Appium and frida-server run on the host and are reached via `ADB_SERVER_SOCKET`, `APPIUM_URL` and `FRIDA_HOST`. Check `adb devices` before assuming a device is available. If none is, say so instead of skipping tests silently.
+Tests that need a device (`npm run test:android`, `pytest tests/host/integration/android`) are covered by the `device-testing` skill. In the devcontainer, adb, Appium and frida-server run on the host and are reached via `ADB_SERVER_SOCKET`, `APPIUM_URL` and `FRIDA_HOST`. Check `adb devices` before assuming a device is available. If none is, say so instead of skipping tests silently.
 
 ## Testing Guide
 
 - **Always run `npm run test:android` when changing the agent** (`frooky/agent/`): runs TypeScript agent unit tests inside `com.google.android.dialer` on the device, or `com.android.dialer` where the Google dialer is missing (`FRIDA_TEST_APP=<package>` for another app). With several devices attached, pass `-- -s <serial>` (or set `ANDROID_SERIAL`) for one, or `-- -a` to run on each. Recompile first (`npm run build:dev:android` or `uv run compile-agent --dev`).
-- **Always run Python unit tests when changing Python host code** (`frooky/`, `tests/unit/`): run `uv run pytest tests/unit` (no device required) and check formatting/linting via `uv run ruff check . && uv run ruff format --check .`.
-- **Only run affected integration tests when agent or host changes**: integration tests (`pytest tests/integration/android`) use Appium and test apps; only run the specific tests affected by the change (e.g. `uv run scripts/run_integration_tests.py -k <pattern>`, with `-s <serial>` for one of several devices, `-a` for all and `--appium <ip>[:<port>]`, default `$APPIUM_URL`, else `127.0.0.1:4723`) rather than the entire test suite.
+- **Always run Python unit tests when changing Python host code** (`frooky/`, `tests/host/unit/`): run `uv run pytest tests/host/unit` (no device required) and check formatting/linting via `uv run ruff check . && uv run ruff format --check .`.
+- **Only run affected integration tests when agent or host changes**: integration tests (`pytest tests/host/integration/android`) use Appium and test apps; only run the specific tests affected by the change (e.g. `uv run scripts/run_integration_tests.py -k <pattern>`, with `-s <serial>` for one of several devices, `-a` for all and `--appium <ip>[:<port>]`, default `$APPIUM_URL`, else `127.0.0.1:4723`) rather than the entire test suite.
 
 ## Target Apps
 
@@ -63,7 +64,7 @@ The integration tests and the examples in `docs/examples/` run against our own t
   # all apps: make build-all, make uninstall-all, make install-all; remove a build: make clean TARGET_APP=<app>
   ```
 
-- **Adding a test situation:** add the method or function to the target app, with a comment on what it's for, and list it in the app's `README.md`. Then add or extend the example in `docs/examples/` with its `# Expected` events and the test in `tests/integration/android/test_examples.py` (see Conventions). Assert on the app's own values and frames, e.g. `JNI_OnLoad+0x... (libloadTime.so:...)` or `org.owasp.mastestapp.MastgTest...`, not on frames of the linker, ART or the Android framework, which differ between Android versions.
+- **Adding a test situation:** add the method or function to the target app, with a comment on what it's for, and list it in the app's `README.md`. Then add or extend the example in `docs/examples/` with its `# Expected` events and the test in `tests/host/integration/android/test_examples.py` (see Conventions). Assert on the app's own values and frames, e.g. `JNI_OnLoad+0x... (libloadTime.so:...)` or `org.owasp.mastestapp.MastgTest...`, not on frames of the linker, ART or the Android framework, which differ between Android versions.
 - **After changing a native app**, check its functions' offsets with the `update-native-offsets` skill and run the integration tests of that app.
 
 ## Rules
@@ -82,10 +83,10 @@ The integration tests and the examples in `docs/examples/` run against our own t
 
 ## Conventions
 
-- Python: ruff, double quotes, `from __future__ import annotations`. Host unit tests live in `tests/unit/` and mirror the module layout.
+- Python: ruff, double quotes, `from __future__ import annotations`. Host unit tests live in `tests/host/unit/` and mirror the module layout.
 - TypeScript: Prettier (`.prettierrc`); tests sit next to the code as `*.test.ts`.
 - Docs: Markdown in `docs/` with markdownlint (`.markdownlint.json`). Every hook-file feature has an example in `docs/examples/` with a `# Docs:` link to the upstream API.
-- Examples in `docs/examples/<platform>/<topic>/` run against the target apps and document their events in `# Expected` comments; `tests/integration/android/test_examples.py` checks them. Change both together, and add methods or functions to the target apps when an example needs them. Changing a native target app moves its functions, so update the examples' `offset:` hooks afterwards (`update-native-offsets` skill).
+- Examples in `docs/examples/<platform>/<topic>/` run against the target apps and document their events in `# Expected` comments; `tests/host/integration/android/test_examples.py` checks them. Change both together, and add methods or functions to the target apps when an example needs them. Changing a native target app moves its functions, so update the examples' `offset:` hooks afterwards (`update-native-offsets` skill).
 - Code comments:
   - Only comment what the code doesn't say itself: why, non-obvious constraints, units, formats. No comments that restate the next line (`// decode the return value`) and no commented-out code.
   - Describe the current behavior. Never reference old behavior, fixed bugs or how the code got there ("used to", "regression", "previously", "instead of the old ..."), and leave that out of test names too. Bugfix context belongs in the commit message.

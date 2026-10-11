@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Run the Android integration tests (tests/integration/android) on one or every attached device.
+"""Run the Android integration tests (tests/host/integration/android) on one or every attached device.
 
 The device is chosen like adb does: -s <serial>, else $ANDROID_SERIAL, else the only attached
 device. With -a, the tests run once per attached device and fail if any run fails. Arguments
 this script doesn't know go to pytest, e.g. `-k receive_int`, `-x` or test paths; without a
-path, all of tests/integration/android runs.
+path, all of tests/host/integration/android runs.
 
 Usage: uv run scripts/run_integration_tests.py [-s <serial> | -a] [--appium <ip>[:<port>]] [<pytest args> ...]
-e.g.:  uv run scripts/run_integration_tests.py -s emulator-5554 tests/integration/android/test_frida_flags.py
+e.g.:  uv run scripts/run_integration_tests.py -s emulator-5554 tests/host/integration/android/test_frida_flags.py
 
 Needs the target apps (`uv run scripts/sync_target_apps.py`), a running frida-server
 (`uv run scripts/prepare_android_devices.py`) and Appium.
@@ -23,7 +23,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TESTS = ROOT / "tests" / "integration" / "android"
+TESTS = ROOT / "tests" / "host" / "integration" / "android"
 APPIUM_DEFAULT = "127.0.0.1"
 APPIUM_DEFAULT_PORT = 4723
 APPIUM_DEFAULT_URL = os.environ.get("APPIUM_URL", f"http://{APPIUM_DEFAULT}:{APPIUM_DEFAULT_PORT}").rstrip("/")
@@ -53,7 +53,7 @@ def appium_reachable(url: str) -> bool:
 
 
 def run_pytest(serial: str, appium_url: str, pytest_args: list[str]) -> int:
-    # read by tests/integration/conftest.py; DEVICE_UDID would override the device for Appium
+    # read by tests/host/integration/conftest.py; DEVICE_UDID would override the device for Appium
     env = {**{k: v for k, v in os.environ.items() if k != "DEVICE_UDID"}, "ANDROID_SERIAL": serial, "APPIUM_URL": appium_url}
     # a test path like `tests/.../test_x.py` or `test_x.py::TestX::test_y` replaces the default
     has_path = any(not arg.startswith("-") and Path(arg.split("::")[0]).exists() for arg in pytest_args)

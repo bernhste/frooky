@@ -44,7 +44,7 @@ jobs:
         run: uv run compile-agent --dev
 
       - name: Run host unit tests
-        run: uv run pytest tests/unit --report-log=test-results.jsonl
+        run: uv run pytest tests/host/unit --report-log=test-results.jsonl
 
       - name: Summarize test results
         if: always()

@@ -2,6 +2,7 @@
   "recommendations": [
     "esbenp.prettier-vscode",
     "charliermarsh.ruff",
+    "ms-python.python",
     "dbaeumer.vscode-eslint",
     "yzhang.markdown-all-in-one",
     "davidanson.vscode-markdownlint",

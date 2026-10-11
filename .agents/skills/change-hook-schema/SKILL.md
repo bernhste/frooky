@@ -44,7 +44,7 @@ npm run build:jsonSchema   # -> docs/schema/frooky-config.schema.json
 
 - The reference page for the area you changed: `docs/java-hook-declaration.md`, `docs/native-hook-declaration.md`, `docs/parameter-declaration.md`, `docs/return-type-declaration.md`, `docs/decoders.md` (settings and shared decoders for every platform), `docs/decoders-java.md` or `docs/decoders-native.md` (per platform), or `docs/additional-features.md` (settings precedence and hook settings tables).
 - The README "Structure of a Hook File" section, if the top-level shape changed.
-- `docs/examples/`: add or adjust an example with a `# Docs:` link to the upstream API. For settings, also update `docs/examples/{android,native}/06_settings_precedence/`. Examples that run against the target apps are checked by `tests/integration/android/test_examples.py`; update its expectations too.
+- `docs/examples/`: add or adjust an example with a `# Docs:` link to the upstream API. For settings, also update `docs/examples/{android,native}/06_settings_precedence/`. Examples that run against the target apps are checked by `tests/host/integration/android/test_examples.py`; update its expectations too.
 - On a rename, grep for the old name across `docs/`, `README.md`, `tests/` and `frooky/`. Old names tend to survive in prose and example YAML.
 
 ## 5. Verify
@@ -52,7 +52,7 @@ npm run build:jsonSchema   # -> docs/schema/frooky-config.schema.json
 ```bash
 cd frooky/agent && npm run build:dev:android              # still compiles
 node .agents/skills/write-hook-file/validate.cjs $(find docs/examples -name '*.yaml')   # from repo root: all OK
-pytest tests/unit
+pytest tests/host/unit
 ```
 
-If a device is available, run the agent tests and the relevant integration test (see the `device-testing` skill). Integration tests in `tests/integration/android/` embed real YAML, so add a case there for user-visible behavior.
+If a device is available, run the agent tests and the relevant integration test (see the `device-testing` skill). Integration tests in `tests/host/integration/android/` embed real YAML, so add a case there for user-visible behavior.

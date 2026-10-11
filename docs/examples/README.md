@@ -1,6 +1,6 @@
 # Hook File Examples
 
-Each folder shows one topic, for Java hooks in [`android/`](./android/) and for native hooks in [`native/`](./native/). The examples hook the target apps in [`tests/target-apps/android`](../../tests/target-apps/android), and each file documents the events it produces in its `# Expected` comments. [`tests/integration/android/test_examples.py`](../../tests/integration/android/test_examples.py) runs every example against the apps and checks these events.
+Each folder shows one topic, for Java hooks in [`android/`](./android/) and for native hooks in [`native/`](./native/). The examples hook the target apps in [`tests/target-apps/android`](../../tests/target-apps/android), and each file documents the events it produces in its `# Expected` comments. [`tests/host/integration/android/test_examples.py`](../../tests/host/integration/android/test_examples.py) runs every example against the apps and checks these events.
 
 To run an example, install the target app and press "Start" in it after frooky reports `Hooks ready`:
 
