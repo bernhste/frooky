@@ -46,7 +46,7 @@ ACCENT_STYLES = [
 
 # Captures the hook call number, e.g. `42` in
 # `Decoded [call 42] com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): "abc"` or
-# `Decoded decoderArgs 'length: count' of [call 42] libc.so!write param #1 'buf' (size_t, NativeValueDecoder): 8`
+# `Decoded 'length: count' of [call 42] libc.so!write param #1 'buf' (size_t, NativeValueDecoder): 8`
 _DECODED_LOG_PATTERN = re.compile(r"^Decoded .*?\[call (\d+)\] ")
 
 # Frida reports console.warn() as "warning"

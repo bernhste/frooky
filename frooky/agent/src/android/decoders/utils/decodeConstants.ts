@@ -101,11 +101,11 @@ export function classConstants(className: string, pattern: string, type: string,
 }
 
 // The constants of `decoder: constants` and `decoder: bitmask` in a Java hook: the `static final` fields of
-// `config.class`, or else of the hooked class, that match `config.fields`. None with a map in `config.constants`, or
+// `decoderOptions.class`, or else of the hooked class, that match `decoderOptions.fields`. None with a map in `decoderOptions.constants`, or
 // without a class.
 export function configClassConstants(decodable: Decodable): DecodedValue[] {
-  const config = decodable.settings.config;
-  const className = config?.class ?? decodable.declaringClass;
-  if (config?.constants || !className) return [];
-  return classConstants(className, config?.fields ?? "*", decodable.type, decodable.declaringClass);
+  const options = decodable.settings.decoderOptions;
+  const className = options?.class ?? decodable.declaringClass;
+  if (options?.constants || !className) return [];
+  return classConstants(className, options?.fields ?? "*", decodable.type, decodable.declaringClass);
 }

@@ -11,7 +11,7 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/04_decoder_settings/01_max_items.yaml
 # See:    docs/decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values
 
-hookCollection:
+hookCollections:
   - module: libreceiveString.so
     hooks:
       - symbol: receive_cstring
@@ -22,7 +22,7 @@ hookCollection:
     hooks:
       - symbol: send_message
         params:
-          - ["void *", buf, { decoderArgs: { length: len }, maxItems: 5 }]
+          - ["void *", buf, { length: len, maxItems: 5 }]
           - [int, len]
 
 # Expected values (argsIn[0].value):

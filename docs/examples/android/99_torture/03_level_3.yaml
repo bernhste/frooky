@@ -19,12 +19,11 @@ metadata:
 #
 # Expected: thousands of events/s, the app becomes sluggish; an ANR is possible during startup.
 
-settings:
-  decoderSettings:
-    maxItems: 500
-    maxDepth: 5
+decoderSettings:
+  maxItems: 500
+  maxDepth: 5
 
-hookCollection:
+hookCollections:
   # Docs: https://developer.android.com/reference/java/util/HashMap
   - javaClass: java.util.HashMap
     hooks:

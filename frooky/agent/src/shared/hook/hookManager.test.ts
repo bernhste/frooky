@@ -48,7 +48,7 @@ class FakeDecoderResolver implements DecoderResolver<TestValue> {
 }
 
 const fakeStackTrace: PlatformStackTrace = {
-  build: () => ({ platformStackTrace: [], nativeStackTrace: [] }),
+  build: () => ({ javaStackTrace: [], nativeStackTrace: [] }),
 };
 
 // exposes HookManager's protected members
@@ -83,8 +83,8 @@ class TestHookManager extends HookManager<unknown, Hook, TestValue> {
     this.reportHookError(hook, e, message);
   }
 
-  public exposedResolveRetTypeDecoder(retType: RetType): Decoder<TestValue> {
-    return this.resolveRetTypeDecoder(retType);
+  public exposedResolveRetTypeDecoder(returns: RetType): Decoder<TestValue> {
+    return this.resolveRetTypeDecoder(returns);
   }
 
   public exposedMatchesFilter(decodedValue: DecodedValue, argFilter?: (string | RegExp | ArgFilter)[]): boolean {
@@ -204,9 +204,7 @@ describe("HookManager", () => {
 
     it("compiles numeric comparisons in argFilter into NumberFilter objects", () => {
       const manager = createManager();
-      const params: Param[] = [
-        makeParam({ name: "a", type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, argFilter: ["> 100", "<= -5"] } }),
-      ];
+      const params: Param[] = [makeParam({ name: "a", type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, argFilter: ["> 100", "<= -5"] } })];
 
       const result = manager.exposedResolveParamDecoders(params);
 
@@ -230,7 +228,7 @@ describe("HookManager", () => {
       const resolver = new FakeDecoderResolver();
       const manager = createManager(resolver);
       // the buffer's custom decoder must not be applied to the length it references
-      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "string" as const, decoderArgs: { length: "length" } };
+      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "string" as const, length: "length" };
       const lengthSettings = { ...DEFAULT_DECODER_SETTINGS, maxItems: 5 };
       const params: Param[] = [
         makeParam({ name: "length", type: "int", settings: lengthSettings }),
@@ -248,7 +246,7 @@ describe("HookManager", () => {
 
     it("resolves a number and the return value as sources of roles", () => {
       const manager = createManager();
-      const settings = { ...DEFAULT_DECODER_SETTINGS, decoderArgs: { offset: 4, length: "$ret" } };
+      const settings = { ...DEFAULT_DECODER_SETTINGS, offset: 4, length: "$ret" };
       const params: Param[] = [makeParam({ name: "buffer", type: "pointer", direction: "out", settings })];
 
       const [buffer] = manager.exposedResolveParamDecoders(params);
@@ -263,7 +261,7 @@ describe("HookManager", () => {
 
     it("resolves a role when the param using it and other params are unnamed", () => {
       const manager = createManager();
-      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, decoderArgs: { length: "count" } };
+      const bufferSettings = { ...DEFAULT_DECODER_SETTINGS, length: "count" };
       // e.g. write(int, const void *, size_t count): only the referenced param needs a name
       const params: Param[] = [
         makeParam({ name: undefined, type: "int" }),
@@ -281,14 +279,14 @@ describe("HookManager", () => {
   });
 
   describe("resolveRetTypeDecoder()", () => {
-    it("delegates to the decoder resolver for the given retType", () => {
+    it("delegates to the decoder resolver for the given returns", () => {
       const resolver = new FakeDecoderResolver();
       const manager = createManager(resolver);
-      const retType: RetType = { type: "int", settings: DEFAULT_DECODER_SETTINGS };
+      const returns: RetType = { type: "int", settings: DEFAULT_DECODER_SETTINGS };
 
-      const decoder = manager.exposedResolveRetTypeDecoder(retType);
+      const decoder = manager.exposedResolveRetTypeDecoder(returns);
 
-      expect(resolver.resolveCalls).toEqual([retType]);
+      expect(resolver.resolveCalls).toEqual([returns]);
       expect(decoder).toBeDefined();
     });
   });

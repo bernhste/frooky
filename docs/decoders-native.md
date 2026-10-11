@@ -1,6 +1,6 @@
 # Decoders for Native Hooks
 
-How frooky decodes the parameters and return values of native (C/C++) functions. The decoder settings, including the `decoderArgs` roles and the limits of each native decoder, and the decoders shared with Java hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
+How frooky decodes the parameters and return values of native (C/C++) functions. The decoder settings, including `length`, `offset` and the limits of each native decoder, and the decoders shared with Java hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
 
 <!-- TOC -->
 
@@ -28,32 +28,32 @@ A native value has no runtime type, so frooky decodes it by the type declared in
 
 ## Pointers and Arrays
 
-A pointer is read as its declared type: `int *` as one `int`, `char *` as a NUL-terminated string, `char **` by following both pointers to the string, and so on for every `*`. A NULL pointer on any level is `null`, as is memory that can't be read. A `void *` without the role `length` is shown as its address, since its contents are unknown.
+A pointer is read as its declared type: `int *` as one `int`, `char *` as a NUL-terminated string, `char **` by following both pointers to the string, and so on for every `*`. A NULL pointer on any level is `null`, as is memory that can't be read. A `void *` without `length` is shown as its address, since its contents are unknown.
 
-With the role `length` in `decoderArgs`, a pointer is an array with that many elements: `int *` with a length of 3 is `[3, 1, 4]`, and `char **` with a length of 2 is `["alpha", "beta"]`. At most `maxItems` elements are decoded. For `void *`, `char *` and `unsigned char *`, the length is in bytes instead, see [roles of native decoders](./decoders.md#roles-of-native-decoders).
+With `length`, a pointer is an array with that many elements: `int *` with a length of 3 is `[3, 1, 4]`, and `char **` with a length of 2 is `["alpha", "beta"]`. At most `maxItems` elements are decoded. For `void *`, `char *` and `unsigned char *`, the length is in bytes instead, see [roles of native decoders](./decoders.md#length-and-offset-of-native-decoders).
 
 ```yaml
 module: libreceiveFundamentalReference.so
 hooks:
   - symbol: count_chars
     params:
-      - [ "const char **", strings, { decoderArgs: { length: count } } ]
+      - [ "const char **", strings, { length: count } ]
       - [ int, count ]
 ```
 
 An array parameter is a pointer, so `char *[]` is the same as `char **`. In YAML, quote a type that contains `[]` inside a `[ ... ]` list.
 
-With `decoder: nullTerminated`, a pointer to pointers is an array that ends at a NULL pointer, without a count. [`execve`](https://www.man7.org/linux/man-pages/man2/execve.2.html) passes `argv` and `envp` this way:
+With `decoder: nullTerminatedArray`, a pointer to pointers is an array that ends at a NULL pointer, without a count. [`execve`](https://www.man7.org/linux/man-pages/man2/execve.2.html) passes `argv` and `envp` this way:
 
 ```yaml
 module: libc.so
 hooks:
   - symbol: execve
-    retType: int
+    returns: int
     params:
       - [ "const char *", path ]
-      - [ "char *const []", argv, { decoder: nullTerminated } ]
-      - [ "char *const []", envp, { decoder: nullTerminated, maxItems: 20 } ]
+      - [ "char *const []", argv, { decoder: nullTerminatedArray } ]
+      - [ "char *const []", envp, { decoder: nullTerminatedArray, maxItems: 20 } ]
 ```
 
 An array of strings has two kinds of terminators. Each string ends with a `\0` byte, and the array of pointers ends with a NULL pointer (8 zero bytes in a 64-bit app). For `char *const argv[] = {"ls", "-l", "/sdcard", NULL}`, the memory looks like this (with made-up addresses):
@@ -69,9 +69,9 @@ argv ─► 0x7f00a000:  00 b0 00 00 7f 00 00 00   → 0x7f0000b000  argv[0]
 0x7f0000b020:  2f 73 64 63 61 72 64 00   "/sdcard\0"
 ```
 
-A string is always read up to its `\0`. `decoder: nullTerminated` adds the outer loop: frooky reads one pointer after the other until it reaches the NULL pointer, and decodes each element as the type with one `*` less, here `char *`. So `argv` is decoded as `["ls", "-l", "/sdcard"]`. Without `nullTerminated`, only the first pointer is followed (`"ls"`), and with `decoderArgs: { length: argc }` exactly `argc` elements are read.
+A string is always read up to its `\0`. `decoder: nullTerminatedArray` adds the outer loop: frooky reads one pointer after the other until it reaches the NULL pointer, and decodes each element as the type with one `*` less, here `char *`. So `argv` is decoded as `["ls", "-l", "/sdcard"]`. Without `nullTerminatedArray`, only the first pointer is followed (`"ls"`), and with `length: argc` exactly `argc` elements are read.
 
-For a pointee frooky doesn't know, e.g. `FILE **`, the elements are shown as addresses. On a single pointer such as `char *`, `nullTerminated` has no effect: the string is read up to its `\0`, as without the decoder.
+For a pointee frooky doesn't know, e.g. `FILE **`, the elements are shown as addresses. On a single pointer such as `char *`, `nullTerminatedArray` has no effect: the string is read up to its `\0`, as without the decoder.
 
 See [`02_pointers_and_arrays.yaml`](examples/native/03_decoders/02_pointers_and_arrays.yaml).
 
@@ -82,14 +82,14 @@ Most native code on Android uses UTF-8, but some APIs pass UTF-16 strings:
 - JNI: `GetStringChars` and `GetStringCritical` return a `const jchar *`, `NewString` takes one.
 - Binder (`android::String16`) and ICU (`const UChar *`) on Android.
 
-A pointer to `char16_t`, `jchar`, `unichar`, `UniChar` or `UChar` is decoded as a UTF-16 string. For other types, e.g. `uint16_t *` or `void *`, use `decoder: utf16`. Without the role `length`, the string ends at a 0 code unit. JNI strings have no terminator, so they need the length, which JNI counts in code units. `receive_utf16` of the native target app gets a string like that:
+A pointer to `char16_t`, `jchar`, `unichar`, `UniChar` or `UChar` is decoded as a UTF-16 string. For other types, e.g. `uint16_t *` or `void *`, use `decoder: utf16`. Without `length`, the string ends at a 0 code unit. JNI strings have no terminator, so they need the length, which JNI counts in code units. `receive_utf16` of the native target app gets a string like that:
 
 ```yaml
 module: libreceiveString.so
 hooks:
   - symbol: receive_utf16
     params:
-      - [ "const char16_t *", s, { decoderArgs: { length: len } } ]
+      - [ "const char16_t *", s, { length: len } ]
       - [ int, len ]
 ```
 
@@ -118,16 +118,16 @@ For a socket, frooky also reads its address family, socket type and addresses:
 - The `path` is read from `/proc/self/fd`.
 - A negative fd, e.g. `-1` when `open` fails, and an fd that isn't open have `path: null`. For an fd that `close` closes, decode it at the call (the default), not with `direction: out`.
 
-The decoder only reads the state of the fd. It works on the return value too, e.g. `retType: [int, { decoder: fd }]` for `open` and `socket`.
+The decoder only reads the state of the fd. It works on the return value too, e.g. `returns: [int, { decoder: fd }]` for `open` and `socket`.
 
 ```yaml
 module: libc.so
 hooks:
   - symbol: read
-    retType: ssize_t
+    returns: ssize_t
     params:
       - [ int, fd, { decoder: fd } ]
-      - [ "void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string } ]
+      - [ "void *", buf, { direction: out, length: $ret, decoder: string } ]
       - [ size_t, count ]
 ```
 
@@ -152,7 +152,7 @@ The values are those of the Linux kernel and Bionic. A few `O_*` flags differ be
 module: libc.so
 hooks:
   - symbol: openat
-    retType: [ int, { decoder: fd } ]
+    returns: [ int, { decoder: fd } ]
     params:
       - [ int, dirfd ]
       - [ "const char *", path ]
@@ -175,13 +175,13 @@ Many C functions report an error by returning `-1` (or `NULL`) and set `errno` t
 - frooky reads `errno` right when the function returns, before anything else can change it.
 - Functions that return the error number themselves, such as `pthread_create`, don't use `errno`. Use `decoder: constants` for them.
 
-`decoder: errno` is only supported on the return value. A native hook needs a `retType` for it:
+`decoder: errno` is only supported on the return value. A native hook needs `returns` for it:
 
 ```yaml
 module: libc.so
 hooks:
   - symbol: connect
-    retType: [ int, { decoder: errno } ]
+    returns: [ int, { decoder: errno } ]
     params:
       - [ int, sockfd, { decoder: fd } ]
       - [ "const void *", addr ]
@@ -198,7 +198,7 @@ Use a `[ type, {decoderSettings} ]` tuple instead of a plain type:
 module: libc.so
 hooks:
   - symbol: getenv
-    retType: [ "char *", { maxItems: 256 } ]
+    returns: [ "char *", { maxItems: 256 } ]
     params:
       - [ "char *", name ]
 ```

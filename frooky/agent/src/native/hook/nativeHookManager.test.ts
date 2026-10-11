@@ -1,6 +1,6 @@
 import { FrookyAgent } from "../../FrookyAgent";
 import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../../shared/defaultValues";
-import { normalizeInputParams, normalizeInputRetType } from "../../shared/inputParsing/inputDecodableTypes";
+import { normalizeInputParams, normalizeInputReturn } from "../../shared/inputParsing/inputDecodableTypes";
 import { InputParamSettings } from "../../shared/inputParsing/inputSettings";
 import { NativeOffsetHookDeclaration, NativeSymbolHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
@@ -14,7 +14,7 @@ import { isWaiting, LaterHooks, Resolution, Waiting } from "../../shared/hook/ho
 import { NativeHookManager } from "./nativeHookManager";
 
 // resolveHooks() installs nothing, so it can run against always-loaded libc.so exports like malloc
-const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
+const stackTrace: PlatformStackTrace = { build: () => ({ javaStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
 // kept alive for the whole file: the Interceptor may still touch a function after detach()
 const cm = new CModule(`
@@ -491,7 +491,7 @@ describe("NativeHookManager", () => {
       const countingStackTrace: PlatformStackTrace = {
         build: () => {
           builds++;
-          return { platformStackTrace: [], nativeStackTrace: [] };
+          return { javaStackTrace: [], nativeStackTrace: [] };
         },
       };
       const manager = new NativeHookManager(countingStackTrace, agent);
@@ -529,9 +529,9 @@ describe("NativeHookManager", () => {
         ],
         DEFAULT_DECODER_SETTINGS,
       );
-      const retType = normalizeInputRetType(["int", { decoder: "errno" }], DEFAULT_DECODER_SETTINGS);
+      const returns = normalizeInputReturn(["int", { decoder: "errno" }], DEFAULT_DECODER_SETTINGS);
       const hookSettings = { ...DEFAULT_HOOK_SETTINGS, callerFilter: ["^libc\\.so$"] };
-      const [hooks] = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType, hookSettings })]));
+      const [hooks] = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, returns, hookSettings })]));
       const hook: NativeHook = { ...hooks![0], symbolName: "compare_ints", symbolAddress: cmCompare.compare_ints };
       const debugSpy = spyOn(logger, "debug");
 
@@ -603,13 +603,13 @@ describe("NativeHookManager", () => {
       const events: NativeHookEvent[] = [];
       const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
       let enterCount = 0;
-      const countingStackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [`enter ${enterCount++}`], nativeStackTrace: [] }) };
+      const countingStackTrace: PlatformStackTrace = { build: () => ({ javaStackTrace: [`enter ${enterCount++}`], nativeStackTrace: [] }) };
       const manager = new NativeHookManager(countingStackTrace, agent);
       const params = normalizeInputParams([["int", "n"]], DEFAULT_DECODER_SETTINGS);
-      const retType = normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS);
+      const returns = normalizeInputReturn("int", DEFAULT_DECODER_SETTINGS);
       const [hooks] = await resultsOf(
         await manager.resolveHooks([
-          nativeHook("libc.so", "atoi", { params, retType, hookSettings: { ...DEFAULT_HOOK_SETTINGS, platformStackTrace: true } }),
+          nativeHook("libc.so", "atoi", { params, returns, hookSettings: { ...DEFAULT_HOOK_SETTINGS, javaStackTrace: true } }),
         ]),
       );
       const hook: NativeHook = { ...hooks![0], symbolName: "countdown", symbolAddress: cm.countdown };
@@ -628,7 +628,7 @@ describe("NativeHookManager", () => {
       }
 
       // events are added on leave, innermost call first; countdown(n) was entered as call number 3 - n
-      expect(events.map((event) => [event.argsIn![0].value, event.returnValue!.value, event.stackTrace!.platformStackTrace[0]])).toEqual([
+      expect(events.map((event) => [event.argsIn![0].value, event.returnValue!.value, event.stackTrace!.javaStackTrace[0]])).toEqual([
         [0, 0, "enter 3"],
         [1, 1, "enter 2"],
         [2, 2, "enter 1"],
@@ -676,8 +676,8 @@ describe("NativeHookManager", () => {
       const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
       const manager = new NativeHookManager(stackTrace, agent);
       const params = normalizeInputParams([["int", "fail"]], DEFAULT_DECODER_SETTINGS);
-      const retType = normalizeInputRetType(["int", { decoder: "errno" }], DEFAULT_DECODER_SETTINGS);
-      const [hooks] = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })]));
+      const returns = normalizeInputReturn(["int", { decoder: "errno" }], DEFAULT_DECODER_SETTINGS);
+      const [hooks] = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, returns })]));
       const hook: NativeHook = { ...hooks![0], symbolName: "unlink_missing", symbolAddress: cmErrno.unlink_missing };
 
       manager.registerHooks([hook]);
@@ -706,14 +706,14 @@ describe("NativeHookManager", () => {
       const manager = new NativeHookManager(stackTrace, agent);
       const params = normalizeInputParams(
         [
-          ["void *", "buf", { direction: "out", decoderArgs: { length: "$ret" }, decoder: "string" }],
+          ["void *", "buf", { direction: "out", length: "$ret", decoder: "string" }],
           ["int", "len"],
           ["int", "fail"],
         ],
         DEFAULT_DECODER_SETTINGS,
       );
-      const retType = normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS);
-      const [hooks] = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, retType })]));
+      const returns = normalizeInputReturn("int", DEFAULT_DECODER_SETTINGS);
+      const [hooks] = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, returns })]));
       const hook: NativeHook = { ...hooks![0], symbolName: "fill_hello", symbolAddress: cm.fill_hello };
 
       manager.registerHooks([hook]);
@@ -746,12 +746,12 @@ describe("NativeHookManager", () => {
       const addOne = new NativeFunction(cm.add_one, "int", ["int"]);
       // stands in for a decoder or a stack trace that calls the hooked function
       const reentrantStackTrace: PlatformStackTrace = {
-        build: () => ({ platformStackTrace: [`inner ${addOne(100)}`], nativeStackTrace: [] }),
+        build: () => ({ javaStackTrace: [`inner ${addOne(100)}`], nativeStackTrace: [] }),
       };
       const manager = new NativeHookManager(reentrantStackTrace, agent);
       const params = normalizeInputParams([["int", "n"]], DEFAULT_DECODER_SETTINGS);
       const [hooks] = await resultsOf(
-        await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, hookSettings: { ...DEFAULT_HOOK_SETTINGS, platformStackTrace: true } })]),
+        await manager.resolveHooks([nativeHook("libc.so", "atoi", { params, hookSettings: { ...DEFAULT_HOOK_SETTINGS, javaStackTrace: true } })]),
       );
       const hook: NativeHook = { ...hooks![0], symbolName: "add_one", symbolAddress: cm.add_one };
 
@@ -773,7 +773,7 @@ describe("NativeHookManager", () => {
         manager.unregisterHooks([hook]);
       }
 
-      expect(events.map((event) => [event.argsIn![0].value, event.stackTrace!.platformStackTrace[0]])).toEqual([[1, "inner 101"]]);
+      expect(events.map((event) => [event.argsIn![0].value, event.stackTrace!.javaStackTrace[0]])).toEqual([[1, "inner 101"]]);
     });
 
     describe("several hooks on the same function", () => {
@@ -782,13 +782,13 @@ describe("NativeHookManager", () => {
         const events: NativeHookEvent[] = [];
         const agent = { addEventToLog: (event: NativeHookEvent) => events.push(event) } as unknown as FrookyAgent;
         const manager = new NativeHookManager(stackTrace, agent);
-        const retType = normalizeInputRetType("int", DEFAULT_DECODER_SETTINGS);
+        const returns = normalizeInputReturn("int", DEFAULT_DECODER_SETTINGS);
         const resolved = await resultsOf(
           await manager.resolveHooks(
             paramNames.map((param) => {
               const [name, settings] = typeof param === "string" ? [param, {}] : param;
               const params = normalizeInputParams([["int", name, settings]], DEFAULT_DECODER_SETTINGS);
-              return nativeHook("libc.so", "atoi", { params, retType });
+              return nativeHook("libc.so", "atoi", { params, returns });
             }),
           ),
         );

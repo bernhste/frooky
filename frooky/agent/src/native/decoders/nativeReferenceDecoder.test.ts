@@ -322,9 +322,9 @@ describe("NativeReferenceDecoder", () => {
       });
     });
 
-    describe("decoder: nullTerminated", () => {
+    describe("decoder: nullTerminatedArray", () => {
       const makeNullTerminatedDecoder = (type: string, maxItems = DEFAULT_DECODER_SETTINGS.maxItems) =>
-        NativeDecoderResolver.resolveDecoder({ type, settings: { ...DEFAULT_DECODER_SETTINGS, maxItems, decoder: "nullTerminated" } });
+        NativeDecoderResolver.resolveDecoder({ type, settings: { ...DEFAULT_DECODER_SETTINGS, maxItems, decoder: "nullTerminatedArray" } });
 
       it("decodes a char ** up to its NULL pointer, like argv", () => {
         const argv = pointerArray([string("ls"), string("-l"), ptr(0), string("not read")]);

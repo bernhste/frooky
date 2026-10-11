@@ -10,7 +10,7 @@ metadata:
   author: frooky dev
   platform: Android
 
-hookCollection:
+hookCollections:
   # Two hooks on receiveString: each call produces two events, one with the
   # param named `first` and the full string, and one with `second` and the
   # string cut after 5 characters (`Welco...`). Both events carry the same
@@ -36,7 +36,7 @@ hookCollection:
               - [int, value]
       - method: receiveInt
         hookSettings:
-          platformStackTrace: true
+          javaStackTrace: true
         overloads:
           - params:
               - [int, maxValue, { argFilter: ["== 2147483647"] }]

@@ -1,7 +1,7 @@
 import { Param } from "../../shared/decoders/decodable";
 import z from "zod";
 
-import { hasHookList, validateInputHook } from "../../shared/configValidator";
+import { hasHookList, validateInput } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { DecoderSettings, FrookySettings } from "../../shared/frookySettings";
 import { NativeHookDeclaration } from "../../shared/hook/hookDeclaration";
@@ -13,10 +13,12 @@ import {
   mergeNativeHookCollectionSettings,
   normalizeNativeHook,
 } from "../../shared/inputParsing/inputNativeHookCollection";
-import { inputNativeHookSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
+import { inputNativeHookCollectionSchema, inputNativeHookSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
 import { logger } from "../../shared/logger";
-import { validateDecoderArgRoles, validateDecoderConfig, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
-import { acceptedNativeDecoderArgs, acceptedNativeDecoderConfig, NATIVE_DECODER_NAMES } from "../decoders/nativeDecoderResolver";
+import { validateDecoderArgRoles, validateDecoderOptions, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
+import { acceptedNativeDecoderArgs, acceptedNativeDecoderOptions, NATIVE_DECODER_NAMES } from "../decoders/nativeDecoderResolver";
+
+const inputNativeHookCollectionHeaderSchema = inputNativeHookCollectionSchema.omit({ hooks: true });
 
 export class NativeHookValidator implements HookValidator<NativeHookDeclaration, InputNativeHookCollection> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): NativeHookDeclaration[] {
@@ -24,24 +26,30 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
     const normalizedNativeHooks: NativeHookDeclaration[] = [];
 
     for (const nativeHookCollection of nativeHookCollections) {
-      const { hookSettings, decoderSettings } = mergeNativeHookCollectionSettings(nativeHookCollection, settings);
+      let collectionSettings;
+      try {
+        const { hooks: _hooks, ...header } = nativeHookCollection;
+        validateInput(inputNativeHookCollectionHeaderSchema, header, "The hook collection");
+        rejectModulePath(nativeHookCollection.module);
+        collectionSettings = mergeNativeHookCollectionSettings(nativeHookCollection, settings);
+      } catch (e) {
+        logger.warn(`Skipping the hook collection for module '${nativeHookCollection.module}': ${e instanceof Error ? e.message : e}`);
+        continue;
+      }
+      const { hookSettings, decoderSettings } = collectionSettings;
       for (const inputNativeHook of nativeHookCollection.hooks) {
         const target = describeNativeFunction(inputNativeHook);
         try {
-          const validInputHook = validateInputHook(
-            inputNativeHookSchema,
-            inputNativeHook,
-            `native ${target} from module '${nativeHookCollection.module}'`,
-          );
+          const validInputHook = validateInput(inputNativeHookSchema, inputNativeHook, "The hook");
           const validatedHook = normalizeNativeHook(validInputHook, nativeHookCollection.module, hookSettings, decoderSettings);
           validateDecoderArgRoles(validatedHook.params, acceptedNativeDecoderArgs);
           const values: [string, DecoderSettings | undefined][] = [
             ...(validatedHook.params ?? []).map((p): [string, DecoderSettings] => [p.name ?? p.type, p.settings]),
-            ["return value", validatedHook.retType?.settings],
+            ["return value", validatedHook.returns?.settings],
           ];
-          validateDecoderConfig(values, acceptedNativeDecoderConfig);
+          validateDecoderOptions(values, acceptedNativeDecoderOptions);
           validateDecoderNames(
-            [validatedHook.decoderSettings, validatedHook.retType?.settings, ...(validatedHook.params ?? []).map((p) => p.settings)],
+            [validatedHook.decoderSettings, validatedHook.returns?.settings, ...(validatedHook.params ?? []).map((p) => p.settings)],
             NATIVE_DECODER_NAMES,
             "native",
           );
@@ -66,7 +74,7 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
 
   getPlatformHookCollections(inputFrookyConfig: InputFrookyConfig): InputNativeHookCollection[] {
     const platformHookCollection: InputNativeHookCollection[] = [];
-    for (const hookScope of inputFrookyConfig.hookCollection) {
+    for (const hookScope of inputFrookyConfig.hookCollections) {
       if (isNativeHookCollection(hookScope) && hasHookList(hookScope, `module '${hookScope.module}'`)) {
         platformHookCollection.push(hookScope);
       }
@@ -93,10 +101,10 @@ export function isLibcModule(moduleName: string): boolean {
   return isModule(moduleName, "libc.so");
 }
 
-// e.g. `libc.so`, `libc` or `/apex/com.android.runtime/lib64/bionic/libc.so` for `libc.so`
+// e.g. `libc.so` or `libc` for `libc.so`
 function isModule(moduleName: string, library: string): boolean {
   const normalized = moduleName.toLowerCase();
-  return normalized === library || normalized === library.replace(/\.so$/, "") || normalized.endsWith(`/${library}`);
+  return normalized === library || normalized === library.replace(/\.so$/, "");
 }
 
 type BlockedFunction = {
@@ -162,9 +170,9 @@ export function applyBlockedFunctions(hook: NativeHookDeclaration): NativeHookDe
     logger.warn(`Skipping hook for native function '${hook.symbol}' from module '${hook.module}': ${blocked.reason}.${hint}`);
     return null;
   }
-  if (settings.nativeStackTrace || settings.platformStackTrace) {
+  if (settings.nativeStackTrace || settings.javaStackTrace) {
     logger.warn(`No stack traces for native function '${hook.symbol}' from module '${hook.module}': ${blocked.reason}.`);
-    return { ...hook, hookSettings: { ...settings, nativeStackTrace: false, platformStackTrace: false } };
+    return { ...hook, hookSettings: { ...settings, nativeStackTrace: false, javaStackTrace: false } };
   }
   return hook;
 }
@@ -174,7 +182,7 @@ export function warnOnHighFrequencyLibcHook(hook: NativeHookDeclaration): void {
     return;
   }
 
-  if (hook.hookSettings.nativeStackTrace || hook.hookSettings.platformStackTrace) {
+  if (hook.hookSettings.nativeStackTrace || hook.hookSettings.javaStackTrace) {
     logger.warn(
       `Capturing stack traces on high-frequency libc function '${hook.symbol}' in '${hook.module}' can cause recursive stack unwinding or crashes. Keep stack traces disabled for low-level functions.`,
     );
@@ -189,10 +197,17 @@ export function warnOnHighFrequencyLibcHook(hook: NativeHookDeclaration): void {
 
 // A native hook's calls before targetReady get no Java frames, see AndroidStackTrace.build()
 export function noteEarlyPlatformStackTrace(hook: NativeHookDeclaration): void {
-  if (!hook.hookSettings.early || !hook.hookSettings.platformStackTrace) return;
+  if (!hook.hookSettings.early || !hook.hookSettings.javaStackTrace) return;
   logger.info(
-    `${describeNativeTarget(hook.module, hook)} has early: true and platformStackTrace: its calls before targetReady get native frames, but no Java frames (skipped: before-ready), as walking the Java stack of a thread that is still attaching to the Java VM crashes the app.`,
+    `${describeNativeTarget(hook.module, hook)} has early: true and javaStackTrace: its calls before targetReady get native frames, but no Java frames (skipped: before-ready), as walking the Java stack of a thread that is still attaching to the Java VM crashes the app.`,
   );
+}
+
+// The linker and Frida know a module by its file name; a path would never match the modules a pattern is compared with
+function rejectModulePath(module: string): void {
+  if (module.includes("/")) {
+    throw Error(`'module' must be the file name of the module, e.g. '${module.slice(module.lastIndexOf("/") + 1)}', not a path.`);
+  }
 }
 
 // An offset only fits one build of one library, so it can't apply to every module a pattern matches
@@ -207,7 +222,7 @@ function rejectErrnoOnParams(params: Param[] | undefined): void {
   const param = params?.find((p) => p.settings.decoder === "errno");
   if (param) {
     throw new Error(
-      `decoder: errno on '${param.name ?? param.type}' is only supported on the return value, e.g. 'retType: [int, { decoder: errno }]'.`,
+      `decoder: errno on '${param.name ?? param.type}' is only supported on the return value, e.g. 'returns: [int, { decoder: errno }]'.`,
     );
   }
 }

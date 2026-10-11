@@ -2,7 +2,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
-import { DecoderConfig, DecoderSettings, NativeBitmaskPresetName, NativeConstantsPresetName, NativeDecoderName } from "../../shared/frookySettings";
+import { DecoderOptions, DecoderSettings, NativeBitmaskPresetName, NativeConstantsPresetName, NativeDecoderName } from "../../shared/frookySettings";
 import { NativeBase64Decoder } from "./nativeBase64Decoder";
 import { NativeConstantsDecoder, NativeBitmaskDecoder } from "./nativeConstantsDecoder";
 import { resolvePreset } from "./nativeConstantPresets";
@@ -18,7 +18,7 @@ import { NativeValueDecoder } from "./nativeValueDecoder";
 
 type NativeDecoderFactory = (decodable: Decodable) => Decoder<NativePointer>;
 
-// `decoder: nullTerminated` on a type that is no pointer to a fundamental type, e.g. `FILE **`, reads its
+// `decoder: nullTerminatedArray` on a type that is no pointer to a fundamental type, e.g. `FILE **`, reads its
 // elements as `void *`, so they are shown as addresses
 const nullTerminatedArray: NativeDecoderFactory = (decodable) => {
   const fridaType = parseNativeFridaType(decodable.type);
@@ -63,7 +63,7 @@ const CUSTOM_DECODER_REGISTRY: Record<NativeDecoderName, NativeDecoderFactory> =
   fd: (decodable) => new NativeFdDecoder(decodable),
   constants: (decodable) => new NativeConstantsDecoder(decodable),
   bitmask: (decodable) => new NativeBitmaskDecoder(decodable),
-  nullTerminated: nullTerminatedArray,
+  nullTerminatedArray: nullTerminatedArray,
   openFlags: bitmaskPreset("openFlags"),
   mmapProt: bitmaskPreset("mmapProt"),
   mmapFlags: bitmaskPreset("mmapFlags"),
@@ -89,19 +89,19 @@ export const NativeDecoderResolver: DecoderResolver<NativePointer> = {
   },
 };
 
-// The `decoderArgs` roles the decoder of a parameter accepts, see the `decoderArgs` table in docs/decoders-native.md
+// Which of `length` and `offset` the decoder of a parameter accepts, see the table in docs/decoders-native.md
 export function acceptedNativeDecoderArgs(decodable: Decodable): readonly DecoderArgRole[] {
   const decoder = decodable.settings.decoder;
   if (decoder === "string" || decoder === "utf16" || decoder === "base64") return ["length", "offset"];
   if (decoder === "hex") return isNativePointerType(decodable.type) ? ["length", "offset"] : [];
-  if (decoder === "nullTerminated") return ["offset"];
+  if (decoder === "nullTerminatedArray") return ["offset"];
   if (decoder) return [];
   // pointers to fundamental types, e.g. `char *` or `int *`, and UTF-16 strings
   return typeof parseNativeFridaType(decodable.type) === "object" || isUtf16PointerType(decodable.type) ? ["length", "offset"] : [];
 }
 
-// The `config` options the decoder of a value accepts: the map of `constants` and `bitmask`, see docs/decoders.md. The
+// The `decoderOptions` options the decoder of a value accepts: the map of `constants` and `bitmask`, see docs/decoders.md. The
 // presets bring their own constants.
-export function acceptedNativeDecoderConfig(settings: DecoderSettings): readonly (keyof DecoderConfig)[] {
+export function acceptedNativeDecoderOptions(settings: DecoderSettings): readonly (keyof DecoderOptions)[] {
   return settings.decoder === "constants" || settings.decoder === "bitmask" ? ["constants"] : [];
 }

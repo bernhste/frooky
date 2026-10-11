@@ -11,7 +11,7 @@ metadata:
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/04_decoder_settings/02_max_depth.yaml
 # See:    docs/decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       # int[][][] {{{1, 2, 3}, {4, 5, 6}}, {{7, 8, 9}, {10, 11, 12}}}

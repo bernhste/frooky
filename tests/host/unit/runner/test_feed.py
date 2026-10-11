@@ -65,7 +65,7 @@ class TestLog:
 
         feed.log("debug", "Decoded [call 1] com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): \"a\"")
         feed.log("debug", "Decoded [call 2] com.example.Foo.bar param #0 'key' (java.lang.String, PrimitiveDecoder): \"b\"")
-        feed.log("debug", "Decoded decoderArgs 'length: count' of [call 1] libc.so!write param #1 'buf' (size_t, NativeValueDecoder): 8")
+        feed.log("debug", "Decoded 'length: count' of [call 1] libc.so!write param #1 'buf' (size_t, NativeValueDecoder): 8")
         feed.log("debug", "Decoded [call 1] com.example.Foo.bar return value (int, PrimitiveDecoder): 1")
 
         lines = buffer.getvalue().splitlines()

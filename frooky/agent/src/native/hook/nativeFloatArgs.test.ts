@@ -39,19 +39,19 @@ describe("planArgSlots", () => {
 });
 
 describe("planFloatRetTypeSlot", () => {
-  it("returns undefined when there is no retType", () => {
+  it("returns undefined when there is no returns", () => {
     expect(planFloatRetTypeSlot(undefined)).toBeUndefined();
   });
 
-  it("returns fpIndex 0 for a float retType", () => {
+  it("returns fpIndex 0 for a float returns", () => {
     expect(planFloatRetTypeSlot({ type: "float" })).toEqual({ fpIndex: 0, byteLength: 4 });
   });
 
-  it("returns fpIndex 0 for a double retType", () => {
+  it("returns fpIndex 0 for a double returns", () => {
     expect(planFloatRetTypeSlot({ type: "double" })).toEqual({ fpIndex: 0, byteLength: 8 });
   });
 
-  it("returns undefined for a non-float retType", () => {
+  it("returns undefined for a non-float returns", () => {
     expect(planFloatRetTypeSlot({ type: "int" })).toBeUndefined();
   });
 

@@ -10,7 +10,7 @@ metadata:
   author: frooky dev
   platform: Android
 
-hookCollection:
+hookCollections:
   # Two hooks on receive_int: each call produces two events, one decoding
   # only the first argument and one decoding both arguments and the return value.
   # Both events carry the same `address` and hashCode: they are about the
@@ -21,7 +21,7 @@ hookCollection:
         params:
           - [int, minValue]
       - symbol: receive_int
-        retType: int
+        returns: int
         params:
           - [int, minValue]
           - [int, maxValue]

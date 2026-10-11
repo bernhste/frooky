@@ -57,7 +57,7 @@ async function buildInNativeHook(limit: number, variants: Variant[] = [{}]): Pro
       const built = variants.map(({ unsafeContext, callerFilter = [] }) => {
         try {
           return AndroidStackTrace.build(
-            { ...settings, maxStackFrames: limit, nativeStackTrace: true, platformStackTrace: true, callerFilter },
+            { ...settings, maxStackFrames: limit, nativeStackTrace: true, javaStackTrace: true, callerFilter },
             { ctx: this.context, unsafeContext, filterCallers: true },
           );
         } catch (e) {
@@ -92,13 +92,13 @@ describe("AndroidStackTrace.build() of a native hook in an unsafe context", () =
       { unsafeContext: "before-ready", callerFilter: [".*"] },
     ]);
     const [signalStack, lowStackFiltered, linkerBusy, beforeReady, beforeReadyFiltered] = built;
-    expect(signalStack).toEqual({ platformStackTrace: [], nativeStackTrace: [], skipped: "signal-stack" });
+    expect(signalStack).toEqual({ javaStackTrace: [], nativeStackTrace: [], skipped: "signal-stack" });
     expect(lowStackFiltered instanceof FilterMismatchError).toBeTruthy();
     expect(native.length).toBeGreaterThan(0);
     expect(fuzzy.length).toBeGreaterThan(0);
     // the Java walk is initialized by prepare(), so nothing is skipped
-    expect(linkerBusy).toEqual({ platformStackTrace: [], nativeStackTrace: fuzzy });
-    expect(beforeReady).toEqual({ platformStackTrace: [], nativeStackTrace: native, skipped: "before-ready" });
+    expect(linkerBusy).toEqual({ javaStackTrace: [], nativeStackTrace: fuzzy });
+    expect(beforeReady).toEqual({ javaStackTrace: [], nativeStackTrace: native, skipped: "before-ready" });
     expect(beforeReadyFiltered instanceof FilterMismatchError).toBeTruthy();
   });
 });
@@ -107,20 +107,20 @@ describe("AndroidStackTrace.build() of a Java hook in an unsafe context", () => 
   // like a Java hook: on the main thread, without a CPU context
   const buildOnMainThread = (unsafeContext: UnsafeContext, callerFilter: string[] = []) =>
     onMainThread(() =>
-      AndroidStackTrace.build({ ...settings, platformStackTrace: true, maxStackFrames: 2, callerFilter }, { unsafeContext, filterCallers: true }),
+      AndroidStackTrace.build({ ...settings, javaStackTrace: true, maxStackFrames: 2, callerFilter }, { unsafeContext, filterCallers: true }),
     );
 
   it("captures the Java frames and checks the callerFilter before the app is ready", async () => {
     const beforeReady = await buildOnMainThread("before-ready");
-    expect(beforeReady.platformStackTrace.length).toBe(2);
+    expect(beforeReady.javaStackTrace.length).toBe(2);
     expect(beforeReady.skipped).toBeUndefined();
-    expect((await buildOnMainThread("before-ready", ["^android\\.os\\.Looper\\.loop$"])).platformStackTrace.length).toBe(2);
+    expect((await buildOnMainThread("before-ready", ["^android\\.os\\.Looper\\.loop$"])).javaStackTrace.length).toBe(2);
   });
 
   it("captures the Java frames while another thread is in the linker, once the Java walk is initialized", async () => {
     AndroidStackTrace.prepare?.();
     const linkerBusy = await buildOnMainThread("linker-busy");
-    expect(linkerBusy.platformStackTrace.length).toBe(2);
+    expect(linkerBusy.javaStackTrace.length).toBe(2);
     expect(linkerBusy.skipped).toBeUndefined();
   });
 });
@@ -133,7 +133,7 @@ describe("AndroidStackTrace.build() with a callerFilter", () => {
     (await thrownBy(() => AndroidStackTrace.build({ ...settings, callerFilter }, { filterCallers: true }))) instanceof FilterMismatchError;
 
   it("records a call with a matching method anywhere on the Java stack, without capturing frames", async () => {
-    expect(await build(["^android\\.os\\.Looper\\.loop$"])).toEqual({ platformStackTrace: [], nativeStackTrace: [] });
+    expect(await build(["^android\\.os\\.Looper\\.loop$"])).toEqual({ javaStackTrace: [], nativeStackTrace: [] });
   });
 
   it("drops a call without a matching method", async () => {
@@ -142,14 +142,14 @@ describe("AndroidStackTrace.build() with a callerFilter", () => {
 
   it("doesn't match the innermost frame, the hooked method of a Java hook", async () => {
     const frames = await onMainThread(() =>
-      AndroidStackTrace.build({ ...settings, platformStackTrace: true, maxStackFrames: 1 }, { filterCallers: false }),
+      AndroidStackTrace.build({ ...settings, javaStackTrace: true, maxStackFrames: 1 }, { filterCallers: false }),
     );
-    const innermost = frames.platformStackTrace[0].replace(/ \(.*$/, "").replace(/[.$]/g, "\\$&");
+    const innermost = frames.javaStackTrace[0].replace(/ \(.*$/, "").replace(/[.$]/g, "\\$&");
     expect(await dropped([`^${innermost}$`])).toBe(true);
   });
 
   it("isn't checked without filterCallers", async () => {
-    expect(await build(["^this\\.matches\\.nothing$"], false)).toEqual({ platformStackTrace: [], nativeStackTrace: [] });
+    expect(await build(["^this\\.matches\\.nothing$"], false)).toEqual({ javaStackTrace: [], nativeStackTrace: [] });
   });
 });
 

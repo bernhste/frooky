@@ -22,7 +22,7 @@ metadata:
 # Hook the loader, as below, to see which libraries the app loads.
 # Hooking the loader breaks loads from other linker namespaces, see docs/native-hook-declaration.md.
 
-hookCollection:
+hookCollections:
   # void *android_dlopen_ext(const char *filename, int flags, const android_dlextinfo *extinfo)
   # Docs: https://developer.android.com/ndk/reference/group/libdl#android_dlopen_ext
   - module: libdl.so

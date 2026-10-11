@@ -13,19 +13,19 @@
 
 ## Forms
 
-| Form                   | Example                                                                     |
-| ---------------------- | --------------------------------------------------------------------------- |
-| Type                   | `int`                                                                       |
-| Type + name            | `[int, len]`                                                                |
-| Type + settings        | `["[B", { maxItems: 32 }]`                                                  |
-| Type + name + settings | `["void *", buf, { direction: out, decoderArgs: { length: len } }]`         |
-| Object                 | `{ type: "void *", name: buf, direction: out, settings: { maxItems: 32 } }` |
+| Form                   | Example                                                       |
+| ---------------------- | ------------------------------------------------------------- |
+| Type                   | `int`                                                         |
+| Type + name            | `[int, len]`                                                  |
+| Type + settings        | `["[B", { maxItems: 32 }]`                                    |
+| Type + name + settings | `["void *", buf, { direction: out, length: len }]`            |
+| Object                 | `{ type: "void *", name: buf, direction: out, maxItems: 32 }` |
 
-In the tuple forms, `direction` is one of the settings. In the object form, it's a field of its own next to `settings`.
+The object form has the same settings as the tuple forms, next to `type` and `name`.
 
-The name is optional, but name your parameters: events show it next to the value, and [`decoderArgs`](./decoders.md#decoderargs-pass-values-to-the-decoder-by-role) refers to other parameters by it. A name that `decoderArgs` refers to must be unique within the hook.
+The name is optional, but name your parameters: events show it next to the value, and [`length` and `offset`](./decoders.md#length-and-offset-pass-other-values-to-the-decoder) refer to other parameters by it. A name they refer to must be unique within the hook.
 
-In YAML, quote a type that starts with `[` (`"[B"`) or contains `*` or `[]` (`"char *"`, `"char *const []"`).
+YAML needs quotes around a type that starts with `[` (`"[B"`) or contains `[]` (`"char *const []"`). Quote pointer types as well (`"char *"`), as the examples do: a type that starts with `*` would otherwise be read as a YAML alias.
 
 ## Java Parameters
 
@@ -62,7 +62,7 @@ Native types are written as in C. Parameters without a name can be mixed with na
 module: libsqlite.so
 hooks:
   - symbol: sqlite3_exec
-    retType: int
+    returns: int
     params:
       - "sqlite3 *"
       - ["const char *", sql]
@@ -87,11 +87,11 @@ Declare the parameters up to the last one you want to decode; the ones after it 
 
 ## Decoder Settings
 
-The settings of a parameter override the decoder settings of its hook, collection and file. Only a parameter can have `direction`, `decoderArgs` and `argFilter`:
+The settings of a parameter override the decoder settings of its hook, collection and file. Only a parameter can have `direction`, `length`, `offset` and `argFilter`:
 
 ```yaml
 params:
-  - [<type>, <name>, { direction: out, decoderArgs: { length: $ret }, maxItems: 256 }]
+  - [<type>, <name>, { direction: out, length: $ret, maxItems: 256 }]
 ```
 
 See [Decoder Settings](./decoders.md#decoder-settings) for every setting.

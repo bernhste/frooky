@@ -1,26 +1,25 @@
 metadata:
   name: "Settings Precedence (Android): Hook Collection"
   description: |
-    Settings on a hook collection (the `javaClass`/`module` entry in `hookCollection`) override the
+    Settings on a hook collection (the `javaClass`/`module` entry in `hookCollections`) override the
     file-level settings for every hook in that collection.
   version: 1
   author: frooky dev
   platform: Android
 
-# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# Levels, from farthest to closest: default < file < hook collection < hook < parameter/return value.
 # See docs/additional-features.md#settings-precedence.
 # Target: the value-passing-java test app, which calls MastgTest.receiveString("Welcome the first OWASP MASCon 📱❤️") once.
 
-settings:
-  hookSettings:
-    platformStackTrace: true
-    maxStackFrames: 1
-    callerFilter:
-      - org.owasp.mastestapp
-  decoderSettings:
-    maxItems: 10
+hookSettings:
+  javaStackTrace: true
+  maxStackFrames: 1
+  callerFilter:
+    - org.owasp.mastestapp
+decoderSettings:
+  maxItems: 10
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
       maxStackFrames: 2
@@ -33,6 +32,6 @@ hookCollection:
               - [java.lang.String, arg]
 
 # Expected event after pressing Start:
-#   stackTrace:        2 frames in platformStackTrace (hook collection: maxStackFrames 2); the callerFilter keeps the event, as org.owasp.mastestapp code calls receiveString
+#   stackTrace:        2 frames in javaStackTrace (hook collection: maxStackFrames 2); the callerFilter keeps the event, as org.owasp.mastestapp code calls receiveString
 #   argsIn[0].value:   "Welcome the fir..."                     (hook collection: maxItems 15)
 #   returnValue.value: "Welcome the fir..."                     (hook collection: maxItems 15)

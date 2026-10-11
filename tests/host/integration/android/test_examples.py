@@ -335,17 +335,17 @@ class TestAndroidExamples:
         [packet] = self._events(find_matched_events, "sendPacket")
         assert _values(packet["argsIn"]) == ["hello frooky", 7, 12]
 
-    def test_platform_stack_trace(self, run_frooky, find_matched_events):
-        run_frooky(_example("android/05_hook_settings/01_platform_stack_trace.yaml"), JAVA_APP)
+    def test_java_stack_trace(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/05_hook_settings/01_java_stack_trace.yaml"), JAVA_APP)
 
         traces = {event["argsIn"][0]["value"]: event["stackTrace"] for event in self._events(find_matched_events, "trackEvent")}
         assert set(traces) == {"button_click", "sdk_flush"}
         for trace in traces.values():
-            assert len(trace["platformStackTrace"]) == 3
-            assert trace["platformStackTrace"][0].startswith(f"{MASTG_CLASS}.trackEvent ")
+            assert len(trace["javaStackTrace"]) == 3
+            assert trace["javaStackTrace"][0].startswith(f"{MASTG_CLASS}.trackEvent ")
             assert trace["nativeStackTrace"] == []
-        assert traces["button_click"]["platformStackTrace"][1].startswith(f"{MASTG_CLASS}.mastgTest ")
-        assert traces["sdk_flush"]["platformStackTrace"][1].startswith("org.owasp.mastestapp.ThirdPartySdk.flush ")
+        assert traces["button_click"]["javaStackTrace"][1].startswith(f"{MASTG_CLASS}.mastgTest ")
+        assert traces["sdk_flush"]["javaStackTrace"][1].startswith("org.owasp.mastestapp.ThirdPartySdk.flush ")
 
     def test_caller_filter(self, run_frooky, find_matched_events):
         run_frooky(_example("android/05_hook_settings/02_caller_filter.yaml"), JAVA_APP)
@@ -371,10 +371,10 @@ class TestAndroidExamples:
         [event] = self._events(find_matched_events, "receiveString")
         assert event["argsIn"] == [{"type": "java.lang.String", "name": "arg", "value": _cut(received, arg_max_items)}]
         assert event["returnValue"] == {"type": "java.lang.String", "value": _cut(received, ret_max_items)}
-        platform_frames = event["stackTrace"]["platformStackTrace"]
-        assert len(platform_frames) == max_stack_frames
-        if platform_frames:
-            assert platform_frames[0].startswith(f"{MASTG_CLASS}.receiveString ")
+        java_frames = event["stackTrace"]["javaStackTrace"]
+        assert len(java_frames) == max_stack_frames
+        if java_frames:
+            assert java_frames[0].startswith(f"{MASTG_CLASS}.receiveString ")
         assert event["stackTrace"]["nativeStackTrace"] == []
 
     def test_multiple_hooks(self, run_frooky, find_matched_events):
@@ -554,14 +554,14 @@ class TestNativeExamples:
 
         assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "track_event")] == [["button_click"]]
 
-    def test_native_and_platform_stack_traces(self, run_frooky, find_matched_events):
-        run_frooky(_example("native/05_hook_settings/01_native_and_platform_stack_traces.yaml"), NATIVE_APP)
+    def test_native_and_java_stack_traces(self, run_frooky, find_matched_events):
+        run_frooky(_example("native/05_hook_settings/01_native_and_java_stack_traces.yaml"), NATIVE_APP)
 
         traces = {event["argsIn"][0]["value"]: event["stackTrace"] for event in self._events(find_matched_events, "track_event")}
         assert set(traces) == {"button_click", "sdk_flush"}
         for trace in traces.values():
             assert len(trace["nativeStackTrace"]) == 2
-            assert trace["platformStackTrace"][0].startswith(f"{MASTG_CLASS}.receiveStringsJNI ")
+            assert trace["javaStackTrace"][0].startswith(f"{MASTG_CLASS}.receiveStringsJNI ")
         assert traces["button_click"]["nativeStackTrace"][0].startswith("Java_org_owasp_mastestapp_MastgTest_receiveStringsJNI+0x")
         assert traces["sdk_flush"]["nativeStackTrace"][0].startswith("sdk_flush+0x")
 
@@ -582,7 +582,7 @@ class TestNativeExamples:
         for event in events:
             assert _values(event["argsIn"]) == ["/proc/self/status", 0]
             assert event["returnValue"]["value"] >= 0
-            assert event["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+            assert event["stackTrace"] == {"javaStackTrace": [], "nativeStackTrace": []}
 
     @pytest.mark.parametrize(
         "example, max_stack_frames, arg_max_items, ret_max_items",
@@ -603,7 +603,7 @@ class TestNativeExamples:
         [event] = self._events(find_matched_events, "receive_cstring")
         assert event["argsIn"] == [{"type": "char *", "name": "s", "value": _cut(received, arg_max_items)}]
         assert event["returnValue"] == {"type": "char *", "value": _cut(received, ret_max_items)}
-        assert len(event["stackTrace"]["platformStackTrace"]) == max_stack_frames
+        assert len(event["stackTrace"]["javaStackTrace"]) == max_stack_frames
         assert len(event["stackTrace"]["nativeStackTrace"]) == max_stack_frames
 
     def test_multiple_hooks(self, run_frooky, find_matched_events):
@@ -641,7 +641,7 @@ class TestNativeExamples:
         # only the app's frames: the linker's, ART's and java.lang.Runtime's differ between Android versions
         for trace in traces.values():
             assert "skipped" not in trace
-            assert any(frame.startswith(f"{MASTG_CLASS}.<clinit> ") for frame in trace["platformStackTrace"])
+            assert any(frame.startswith(f"{MASTG_CLASS}.<clinit> ") for frame in trace["javaStackTrace"])
         assert traces["constructor"]["nativeStackTrace"][0].startswith("load_time_constructor+0x")
         assert traces["JNI_OnLoad"]["nativeStackTrace"][0].startswith("JNI_OnLoad+0x")
 
@@ -668,7 +668,7 @@ class TestNativeExamples:
             assert trace["nativeStackTrace"][0].startswith("startup_constructor+0x" if step == "constructor" else "JNI_OnLoad+0x")
             if stage == "factory":
                 assert trace["skipped"] == "before-ready"
-                assert trace["platformStackTrace"] == []
+                assert trace["javaStackTrace"] == []
             else:
                 assert "skipped" not in trace
-                assert any(frame.startswith(java_frames[stage]) for frame in trace["platformStackTrace"])
+                assert any(frame.startswith(java_frames[stage]) for frame in trace["javaStackTrace"])

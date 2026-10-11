@@ -11,7 +11,7 @@ metadata:
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/04_decoder_settings/01_max_items.yaml
 # See:    docs/decoders.md#maxitems-and-maxdepth-limit-large-and-nested-values
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       # called with [1, 2, 3] and with 1..100

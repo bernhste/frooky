@@ -6,7 +6,8 @@
 export type Platform = "Android" | "iOS";
 
 /**
- * Descriptive information about a hook file. Not used to install hooks.
+ * Descriptive information about a hook file. Informational: it changes neither the hooks nor the events, and may
+ * contain further fields of your own.
  *
  * @public
  */
@@ -17,7 +18,7 @@ export interface FrookyMetadata {
   platform?: Platform;
 
   /**
-   * Name of the hook collection.
+   * Name of the hook file.
    */
   name?: string;
 
@@ -27,7 +28,7 @@ export interface FrookyMetadata {
   description?: string;
 
   /**
-   * Category of the hook collection, e.g. to group or filter events in an event parser.
+   * Category of the hook file, e.g. `CRYPTO`.
    */
   category?: string;
 

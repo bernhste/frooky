@@ -1,7 +1,7 @@
 metadata:
-  name: "Decoder Settings (Android): decoderArgs"
+  name: "Decoder Settings (Android): length and offset"
   description: |
-    `decoderArgs` passes the values of other parameters to a decoder, each in a role. With the roles
+    `length` and `offset` pass the values of other parameters to a decoder. With
     `offset` and `length`, an array is decoded only from `offset` for `length` elements, e.g. the key
     that a method takes from the middle of a larger buffer.
   version: 1
@@ -10,30 +10,30 @@ metadata:
 
 # Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/04_decoder_settings/04_decoder_args.yaml
-# See:    docs/decoders.md#decoderargs-pass-values-to-the-decoder-by-role
+# See:    docs/decoders.md#length-and-offset-pass-other-values-to-the-decoder
 
-hookCollection:
+hookCollections:
   # SecretKeySpec(byte[] key, int offset, int len, String algorithm) uses only `len` bytes of `key` from `offset`.
-  # Without decoderArgs, the whole buffer would be shown as the key.
+  # Without them, the whole buffer would be shown as the key.
   # Docs: https://developer.android.com/reference/javax/crypto/spec/SecretKeySpec#SecretKeySpec(byte[],%20int,%20int,%20java.lang.String)
   - javaClass: javax.crypto.spec.SecretKeySpec
     hooks:
       - method: $init
         overloads:
           - params:
-              - ["[B", key, { decoderArgs: { offset: offset, length: len } }]
+              - ["[B", key, { offset: offset, length: len }]
               - [int, offset]
               - [int, len]
               - [java.lang.String, algorithm]
 
   # sendPacket(byte[] buffer, int offset, int length) sends "hello frooky", the 12 bytes from offset 7 of
-  # "HEADER|hello frooky|TRAILER". `decoder: string` accepts the same roles and decodes the slice as text.
+  # "HEADER|hello frooky|TRAILER". `decoder: string` accepts them too and decodes the slice as text.
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       - method: sendPacket
         overloads:
           - params:
-              - ["[B", buffer, { decoder: string, decoderArgs: { offset: offset, length: length } }]
+              - ["[B", buffer, { decoder: string, offset: offset, length: length }]
               - [int, offset]
               - [int, length]
 

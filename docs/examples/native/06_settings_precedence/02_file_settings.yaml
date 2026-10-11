@@ -6,29 +6,28 @@ metadata:
   author: frooky dev
   platform: Android
 
-# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# Levels, from farthest to closest: default < file < hook collection < hook < parameter/return value.
 # See docs/additional-features.md#settings-precedence.
 # Target: the value-passing-native test app, which calls receive_cstring("Welcome the first OWASP MASCon, CString!") once from JNI.
 
-settings:
-  hookSettings:
-    platformStackTrace: true
-    nativeStackTrace: true
-    maxStackFrames: 1
-    callerFilter:
-      - libreceiveString.so
-  decoderSettings:
-    maxItems: 10
+hookSettings:
+  javaStackTrace: true
+  nativeStackTrace: true
+  maxStackFrames: 1
+  callerFilter:
+    - libreceiveString.so
+decoderSettings:
+  maxItems: 10
 
-hookCollection:
+hookCollections:
   - module: libreceiveString.so
     hooks:
       - symbol: receive_cstring
         params:
           - ["char *", s]
-        retType: "char *"
+        returns: "char *"
 
 # Expected event after pressing Start:
-#   stackTrace:        1 frame in platformStackTrace and nativeStackTrace (file: maxStackFrames 1); the callerFilter keeps the event, as libreceiveString.so calls receive_cstring
+#   stackTrace:        1 frame in javaStackTrace and nativeStackTrace (file: maxStackFrames 1); the callerFilter keeps the event, as libreceiveString.so calls receive_cstring
 #   argsIn[0].value:   "Welcome th..."                          (file: maxItems 10)
 #   returnValue.value: "Welcome th..."                          (file: maxItems 10)

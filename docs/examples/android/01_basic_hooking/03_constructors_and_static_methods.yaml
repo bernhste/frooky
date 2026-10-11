@@ -12,7 +12,7 @@ metadata:
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/03_constructors_and_static_methods.yaml
 # See:    docs/java-hook-declaration.md#basic-usage
 
-hookCollection:
+hookCollections:
   # class Secret(val value: String)
   - javaClass: org.owasp.mastestapp.Secret
     hooks:

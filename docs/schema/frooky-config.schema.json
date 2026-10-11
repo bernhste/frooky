@@ -2,6 +2,10 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
     "metadata": {
       "type": "object",
       "properties": {
@@ -34,81 +38,74 @@
         }
       }
     },
-    "settings": {
+    "hookSettings": {
       "type": "object",
       "properties": {
-        "hookSettings": {
-          "type": "object",
-          "properties": {
-            "maxStackFrames": {
-              "type": "number",
-              "minimum": 0
-            },
-            "nativeStackTrace": {
-              "type": "boolean"
-            },
-            "platformStackTrace": {
-              "type": "boolean"
-            },
-            "callerFilter": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "early": {
-              "type": "boolean"
-            }
+        "maxStackFrames": {
+          "type": "number",
+          "minimum": 0
+        },
+        "nativeStackTrace": {
+          "type": "boolean"
+        },
+        "javaStackTrace": {
+          "type": "boolean"
+        },
+        "callerFilter": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         },
-        "decoderSettings": {
-          "type": "object",
-          "properties": {
-            "maxDepth": {
-              "type": "number",
-              "minimum": 1
-            },
-            "maxItems": {
-              "type": "number",
-              "minimum": 1
-            },
-            "decoder": {
-              "type": "string",
-              "enum": [
-                "string",
-                "base64",
-                "hex",
-                "hashCode",
-                "constants",
-                "bitmask",
-                "getters",
-                "utf16",
-                "errno",
-                "fd",
-                "nullTerminated",
-                "openFlags",
-                "mmapProt",
-                "mmapFlags",
-                "dlopenFlags",
-                "socketType",
-                "socketDomain"
-              ]
-            }
-          }
+        "early": {
+          "type": "boolean"
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "hookCollection": {
+    "decoderSettings": {
+      "type": "object",
+      "properties": {
+        "maxDepth": {
+          "type": "number",
+          "minimum": 1
+        },
+        "maxItems": {
+          "type": "number",
+          "minimum": 1
+        },
+        "decoder": {
+          "type": "string",
+          "enum": [
+            "string",
+            "base64",
+            "hex",
+            "hashCode",
+            "constants",
+            "bitmask",
+            "getters",
+            "utf16",
+            "errno",
+            "fd",
+            "nullTerminatedArray",
+            "openFlags",
+            "mmapProt",
+            "mmapFlags",
+            "dlopenFlags",
+            "socketType",
+            "socketDomain"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "hookCollections": {
       "type": "array",
       "items": {
         "anyOf": [
           {
             "type": "object",
             "properties": {
-              "type": {
-                "type": "string",
-                "const": "java"
-              },
               "javaClass": {
                 "type": "string"
               },
@@ -151,7 +148,8 @@
                                 "getters"
                               ]
                             }
-                          }
+                          },
+                          "additionalProperties": false
                         }
                       ],
                       "additionalItems": false,
@@ -219,24 +217,7 @@
                                                 "getters"
                                               ]
                                             },
-                                            "decoderArgs": {
-                                              "type": "object",
-                                              "properties": {
-                                                "length": {
-                                                  "type": [
-                                                    "string",
-                                                    "number"
-                                                  ]
-                                                },
-                                                "offset": {
-                                                  "type": [
-                                                    "string",
-                                                    "number"
-                                                  ]
-                                                }
-                                              }
-                                            },
-                                            "config": {
+                                            "decoderOptions": {
                                               "type": "object",
                                               "properties": {
                                                 "constants": {
@@ -254,13 +235,8 @@
                                                 "fields": {
                                                   "type": "string"
                                                 }
-                                              }
-                                            },
-                                            "argFilter": {
-                                              "type": "array",
-                                              "items": {
-                                                "type": "string"
-                                              }
+                                              },
+                                              "additionalProperties": false
                                             },
                                             "direction": {
                                               "anyOf": [
@@ -277,8 +253,27 @@
                                                   "const": "inout"
                                                 }
                                               ]
+                                            },
+                                            "length": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            },
+                                            "offset": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            },
+                                            "argFilter": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
                                             }
-                                          }
+                                          },
+                                          "additionalProperties": false
                                         }
                                       ],
                                       "additionalItems": false,
@@ -317,24 +312,7 @@
                                                 "getters"
                                               ]
                                             },
-                                            "decoderArgs": {
-                                              "type": "object",
-                                              "properties": {
-                                                "length": {
-                                                  "type": [
-                                                    "string",
-                                                    "number"
-                                                  ]
-                                                },
-                                                "offset": {
-                                                  "type": [
-                                                    "string",
-                                                    "number"
-                                                  ]
-                                                }
-                                              }
-                                            },
-                                            "config": {
+                                            "decoderOptions": {
                                               "type": "object",
                                               "properties": {
                                                 "constants": {
@@ -352,13 +330,8 @@
                                                 "fields": {
                                                   "type": "string"
                                                 }
-                                              }
-                                            },
-                                            "argFilter": {
-                                              "type": "array",
-                                              "items": {
-                                                "type": "string"
-                                              }
+                                              },
+                                              "additionalProperties": false
                                             },
                                             "direction": {
                                               "anyOf": [
@@ -375,8 +348,27 @@
                                                   "const": "inout"
                                                 }
                                               ]
+                                            },
+                                            "length": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            },
+                                            "offset": {
+                                              "type": [
+                                                "string",
+                                                "number"
+                                              ]
+                                            },
+                                            "argFilter": {
+                                              "type": "array",
+                                              "items": {
+                                                "type": "string"
+                                              }
                                             }
-                                          }
+                                          },
+                                          "additionalProperties": false
                                         }
                                       ],
                                       "additionalItems": false,
@@ -386,11 +378,46 @@
                                     {
                                       "type": "object",
                                       "properties": {
-                                        "type": {
-                                          "type": "string"
+                                        "maxDepth": {
+                                          "type": "number",
+                                          "minimum": 1
                                         },
-                                        "name": {
-                                          "type": "string"
+                                        "maxItems": {
+                                          "type": "number",
+                                          "minimum": 1
+                                        },
+                                        "decoder": {
+                                          "type": "string",
+                                          "enum": [
+                                            "string",
+                                            "base64",
+                                            "hex",
+                                            "hashCode",
+                                            "constants",
+                                            "bitmask",
+                                            "getters"
+                                          ]
+                                        },
+                                        "decoderOptions": {
+                                          "type": "object",
+                                          "properties": {
+                                            "constants": {
+                                              "type": "object",
+                                              "propertyNames": {
+                                                "type": "string"
+                                              },
+                                              "additionalProperties": {
+                                                "type": "number"
+                                              }
+                                            },
+                                            "class": {
+                                              "type": "string"
+                                            },
+                                            "fields": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "additionalProperties": false
                                         },
                                         "direction": {
                                           "anyOf": [
@@ -408,83 +435,40 @@
                                             }
                                           ]
                                         },
-                                        "settings": {
-                                          "type": "object",
-                                          "properties": {
-                                            "maxDepth": {
-                                              "type": "number",
-                                              "minimum": 1
-                                            },
-                                            "maxItems": {
-                                              "type": "number",
-                                              "minimum": 1
-                                            },
-                                            "decoder": {
-                                              "type": "string",
-                                              "enum": [
-                                                "string",
-                                                "base64",
-                                                "hex",
-                                                "hashCode",
-                                                "constants",
-                                                "bitmask",
-                                                "getters"
-                                              ]
-                                            },
-                                            "decoderArgs": {
-                                              "type": "object",
-                                              "properties": {
-                                                "length": {
-                                                  "type": [
-                                                    "string",
-                                                    "number"
-                                                  ]
-                                                },
-                                                "offset": {
-                                                  "type": [
-                                                    "string",
-                                                    "number"
-                                                  ]
-                                                }
-                                              }
-                                            },
-                                            "config": {
-                                              "type": "object",
-                                              "properties": {
-                                                "constants": {
-                                                  "type": "object",
-                                                  "propertyNames": {
-                                                    "type": "string"
-                                                  },
-                                                  "additionalProperties": {
-                                                    "type": "number"
-                                                  }
-                                                },
-                                                "class": {
-                                                  "type": "string"
-                                                },
-                                                "fields": {
-                                                  "type": "string"
-                                                }
-                                              }
-                                            },
-                                            "argFilter": {
-                                              "type": "array",
-                                              "items": {
-                                                "type": "string"
-                                              }
-                                            }
+                                        "length": {
+                                          "type": [
+                                            "string",
+                                            "number"
+                                          ]
+                                        },
+                                        "offset": {
+                                          "type": [
+                                            "string",
+                                            "number"
+                                          ]
+                                        },
+                                        "argFilter": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
                                           }
+                                        },
+                                        "type": {
+                                          "type": "string"
+                                        },
+                                        "name": {
+                                          "type": "string"
                                         }
                                       },
                                       "required": [
                                         "type"
-                                      ]
+                                      ],
+                                      "additionalProperties": false
                                     }
                                   ]
                                 }
                               },
-                              "retType": {
+                              "returns": {
                                 "type": "object",
                                 "properties": {
                                   "maxDepth": {
@@ -507,24 +491,7 @@
                                       "getters"
                                     ]
                                   },
-                                  "decoderArgs": {
-                                    "type": "object",
-                                    "properties": {
-                                      "length": {
-                                        "type": [
-                                          "string",
-                                          "number"
-                                        ]
-                                      },
-                                      "offset": {
-                                        "type": [
-                                          "string",
-                                          "number"
-                                        ]
-                                      }
-                                    }
-                                  },
-                                  "config": {
+                                  "decoderOptions": {
                                     "type": "object",
                                     "properties": {
                                       "constants": {
@@ -542,20 +509,17 @@
                                       "fields": {
                                         "type": "string"
                                       }
-                                    }
-                                  },
-                                  "argFilter": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string"
-                                    }
+                                    },
+                                    "additionalProperties": false
                                   }
-                                }
+                                },
+                                "additionalProperties": false
                               }
                             },
                             "required": [
                               "params"
-                            ]
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "hookSettings": {
@@ -568,7 +532,7 @@
                             "nativeStackTrace": {
                               "type": "boolean"
                             },
-                            "platformStackTrace": {
+                            "javaStackTrace": {
                               "type": "boolean"
                             },
                             "callerFilter": {
@@ -580,7 +544,8 @@
                             "early": {
                               "type": "boolean"
                             }
-                          }
+                          },
+                          "additionalProperties": false
                         },
                         "decoderSettings": {
                           "type": "object",
@@ -605,12 +570,14 @@
                                 "getters"
                               ]
                             }
-                          }
+                          },
+                          "additionalProperties": false
                         }
                       },
                       "required": [
                         "method"
-                      ]
+                      ],
+                      "additionalProperties": false
                     }
                   ]
                 }
@@ -625,7 +592,7 @@
                   "nativeStackTrace": {
                     "type": "boolean"
                   },
-                  "platformStackTrace": {
+                  "javaStackTrace": {
                     "type": "boolean"
                   },
                   "callerFilter": {
@@ -637,7 +604,8 @@
                   "early": {
                     "type": "boolean"
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "decoderSettings": {
                 "type": "object",
@@ -662,21 +630,19 @@
                       "getters"
                     ]
                   }
-                }
+                },
+                "additionalProperties": false
               }
             },
             "required": [
               "javaClass",
               "hooks"
-            ]
+            ],
+            "additionalProperties": false
           },
           {
             "type": "object",
             "properties": {
-              "type": {
-                "type": "string",
-                "const": "native"
-              },
               "module": {
                 "type": "string"
               },
@@ -715,7 +681,7 @@
                                 "fd",
                                 "constants",
                                 "bitmask",
-                                "nullTerminated",
+                                "nullTerminatedArray",
                                 "openFlags",
                                 "mmapProt",
                                 "mmapFlags",
@@ -724,7 +690,8 @@
                                 "socketDomain"
                               ]
                             }
-                          }
+                          },
+                          "additionalProperties": false
                         }
                       ],
                       "additionalItems": false,
@@ -785,7 +752,7 @@
                                               "fd",
                                               "constants",
                                               "bitmask",
-                                              "nullTerminated",
+                                              "nullTerminatedArray",
                                               "openFlags",
                                               "mmapProt",
                                               "mmapFlags",
@@ -794,24 +761,7 @@
                                               "socketDomain"
                                             ]
                                           },
-                                          "decoderArgs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "length": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              },
-                                              "offset": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          "config": {
+                                          "decoderOptions": {
                                             "type": "object",
                                             "properties": {
                                               "constants": {
@@ -823,13 +773,8 @@
                                                   "type": "number"
                                                 }
                                               }
-                                            }
-                                          },
-                                          "argFilter": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "string"
-                                            }
+                                            },
+                                            "additionalProperties": false
                                           },
                                           "direction": {
                                             "anyOf": [
@@ -846,8 +791,27 @@
                                                 "const": "inout"
                                               }
                                             ]
+                                          },
+                                          "length": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
                                           }
-                                        }
+                                        },
+                                        "additionalProperties": false
                                       }
                                     ],
                                     "additionalItems": false,
@@ -885,7 +849,7 @@
                                               "fd",
                                               "constants",
                                               "bitmask",
-                                              "nullTerminated",
+                                              "nullTerminatedArray",
                                               "openFlags",
                                               "mmapProt",
                                               "mmapFlags",
@@ -894,24 +858,7 @@
                                               "socketDomain"
                                             ]
                                           },
-                                          "decoderArgs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "length": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              },
-                                              "offset": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          "config": {
+                                          "decoderOptions": {
                                             "type": "object",
                                             "properties": {
                                               "constants": {
@@ -923,13 +870,8 @@
                                                   "type": "number"
                                                 }
                                               }
-                                            }
-                                          },
-                                          "argFilter": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "string"
-                                            }
+                                            },
+                                            "additionalProperties": false
                                           },
                                           "direction": {
                                             "anyOf": [
@@ -946,8 +888,27 @@
                                                 "const": "inout"
                                               }
                                             ]
+                                          },
+                                          "length": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
                                           }
-                                        }
+                                        },
+                                        "additionalProperties": false
                                       }
                                     ],
                                     "additionalItems": false,
@@ -957,11 +918,48 @@
                                   {
                                     "type": "object",
                                     "properties": {
-                                      "type": {
-                                        "type": "string"
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
                                       },
-                                      "name": {
-                                        "type": "string"
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "decoder": {
+                                        "type": "string",
+                                        "enum": [
+                                          "string",
+                                          "base64",
+                                          "hex",
+                                          "utf16",
+                                          "errno",
+                                          "fd",
+                                          "constants",
+                                          "bitmask",
+                                          "nullTerminatedArray",
+                                          "openFlags",
+                                          "mmapProt",
+                                          "mmapFlags",
+                                          "dlopenFlags",
+                                          "socketType",
+                                          "socketDomain"
+                                        ]
+                                      },
+                                      "decoderOptions": {
+                                        "type": "object",
+                                        "properties": {
+                                          "constants": {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          }
+                                        },
+                                        "additionalProperties": false
                                       },
                                       "direction": {
                                         "anyOf": [
@@ -979,85 +977,40 @@
                                           }
                                         ]
                                       },
-                                      "settings": {
-                                        "type": "object",
-                                        "properties": {
-                                          "maxDepth": {
-                                            "type": "number",
-                                            "minimum": 1
-                                          },
-                                          "maxItems": {
-                                            "type": "number",
-                                            "minimum": 1
-                                          },
-                                          "decoder": {
-                                            "type": "string",
-                                            "enum": [
-                                              "string",
-                                              "base64",
-                                              "hex",
-                                              "utf16",
-                                              "errno",
-                                              "fd",
-                                              "constants",
-                                              "bitmask",
-                                              "nullTerminated",
-                                              "openFlags",
-                                              "mmapProt",
-                                              "mmapFlags",
-                                              "dlopenFlags",
-                                              "socketType",
-                                              "socketDomain"
-                                            ]
-                                          },
-                                          "decoderArgs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "length": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              },
-                                              "offset": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          "config": {
-                                            "type": "object",
-                                            "properties": {
-                                              "constants": {
-                                                "type": "object",
-                                                "propertyNames": {
-                                                  "type": "string"
-                                                },
-                                                "additionalProperties": {
-                                                  "type": "number"
-                                                }
-                                              }
-                                            }
-                                          },
-                                          "argFilter": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "string"
-                                            }
-                                          }
+                                      "length": {
+                                        "type": [
+                                          "string",
+                                          "number"
+                                        ]
+                                      },
+                                      "offset": {
+                                        "type": [
+                                          "string",
+                                          "number"
+                                        ]
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
                                         }
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
                                       }
                                     },
                                     "required": [
                                       "type"
-                                    ]
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 ]
                               }
                             },
-                            "retType": {
+                            "returns": {
                               "anyOf": [
                                 {
                                   "type": "string"
@@ -1090,7 +1043,7 @@
                                             "fd",
                                             "constants",
                                             "bitmask",
-                                            "nullTerminated",
+                                            "nullTerminatedArray",
                                             "openFlags",
                                             "mmapProt",
                                             "mmapFlags",
@@ -1099,24 +1052,7 @@
                                             "socketDomain"
                                           ]
                                         },
-                                        "decoderArgs": {
-                                          "type": "object",
-                                          "properties": {
-                                            "length": {
-                                              "type": [
-                                                "string",
-                                                "number"
-                                              ]
-                                            },
-                                            "offset": {
-                                              "type": [
-                                                "string",
-                                                "number"
-                                              ]
-                                            }
-                                          }
-                                        },
-                                        "config": {
+                                        "decoderOptions": {
                                           "type": "object",
                                           "properties": {
                                             "constants": {
@@ -1128,15 +1064,11 @@
                                                 "type": "number"
                                               }
                                             }
-                                          }
-                                        },
-                                        "argFilter": {
-                                          "type": "array",
-                                          "items": {
-                                            "type": "string"
-                                          }
+                                          },
+                                          "additionalProperties": false
                                         }
-                                      }
+                                      },
+                                      "additionalProperties": false
                                     }
                                   ],
                                   "additionalItems": false,
@@ -1146,86 +1078,60 @@
                                 {
                                   "type": "object",
                                   "properties": {
+                                    "maxDepth": {
+                                      "type": "number",
+                                      "minimum": 1
+                                    },
+                                    "maxItems": {
+                                      "type": "number",
+                                      "minimum": 1
+                                    },
+                                    "decoder": {
+                                      "type": "string",
+                                      "enum": [
+                                        "string",
+                                        "base64",
+                                        "hex",
+                                        "utf16",
+                                        "errno",
+                                        "fd",
+                                        "constants",
+                                        "bitmask",
+                                        "nullTerminatedArray",
+                                        "openFlags",
+                                        "mmapProt",
+                                        "mmapFlags",
+                                        "dlopenFlags",
+                                        "socketType",
+                                        "socketDomain"
+                                      ]
+                                    },
+                                    "decoderOptions": {
+                                      "type": "object",
+                                      "properties": {
+                                        "constants": {
+                                          "type": "object",
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "additionalProperties": {
+                                            "type": "number"
+                                          }
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
                                     "type": {
                                       "type": "string"
                                     },
                                     "name": {
                                       "type": "string"
-                                    },
-                                    "settings": {
-                                      "type": "object",
-                                      "properties": {
-                                        "maxDepth": {
-                                          "type": "number",
-                                          "minimum": 1
-                                        },
-                                        "maxItems": {
-                                          "type": "number",
-                                          "minimum": 1
-                                        },
-                                        "decoder": {
-                                          "type": "string",
-                                          "enum": [
-                                            "string",
-                                            "base64",
-                                            "hex",
-                                            "utf16",
-                                            "errno",
-                                            "fd",
-                                            "constants",
-                                            "bitmask",
-                                            "nullTerminated",
-                                            "openFlags",
-                                            "mmapProt",
-                                            "mmapFlags",
-                                            "dlopenFlags",
-                                            "socketType",
-                                            "socketDomain"
-                                          ]
-                                        },
-                                        "decoderArgs": {
-                                          "type": "object",
-                                          "properties": {
-                                            "length": {
-                                              "type": [
-                                                "string",
-                                                "number"
-                                              ]
-                                            },
-                                            "offset": {
-                                              "type": [
-                                                "string",
-                                                "number"
-                                              ]
-                                            }
-                                          }
-                                        },
-                                        "config": {
-                                          "type": "object",
-                                          "properties": {
-                                            "constants": {
-                                              "type": "object",
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "additionalProperties": {
-                                                "type": "number"
-                                              }
-                                            }
-                                          }
-                                        },
-                                        "argFilter": {
-                                          "type": "array",
-                                          "items": {
-                                            "type": "string"
-                                          }
-                                        }
-                                      }
                                     }
                                   },
                                   "required": [
                                     "type"
-                                  ]
+                                  ],
+                                  "additionalProperties": false
                                 }
                               ]
                             },
@@ -1239,7 +1145,7 @@
                                 "nativeStackTrace": {
                                   "type": "boolean"
                                 },
-                                "platformStackTrace": {
+                                "javaStackTrace": {
                                   "type": "boolean"
                                 },
                                 "callerFilter": {
@@ -1251,7 +1157,8 @@
                                 "early": {
                                   "type": "boolean"
                                 }
-                              }
+                              },
+                              "additionalProperties": false
                             },
                             "decoderSettings": {
                               "type": "object",
@@ -1275,7 +1182,7 @@
                                     "fd",
                                     "constants",
                                     "bitmask",
-                                    "nullTerminated",
+                                    "nullTerminatedArray",
                                     "openFlags",
                                     "mmapProt",
                                     "mmapFlags",
@@ -1284,7 +1191,8 @@
                                     "socketDomain"
                                   ]
                                 }
-                              }
+                              },
+                              "additionalProperties": false
                             },
                             "symbol": {
                               "type": "string"
@@ -1295,7 +1203,8 @@
                           },
                           "required": [
                             "symbol"
-                          ]
+                          ],
+                          "additionalProperties": false
                         },
                         {
                           "type": "object",
@@ -1349,7 +1258,7 @@
                                               "fd",
                                               "constants",
                                               "bitmask",
-                                              "nullTerminated",
+                                              "nullTerminatedArray",
                                               "openFlags",
                                               "mmapProt",
                                               "mmapFlags",
@@ -1358,24 +1267,7 @@
                                               "socketDomain"
                                             ]
                                           },
-                                          "decoderArgs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "length": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              },
-                                              "offset": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          "config": {
+                                          "decoderOptions": {
                                             "type": "object",
                                             "properties": {
                                               "constants": {
@@ -1387,13 +1279,8 @@
                                                   "type": "number"
                                                 }
                                               }
-                                            }
-                                          },
-                                          "argFilter": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "string"
-                                            }
+                                            },
+                                            "additionalProperties": false
                                           },
                                           "direction": {
                                             "anyOf": [
@@ -1410,8 +1297,27 @@
                                                 "const": "inout"
                                               }
                                             ]
+                                          },
+                                          "length": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
                                           }
-                                        }
+                                        },
+                                        "additionalProperties": false
                                       }
                                     ],
                                     "additionalItems": false,
@@ -1449,7 +1355,7 @@
                                               "fd",
                                               "constants",
                                               "bitmask",
-                                              "nullTerminated",
+                                              "nullTerminatedArray",
                                               "openFlags",
                                               "mmapProt",
                                               "mmapFlags",
@@ -1458,24 +1364,7 @@
                                               "socketDomain"
                                             ]
                                           },
-                                          "decoderArgs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "length": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              },
-                                              "offset": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          "config": {
+                                          "decoderOptions": {
                                             "type": "object",
                                             "properties": {
                                               "constants": {
@@ -1487,13 +1376,8 @@
                                                   "type": "number"
                                                 }
                                               }
-                                            }
-                                          },
-                                          "argFilter": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "string"
-                                            }
+                                            },
+                                            "additionalProperties": false
                                           },
                                           "direction": {
                                             "anyOf": [
@@ -1510,8 +1394,27 @@
                                                 "const": "inout"
                                               }
                                             ]
+                                          },
+                                          "length": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "offset": {
+                                            "type": [
+                                              "string",
+                                              "number"
+                                            ]
+                                          },
+                                          "argFilter": {
+                                            "type": "array",
+                                            "items": {
+                                              "type": "string"
+                                            }
                                           }
-                                        }
+                                        },
+                                        "additionalProperties": false
                                       }
                                     ],
                                     "additionalItems": false,
@@ -1521,11 +1424,48 @@
                                   {
                                     "type": "object",
                                     "properties": {
-                                      "type": {
-                                        "type": "string"
+                                      "maxDepth": {
+                                        "type": "number",
+                                        "minimum": 1
                                       },
-                                      "name": {
-                                        "type": "string"
+                                      "maxItems": {
+                                        "type": "number",
+                                        "minimum": 1
+                                      },
+                                      "decoder": {
+                                        "type": "string",
+                                        "enum": [
+                                          "string",
+                                          "base64",
+                                          "hex",
+                                          "utf16",
+                                          "errno",
+                                          "fd",
+                                          "constants",
+                                          "bitmask",
+                                          "nullTerminatedArray",
+                                          "openFlags",
+                                          "mmapProt",
+                                          "mmapFlags",
+                                          "dlopenFlags",
+                                          "socketType",
+                                          "socketDomain"
+                                        ]
+                                      },
+                                      "decoderOptions": {
+                                        "type": "object",
+                                        "properties": {
+                                          "constants": {
+                                            "type": "object",
+                                            "propertyNames": {
+                                              "type": "string"
+                                            },
+                                            "additionalProperties": {
+                                              "type": "number"
+                                            }
+                                          }
+                                        },
+                                        "additionalProperties": false
                                       },
                                       "direction": {
                                         "anyOf": [
@@ -1543,85 +1483,40 @@
                                           }
                                         ]
                                       },
-                                      "settings": {
-                                        "type": "object",
-                                        "properties": {
-                                          "maxDepth": {
-                                            "type": "number",
-                                            "minimum": 1
-                                          },
-                                          "maxItems": {
-                                            "type": "number",
-                                            "minimum": 1
-                                          },
-                                          "decoder": {
-                                            "type": "string",
-                                            "enum": [
-                                              "string",
-                                              "base64",
-                                              "hex",
-                                              "utf16",
-                                              "errno",
-                                              "fd",
-                                              "constants",
-                                              "bitmask",
-                                              "nullTerminated",
-                                              "openFlags",
-                                              "mmapProt",
-                                              "mmapFlags",
-                                              "dlopenFlags",
-                                              "socketType",
-                                              "socketDomain"
-                                            ]
-                                          },
-                                          "decoderArgs": {
-                                            "type": "object",
-                                            "properties": {
-                                              "length": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              },
-                                              "offset": {
-                                                "type": [
-                                                  "string",
-                                                  "number"
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          "config": {
-                                            "type": "object",
-                                            "properties": {
-                                              "constants": {
-                                                "type": "object",
-                                                "propertyNames": {
-                                                  "type": "string"
-                                                },
-                                                "additionalProperties": {
-                                                  "type": "number"
-                                                }
-                                              }
-                                            }
-                                          },
-                                          "argFilter": {
-                                            "type": "array",
-                                            "items": {
-                                              "type": "string"
-                                            }
-                                          }
+                                      "length": {
+                                        "type": [
+                                          "string",
+                                          "number"
+                                        ]
+                                      },
+                                      "offset": {
+                                        "type": [
+                                          "string",
+                                          "number"
+                                        ]
+                                      },
+                                      "argFilter": {
+                                        "type": "array",
+                                        "items": {
+                                          "type": "string"
                                         }
+                                      },
+                                      "type": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string"
                                       }
                                     },
                                     "required": [
                                       "type"
-                                    ]
+                                    ],
+                                    "additionalProperties": false
                                   }
                                 ]
                               }
                             },
-                            "retType": {
+                            "returns": {
                               "anyOf": [
                                 {
                                   "type": "string"
@@ -1654,7 +1549,7 @@
                                             "fd",
                                             "constants",
                                             "bitmask",
-                                            "nullTerminated",
+                                            "nullTerminatedArray",
                                             "openFlags",
                                             "mmapProt",
                                             "mmapFlags",
@@ -1663,24 +1558,7 @@
                                             "socketDomain"
                                           ]
                                         },
-                                        "decoderArgs": {
-                                          "type": "object",
-                                          "properties": {
-                                            "length": {
-                                              "type": [
-                                                "string",
-                                                "number"
-                                              ]
-                                            },
-                                            "offset": {
-                                              "type": [
-                                                "string",
-                                                "number"
-                                              ]
-                                            }
-                                          }
-                                        },
-                                        "config": {
+                                        "decoderOptions": {
                                           "type": "object",
                                           "properties": {
                                             "constants": {
@@ -1692,15 +1570,11 @@
                                                 "type": "number"
                                               }
                                             }
-                                          }
-                                        },
-                                        "argFilter": {
-                                          "type": "array",
-                                          "items": {
-                                            "type": "string"
-                                          }
+                                          },
+                                          "additionalProperties": false
                                         }
-                                      }
+                                      },
+                                      "additionalProperties": false
                                     }
                                   ],
                                   "additionalItems": false,
@@ -1710,86 +1584,60 @@
                                 {
                                   "type": "object",
                                   "properties": {
+                                    "maxDepth": {
+                                      "type": "number",
+                                      "minimum": 1
+                                    },
+                                    "maxItems": {
+                                      "type": "number",
+                                      "minimum": 1
+                                    },
+                                    "decoder": {
+                                      "type": "string",
+                                      "enum": [
+                                        "string",
+                                        "base64",
+                                        "hex",
+                                        "utf16",
+                                        "errno",
+                                        "fd",
+                                        "constants",
+                                        "bitmask",
+                                        "nullTerminatedArray",
+                                        "openFlags",
+                                        "mmapProt",
+                                        "mmapFlags",
+                                        "dlopenFlags",
+                                        "socketType",
+                                        "socketDomain"
+                                      ]
+                                    },
+                                    "decoderOptions": {
+                                      "type": "object",
+                                      "properties": {
+                                        "constants": {
+                                          "type": "object",
+                                          "propertyNames": {
+                                            "type": "string"
+                                          },
+                                          "additionalProperties": {
+                                            "type": "number"
+                                          }
+                                        }
+                                      },
+                                      "additionalProperties": false
+                                    },
                                     "type": {
                                       "type": "string"
                                     },
                                     "name": {
                                       "type": "string"
-                                    },
-                                    "settings": {
-                                      "type": "object",
-                                      "properties": {
-                                        "maxDepth": {
-                                          "type": "number",
-                                          "minimum": 1
-                                        },
-                                        "maxItems": {
-                                          "type": "number",
-                                          "minimum": 1
-                                        },
-                                        "decoder": {
-                                          "type": "string",
-                                          "enum": [
-                                            "string",
-                                            "base64",
-                                            "hex",
-                                            "utf16",
-                                            "errno",
-                                            "fd",
-                                            "constants",
-                                            "bitmask",
-                                            "nullTerminated",
-                                            "openFlags",
-                                            "mmapProt",
-                                            "mmapFlags",
-                                            "dlopenFlags",
-                                            "socketType",
-                                            "socketDomain"
-                                          ]
-                                        },
-                                        "decoderArgs": {
-                                          "type": "object",
-                                          "properties": {
-                                            "length": {
-                                              "type": [
-                                                "string",
-                                                "number"
-                                              ]
-                                            },
-                                            "offset": {
-                                              "type": [
-                                                "string",
-                                                "number"
-                                              ]
-                                            }
-                                          }
-                                        },
-                                        "config": {
-                                          "type": "object",
-                                          "properties": {
-                                            "constants": {
-                                              "type": "object",
-                                              "propertyNames": {
-                                                "type": "string"
-                                              },
-                                              "additionalProperties": {
-                                                "type": "number"
-                                              }
-                                            }
-                                          }
-                                        },
-                                        "argFilter": {
-                                          "type": "array",
-                                          "items": {
-                                            "type": "string"
-                                          }
-                                        }
-                                      }
                                     }
                                   },
                                   "required": [
                                     "type"
-                                  ]
+                                  ],
+                                  "additionalProperties": false
                                 }
                               ]
                             },
@@ -1803,7 +1651,7 @@
                                 "nativeStackTrace": {
                                   "type": "boolean"
                                 },
-                                "platformStackTrace": {
+                                "javaStackTrace": {
                                   "type": "boolean"
                                 },
                                 "callerFilter": {
@@ -1815,7 +1663,8 @@
                                 "early": {
                                   "type": "boolean"
                                 }
-                              }
+                              },
+                              "additionalProperties": false
                             },
                             "decoderSettings": {
                               "type": "object",
@@ -1839,7 +1688,7 @@
                                     "fd",
                                     "constants",
                                     "bitmask",
-                                    "nullTerminated",
+                                    "nullTerminatedArray",
                                     "openFlags",
                                     "mmapProt",
                                     "mmapFlags",
@@ -1848,7 +1697,8 @@
                                     "socketDomain"
                                   ]
                                 }
-                              }
+                              },
+                              "additionalProperties": false
                             },
                             "offset": {
                               "type": [
@@ -1862,7 +1712,8 @@
                           },
                           "required": [
                             "offset"
-                          ]
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     }
@@ -1879,7 +1730,7 @@
                   "nativeStackTrace": {
                     "type": "boolean"
                   },
-                  "platformStackTrace": {
+                  "javaStackTrace": {
                     "type": "boolean"
                   },
                   "callerFilter": {
@@ -1891,7 +1742,8 @@
                   "early": {
                     "type": "boolean"
                   }
-                }
+                },
+                "additionalProperties": false
               },
               "decoderSettings": {
                 "type": "object",
@@ -1915,7 +1767,7 @@
                       "fd",
                       "constants",
                       "bitmask",
-                      "nullTerminated",
+                      "nullTerminatedArray",
                       "openFlags",
                       "mmapProt",
                       "mmapFlags",
@@ -1924,19 +1776,22 @@
                       "socketDomain"
                     ]
                   }
-                }
+                },
+                "additionalProperties": false
               }
             },
             "required": [
               "module",
               "hooks"
-            ]
+            ],
+            "additionalProperties": false
           }
         ]
       }
     }
   },
   "required": [
-    "hookCollection"
-  ]
+    "hookCollections"
+  ],
+  "additionalProperties": false
 }

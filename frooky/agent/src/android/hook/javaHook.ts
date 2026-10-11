@@ -9,7 +9,7 @@ export interface JavaHook extends Hook {
   methodName: string;
   params?: Param[];
 
-  // decoder settings of the return value, from `retType`, else Hook.decoderSettings. The return type itself
+  // decoder settings of the return value, from `returns`, else Hook.decoderSettings. The return type itself
   // comes from reflection.
   retTypeSettings?: DecoderSettings;
 }

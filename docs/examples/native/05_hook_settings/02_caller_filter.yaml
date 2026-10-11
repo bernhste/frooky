@@ -17,7 +17,7 @@ metadata:
 # - Only the direct caller: libc's fopen calls open itself, so a hook on open sees libc.so as the caller of
 #   read_status()'s file. Hook the function the app calls.
 
-hookCollection:
+hookCollections:
   - module: libc.so
     hookSettings:
       callerFilter:
@@ -26,14 +26,14 @@ hookCollection:
       # read_status() calls fopen once per "Start"
       # Docs: https://www.man7.org/linux/man-pages/man3/fopen.3.html
       - symbol: fopen
-        retType: "void *"
+        returns: "void *"
         params:
           - ["const char *", pathname]
           - ["const char *", mode]
       # delete_cache() calls unlink on a file that doesn't exist
       # Docs: https://www.man7.org/linux/man-pages/man2/unlink.2.html
       - symbol: unlink
-        retType: [int, { decoder: errno }]
+        returns: [int, { decoder: errno }]
         params:
           - ["const char *", pathname]
 

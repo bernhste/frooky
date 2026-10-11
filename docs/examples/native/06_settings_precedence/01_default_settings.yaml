@@ -7,17 +7,17 @@ metadata:
   author: frooky dev
   platform: Android
 
-# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# Levels, from farthest to closest: default < file < hook collection < hook < parameter/return value.
 # See docs/additional-features.md#settings-precedence.
 # Target: the value-passing-native test app, which calls receive_cstring("Welcome the first OWASP MASCon, CString!") once from JNI.
 
-hookCollection:
+hookCollections:
   - module: libreceiveString.so
     hooks:
       - symbol: receive_cstring
         params:
           - ["char *", s]
-        retType: "char *"
+        returns: "char *"
 
 # Expected event after pressing Start:
 #   stackTrace:        empty (default: stack traces are off)

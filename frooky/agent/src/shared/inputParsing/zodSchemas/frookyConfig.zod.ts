@@ -4,10 +4,12 @@ import { z } from "zod";
 import { frookyMetadataSchema as inputFrookyMetadataSchema } from "./frookyMetadata.zod";
 import { inputJavaHookCollectionSchema } from "./inputJavaHookCollection.zod";
 import { inputNativeHookCollectionSchema } from "./inputNativeHookCollection.zod";
-import { inputFrookySettingsSchema } from "./inputSettings.zod";
+import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputSettings.zod";
 
 export const inputFrookyConfigSchema = z.object({
+    schemaVersion: z.literal(1).optional(),
     metadata: inputFrookyMetadataSchema.optional(),
-    settings: inputFrookySettingsSchema.optional(),
-    hookCollection: z.array(z.union([inputJavaHookCollectionSchema, inputNativeHookCollectionSchema]))
+    hookSettings: inputHookSettingsSchema.optional(),
+    decoderSettings: inputDecoderSettingsSchema.optional(),
+    hookCollections: z.array(z.union([inputJavaHookCollectionSchema, inputNativeHookCollectionSchema]))
 });

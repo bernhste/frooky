@@ -101,7 +101,7 @@ function resolveOverloads(method: Java.MethodDispatcher, inputHook: JavaHookDecl
           params,
           hookSettings: inputHook.hookSettings,
           decoderSettings: inputHook.decoderSettings,
-          retTypeSettings: overload.retType,
+          retTypeSettings: overload.returns,
         });
       } catch (e) {
         (matched ? logger.debug : logger.warn)(`Skipping overload for method '${inputHook.method}(${paramTypes})'. The overload does not exist.`);

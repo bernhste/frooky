@@ -405,7 +405,7 @@ class TestRunWatch:
 
     def _make_wired_runner(self, monkeypatch, tmp_path, watch):
         hook_file = tmp_path / "hooks.yaml"
-        hook_file.write_text("hookCollection: []\n")
+        hook_file.write_text("hookCollections: []\n")
 
         device = MagicMock()
         device.name = "Test Device"
@@ -440,29 +440,29 @@ class TestRunWatch:
 
         self._run_editing(monkeypatch, runner, [])
 
-        script.exports_sync.load_frooky_configs.assert_called_once_with([{"hookCollection": []}], [str(hook_file)])
+        script.exports_sync.load_frooky_configs.assert_called_once_with([{"hookCollections": []}], [str(hook_file)])
 
     def test_sends_changed_hook_file_to_agent(self, monkeypatch, tmp_path, capsys):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)
-        new_content = "hookCollection:\n  - module: libc.so\n    hooks: [open]\n"
+        new_content = "hookCollections:\n  - module: libc.so\n    hooks: [open]\n"
 
         exit_code = self._run_editing(monkeypatch, runner, [lambda: _rewrite(hook_file, new_content)])
 
         assert exit_code == 0
         assert "Change detected in hooks.yaml, updating hooks..." in capsys.readouterr().out
-        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": [{"module": "libc.so", "hooks": ["open"]}]})
+        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollections": [{"module": "libc.so", "hooks": ["open"]}]})
 
     def test_r_reloads_every_hook_file_and_retries_failed_hooks(self, monkeypatch, tmp_path, capsys):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=True)
 
         self._run_editing(monkeypatch, runner, [lambda: runner._on_key("r")])
 
-        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": []}, True)
+        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollections": []}, True)
         assert "Reloading hook files and retrying hooks that were not found..." in capsys.readouterr().out
 
     def test_r_picks_up_file_changes_without_watch(self, monkeypatch, tmp_path):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
-        new_content = "hookCollection:\n  - module: libc.so\n    hooks: [open]\n"
+        new_content = "hookCollections:\n  - module: libc.so\n    hooks: [open]\n"
 
         def edit_and_press_r():
             _rewrite(hook_file, new_content)
@@ -470,13 +470,13 @@ class TestRunWatch:
 
         self._run_editing(monkeypatch, runner, [edit_and_press_r])
 
-        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollection": [{"module": "libc.so", "hooks": ["open"]}]}, True)
+        script.exports_sync.update_frooky_config.assert_called_once_with(str(hook_file), {"hookCollections": [{"module": "libc.so", "hooks": ["open"]}]}, True)
 
     def test_r_keeps_previous_version_when_hook_file_is_broken(self, monkeypatch, tmp_path, capsys):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
 
         def break_and_press_r():
-            _rewrite(hook_file, "hookCollection: [\n")
+            _rewrite(hook_file, "hookCollections: [\n")
             runner._on_key("r")
 
         self._run_editing(monkeypatch, runner, [break_and_press_r])
@@ -516,7 +516,7 @@ class TestRunWatch:
     def test_does_not_watch_without_flag(self, monkeypatch, tmp_path):
         runner, script, hook_file = self._make_wired_runner(monkeypatch, tmp_path, watch=False)
 
-        self._run_editing(monkeypatch, runner, [lambda: _rewrite(hook_file, "hookCollection: [{module: x, hooks: [y]}]\n")])
+        self._run_editing(monkeypatch, runner, [lambda: _rewrite(hook_file, "hookCollections: [{module: x, hooks: [y]}]\n")])
 
         script.exports_sync.update_frooky_config.assert_not_called()
 

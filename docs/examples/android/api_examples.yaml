@@ -1,3 +1,5 @@
+schemaVersion: 1
+
 metadata:
   name: Android Hook Examples
   platform: Android
@@ -6,7 +8,7 @@ metadata:
   author: frooky dev team
   version: 1
 
-hookCollection:
+hookCollections:
   # Hook multiple hooks by name (all overloads are included).
   # Docs: https://developer.android.com/reference/android/security/AttestedKeyPair
   - javaClass: android.security.AttestedKeyPair
@@ -49,18 +51,18 @@ hookCollection:
     - method: query
       overloads:
       - params:
-        - ["java.lang.String", table]
+        - [java.lang.String, table]
         - ["[Ljava.lang.String;", columns]
-        - ["java.lang.String", selection]
+        - [java.lang.String, selection]
         - ["[Ljava.lang.String;", selectionArgs]
-        - ["java.lang.String", groupBy]
-        - ["java.lang.String", having]
-        - ["java.lang.String", orderBy]
+        - [java.lang.String, groupBy]
+        - [java.lang.String, having]
+        - [java.lang.String, orderBy]
     hookSettings:
-      platformStackTrace: true
+      javaStackTrace: true
       maxStackFrames: 10
       callerFilter:
-        - com.example.app.
+        - '^com\.example\.app\.'
 
   # Hook multiple overloads of the same method.
   # Docs: https://developer.android.com/reference/android/content/Intent
@@ -69,16 +71,16 @@ hookCollection:
     - method: putExtra
       overloads:
       - params:
-        - ["java.lang.String", name]
-        - ["java.lang.String", value]
+        - [java.lang.String, name]
+        - [java.lang.String, value]
       - params:
-        - ["java.lang.String", name]
+        - [java.lang.String, name]
         - [int, value]
       - params:
-        - ["java.lang.String", name]
+        - [java.lang.String, name]
         - [boolean, value]
       - params:
-        - ["java.lang.String", name]
+        - [java.lang.String, name]
         - ["[B", value]
 
   # Use `direction: out` to decode output parameters after method execution.
@@ -90,7 +92,7 @@ hookCollection:
     - method: doFinal
       overloads:
       - params:
-        - ["[B", output, { direction: inout, decoder: string }]
+        - ["[B", output, { direction: out, decoder: string }]
         - [int, outputOffset]
 
   - javaClass: javax.crypto.Cipher
@@ -101,9 +103,8 @@ hookCollection:
         - ["[B", input, { decoder: string }]
         - [int, inputOffset]
         - [int, inputLen]
-        - ["[B", output, { direction: inout, decoder: string }]
+        - ["[B", output, { direction: out, decoder: string }]
         - [int, outputOffset]
-
 
   # Use `direction: inout` to decode a parameter before and after execution.
   # Docs: https://developer.android.com/reference/java/nio/ByteBuffer#put(byte[])
@@ -121,7 +122,7 @@ hookCollection:
     - method: initSign
       overloads:
       - params:
-        - ["java.security.PrivateKey", "privateKey", {decoder: "hashCode"}]
+        - [java.security.PrivateKey, privateKey, { decoder: hashCode }]
 
 
   - javaClass: javax.crypto.Cipher
@@ -131,9 +132,9 @@ hookCollection:
     - method: init
       overloads:
       - params:
-        - ["int", "opmode", { decoder: constants }]
-        - ["java.security.Key", "key", {decoder: "hashCode"}]
-        - ["java.security.SecureRandom", "random"]
+        - [int, opmode, { decoder: constants }]
+        - [java.security.Key, key, { decoder: hashCode }]
+        - [java.security.SecureRandom, random]
 
 
   - javaClass: javax.crypto.Cipher
@@ -144,8 +145,7 @@ hookCollection:
     hookSettings:
       maxStackFrames: 5
     hooks: 
-      - [ doFinal, {decoder: "string"} ]
-
+      - [doFinal, { decoder: string }]
   # Mutable PendingIntents can be changed by the app they are passed to. `decoder: bitmask` shows the flags
   # by name, from the FLAG_* constants of PendingIntent.
   # Docs: https://developer.android.com/reference/android/app/PendingIntent#getActivity(android.content.Context,%20int,%20android.content.Intent,%20int)
@@ -157,4 +157,4 @@ hookCollection:
         - [android.content.Context, context]
         - [int, requestCode]
         - [android.content.Intent, intent]
-        - [int, flags, { decoder: bitmask, config: { fields: "FLAG_*" } }]
+        - [int, flags, { decoder: bitmask, decoderOptions: { fields: "FLAG_*" } }]

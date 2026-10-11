@@ -1,19 +1,21 @@
-import { acceptedJavaDecoderArgs, acceptedJavaDecoderConfig, javaDecoderNames } from "../decoders/javaDecoderResolver";
+import { acceptedJavaDecoderArgs, acceptedJavaDecoderOptions, javaDecoderNames } from "../decoders/javaDecoderResolver";
 import z from "zod";
-import { hasHookList, validateInputHook } from "../../shared/configValidator";
+import { hasHookList, validateInput } from "../../shared/configValidator";
 import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { DecoderSettings, FrookySettings } from "../../shared/frookySettings";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { HookValidator } from "../../shared/hook/hookValidator";
-import { validateDecoderArgRoles, validateDecoderConfig, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
+import { validateDecoderArgRoles, validateDecoderOptions, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
 import {
   InputJavaHookCollection,
   isJavaHookScope,
   mergeJavaHookCollectionSettings,
   normalizeJavaHook,
 } from "../../shared/inputParsing/inputJavaHookCollection";
-import { inputJavaHookSchema } from "../../shared/inputParsing/zodSchemas/inputJavaHookCollection.zod";
+import { inputJavaHookCollectionSchema, inputJavaHookSchema } from "../../shared/inputParsing/zodSchemas/inputJavaHookCollection.zod";
 import { logger } from "../../shared/logger";
+
+const inputJavaHookCollectionHeaderSchema = inputJavaHookCollectionSchema.omit({ hooks: true });
 
 export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, InputJavaHookCollection> {
   validateAndNormalizeHooks(inputFrookyConfig: InputFrookyConfig, settings: FrookySettings): JavaHookDeclaration[] {
@@ -21,15 +23,20 @@ export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, 
     const normalizedJavaHooks: JavaHookDeclaration[] = [];
 
     for (const javaHookCollection of javaHookCollections) {
-      const { hookSettings, decoderSettings } = mergeJavaHookCollectionSettings(javaHookCollection, settings);
+      let collectionSettings;
+      try {
+        const { hooks: _hooks, ...header } = javaHookCollection;
+        validateInput(inputJavaHookCollectionHeaderSchema, header, "The hook collection");
+        collectionSettings = mergeJavaHookCollectionSettings(javaHookCollection, settings);
+      } catch (e) {
+        logger.warn(`Skipping the hook collection for class '${javaHookCollection.javaClass}': ${e instanceof Error ? e.message : e}`);
+        continue;
+      }
+      const { hookSettings, decoderSettings } = collectionSettings;
       for (const inputJavaHook of javaHookCollection.hooks) {
         const method = describeJavaMethod(inputJavaHook);
         try {
-          const validInputHook = validateInputHook(
-            inputJavaHookSchema,
-            inputJavaHook,
-            `java method '${method}' from class '${javaHookCollection.javaClass}'`,
-          );
+          const validInputHook = validateInput(inputJavaHookSchema, inputJavaHook, "The hook");
           const normalizedJavaHook = normalizeJavaHook(
             javaHookCollection.javaClass,
             validInputHook,
@@ -41,12 +48,12 @@ export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, 
           overloads.forEach((overload) => validateDecoderArgRoles(overload.params, acceptedJavaDecoderArgs));
           const values = overloads.flatMap((overload) => [
             ...overload.params.map((p): [string, DecoderSettings] => [p.name ?? p.type, p.settings]),
-            ["return value", overload.retType] as [string, DecoderSettings | undefined],
+            ["return value", overload.returns] as [string, DecoderSettings | undefined],
           ]);
-          validateDecoderConfig(values, acceptedJavaDecoderConfig);
+          validateDecoderOptions(values, acceptedJavaDecoderOptions);
           validateConstantsSource(values);
           validateDecoderNames(
-            [normalizedJavaHook.decoderSettings, ...overloads.flatMap((overload) => [overload.retType, ...overload.params.map((p) => p.settings)])],
+            [normalizedJavaHook.decoderSettings, ...overloads.flatMap((overload) => [overload.returns, ...overload.params.map((p) => p.settings)])],
             javaDecoderNames(),
             "Java",
           );
@@ -72,7 +79,7 @@ export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, 
 
   getPlatformHookCollections(inputFrookyConfig: InputFrookyConfig): InputJavaHookCollection[] {
     const platformHookCollection: InputJavaHookCollection[] = [];
-    for (const hookScope of inputFrookyConfig.hookCollection) {
+    for (const hookScope of inputFrookyConfig.hookCollections) {
       if (isJavaHookScope(hookScope) && hasHookList(hookScope, `class '${hookScope.javaClass}'`)) {
         platformHookCollection.push(hookScope);
       }
@@ -166,12 +173,14 @@ function describeJavaMethod(inputHook: unknown): string {
   return String((inputHook as { method?: unknown } | null)?.method);
 }
 
-// Throws if `config` names the constants twice: a map in `constants`, and a class or fields to read them from
+// Throws if `decoderOptions` names the constants twice: a map in `constants`, and a class or fields to read them from
 function validateConstantsSource(values: [label: string, settings: DecoderSettings | undefined][]): void {
   for (const [label, settings] of values) {
-    const config = settings?.config;
-    if (config?.constants && (config.class !== undefined || config.fields !== undefined)) {
-      throw new Error(`config of '${label}': 'constants' can't be combined with 'class' or 'fields'. Use either the map or the fields of a class.`);
+    const options = settings?.decoderOptions;
+    if (options?.constants && (options.class !== undefined || options.fields !== undefined)) {
+      throw new Error(
+        `decoderOptions of '${label}': 'constants' can't be combined with 'class' or 'fields'. Use either the map or the fields of a class.`,
+      );
     }
   }
 }

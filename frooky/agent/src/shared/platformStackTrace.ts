@@ -13,14 +13,14 @@ export type UnsafeContext =
   | "before-ready";
 
 export interface HookStackTrace {
-  platformStackTrace: string[];
+  javaStackTrace: string[];
   nativeStackTrace: string[];
-  // set when requested frames were not captured, e.g. a native hook has native but no platform frames at `before-ready`
+  // set when requested frames were not captured, e.g. a native hook has native but no Java frames at `before-ready`
   skipped?: UnsafeContext;
 }
 
 export const EMPTY_STACK_TRACE: HookStackTrace = Object.freeze({
-  platformStackTrace: [],
+  javaStackTrace: [],
   nativeStackTrace: [],
 });
 
@@ -56,5 +56,5 @@ export function compileCallerFilter(patterns: string[]): RegExp[] {
 
 // Whether hooks with these settings build a stack trace on every call
 export function needsStackTrace(settings: HookSettings): boolean {
-  return settings.platformStackTrace || settings.nativeStackTrace;
+  return settings.javaStackTrace || settings.nativeStackTrace;
 }

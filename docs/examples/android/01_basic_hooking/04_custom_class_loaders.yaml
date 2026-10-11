@@ -15,7 +15,7 @@ metadata:
 # The app calls greet() on its own PluginGreeter, and on the copy that PluginClassLoader defines from the app's dex
 # file. Without `classLoader`, frooky hooks the app's copy, and the call on the plugin's copy isn't recorded.
 
-hookCollection:
+hookCollections:
   # class PluginClassLoader(context: Context) : ClassLoader(context.classLoader)
   # Docs: https://developer.android.com/reference/java/lang/ClassLoader
   - javaClass: org.owasp.mastestapp.PluginGreeter

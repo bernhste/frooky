@@ -11,7 +11,7 @@ metadata:
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/04_decoder_settings/03_arg_filter.yaml
 # See:    docs/decoders.md#argfilter-capture-only-matching-values
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       # trackEvent is called with "button_click" and "sdk_flush"

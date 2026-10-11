@@ -18,7 +18,7 @@ metadata:
 # Expected: thousands of events/s during startup and while the app is busy, stutter but no crash.
 # Compare the Event Rate between QuickJS and V8.
 
-hookCollection:
+hookCollections:
   # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
@@ -30,35 +30,35 @@ hookCollection:
       maxItems: 256
     hooks:
       - symbol: open
-        retType: [int, { decoder: fd }]
+        returns: [int, { decoder: fd }]
         params:
           - ["const char *", path]
           - [int, flags, { decoder: openFlags }]
       - symbol: openat
-        retType: [int, { decoder: fd }]
+        returns: [int, { decoder: fd }]
         params:
           - [int, dirfd]
           - ["const char *", path]
           - [int, flags, { decoder: openFlags }]
           - [mode_t, mode]
       - symbol: close
-        retType: int
+        returns: int
         params:
           - [int, fd, { decoder: fd }]
       - symbol: read
-        retType: ssize_t
+        returns: ssize_t
         params:
           - [int, fd, { decoder: fd }]
-          - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
+          - ["void *", buf, { direction: out, length: $ret, decoder: string }]
           - [size_t, count]
       - symbol: write
-        retType: ssize_t
+        returns: ssize_t
         params:
           - [int, fd, { decoder: fd }]
-          - ["const void *", buf, { decoderArgs: { length: count }, decoder: string }]
+          - ["const void *", buf, { length: count, decoder: string }]
           - [size_t, count]
       - symbol: mmap
-        retType: "void *"
+        returns: "void *"
         params:
           - ["void *", addr]
           - [size_t, length]
@@ -67,7 +67,7 @@ hookCollection:
           - [int, fd, { decoder: fd }]
           - [off_t, offset]
       - symbol: mprotect
-        retType: int
+        returns: int
         params:
           - ["void *", addr]
           - [size_t, len]

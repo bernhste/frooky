@@ -29,7 +29,7 @@ describe("JavaDecoderResolver", () => {
       // type "int" would normally resolve to PrimitiveDecoder
       const decoder = JavaDecoderResolver.resolveDecoder({
         type: "int",
-        settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "bitmask", config: { class: "android.content.Intent", fields: "FLAG_ACTIVITY_*" } },
+        settings: { ...DEFAULT_DECODER_SETTINGS, decoder: "bitmask", decoderOptions: { class: "android.content.Intent", fields: "FLAG_ACTIVITY_*" } },
       });
 
       // FLAG_RECEIVER_FOREGROUND has the same value

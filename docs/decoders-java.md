@@ -1,6 +1,6 @@
 # Decoders for Android Java Hooks
 
-How frooky decodes the parameters and return values of Java and Kotlin methods. The decoder settings, including the `decoderArgs` roles and the limits of each Java decoder, and the decoders shared with native hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
+How frooky decodes the parameters and return values of Java and Kotlin methods. The decoder settings, including `length`, `offset` and the limits of each Java decoder, and the decoders shared with native hooks (`string`, `base64`, `hex`, `constants`, `bitmask`) are described in [Decoders](./decoders.md).
 
 <!-- TOC -->
 
@@ -99,7 +99,7 @@ This decodes `number` as `"java.math.BigInteger@<identity hash code in hex>"`. T
 
 ## Return Values
 
-In Java, the method signature can be retrieved at runtime, so you never declare the return type itself. If you want to customize how the return value is decoded, add a `retType` object containing only `decoderSettings` to the overload:
+In Java, the method signature can be retrieved at runtime, so you never declare the return type itself. If you want to customize how the return value is decoded, add `returns` with the decoder settings of the return value to the overload:
 
 ```yaml
 javaClass: android.content.Intent
@@ -107,7 +107,7 @@ hooks:
   - method: getFlags
     overloads:
       - params: []
-        retType: { decoder: bitmask, config: { fields: "FLAG_*" } }
+        returns: { decoder: bitmask, decoderOptions: { fields: "FLAG_*" } }
 ```
 
 This example hooks the following method from the [Android Java Library](<https://developer.android.com/reference/android/content/Intent#getFlags()>):

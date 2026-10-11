@@ -27,7 +27,7 @@ class TestValuePassingJava:
     def test_short_form_hooks_primitive_and_string_arguments(self, run_frooky, count_matched_events):
         """Basic usage: short-form `hooks: [<method name>]` with unnamed reflected parameters."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - receiveString
@@ -62,7 +62,7 @@ class TestValuePassingJava:
     def test_long_is_decoded_as_a_decimal_string(self, run_frooky, count_matched_events):
         """`long` exceeds JS's 53-bit safe integer range, so PrimitiveDecoder renders it as a string."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - receiveLong
@@ -80,7 +80,7 @@ class TestValuePassingJava:
     def test_short_form_with_decoder_settings_tuple(self, run_frooky, find_matched_events):
         """`[<method name>, {<decoder settings>}]` tuple: override decoderSettings without the expanded form."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - [receiveByteArray, {{decoder: string}}]
@@ -92,7 +92,7 @@ class TestValuePassingJava:
         assert len(events) == 1
         event = events[0]
         # the "string" decoder applies to argsIn AND the return value here, since the tuple form
-        # merges its decoderSettings into every param/retType of this hook.
+        # merges its decoderSettings into every param/returns of this hook.
         assert event["argsIn"][0]["type"] == "[B"
         assert isinstance(event["argsIn"][0]["value"], str)
         # receiveByteArray returns the same array unchanged, so both should decode identically.
@@ -101,7 +101,7 @@ class TestValuePassingJava:
     def test_expanded_form_with_named_parameter(self, run_frooky, count_matched_events):
         """Expanded form + named parameter declaration: argsIn carries the declared param name."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - method: receiveString
@@ -122,7 +122,7 @@ class TestValuePassingJava:
     def test_array_types_decode_to_plain_lists(self, run_frooky, count_matched_events):
         """Primitive and reference array types (see the Type Descriptors table) decode to plain lists."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - receiveByteArray
@@ -161,7 +161,7 @@ class TestValuePassingJava:
         hooks_yaml = "\n".join(f"      - {method}" for method in methods)
         hook_file = (
             textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
             """)
@@ -177,7 +177,7 @@ class TestValuePassingJava:
     def test_max_items_cuts_java_strings(self, run_frooky, find_matched_events):
         """`maxItems` cuts a java.lang.String after that many characters and appends `...` (see decoders.md)."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - method: receiveString
@@ -195,7 +195,7 @@ class TestValuePassingJava:
     def test_decode_limit_truncates_collections(self, run_frooky, find_matched_events):
         """`maxItems` caps how many elements of a List/Collection get decoded (see decoders.md)."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 decoderSettings:
                   maxItems: 2
@@ -220,13 +220,13 @@ class TestValuePassingJava:
     def test_bitmask_with_fields_of_hooked_class(self, run_frooky, find_matched_events):
         """`decoder: bitmask` with `config.fields` resolves an int bitmask to the hooked class's Intent.FLAG_* names."""
         hook_file = textwrap.dedent("""\
-            hookCollection:
+            hookCollections:
               - javaClass: android.content.Intent
                 hooks:
                   - method: setFlags
                     overloads:
                       - params:
-                          - [int, flags, {decoder: bitmask, config: {fields: "FLAG_*"}}]
+                          - [int, flags, {decoder: bitmask, decoderOptions: { fields: "FLAG_*"}}]
             """)
 
         run_frooky(hook_file, TARGET_APP)
@@ -249,15 +249,15 @@ class TestValuePassingJava:
         assert matching[0]["type"] == "int"
 
     def test_hashcode_return_type_decoder(self, run_frooky, find_matched_events):
-        """Java return type decoder: `retType: {decoder: hashCode}` renders `<class>@<hashCode>`."""
+        """Java return type decoder: `returns: {decoder: hashCode}` renders `<class>@<hashCode>`."""
         hook_file = textwrap.dedent("""\
-            hookCollection:
+            hookCollections:
               - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
                 hooks:
                   - method: build
                     overloads:
                       - params: []
-                        retType: {decoder: hashCode}
+                        returns: {decoder: hashCode}
             """)
 
         run_frooky(hook_file, TARGET_APP)
@@ -269,13 +269,13 @@ class TestValuePassingJava:
     def test_hashcode_decoder_matches_event_hashcode(self, run_frooky, find_matched_events):
         """`decoder: hashCode` on a builder setter that returns `this` shows the `hashCode` of the event's instance."""
         hook_file = textwrap.dedent("""\
-            hookCollection:
+            hookCollections:
               - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
                 hooks:
                   - method: setKeySize
                     overloads:
                       - params: [[int, keySize]]
-                        retType: {decoder: hashCode}
+                        returns: {decoder: hashCode}
             """)
 
         run_frooky(hook_file, TARGET_APP)
@@ -288,7 +288,7 @@ class TestValuePassingJava:
     def test_string_decoder_on_static_method_return_value(self, run_frooky, count_matched_events, find_matched_events):
         """`decoder: string` on a reference return type calls toString(); also verifies a static fieldType."""
         hook_file = textwrap.dedent("""\
-            hookCollection:
+            hookCollections:
               - javaClass: java.security.KeyPairGenerator
                 hooks:
                   - method: getInstance
@@ -296,7 +296,7 @@ class TestValuePassingJava:
                       - params:
                           - [java.lang.String, algorithm]
                           - [java.lang.String, provider]
-                        retType: {decoder: string}
+                        returns: {decoder: string}
             """)
 
         run_frooky(hook_file, TARGET_APP)
@@ -317,12 +317,12 @@ class TestValuePassingJava:
         assert len(events) >= 1
         assert all(isinstance(e["returnValue"]["value"], str) for e in events)
 
-    # Stack traces (see additional-features.md#stack-traces) are opt-in via `platformStackTrace` and
+    # Stack traces (see additional-features.md#stack-traces) are opt-in via `javaStackTrace` and
     # `nativeStackTrace`. A Java hook has no CPU context, so it only ever captures platform (Java) frames.
 
     def _receive_string_events(self, run_frooky, find_matched_events, hook_settings, expect_events=True):
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hookSettings: {hook_settings}
                 hooks:
@@ -332,20 +332,20 @@ class TestValuePassingJava:
         return find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"})
 
     def test_no_stack_trace_by_default(self, run_frooky, find_matched_events):
-        """Without `platformStackTrace`/`nativeStackTrace`, no frames are captured."""
+        """Without `javaStackTrace`/`nativeStackTrace`, no frames are captured."""
         events = self._receive_string_events(run_frooky, find_matched_events, "{}")
 
         assert len(events) == 1
-        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+        assert events[0]["stackTrace"] == {"javaStackTrace": [], "nativeStackTrace": []}
 
-    def test_platform_stack_trace_is_capped_by_max_stack_frames(self, run_frooky, find_matched_events):
-        """`platformStackTrace` captures the Java frames, innermost (the hooked method) first, up to `maxStackFrames`."""
-        events = self._receive_string_events(run_frooky, find_matched_events, "{platformStackTrace: true, maxStackFrames: 3}")
+    def test_java_stack_trace_is_capped_by_max_stack_frames(self, run_frooky, find_matched_events):
+        """`javaStackTrace` captures the Java frames, innermost (the hooked method) first, up to `maxStackFrames`."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{javaStackTrace: true, maxStackFrames: 3}")
 
         assert len(events) == 1
-        platform_frames = events[0]["stackTrace"]["platformStackTrace"]
-        assert 0 < len(platform_frames) <= 3
-        assert platform_frames[0].startswith(f"{MASTG_CLASS}.receiveString ")
+        java_frames = events[0]["stackTrace"]["javaStackTrace"]
+        assert 0 < len(java_frames) <= 3
+        assert java_frames[0].startswith(f"{MASTG_CLASS}.receiveString ")
         assert events[0]["stackTrace"]["nativeStackTrace"] == []
 
     def test_native_stack_trace_is_empty_for_java_hooks(self, run_frooky, find_matched_events):
@@ -353,7 +353,7 @@ class TestValuePassingJava:
         events = self._receive_string_events(run_frooky, find_matched_events, "{nativeStackTrace: true}")
 
         assert len(events) == 1
-        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+        assert events[0]["stackTrace"] == {"javaStackTrace": [], "nativeStackTrace": []}
 
     def test_caller_filter_keeps_event_when_a_caller_matches(self, run_frooky, find_matched_events):
         """`callerFilter` keeps the call if a method on the Java stack matches. It needs no stack trace, so the
@@ -361,14 +361,14 @@ class TestValuePassingJava:
         events = self._receive_string_events(run_frooky, find_matched_events, "{callerFilter: ['^org\\.owasp\\.mastestapp\\.']}")
 
         assert len(events) == 1
-        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+        assert events[0]["stackTrace"] == {"javaStackTrace": [], "nativeStackTrace": []}
 
     def test_caller_filter_keeps_the_requested_stack_trace(self, run_frooky, find_matched_events):
-        """A kept event has the stack trace `platformStackTrace` asks for, whatever frames the filter matched."""
-        events = self._receive_string_events(run_frooky, find_matched_events, "{platformStackTrace: true, maxStackFrames: 2, callerFilter: ['^org\\.owasp\\.mastestapp\\.']}")
+        """A kept event has the stack trace `javaStackTrace` asks for, whatever frames the filter matched."""
+        events = self._receive_string_events(run_frooky, find_matched_events, "{javaStackTrace: true, maxStackFrames: 2, callerFilter: ['^org\\.owasp\\.mastestapp\\.']}")
 
         assert len(events) == 1
-        assert len(events[0]["stackTrace"]["platformStackTrace"]) == 2
+        assert len(events[0]["stackTrace"]["javaStackTrace"]) == 2
 
     def test_caller_filter_drops_event_when_no_caller_matches(self, run_frooky, find_matched_events):
         """If no method on the Java stack matches any pattern, the whole event is dropped."""
@@ -385,7 +385,7 @@ class TestValuePassingJava:
     def test_arg_filter_only_captures_matching_values(self, run_frooky, count_matched_events):
         """`argFilter` (see decoders.md) only captures the event if a decoded value matches."""
         matching_hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - method: receiveInt
@@ -398,7 +398,7 @@ class TestValuePassingJava:
 
     def test_arg_filter_excludes_non_matching_values(self, run_frooky, count_matched_events):
         non_matching_hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - method: receiveInt
@@ -415,7 +415,7 @@ class TestValuePassingJava:
     def test_arg_filter_numeric_comparison(self, run_frooky, count_matched_events):
         """Numeric comparisons in `argFilter` filter values by relational operator."""
         matching_hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - method: receiveInt
@@ -427,7 +427,7 @@ class TestValuePassingJava:
         assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 1
 
         non_matching_hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - method: receiveInt
@@ -443,7 +443,7 @@ class TestValuePassingJava:
         event per call, decoded with their own params. `hashCode` shows both events are about the same instance, the
         MastgTest object that receiveInt is called on as well."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - method: receiveString
@@ -480,7 +480,7 @@ class TestValuePassingJava:
     def test_identical_declarations_record_one_event(self, run_frooky, count_matched_events):
         """An identical declaration repeated in one hook file is hooked once."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - receiveInt
@@ -496,7 +496,7 @@ class TestValuePassingJava:
     def test_arg_filter_of_one_declaration_does_not_affect_another(self, run_frooky, count_matched_events):
         """Each hook on the same method applies its own filters."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - javaClass: {MASTG_CLASS}
                 hooks:
                   - method: receiveInt
@@ -520,7 +520,7 @@ class TestValuePassingJava:
 
         def hook_file(*names):
             hooks = "".join(f"      - method: receiveString\n        overloads:\n          - params:\n              - [java.lang.String, {name}]\n" for name in names)
-            return f"hookCollection:\n  - javaClass: {MASTG_CLASS}\n    hooks:\n{hooks}"
+            return f"hookCollections:\n  - javaClass: {MASTG_CLASS}\n    hooks:\n{hooks}"
 
         def recorded_by(frooky):
             events = frooky.click_start_and_collect({"javaClassName": MASTG_CLASS, "method": "receiveString"})

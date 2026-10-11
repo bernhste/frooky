@@ -1,29 +1,12 @@
-import {
-  validateAndRepairDecoderSettings,
-  validateAndRepairFrookyConfig,
-  validateAndRepairFrookySettings,
-  validateAndRepairHookSettings,
-  validateAndRepairValueDecoderSettings,
-  validateMetadata,
-} from "./configValidator";
+import { validateDecoderSettings, validateFrookyConfig, validateHookSettings, validateInput, validateValueDecoderSettings } from "./configValidator";
 import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_FROOKY_SETTINGS, DEFAULT_HOOK_SETTINGS } from "./defaultValues";
 import { InputFrookyConfig } from "./frookyConfig";
-import { FrookyMetadata } from "./frookyMetadata";
-import { FrookySettings } from "./frookySettings";
-import { InputDecoderSettings, InputHookSettings, InputValueDecoderSettings } from "./inputParsing/inputSettings";
+import { InputDecoderSettings, InputHookSettings, InputParamSettings } from "./inputParsing/inputSettings";
+import { inputParamSchema } from "./inputParsing/zodSchemas/inputDecodableTypes.zod";
 import { logger } from "./logger";
 
 describe("configValidator", () => {
-  // restored after each test, since some tests check that the defaults stay unchanged
-  let pristineFrookySettings: FrookySettings;
   let warnSpy: Mock;
-
-  beforeAll(() => {
-    pristineFrookySettings = {
-      hookSettings: { ...DEFAULT_FROOKY_SETTINGS.hookSettings },
-      decoderSettings: { ...DEFAULT_FROOKY_SETTINGS.decoderSettings },
-    };
-  });
 
   beforeEach(() => {
     warnSpy = spyOn(logger, "warn");
@@ -31,317 +14,199 @@ describe("configValidator", () => {
 
   afterEach(() => {
     warnSpy.mockRestore();
-    DEFAULT_FROOKY_SETTINGS.hookSettings = { ...pristineFrookySettings.hookSettings };
-    DEFAULT_FROOKY_SETTINGS.decoderSettings = { ...pristineFrookySettings.decoderSettings };
   });
 
-  describe("validateMetadata()", () => {
-    const validMetadata: FrookyMetadata = {
-      platform: "Android",
-      name: "Test",
-      description: "Test description",
-      category: "Test category",
-      author: "frooky devs",
-      version: 1,
-    };
-
-    it("does not warn when the metadata matches the schema and platform", () => {
-      validateMetadata(validMetadata, "Android");
-      expect(warnSpy).not.toHaveBeenCalled();
-    });
-
-    it("warns on a platform mismatch", () => {
-      validateMetadata(validMetadata, "iOS");
-      expect(warnSpy).toHaveBeenCalledWith(
-        "The platform declared in the frooky configuration does not match the actual platform (iOS). Not all hooks may be valid.",
-      );
-    });
-
-    it("warns when no platform is declared in the metadata", () => {
-      validateMetadata({ name: "Test" }, "Android");
-      expect(warnSpy).toHaveBeenCalledWith(
-        "The platform declared in the frooky configuration does not match the actual platform (Android). Not all hooks may be valid.",
-      );
-    });
-
-    it("warns if the metadata does not match the schema", () => {
-      const invalidMetadata = { ...validMetadata, category: true as unknown as string };
-      validateMetadata(invalidMetadata, "Android");
-      expect(warnSpy).toHaveBeenCalled();
-      const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain("The metadata contains invalid entries");
-    });
-  });
-
-  describe("validateAndRepairHookSettings()", () => {
+  describe("validateHookSettings()", () => {
     it("returns the same settings when they already match the schema", () => {
-      expect(validateAndRepairHookSettings(DEFAULT_HOOK_SETTINGS)).toEqual(DEFAULT_HOOK_SETTINGS);
-      expect(warnSpy).not.toHaveBeenCalled();
+      expect(validateHookSettings(DEFAULT_HOOK_SETTINGS)).toEqual(DEFAULT_HOOK_SETTINGS);
     });
 
     it("fills in the default value for a missing property", () => {
-      const incompleteInputHookSettings: InputHookSettings = {
-        callerFilter: ["a", "b"],
-      };
-      expect(validateAndRepairHookSettings(incompleteInputHookSettings)).toEqual({
-        ...DEFAULT_HOOK_SETTINGS,
-        callerFilter: ["a", "b"],
-      });
+      expect(validateHookSettings({ callerFilter: ["a", "b"] })).toEqual({ ...DEFAULT_HOOK_SETTINGS, callerFilter: ["a", "b"] });
     });
 
-    it("resets a property to its default and warns when it does not match the schema", () => {
-      const incorrectInputHookSettings: InputHookSettings = {
-        maxStackFrames: "incorrect" as unknown as number,
-        callerFilter: ["a", "b"],
-      };
-      expect(validateAndRepairHookSettings(incorrectInputHookSettings)).toEqual({
-        ...DEFAULT_HOOK_SETTINGS,
-        callerFilter: ["a", "b"],
-      });
-
-      expect(warnSpy).toHaveBeenCalled();
-      const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain(`Hook setting "'maxStackFrames'" contains invalid data:`);
-      expect(message).toContain(`The value for 'maxStackFrames' was reset to the default: ${DEFAULT_HOOK_SETTINGS.maxStackFrames}`);
+    it("throws for a property that does not match the schema", () => {
+      const settings: InputHookSettings = { maxStackFrames: "incorrect" as unknown as number };
+      expect(() => validateHookSettings(settings)).toThrow("hookSettings is invalid:");
     });
 
-    it("drops invalid callerFilter patterns and warns", () => {
-      const inputHookSettings: InputHookSettings = {
-        callerFilter: ["^org\\.owasp\\.", "(unclosed", "[a-"],
-      };
-      expect(validateAndRepairHookSettings(inputHookSettings)).toEqual({
-        ...DEFAULT_HOOK_SETTINGS,
-        callerFilter: ["^org\\.owasp\\."],
-      });
-      expect(warnSpy).toHaveBeenCalledWith("Hook setting 'callerFilter' contains invalid regular expressions, which are ignored: (unclosed, [a-");
+    it("throws for a callerFilter pattern that is no regular expression", () => {
+      const settings: InputHookSettings = { callerFilter: ["^org\\.owasp\\.", "(unclosed", "[a-"] };
+      expect(() => validateHookSettings(settings)).toThrow("'callerFilter' contains invalid regular expressions: (unclosed, [a-");
     });
 
-    it("warns when the settings contain unknown properties", () => {
-      const invalidInputHookSettings = { stackTraceLumit: 10 };
-      validateAndRepairHookSettings(invalidInputHookSettings as InputHookSettings);
-      expect(warnSpy).toHaveBeenCalledWith("Hook settings contain unknown properties: stackTraceLumit");
+    it("throws for an unknown property", () => {
+      const settings = { stackTraceLumit: 10 } as InputHookSettings;
+      expect(() => validateHookSettings(settings)).toThrow("hookSettings contains unknown properties: stackTraceLumit");
+    });
+
+    it("doesn't modify the defaults, which every config shares", () => {
+      validateHookSettings({ maxStackFrames: 42 });
+      expect(DEFAULT_HOOK_SETTINGS.maxStackFrames).toBe(5);
     });
   });
 
-  describe("validateAndRepairDecoderSettings()", () => {
+  describe("validateDecoderSettings()", () => {
     it("returns the same settings when they already match the schema", () => {
-      expect(validateAndRepairDecoderSettings(DEFAULT_BASE_DECODER_SETTINGS)).toEqual(DEFAULT_BASE_DECODER_SETTINGS);
-      expect(warnSpy).not.toHaveBeenCalled();
+      expect(validateDecoderSettings(DEFAULT_BASE_DECODER_SETTINGS)).toEqual({ maxDepth: 10, maxItems: 100 });
     });
 
     it("fills in the default value for a missing property", () => {
-      const incompleteInputDecoderSettings: InputDecoderSettings = {
-        maxItems: 30,
-      };
-      expect(validateAndRepairDecoderSettings(incompleteInputDecoderSettings)).toEqual({
-        maxDepth: 10,
-        maxItems: 30,
-      });
+      expect(validateDecoderSettings({ maxItems: 30 })).toEqual({ maxDepth: 10, maxItems: 30 });
     });
 
-    it("resets a property to its default and warns when it does not match the schema", () => {
-      const incorrectInputDecoderSettings: InputDecoderSettings = {
-        maxItems: false as unknown as number,
-      };
-      expect(validateAndRepairDecoderSettings(incorrectInputDecoderSettings)).toEqual(DEFAULT_DECODER_SETTINGS);
-
-      expect(warnSpy).toHaveBeenCalled();
-      const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain(`Decoder setting "'maxItems'" contains invalid data:`);
-      expect(message).toContain(`The value for 'maxItems' was reset to the default: ${String(DEFAULT_DECODER_SETTINGS.maxItems)}`);
+    it("keeps decoder, which every level can set", () => {
+      expect(validateDecoderSettings({ decoder: "hashCode" })).toEqual({ maxDepth: 10, maxItems: 100, decoder: "hashCode" });
     });
 
     for (const key of ["maxItems", "maxDepth"] as const) {
-      for (const value of [0, -1]) {
-        it(`resets ${key} to its default and warns when it is ${value}`, () => {
-          expect(validateAndRepairDecoderSettings({ [key]: value })).toEqual(DEFAULT_DECODER_SETTINGS);
-
-          expect(warnSpy).toHaveBeenCalled();
-          const [message] = warnSpy.mock.calls[0] as [string];
-          expect(message).toContain(`Decoder setting "'${key}'" contains invalid data:`);
+      for (const value of [0, -1, false]) {
+        it(`throws when ${key} is ${value}`, () => {
+          expect(() => validateDecoderSettings({ [key]: value } as InputDecoderSettings)).toThrow("decoderSettings is invalid:");
         });
       }
     }
 
-    it("warns when the settings contain unknown properties", () => {
-      const unknownInputDecoderSettings = { someOtherSetting: false };
-      validateAndRepairDecoderSettings(unknownInputDecoderSettings as InputDecoderSettings);
-      expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: someOtherSetting");
-    });
-
-    it("keeps decoder, which every level can set", () => {
-      expect(validateAndRepairDecoderSettings({ decoder: "hashCode" })).toEqual({ maxDepth: 10, maxItems: 100, decoder: "hashCode" });
-      expect(warnSpy).not.toHaveBeenCalled();
-    });
-
-    it("drops unknown fields, e.g. the settings of a single parameter, with a warning", () => {
-      const settings = { maxItems: 5, argFilter: ["^a"], decoderArgs: { length: "len" }, config: { constants: { A: 1 } } };
-
-      const result = validateAndRepairDecoderSettings(settings as InputDecoderSettings);
-
-      expect(result).toEqual({ maxDepth: 10, maxItems: 5 });
-      expect(Object.keys(result)).not.toContain("argFilter");
-      expect(Object.keys(result)).not.toContain("decoderArgs");
-      expect(Object.keys(result)).not.toContain("config");
-      expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: argFilter, decoderArgs, config");
-    });
-
-    it("doesn't modify the settings passed in", () => {
-      const settings = { maxItems: 5, argFilter: ["^a"] };
-      validateAndRepairDecoderSettings(settings as InputDecoderSettings);
-      expect(settings).toEqual({ maxItems: 5, argFilter: ["^a"] });
+    it("throws for the settings of a single parameter", () => {
+      const settings = { maxItems: 5, argFilter: ["^a"], length: "len" } as InputDecoderSettings;
+      expect(() => validateDecoderSettings(settings)).toThrow("decoderSettings contains unknown properties: argFilter, length");
     });
   });
 
-  describe("validateAndRepairValueDecoderSettings()", () => {
-    it("keeps the settings that only a parameter or return value can have", () => {
-      const settings: InputValueDecoderSettings = {
+  describe("validateValueDecoderSettings()", () => {
+    it("keeps the settings that only a parameter can have", () => {
+      const settings: InputParamSettings = {
         decoder: "bitmask",
         argFilter: ["^a"],
-        decoderArgs: { length: "len" },
-        config: { constants: { A: 1 } },
+        length: "len",
+        offset: 4,
+        decoderOptions: { constants: { A: 1 } },
       };
 
-      expect(validateAndRepairValueDecoderSettings(settings)).toEqual({ ...DEFAULT_DECODER_SETTINGS, ...settings });
-      expect(warnSpy).not.toHaveBeenCalled();
+      expect(validateValueDecoderSettings(settings)).toEqual({ maxDepth: 10, maxItems: 100, ...settings });
     });
 
     it("fills in the default value for a missing property", () => {
-      expect(validateAndRepairValueDecoderSettings({ argFilter: ["^a"] })).toEqual({ maxDepth: 10, maxItems: 100, argFilter: ["^a"] });
+      expect(validateValueDecoderSettings({ argFilter: ["^a"] })).toEqual({ maxDepth: 10, maxItems: 100, argFilter: ["^a"] });
+      expect(validateValueDecoderSettings({})).toEqual({ maxDepth: DEFAULT_DECODER_SETTINGS.maxDepth, maxItems: DEFAULT_DECODER_SETTINGS.maxItems });
     });
 
-    it("resets a property to its default and warns when it does not match the schema", () => {
-      const result = validateAndRepairValueDecoderSettings({ argFilter: "^a" as unknown as string[] });
-
-      expect(result.argFilter).toBeUndefined();
-      const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain(`Decoder setting "'argFilter'" contains invalid data:`);
+    it("throws for a property that does not match the schema", () => {
+      expect(() => validateValueDecoderSettings({ argFilter: "^a" as unknown as string[] })).toThrow("decoder settings is invalid:");
     });
 
-    it("warns about unknown properties and keeps them, so a misspelled setting can be named later", () => {
-      const result = validateAndRepairValueDecoderSettings({ decoderArg: 3 } as InputValueDecoderSettings);
-
-      expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: decoderArg");
-      expect((result as unknown as Record<string, unknown>).decoderArg).toBe(3);
+    it("throws for an unknown property", () => {
+      expect(() => validateValueDecoderSettings({ lenght: 3 } as InputParamSettings)).toThrow("decoder settings contains unknown properties: lenght");
     });
   });
 
-  describe("validateAndRepairFrookySettings()", () => {
-    it("returns the defaults when no settings are provided", () => {
-      expect(validateAndRepairFrookySettings({})).toEqual(pristineFrookySettings);
+  describe("validateInput()", () => {
+    it("returns the input when it matches the schema", () => {
+      expect(validateInput(inputParamSchema, ["int", "len", { direction: "out" }], "The param")).toEqual(["int", "len", { direction: "out" }]);
     });
 
-    it("does not modify the default settings (they are shared by every config, also across reloads)", () => {
-      validateAndRepairFrookySettings({ hookSettings: { maxStackFrames: 42 }, decoderSettings: { maxDepth: 42 } });
-      expect(DEFAULT_FROOKY_SETTINGS).toEqual(pristineFrookySettings);
+    it("throws for input that doesn't match the schema", () => {
+      expect(() => validateInput(inputParamSchema, 42, "The param")).toThrow("The param is invalid:");
     });
 
-    it("repairs and merges hookSettings when provided, leaving decoderSettings at its default", () => {
-      const result = validateAndRepairFrookySettings({ hookSettings: { maxStackFrames: 42 } });
-      expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, maxStackFrames: 42 });
-      expect(result.decoderSettings).toEqual(pristineFrookySettings.decoderSettings);
+    it("throws for unknown properties, with their paths", () => {
+      expect(() => validateInput(inputParamSchema, ["int", "len", { decoderArgs: { length: 3 } }], "The param")).toThrow(
+        "The param contains unknown properties: [2].decoderArgs",
+      );
+      expect(() => validateInput(inputParamSchema, { type: "int", settings: { maxItems: 3 } }, "The param")).toThrow(
+        "The param contains unknown properties: settings",
+      );
     });
+  });
 
-    it("repairs and merges decoderSettings when provided, leaving hookSettings at its default", () => {
-      const result = validateAndRepairFrookySettings({ decoderSettings: { maxDepth: 42 } });
-      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, maxDepth: 42 });
-      expect(result.hookSettings).toEqual(pristineFrookySettings.hookSettings);
-    });
+  describe("validateFrookyConfig()", () => {
+    const metadata = { name: "Test Config", platform: "Android" } as const;
 
-    it("drops the settings of a single value from the file's decoderSettings", () => {
-      const result = validateAndRepairFrookySettings({ decoderSettings: { maxDepth: 42, argFilter: ["^a"] } as InputDecoderSettings });
-      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, maxDepth: 42 });
-      expect(Object.keys(result.decoderSettings)).not.toContain("argFilter");
-      expect(warnSpy).toHaveBeenCalledWith("Decoder settings contain unknown properties: argFilter");
-    });
-
-    it("repairs both hookSettings and decoderSettings when both are provided", () => {
-      const result = validateAndRepairFrookySettings({
-        hookSettings: { maxStackFrames: 7 },
-        decoderSettings: { maxItems: 42 },
+    it("returns the default settings when the file sets none", () => {
+      expect(validateFrookyConfig({ metadata, hookCollections: [] }, "Android")).toEqual({
+        hookSettings: DEFAULT_HOOK_SETTINGS,
+        decoderSettings: { maxDepth: 10, maxItems: 100 },
       });
-      expect(result.hookSettings).toEqual({ ...pristineFrookySettings.hookSettings, maxStackFrames: 7 });
-      expect(result.decoderSettings).toEqual({ ...pristineFrookySettings.decoderSettings, maxItems: 42 });
-    });
-  });
-
-  describe("validateAndRepairFrookyConfig()", () => {
-    function makeValidFrookyConfig(): InputFrookyConfig {
-      return {
-        metadata: { name: "Test Config", platform: "Android" },
-        settings: {
-          hookSettings: { ...pristineFrookySettings.hookSettings },
-          decoderSettings: { ...pristineFrookySettings.decoderSettings },
-        },
-        hookCollection: [],
-      };
-    }
-
-    it("returns a valid config unchanged when it is already valid", () => {
-      expect(validateAndRepairFrookyConfig(makeValidFrookyConfig(), "Android")).toEqual(makeValidFrookyConfig());
-    });
-
-    it("fills in default settings when none are provided", () => {
-      const missingSettingsFrookyConfig: InputFrookyConfig = {
-        metadata: { name: "Test Config", platform: "Android" },
-        hookCollection: [],
-      };
-      expect(validateAndRepairFrookyConfig(missingSettingsFrookyConfig, "Android")).toEqual(makeValidFrookyConfig());
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it("fills in default setting values when only partially set", () => {
-      const partialSettingsFrookyConfig: InputFrookyConfig = {
-        metadata: { name: "Test Config", platform: "Android" },
-        settings: {
-          hookSettings: { maxStackFrames: 55 },
-          decoderSettings: { maxDepth: 20 },
-        },
-        hookCollection: [],
+      const config: InputFrookyConfig = {
+        schemaVersion: 1,
+        metadata,
+        hookSettings: { maxStackFrames: 55 },
+        decoderSettings: { maxDepth: 20 },
+        hookCollections: [],
       };
-      const expected: InputFrookyConfig = {
-        metadata: { name: "Test Config", platform: "Android" },
-        settings: {
-          hookSettings: { ...pristineFrookySettings.hookSettings, maxStackFrames: 55 },
-          decoderSettings: { ...pristineFrookySettings.decoderSettings, maxDepth: 20 },
-        },
-        hookCollection: [],
-      };
-      expect(validateAndRepairFrookyConfig(partialSettingsFrookyConfig, "Android")).toEqual(expected);
+      expect(validateFrookyConfig(config, "Android")).toEqual({
+        hookSettings: { ...DEFAULT_HOOK_SETTINGS, maxStackFrames: 55 },
+        decoderSettings: { maxDepth: 20, maxItems: 100 },
+      });
     });
 
-    it("resets settings to their defaults when they do not match the schema", () => {
-      const invalidSettingsFrookyConfig: InputFrookyConfig = {
-        metadata: { name: "Test Config", platform: "Android" },
-        settings: {
-          hookSettings: { maxStackFrames: "10" as unknown as number },
-          decoderSettings: { maxDepth: "10" as unknown as number },
-        },
-        hookCollection: [],
-      };
-      expect(validateAndRepairFrookyConfig(invalidSettingsFrookyConfig, "Android")).toEqual(makeValidFrookyConfig());
+    it("doesn't modify the default settings (they are shared by every config, also across reloads)", () => {
+      validateFrookyConfig({ hookSettings: { maxStackFrames: 42 }, decoderSettings: { maxDepth: 42 }, hookCollections: [] }, "Android");
+      expect(DEFAULT_FROOKY_SETTINGS.hookSettings.maxStackFrames).toBe(5);
+      expect(DEFAULT_FROOKY_SETTINGS.decoderSettings.maxDepth).toBe(10);
     });
 
-    it("warns when the config contains unknown properties", () => {
-      const configWithUnknownProperty = {
-        myCustomSettings: {},
-        metadata: { name: "Test Config", platform: "Android" },
-        hookCollection: [],
-      };
-      validateAndRepairFrookyConfig(configWithUnknownProperty as InputFrookyConfig, "Android");
-      expect(warnSpy).toHaveBeenCalledWith("Frooky config contains unknown properties: myCustomSettings");
+    it("throws for settings that do not match the schema", () => {
+      const config: InputFrookyConfig = { hookSettings: { maxStackFrames: "10" as unknown as number }, hookCollections: [] };
+      expect(() => validateFrookyConfig(config, "Android")).toThrow("The hook file is invalid:");
+      expect(() => validateFrookyConfig({ hookSettings: true, hookCollections: [] } as unknown as InputFrookyConfig, "Android")).toThrow(
+        "The hook file is invalid:",
+      );
     });
 
-    it("warns on an OS mismatch via validateMetadata()", () => {
-      validateAndRepairFrookyConfig(makeValidFrookyConfig(), "iOS");
+    it("throws for the settings of a single parameter in the file's decoderSettings", () => {
+      const config = { decoderSettings: { maxDepth: 42, argFilter: ["^a"] }, hookCollections: [] } as InputFrookyConfig;
+      expect(() => validateFrookyConfig(config, "Android")).toThrow("The hook file contains unknown properties: decoderSettings.argFilter");
+    });
+
+    it("throws for unknown properties", () => {
+      const config = { settings: {}, hookCollections: [] } as unknown as InputFrookyConfig;
+      expect(() => validateFrookyConfig(config, "Android")).toThrow("The hook file contains unknown properties: settings");
+    });
+
+    it("accepts metadata fields it doesn't know", () => {
+      const config = { metadata: { ...metadata, team: "red", masvs: ["CRYPTO-1"] }, hookCollections: [] } as unknown as InputFrookyConfig;
+      expect(() => validateFrookyConfig(config, "Android")).not.toThrow();
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("warns about metadata that does not match the schema, and still loads the file", () => {
+      const config = { metadata: { category: true }, hookCollections: [] } as unknown as InputFrookyConfig;
+      expect(() => validateFrookyConfig(config, "Android")).not.toThrow();
+      const [message] = warnSpy.mock.calls[0] as [string];
+      expect(message).toContain("The metadata contains invalid entries:");
+    });
+
+    it("throws for a schemaVersion it doesn't read", () => {
+      const config = { schemaVersion: 2, hookCollections: [] } as unknown as InputFrookyConfig;
+      expect(() => validateFrookyConfig(config, "Android")).toThrow(
+        "'schemaVersion: 2' is not supported. This version of frooky reads schemaVersion 1.",
+      );
+    });
+
+    it("warns when the declared platform is another one", () => {
+      validateFrookyConfig({ metadata, hookCollections: [] }, "iOS");
       expect(warnSpy).toHaveBeenCalledWith(
         "The platform declared in the frooky configuration does not match the actual platform (iOS). Not all hooks may be valid.",
       );
     });
 
-    it("throws when no hookCollection is set", () => {
-      expect(() => {
-        validateAndRepairFrookyConfig({ metadata: { name: "Config w/o hookCollection" } } as InputFrookyConfig, "iOS");
-      }).toThrow("Frooky config Config w/o hookCollection, as it has no 'hookCollection'.");
+    it("doesn't warn when no platform is declared", () => {
+      validateFrookyConfig({ metadata: { name: "Test" }, hookCollections: [] }, "Android");
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("throws when hookCollections is missing or no list", () => {
+      expect(() => validateFrookyConfig({ metadata } as InputFrookyConfig, "iOS")).toThrow(
+        "'hookCollections' must be a list of hook collections, but is missing.",
+      );
+      expect(() => validateFrookyConfig({ hookCollections: {} } as unknown as InputFrookyConfig, "iOS")).toThrow(
+        "'hookCollections' must be a list of hook collections, but is {}.",
+      );
     });
   });
 });

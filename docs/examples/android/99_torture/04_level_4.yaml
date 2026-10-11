@@ -1,7 +1,7 @@
 metadata:
   name: "Torture (Android) Level 4: Stack Traces on High-Frequency Methods"
   description: |
-    Level 3 with deep platform stack traces on every call. A Java backtrace walks the whole stack, even
+    Level 3 with deep Java stack traces on every call. A Java backtrace walks the whole stack, even
     with a limit, so this costs the same on every call no matter how many frames are kept.
   version: 1
   author: frooky dev
@@ -20,16 +20,15 @@ metadata:
 # Expected: the app crawls; startup may hit an ANR. Compare the Event Rate with level 3: a much lower rate
 # at the same load shows the cost of the stack traces.
 
-settings:
-  hookSettings:
-    platformStackTrace: true
-    nativeStackTrace: true
-    maxStackFrames: 64
-  decoderSettings:
-    maxItems: 500
-    maxDepth: 5
+hookSettings:
+  javaStackTrace: true
+  nativeStackTrace: true
+  maxStackFrames: 64
+decoderSettings:
+  maxItems: 500
+  maxDepth: 5
 
-hookCollection:
+hookCollections:
   # all calls, with stack traces
   # Docs: https://developer.android.com/reference/java/util/HashMap
   - javaClass: java.util.HashMap

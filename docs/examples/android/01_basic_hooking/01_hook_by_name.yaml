@@ -11,7 +11,7 @@ metadata:
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/01_hook_by_name.yaml
 # See:    docs/java-hook-declaration.md#basic-usage
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       - receiveString

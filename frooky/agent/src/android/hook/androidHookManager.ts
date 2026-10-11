@@ -332,7 +332,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     const { hook, target, outArgDecoders, retTypeDecoder } = call.installedHook;
     const { decodedArgs, logTarget } = call;
     const decodeStart = Date.now();
-    // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
+    // first, as `out` parameters with `length: $ret` need it
     let decodedRetValue: DecodedValue | undefined;
     if (retTypeDecoder) {
       try {

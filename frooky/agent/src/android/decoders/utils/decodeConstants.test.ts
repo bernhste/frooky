@@ -1,5 +1,5 @@
 import Java from "frida-java-bridge";
-import { DecoderConfig } from "../../../shared/frookySettings";
+import { DecoderOptions } from "../../../shared/frookySettings";
 import { logger } from "../../../shared/logger";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
 import { classConstants, configClassConstants, decodeConstantValues } from "./decodeConstants";
@@ -109,14 +109,14 @@ describe("javaConstants", () => {
   });
 
   describe("configClassConstants()", () => {
-    const decodable = (config: DecoderConfig | undefined, declaringClass?: string) => ({
+    const decodable = (config: DecoderOptions | undefined, declaringClass?: string) => ({
       type: "int",
       declaringClass,
-      settings: { ...DEFAULT_DECODER_SETTINGS, config },
+      settings: { ...DEFAULT_DECODER_SETTINGS, decoderOptions: config },
     });
     const names = (constants: { name?: string }[]) => constants.map(({ name }) => name).sort();
 
-    it("should read config.class, else the hooked class, filtered by config.fields", () => {
+    it("should read decoderOptions.class, else the hooked class, filtered by decoderOptions.fields", () => {
       expect(names(configClassConstants(decodable({ fields: "*_MODE" }, "javax.crypto.Cipher")))).toEqual([
         "DECRYPT_MODE",
         "ENCRYPT_MODE",
@@ -130,7 +130,7 @@ describe("javaConstants", () => {
       ]);
     });
 
-    it("should read no class with a map in config.constants, or without a class", () => {
+    it("should read no class with a map in decoderOptions.constants, or without a class", () => {
       expect(configClassConstants(decodable({ constants: { A: 1 } }, "javax.crypto.Cipher"))).toEqual([]);
       expect(configClassConstants(decodable(undefined))).toEqual([]);
     });

@@ -11,7 +11,7 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/01_basic_hooking/04_module_wildcards.yaml
 # See:    docs/native-hook-declaration.md#module-wildcards
 
-hookCollection:
+hookCollections:
   # libreceiveFundamentalValue.so and libreceiveFundamentalReference.so, which the app loads one after the other
   - module: libreceiveFundamental*.so
     hooks:

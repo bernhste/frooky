@@ -2,7 +2,7 @@ metadata:
   name: "Basic Hooking (Native): Hook Functions by Symbol"
   description: |
     A native function has no type information at runtime. The short form hooks a function by its
-    exported symbol and records each call without decoding anything. Declare `params` and `retType`
+    exported symbol and records each call without decoding anything. Declare `params` and `returns`
     to decode arguments and the return value.
   version: 1
   author: frooky dev
@@ -12,14 +12,14 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/01_basic_hooking/01_hook_by_symbol.yaml
 # See:    docs/native-hook-declaration.md#basic-usage
 
-hookCollection:
+hookCollections:
   - module: libreceiveFundamentalValue.so
     hooks:
       # short form: no arguments or return value
       - receive_bool
       # object form with types: int receive_int(int minValue, int maxValue)
       - symbol: receive_int
-        retType: int
+        returns: int
         params: [int, int]
 
 # Expected events:

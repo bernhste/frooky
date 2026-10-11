@@ -4,12 +4,14 @@ import { z } from "zod";
 export const hookSettingsSchema = z.object({
     maxStackFrames: z.number().min(0),
     nativeStackTrace: z.boolean(),
-    platformStackTrace: z.boolean(),
+    javaStackTrace: z.boolean(),
     callerFilter: z.array(z.string()),
     early: z.boolean()
 });
 
-export const decoderConfigSchema = z.object({
+export const decoderArgValueSchema = z.union([z.string(), z.number()]);
+
+export const decoderOptionsSchema = z.object({
     constants: z.record(z.string(), z.number()).optional(),
     class: z.string().optional(),
     fields: z.string().optional()
@@ -21,16 +23,9 @@ export const nativeBitmaskPresetNameSchema = z.union([z.literal("openFlags"), z.
 
 export const nativeConstantsPresetNameSchema = z.literal("socketDomain");
 
-export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hex"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("constants"), z.literal("bitmask"), z.literal("nullTerminated"), nativeBitmaskPresetNameSchema, nativeConstantsPresetNameSchema]);
+export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hex"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("constants"), z.literal("bitmask"), z.literal("nullTerminatedArray"), nativeBitmaskPresetNameSchema, nativeConstantsPresetNameSchema]);
 
 export const decoderNameSchema = z.union([javaDecoderNameSchema, nativeDecoderNameSchema]);
-
-export const decoderArgValueSchema = z.union([z.string(), z.number()]);
-
-export const decoderArgsSchema = z.object({
-    length: decoderArgValueSchema.optional(),
-    offset: decoderArgValueSchema.optional()
-});
 
 export const baseDecoderSettingsSchema = z.object({
     maxDepth: z.number().min(1),
@@ -39,8 +34,9 @@ export const baseDecoderSettingsSchema = z.object({
 });
 
 export const decoderSettingsSchema = baseDecoderSettingsSchema.extend({
-    decoderArgs: decoderArgsSchema.optional(),
-    config: decoderConfigSchema.optional(),
+    length: decoderArgValueSchema.optional(),
+    offset: decoderArgValueSchema.optional(),
+    decoderOptions: decoderOptionsSchema.optional(),
     argFilter: z.array(z.string()).optional()
 });
 

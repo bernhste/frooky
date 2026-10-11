@@ -26,15 +26,14 @@ metadata:
 # Expected: the app freezes, ANRs or crashes. What counts is how: a clean exit, a crash report and a
 # usable output.json are a pass; a hung frooky or a lost output.json are findings.
 
-settings:
-  hookSettings:
-    platformStackTrace: true
-    maxStackFrames: 16
-  decoderSettings:
-    maxItems: 1000
-    maxDepth: 10
+hookSettings:
+  javaStackTrace: true
+  maxStackFrames: 16
+decoderSettings:
+  maxItems: 1000
+  maxDepth: 10
 
-hookCollection:
+hookCollections:
   # Docs: https://developer.android.com/reference/java/lang/Object#toString()
   # Docs: https://developer.android.com/reference/java/lang/Object#hashCode()
   - javaClass: java.lang.Object

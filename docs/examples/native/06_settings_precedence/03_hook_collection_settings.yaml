@@ -1,27 +1,26 @@
 metadata:
   name: "Settings Precedence (Native): Hook Collection"
   description: |
-    Settings on a hook collection (the `javaClass`/`module` entry in `hookCollection`) override the
+    Settings on a hook collection (the `javaClass`/`module` entry in `hookCollections`) override the
     file-level settings for every hook in that collection.
   version: 1
   author: frooky dev
   platform: Android
 
-# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# Levels, from farthest to closest: default < file < hook collection < hook < parameter/return value.
 # See docs/additional-features.md#settings-precedence.
 # Target: the value-passing-native test app, which calls receive_cstring("Welcome the first OWASP MASCon, CString!") once from JNI.
 
-settings:
-  hookSettings:
-    platformStackTrace: true
-    nativeStackTrace: true
-    maxStackFrames: 1
-    callerFilter:
-      - libreceiveString.so
-  decoderSettings:
-    maxItems: 10
+hookSettings:
+  javaStackTrace: true
+  nativeStackTrace: true
+  maxStackFrames: 1
+  callerFilter:
+    - libreceiveString.so
+decoderSettings:
+  maxItems: 10
 
-hookCollection:
+hookCollections:
   - module: libreceiveString.so
     hookSettings:
       maxStackFrames: 2
@@ -31,9 +30,9 @@ hookCollection:
       - symbol: receive_cstring
         params:
           - ["char *", s]
-        retType: "char *"
+        returns: "char *"
 
 # Expected event after pressing Start:
-#   stackTrace:        2 frames in platformStackTrace and nativeStackTrace (hook collection: maxStackFrames 2); the callerFilter keeps the event, as libreceiveString.so calls receive_cstring
+#   stackTrace:        2 frames in javaStackTrace and nativeStackTrace (hook collection: maxStackFrames 2); the callerFilter keeps the event, as libreceiveString.so calls receive_cstring
 #   argsIn[0].value:   "Welcome the fir..."                     (hook collection: maxItems 15)
 #   returnValue.value: "Welcome the fir..."                     (hook collection: maxItems 15)

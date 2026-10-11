@@ -11,7 +11,7 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/03_file_descriptors.yaml
 # See:    docs/decoders-native.md#file-descriptors
 
-hookCollection:
+hookCollections:
   - module: libreceiveFundamentalValue.so
     hooks:
       # int write_log(int fd, const void *buf, int len) writes like write(2), once to /dev/null and once to a
@@ -20,12 +20,12 @@ hookCollection:
       - symbol: write_log
         params:
           - [int, fd, { decoder: fd }]
-          - ["const void *", buf, { decoderArgs: { length: len }, decoder: string }]
+          - ["const void *", buf, { length: len, decoder: string }]
           - [int, len]
 
       # int open_log(const char *path, int flags) returns the fd it opened, like open(2)
       - symbol: open_log
-        retType: [int, { decoder: fd }]
+        returns: [int, { decoder: fd }]
         params:
           - ["const char *", path]
           - [int, flags]

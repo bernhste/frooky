@@ -17,11 +17,11 @@ metadata:
 # native hook's calls before targetReady, which it only records with `early: true`, get native frames only
 # (skipped: before-ready), see 04_before_target_ready.yaml.
 
-hookCollection:
+hookCollections:
   - module: libloadStage.so
     hookSettings:
       nativeStackTrace: true
-      platformStackTrace: true
+      javaStackTrace: true
       maxStackFrames: 10
     hooks:
       # const char *report_load_stage(const char *stage)
@@ -33,7 +33,7 @@ hookCollection:
 # linker, ART and java.lang.Runtime, which differ between Android versions:
 #   "constructor": nativeStackTrace   starts with "load_time_constructor+0x... (libloadTime.so:0x...)", the function
 #                                     that libloadTime.so's constructor calls, inside dlopen()
-#                  platformStackTrace contains "org.owasp.mastestapp.MastgTest.<clinit> (MastgTest.kt:...)", which
+#                  javaStackTrace contains "org.owasp.mastestapp.MastgTest.<clinit> (MastgTest.kt:...)", which
 #                                     calls System.loadLibrary("loadTime")
 #   "JNI_OnLoad":  nativeStackTrace   starts with "JNI_OnLoad+0x... (libloadTime.so:0x...)"
-#                  platformStackTrace contains "org.owasp.mastestapp.MastgTest.<clinit> (MastgTest.kt:...)"
+#                  javaStackTrace contains "org.owasp.mastestapp.MastgTest.<clinit> (MastgTest.kt:...)"

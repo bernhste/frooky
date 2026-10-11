@@ -3,7 +3,7 @@ import { Decoder } from "../decoders/baseDecoder";
 import { Direction, Param, RetType } from "../decoders/decodable";
 import { DecodedValue } from "../decoders/decodedValue";
 import { DecoderResolver } from "../decoders/decoderResolver";
-import { DecoderArgRole, DecoderArgValues, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
+import { DecoderArgRole, decoderArgsOf, DecoderArgValues, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
 import { FilterMismatchError, previewValue } from "../utils";
@@ -82,7 +82,7 @@ export type ParamDecoder<TValue> = {
   argIndex: number;
   direction: Direction;
   name?: string;
-  // where the value of each role in `decoderArgs` comes from
+  // where the values of `length` and `offset` come from
   decoderArgs?: Partial<Record<DecoderArgRole, DecoderArgSource<TValue>>>;
   argFilter?: ArgFilter[];
 };
@@ -145,7 +145,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   // Prepares the agent's unload, see FrookyAgent.prepareDetach(). Nothing to do for hooks the unload removes safely.
   public async prepareDetach(): Promise<void> {}
 
-  // `decoderArgs` were checked when the hook file was validated (see validateDecoderArgs())
+  // `length` and `offset` were checked when the hook file was validated (see validateDecoderArgs())
   protected resolveParamDecoders(params: Param[]): ParamDecoder<TValue>[] {
     return params.map((param: Param, paramIndex: number) => {
       const { direction, ...paramDecodable } = param;
@@ -181,8 +181,8 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   }
 
   private resolveDecoderArgSources(param: Param, params: Param[]): ParamDecoder<TValue>["decoderArgs"] {
-    const decoderArgs = param.settings.decoderArgs;
-    if (!decoderArgs) return undefined;
+    const decoderArgs = decoderArgsOf(param.settings);
+    if (Object.keys(decoderArgs).length === 0) return undefined;
     const sources: Partial<Record<DecoderArgRole, DecoderArgSource<TValue>>> = {};
     for (const [role, value] of Object.entries(decoderArgs) as [DecoderArgRole, string | number][]) {
       if (typeof value === "number") {
@@ -199,8 +199,8 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
     return sources;
   }
 
-  protected resolveRetTypeDecoder(retType: RetType): Decoder<TValue> {
-    return this.decoderResolver.resolveDecoder(retType);
+  protected resolveRetTypeDecoder(returns: RetType): Decoder<TValue> {
+    return this.decoderResolver.resolveDecoder(returns);
   }
 
   protected matchesFilter(decodedValue: DecodedValue, argFilter?: ArgFilter[]): boolean {
@@ -237,7 +237,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
   }
 
   // Throws FilterMismatchError if an argument doesn't match its argFilter. `target` is for debug logs. `returnValue`
-  // is the decoded return value for `decoderArgs` with `$ret`, only known when decoding `out` parameters.
+  // is the decoded return value for `length: $ret` or `offset: $ret`, only known when decoding `out` parameters.
   protected decodeArgs(args: TValue[], paramDecoders: ParamDecoder<TValue>[], target: string = "hook", returnValue?: DecodedValue): DecodedValue[] {
     const decodedArgs: DecodedValue[] = [];
     for (const paramDecoder of paramDecoders) {
@@ -267,7 +267,7 @@ export abstract class HookManager<TInputHook, THooks extends Hook, TValue> {
       } else if (source.kind === "returnValue") {
         values[role] = returnValue?.value;
       } else {
-        values[role] = this.decodeValue(source.decoder, args[source.index], `decoderArgs '${role}: ${source.name}' of ${param}`).value;
+        values[role] = this.decodeValue(source.decoder, args[source.index], `'${role}: ${source.name}' of ${param}`).value;
       }
     }
     return values;

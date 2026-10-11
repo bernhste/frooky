@@ -1,9 +1,8 @@
-import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
-import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { validateDecoderSettings, validateHookSettings } from "../configValidator";
 import { BaseDecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
-import { RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
+import { decoderArgsOf, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
 import { NativeHookDeclaration } from "../hook/hookDeclaration";
-import { InputParam, InputRetType, normalizeInputParams, normalizeInputRetType } from "./inputDecodableTypes";
+import { InputParam, InputReturn, normalizeInputParams, normalizeInputReturn } from "./inputDecodableTypes";
 import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
 
 /**
@@ -15,8 +14,8 @@ export interface InputNativeHookBase {
   /** Parameters of the function, in order. */
   params?: InputParam[];
 
-  /** Return type of the function. */
-  retType?: InputRetType;
+  /** Return type of the function. Without it, the return value isn't decoded. */
+  returns?: InputReturn;
 
   /** Hook settings for this function. Override the collection's settings. */
   hookSettings?: InputHookSettings;
@@ -76,15 +75,12 @@ export type InputNativeHook = string | [string, InputDecoderSettings] | InputNat
  * Collection of hooks on functions of one native module.
  *
  * @public
- * @discriminator {type}
  */
 export interface InputNativeHookCollection {
-  /** Collection kind. Optional in hook files; inferred from `module`. */
-  type: "native";
-
   /**
-   * Name of the module that exports the functions, e.g. `libssl.so`. A `*` or `**` matches any characters, e.g.
-   * `libssl*.so` hooks the functions in every module whose name matches, also in modules that load later.
+   * File name of the module that exports the functions, e.g. `libssl.so`, without its path. A `*` or `**` matches any
+   * characters, e.g. `libssl*.so` hooks the functions in every module whose name matches, also in modules that load
+   * later.
    */
   module: string;
 
@@ -103,7 +99,7 @@ export function isNativeHookCollection(inputHookScope: object): inputHookScope i
 }
 
 // Normalizes one hook, validated against the input schema, with the merged collection settings. Throws on an invalid
-// param, retType or offset, so validators can skip a single hook.
+// param, returns, setting or offset, so validators can skip a single hook.
 export function normalizeNativeHook(
   inputHook: InputNativeHook,
   module: string,
@@ -116,27 +112,27 @@ export function normalizeNativeHook(
 
   if (Array.isArray(inputHook)) {
     const [symbol, hookDecoderSettings] = inputHook;
-    return { symbol, module, hookSettings, decoderSettings: validateAndRepairDecoderSettings({ ...decoderSettings, ...hookDecoderSettings }) };
+    return { symbol, module, hookSettings, decoderSettings: validateDecoderSettings({ ...decoderSettings, ...hookDecoderSettings }) };
   }
 
-  const mergedHookSettings = inputHook.hookSettings ? validateAndRepairHookSettings({ ...hookSettings, ...inputHook.hookSettings }) : hookSettings;
+  const mergedHookSettings = inputHook.hookSettings ? validateHookSettings({ ...hookSettings, ...inputHook.hookSettings }) : hookSettings;
   const mergedDecoderSettings = inputHook.decoderSettings
-    ? validateAndRepairDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
+    ? validateDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
     : decoderSettings;
 
   const target = inputHook.symbol !== undefined ? { symbol: inputHook.symbol } : { offset: normalizeModuleOffset(inputHook.offset) };
   const params = inputHook.params && normalizeInputParams(inputHook.params, mergedDecoderSettings);
-  const retType = inputHook.retType && normalizeInputRetType(inputHook.retType, mergedDecoderSettings);
+  const returns = inputHook.returns && normalizeInputReturn(inputHook.returns, mergedDecoderSettings);
   // Java hooks know their return type by reflection, a native hook only from its declaration
-  if (!retType && params?.some((param) => Object.values(param.settings.decoderArgs ?? {}).includes(RETURN_VALUE_DECODER_ARG))) {
-    throw new Error(`decoderArgs: '${RETURN_VALUE_DECODER_ARG}' needs the hook to declare a 'retType', to decode the return value.`);
+  if (!returns && params?.some((param) => Object.values(decoderArgsOf(param.settings)).includes(RETURN_VALUE_DECODER_ARG))) {
+    throw new Error(`'${RETURN_VALUE_DECODER_ARG}' needs the hook to declare 'returns', to decode the return value.`);
   }
 
   return {
     ...target,
     module,
     ...(params && { params }),
-    ...(retType && { retType }),
+    ...(returns && { returns }),
     hookSettings: mergedHookSettings,
     decoderSettings: mergedDecoderSettings,
   };
@@ -166,18 +162,16 @@ export function describeNativeTarget(module: string, target: { symbol?: string; 
   return `${module}+${offset}`;
 }
 
-// Merges defaults, file settings and the collection's settings, repairing invalid values.
+// Merges the file's settings and the collection's. Throws for an invalid setting.
 export function mergeNativeHookCollectionSettings(
   hookCollection: InputNativeHookCollection,
   settings: FrookySettings,
 ): { hookSettings: HookSettings; decoderSettings: BaseDecoderSettings } {
-  const hookSettings: HookSettings = validateAndRepairHookSettings({
-    ...DEFAULT_HOOK_SETTINGS,
+  const hookSettings: HookSettings = validateHookSettings({
     ...settings.hookSettings,
     ...hookCollection.hookSettings,
   });
-  const decoderSettings: BaseDecoderSettings = validateAndRepairDecoderSettings({
-    ...DEFAULT_BASE_DECODER_SETTINGS,
+  const decoderSettings: BaseDecoderSettings = validateDecoderSettings({
     ...settings.decoderSettings,
     ...hookCollection.decoderSettings,
   });

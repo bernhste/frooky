@@ -66,7 +66,7 @@ function toNativeHook(inputHook: NativeHookDeclaration, module: Module, symbolAd
     offset: inputHook.offset,
     symbolAddress,
     params: inputHook.params,
-    retType: inputHook.retType,
+    returns: inputHook.returns,
     hookSettings: inputHook.hookSettings,
     decoderSettings: inputHook.decoderSettings,
   };

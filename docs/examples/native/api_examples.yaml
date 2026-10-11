@@ -1,3 +1,5 @@
+schemaVersion: 1
+
 metadata:
   name: Native Hook Examples
   platform: Android
@@ -6,7 +8,7 @@ metadata:
   author: frooky dev team
   version: 1
 
-hookCollection:
+hookCollections:
   # Hook multiple functions by name (all symbols in a module).
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
@@ -28,7 +30,7 @@ hookCollection:
   - module: libc.so
     hooks:
     - symbol: open
-      retType: int
+      returns: int
       params:
       - "const char *"
       - int
@@ -39,9 +41,9 @@ hookCollection:
   - module: libc.so
     hooks:
     - symbol: open
-      retType: int
+      returns: int
       params:
-      - [const char *, path]
+      - ["const char *", path]
       - [int, flags]
       - [mode_t, mode]
 
@@ -52,17 +54,17 @@ hookCollection:
   - module: libcrypto.so
     hooks:
     - symbol: EVP_CIPHER_CTX_new
-      retType: "EVP_CIPHER_CTX *"
+      returns: "EVP_CIPHER_CTX *"
     - symbol: EVP_CIPHER_CTX_free
       params:
       - ["EVP_CIPHER_CTX *", ctx]
     - symbol: EVP_EncryptUpdate
-      retType: int
+      returns: int
       params:
       - ["EVP_CIPHER_CTX *", ctx]
-      - ["unsigned char *", out, { direction: out, decoderArgs: { length: outl } }]
+      - ["unsigned char *", out, { direction: out, length: outl }]
       - ["int *", outl, { direction: out }]
-      - ["const unsigned char *", in, { decoderArgs: { length: inl } }]
+      - ["const unsigned char *", in, { length: inl }]
       - [int, inl]
 
   # `key` and `iv` have no length parameter: their lengths depend on the cipher (e.g. 32 and 12 bytes for
@@ -73,7 +75,7 @@ hookCollection:
       maxStackFrames: 10
     hooks:
     - symbol: EVP_EncryptInit_ex
-      retType: int
+      returns: int
       params:
       - ["EVP_CIPHER_CTX *", ctx]
       - ["const EVP_CIPHER *", type]
@@ -81,29 +83,29 @@ hookCollection:
       - ["const void *", key]
       - ["const void *", iv]
 
-  # The role `length` passes the length of `buf`, since it isn't NUL-terminated.
+  # `length` passes the length of `buf`, since it isn't NUL-terminated.
   # Docs: https://docs.openssl.org/master/man3/SSL_write/
   - module: libssl.so
     hooks:
     - symbol: SSL_write
-      retType: int
+      returns: int
       params:
       - ["SSL *", ssl]
-      - ["const void *", buf, { decoderArgs: { length: num } }]
+      - ["const void *", buf, { length: num }]
       - [int, num]
 
 
   # `read` writes up to `count` bytes into `buf` and returns how many it wrote, so `buf` is decoded on return
-  # (`direction: out`) with the return value in the role `length` (`decoderArgs: { length: $ret }`). A return value of -1 (an
+  # (`direction: out`) with the return value as `length` (`length: $ret`). A return value of -1 (an
   # error) decodes `buf` as null. `decoder: fd` shows the file, socket or pipe that `fd` refers to.
   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
   - module: libc.so
     hooks:
     - symbol: read
-      retType: ssize_t
+      returns: ssize_t
       params:
       - [int, fd, { decoder: fd }]
-      - [void *, buf, { direction: out, decoderArgs: { length: $ret }, decoder: string, maxItems: 100 }]
+      - ["void *", buf, { direction: out, length: $ret, decoder: string, maxItems: 100 }]
       - [size_t, count]
 
   # The same for TLS: the plaintext an app receives, before it's parsed.
@@ -111,22 +113,22 @@ hookCollection:
   - module: libssl.so
     hooks:
     - symbol: SSL_read
-      retType: int
+      returns: int
       params:
       - ["SSL *", ssl]
-      - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
+      - ["void *", buf, { direction: out, length: $ret, decoder: string }]
       - [int, num]
 
   # Use `decoder: string` to decode a buffer as text instead of hex/ASCII.
-  # The role `length` passes the buffer length, since `buf` is not NUL-terminated.
+  # `length` passes the buffer length, since `buf` is not NUL-terminated.
   # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
   - module: libc.so
     hooks:
     - symbol: write
-      retType: ssize_t
+      returns: ssize_t
       params:
       - int
-      - [const void *, buf , { decoderArgs: { length: count }, decoder: string, maxItems: 200 }]
+      - ["const void *", buf, { length: count, decoder: string, maxItems: 200 }]
       - [size_t, count]
 
   # Flags and enums of system calls with the built-in presets, e.g. `open` flags as ["O_WRONLY", "O_CREAT"].
@@ -137,29 +139,29 @@ hookCollection:
   - module: libc.so
     hooks:
     - symbol: openat
-      retType: [int, { decoder: fd }]
+      returns: [int, { decoder: fd }]
       params:
       - [int, dirfd]
-      - [const char *, path]
+      - ["const char *", path]
       - [int, flags, { decoder: openFlags }]
       - [mode_t, mode]
     - symbol: mmap
-      retType: void *
+      returns: "void *"
       params:
-      - [void *, addr]
+      - ["void *", addr]
       - [size_t, length]
       - [int, prot, { decoder: mmapProt }]
       - [int, flags, { decoder: mmapFlags }]
       - [int, fd, { decoder: fd }]
       - [off_t, offset]
     - symbol: mprotect
-      retType: int
+      returns: int
       params:
-      - [void *, addr]
+      - ["void *", addr]
       - [size_t, length]
       - [int, prot, { decoder: mmapProt }]
     - symbol: socket
-      retType: [int, { decoder: fd }]
+      returns: [int, { decoder: fd }]
       params:
       - [int, domain, { decoder: socketDomain }]
       - [int, type, { decoder: socketType }]
@@ -170,10 +172,10 @@ hookCollection:
   - module: libc.so
     hooks:
     - symbol: connect
-      retType: [int, { decoder: errno }]
+      returns: [int, { decoder: errno }]
       params:
       - [int, sockfd, { decoder: fd }]
-      - [const void *, addr]
+      - ["const void *", addr]
       - [int, addrlen]
 
   # The command lines of programs the app starts: `argv` and `envp` end at a NULL pointer.
@@ -181,23 +183,11 @@ hookCollection:
   - module: libc.so
     hooks:
     - symbol: execve
-      retType: int
+      returns: int
       params:
-      - [const char *, path]
-      - ["char *const []", argv, { decoder: nullTerminated }]
-      - ["char *const []", envp, { decoder: nullTerminated, maxItems: 20 }]
-
-# demos/ios/MASVS-AUTH/MASTG-DEMO-0043/hooks.js
-  - module: Security
-    hooks:
-      - symbol: SecAccessControlCreateWithFlags
-        retType: pointer
-        params:
-          - [pointer, allocator]
-          - [pointer, protection]
-          - [uint32, flags]
-          - [pointer, error]
-          - [pointer, accessControl, { direction: inout }]
+      - ["const char *", path]
+      - ["char *const []", argv, { decoder: nullTerminatedArray }]
+      - ["char *const []", envp, { decoder: nullTerminatedArray, maxItems: 20 }]
 
   # Keep only the files the app's own native library opens on external storage. `callerFilter` is checked
   # first and only compares the return address, so calls from other modules stay cheap. Replace libapp.so
@@ -206,12 +196,12 @@ hookCollection:
   - module: libc.so
     hookSettings:
       callerFilter:
-        - libapp.so
+        - '^libapp\.so$'
     hooks:
     - symbol: open
-      retType: int
+      returns: int
       params:
-      - [const char *, path, { argFilter: ['^/sdcard', '^/storage/emulated']}]
+      - ["const char *", path, { argFilter: ['^/sdcard', '^/storage/emulated']}]
       - [int, flags]
       - [mode_t, mode]
   # Hook functions without an exported symbol by their offset from the module's base address,
@@ -221,8 +211,8 @@ hookCollection:
   - module: libfoo.so
     hooks:
     - offset: 0x1a2b4
-      retType: int
+      returns: int
       params:
-      - [const char *, input]
+      - ["const char *", input]
       - [size_t, length]
     - offset: "0x000000000001C3D0"

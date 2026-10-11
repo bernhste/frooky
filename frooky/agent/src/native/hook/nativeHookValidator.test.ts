@@ -16,24 +16,24 @@ describe("NativeHookValidator", () => {
 
   describe("getPlatformHookCollections()", () => {
     it("returns an empty array for an empty hookCollection list", () => {
-      const config: InputFrookyConfig = { hookCollection: [] };
+      const config: InputFrookyConfig = { hookCollections: [] };
       expect(validator.getPlatformHookCollections(config)).toEqual([]);
     });
 
     it("returns only the native hook collections from a mixed hookCollection list, preserving order", () => {
-      const nativeCollectionA: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: [] };
-      const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: [] };
-      const nativeCollectionB: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: [] };
+      const nativeCollectionA: InputNativeHookCollection = { module: "libc.so", hooks: [] };
+      const javaCollection: InputJavaHookCollection = { javaClass: "com.example.A", hooks: [] };
+      const nativeCollectionB: InputNativeHookCollection = { module: "libssl.so", hooks: [] };
       const config: InputFrookyConfig = {
-        hookCollection: [nativeCollectionA, javaCollection, nativeCollectionB] as unknown as InputNativeHookCollection[],
+        hookCollections: [nativeCollectionA, javaCollection, nativeCollectionB] as unknown as InputNativeHookCollection[],
       };
 
       expect(validator.getPlatformHookCollections(config)).toEqual([nativeCollectionA, nativeCollectionB]);
     });
 
     it("returns an empty array when there are no native hook collections", () => {
-      const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: [] };
-      const config: InputFrookyConfig = { hookCollection: [javaCollection] as unknown as InputNativeHookCollection[] };
+      const javaCollection: InputJavaHookCollection = { javaClass: "com.example.A", hooks: [] };
+      const config: InputFrookyConfig = { hookCollections: [javaCollection] as unknown as InputNativeHookCollection[] };
 
       expect(validator.getPlatformHookCollections(config)).toEqual([]);
     });
@@ -53,13 +53,13 @@ describe("NativeHookValidator", () => {
     });
 
     it("returns an empty array when the config has no native hook collections", () => {
-      const config: InputFrookyConfig = { hookCollection: [] };
+      const config: InputFrookyConfig = { hookCollections: [] };
       expect(validator.validateAndNormalizeHooks(config, defaultSettings)).toEqual([]);
     });
 
     it("normalizes a plain symbol-name hook into a full NativeHookDeclaration", () => {
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: ["custom_func"] };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
+      const nativeCollection: InputNativeHookCollection = { module: "libfoo.so", hooks: ["custom_func"] };
+      const config: InputFrookyConfig = { hookCollections: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -74,9 +74,9 @@ describe("NativeHookValidator", () => {
       ["missing", undefined],
     ]) {
       it(`skips a collection whose hooks are ${kind}`, () => {
-        const nativeCollection = { type: "native", module: "libfoo.so", hooks } as unknown as InputNativeHookCollection;
-        const otherCollection: InputNativeHookCollection = { type: "native", module: "libbar.so", hooks: ["funcB"] };
-        const config: InputFrookyConfig = { hookCollection: [nativeCollection, otherCollection] };
+        const nativeCollection = { module: "libfoo.so", hooks } as unknown as InputNativeHookCollection;
+        const otherCollection: InputNativeHookCollection = { module: "libbar.so", hooks: ["funcB"] };
+        const config: InputFrookyConfig = { hookCollections: [nativeCollection, otherCollection] };
 
         const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -87,11 +87,11 @@ describe("NativeHookValidator", () => {
     }
 
     it("collects hooks from multiple native hook collections, ignoring non-native hook collections", () => {
-      const nativeCollectionA: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: ["funcA"] };
-      const javaCollection: InputJavaHookCollection = { type: "java", javaClass: "com.example.A", hooks: ["foo"] };
-      const nativeCollectionB: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: ["SSL_write"] };
+      const nativeCollectionA: InputNativeHookCollection = { module: "libfoo.so", hooks: ["funcA"] };
+      const javaCollection: InputJavaHookCollection = { javaClass: "com.example.A", hooks: ["foo"] };
+      const nativeCollectionB: InputNativeHookCollection = { module: "libssl.so", hooks: ["SSL_write"] };
       const config: InputFrookyConfig = {
-        hookCollection: [nativeCollectionA, javaCollection, nativeCollectionB] as unknown as InputNativeHookCollection[],
+        hookCollections: [nativeCollectionA, javaCollection, nativeCollectionB] as unknown as InputNativeHookCollection[],
       };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
@@ -99,92 +99,97 @@ describe("NativeHookValidator", () => {
       expect(result.map((hook) => hook.symbol)).toEqual(["funcA", "SSL_write"]);
     });
 
-    it("ignores argFilter and decoderArgs in the decoderSettings of a hook collection, a hook and a [symbol, decoderSettings] tuple", () => {
-      const nativeCollection = {
-        type: "native",
-        module: "libfoo.so",
-        decoderSettings: { argFilter: ["^x"] },
-        hooks: [
-          { symbol: "funcA", decoderSettings: { maxItems: 3, decoderArgs: { length: 4 } }, params: ["char *"] },
-          ["funcB", { decoder: "fd", argFilter: ["^b"] }],
-        ],
-      } as unknown as InputNativeHookCollection;
+    it("skips a hook collection and a hook with an unknown property or the settings of a single parameter", () => {
+      const collections = [
+        { module: "libfoo.so", decoderSettings: { argFilter: ["^x"] }, hooks: ["skippedA"] },
+        { module: "libfoo.so", hookSetings: {}, hooks: ["skippedB"] },
+        {
+          module: "libfoo.so",
+          hooks: [{ symbol: "funcA", decoderSettings: { maxItems: 3, length: 4 } }, ["funcB", { decoder: "fd", argFilter: ["^b"] }], "funcC"],
+        },
+      ] as unknown as InputNativeHookCollection[];
 
-      const [funcA, funcB] = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const hooks = validator.validateAndNormalizeHooks({ hookCollections: collections }, defaultSettings);
 
-      expect(funcA.params?.[0].settings).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 3 });
-      expect(funcA.params?.[0].settings.argFilter).toBeUndefined();
-      expect(funcA.params?.[0].settings.decoderArgs).toBeUndefined();
-      expect(funcB.decoderSettings).toEqual({ ...DEFAULT_DECODER_SETTINGS, decoder: "fd" });
+      expect(hooks.map((hook) => hook.symbol)).toEqual(["funcC"]);
       const messages = warnSpy.mock.calls.map(([message]) => message as string);
-      expect(messages).toContain("Decoder settings contain unknown properties: argFilter");
       expect(messages).toContain(
-        "Hook for native function 'funcA' from module 'libfoo.so' contains unknown properties, which are ignored: decoderSettings.decoderArgs",
+        "Skipping the hook collection for module 'libfoo.so': The hook collection contains unknown properties: decoderSettings.argFilter",
+      );
+      expect(messages).toContain("Skipping the hook collection for module 'libfoo.so': The hook collection contains unknown properties: hookSetings");
+      expect(messages).toContain(
+        "Skipping hook for native function 'funcA' from module 'libfoo.so' due to an invalid declaration:\nThe hook contains unknown properties: decoderSettings.length",
       );
       expect(messages).toContain(
-        "Hook for native function 'funcB' from module 'libfoo.so' contains unknown properties, which are ignored: [1].argFilter",
+        "Skipping hook for native function 'funcB' from module 'libfoo.so' due to an invalid declaration:\nThe hook contains unknown properties: [1].argFilter",
       );
     });
 
-    it("accepts config.constants for the constants and bitmask decoders, and rejects it for a preset and other decoders", () => {
+    it("skips a hook collection whose module is a path", () => {
+      const collection: InputNativeHookCollection = { module: "/apex/com.android.runtime/lib64/bionic/libc.so", hooks: ["free"] };
+
+      expect(validator.validateAndNormalizeHooks({ hookCollections: [collection] }, defaultSettings)).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "Skipping the hook collection for module '/apex/com.android.runtime/lib64/bionic/libc.so': 'module' must be the file name of the module, e.g. 'libc.so', not a path.",
+      );
+    });
+
+    it("accepts decoderOptions.constants for the constants and bitmask decoders, and rejects it for a preset and other decoders", () => {
       const nativeCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libfoo.so",
         hooks: [
           {
             symbol: "ok",
-            params: [["int", "mode", { decoder: "constants", config: { constants: { A: 1 } } }]],
-            retType: ["int", { decoder: "bitmask", config: { constants: { B: 2 } } }],
+            params: [["int", "mode", { decoder: "constants", decoderOptions: { constants: { A: 1 } } }]],
+            returns: ["int", { decoder: "bitmask", decoderOptions: { constants: { B: 2 } } }],
           },
-          { symbol: "preset", params: [["int", "flags", { decoder: "openFlags", config: { constants: { A: 1 } } }]] },
-          { symbol: "fd", params: [["int", "fd", { decoder: "fd", config: { constants: { A: 1 } } }]] },
+          { symbol: "preset", params: [["int", "flags", { decoder: "openFlags", decoderOptions: { constants: { A: 1 } } }]] },
+          { symbol: "fd", params: [["int", "fd", { decoder: "fd", decoderOptions: { constants: { A: 1 } } }]] },
         ],
       };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["ok"]);
       const messages = warnSpy.mock.calls.map(([message]) => message as string);
-      expect(messages[0]).toContain("config of 'flags': decoder 'openFlags' doesn't accept 'constants'. It accepts no config.");
-      expect(messages[1]).toContain("config of 'fd': decoder 'fd' doesn't accept 'constants'. It accepts no config.");
+      expect(messages[0]).toContain("decoderOptions of 'flags': decoder 'openFlags' doesn't accept 'constants'. It accepts no decoderOptions.");
+      expect(messages[1]).toContain("decoderOptions of 'fd': decoder 'fd' doesn't accept 'constants'. It accepts no decoderOptions.");
     });
 
-    it("skips a hook with config.class or config.fields, which only Java hooks support", () => {
+    it("skips a hook with decoderOptions.class or decoderOptions.fields, which only Java hooks support", () => {
       const nativeCollection = {
-        type: "native",
         module: "libfoo.so",
-        hooks: ["ok", { symbol: "bad", params: [["int", "flags", { decoder: "bitmask", config: { class: "android.os.Foo", fields: "FLAG_*" } }]] }],
+        hooks: [
+          "ok",
+          { symbol: "bad", params: [["int", "flags", { decoder: "bitmask", decoderOptions: { class: "android.os.Foo", fields: "FLAG_*" } }]] },
+        ],
       } as unknown as InputNativeHookCollection;
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["ok"]);
       const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain("config of 'flags': decoder 'bitmask' doesn't accept 'class', 'fields'. It accepts: constants.");
+      expect(message).toContain("decoderOptions of 'flags': decoder 'bitmask' doesn't accept 'class', 'fields'. It accepts: constants.");
     });
 
-    it("uses the hook collection's module and warns about a module set on the hook itself", () => {
+    it("skips a hook that sets a module itself", () => {
       const nativeCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libfoo.so",
-        hooks: [{ symbol: "funcA", module: "libwrong.so" } as InputNativeHookDetails],
+        hooks: [{ symbol: "funcA", module: "libwrong.so" } as InputNativeHookDetails, "funcB"],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
 
-      const result = validator.validateAndNormalizeHooks(config, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
-      expect(result[0].module).toBe("libfoo.so");
-      const [message] = warnSpy.mock.calls[0] as [string];
-      expect(message).toContain("contains unknown properties, which are ignored: module");
+      expect(result.map((hook) => [hook.module, hook.symbol])).toEqual([["libfoo.so", "funcB"]]);
+      expect(skipWarning()).toContain("The hook contains unknown properties: module");
     });
 
-    it("normalizes params and retType using the merged decoder settings", () => {
+    it("normalizes params and returns using the merged decoder settings", () => {
       const nativeCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libfoo.so",
-        hooks: [{ symbol: "custom_func", params: ["void *", "void *", "size_t"], retType: "void *" }],
+        hooks: [{ symbol: "custom_func", params: ["void *", "void *", "size_t"], returns: "void *" }],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
+      const config: InputFrookyConfig = { hookCollections: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -193,18 +198,17 @@ describe("NativeHookValidator", () => {
         { type: "void *", direction: "in", settings: DEFAULT_DECODER_SETTINGS },
         { type: "size_t", direction: "in", settings: DEFAULT_DECODER_SETTINGS },
       ]);
-      expect(result[0].retType).toEqual({ type: "void *", settings: DEFAULT_DECODER_SETTINGS });
+      expect(result[0].returns).toEqual({ type: "void *", settings: DEFAULT_DECODER_SETTINGS });
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
     it("skips a hook that fails schema validation, warns about it, and still keeps the valid hooks", () => {
       const invalidHook = { symbol: 123 as unknown as string };
       const nativeCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libc.so",
         hooks: ["validSymbol", invalidHook],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
+      const config: InputFrookyConfig = { hookCollections: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -215,8 +219,8 @@ describe("NativeHookValidator", () => {
     });
 
     it("normalizes a offset hook written as an unquoted YAML hex number", () => {
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: [{ offset: 0x1a2b4 }] };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
+      const nativeCollection: InputNativeHookCollection = { module: "libfoo.so", hooks: [{ offset: 0x1a2b4 }] };
+      const config: InputFrookyConfig = { hookCollections: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -226,11 +230,10 @@ describe("NativeHookValidator", () => {
 
     it("skips a hook with an invalid offset and names the offset in the warning", () => {
       const nativeCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libfoo.so",
         hooks: ["validSymbol", { offset: "1a2b4" }],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
+      const config: InputFrookyConfig = { hookCollections: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -241,18 +244,18 @@ describe("NativeHookValidator", () => {
 
     it("skips a hook with both a symbol and an offset", () => {
       const bothHook = { symbol: "foo", offset: "0x1a2b4" } as unknown as InputNativeHookDetails;
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: ["validSymbol", bothHook] };
+      const nativeCollection: InputNativeHookCollection = { module: "libfoo.so", hooks: ["validSymbol", bothHook] };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
       expect(skipWarning()).toContain("Skipping hook for native function 'foo' from module 'libfoo.so' due to an invalid declaration:");
     });
 
     it("skips an offset hook in a module wildcard pattern and keeps its symbol hooks", () => {
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo*.so", hooks: ["validSymbol", { offset: "0x1a2b4" }] };
+      const nativeCollection: InputNativeHookCollection = { module: "libfoo*.so", hooks: ["validSymbol", { offset: "0x1a2b4" }] };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => [hook.module, hook.symbol])).toEqual([["libfoo*.so", "validSymbol"]]);
       expect(skipWarning()).toContain("'offset' needs an exact module name, not the pattern 'libfoo*.so'");
@@ -260,9 +263,9 @@ describe("NativeHookValidator", () => {
 
     it("skips a hook with an invalid hook setting", () => {
       const invalidHook = { symbol: "foo", hookSettings: { maxStackFrames: -1 } };
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libfoo.so", hooks: ["validSymbol", invalidHook] };
+      const nativeCollection: InputNativeHookCollection = { module: "libfoo.so", hooks: ["validSymbol", invalidHook] };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["validSymbol"]);
       expect(skipWarning()).toContain("hookSettings.maxStackFrames");
@@ -271,11 +274,10 @@ describe("NativeHookValidator", () => {
     it("skips a hook whose param declaration is in an unrecognized format, without aborting the rest of the collection", () => {
       const invalidParamHook = { symbol: "bad", params: [123 as unknown as string] };
       const nativeCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libc.so",
         hooks: ["free", invalidParamHook, "malloc"],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
+      const config: InputFrookyConfig = { hookCollections: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -285,19 +287,19 @@ describe("NativeHookValidator", () => {
       expect(message).toContain("Skipping hook for native function 'bad' from module 'libc.so' due to an invalid declaration:");
     });
 
-    it("skips a hook whose decoderArgs role does not name another param", () => {
+    it("skips a hook whose length does not name another param", () => {
       const writeHook: InputNativeHookDetails = {
         symbol: "write",
-        params: ["int", ["const void *", "buf", { decoderArgs: { length: "count" }, decoder: "string" }], "size_t"],
+        params: ["int", ["const void *", "buf", { length: "count", decoder: "string" }], "size_t"],
       };
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", writeHook] };
+      const nativeCollection: InputNativeHookCollection = { module: "libc.so", hooks: ["free", writeHook] };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
       const message = skipWarning();
       expect(message).toContain("Skipping hook for native function 'write'");
-      expect(message).toContain("'length: count' names no parameter");
+      expect(message).toContain("'length: count' of 'buf' names no parameter");
     });
 
     it("skips a hook with decoder: errno on a param", () => {
@@ -305,9 +307,9 @@ describe("NativeHookValidator", () => {
         symbol: "unlink",
         params: [["const char *", "path", { decoder: "errno" }]],
       };
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", unlinkHook] };
+      const nativeCollection: InputNativeHookCollection = { module: "libc.so", hooks: ["free", unlinkHook] };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
       const message = skipWarning();
@@ -315,38 +317,37 @@ describe("NativeHookValidator", () => {
     });
 
     it("skips a hook with a Java decoder on its return value, naming the native decoders", () => {
-      const getenvHook: InputNativeHookDetails = { symbol: "getenv", retType: ["char *", { decoder: "hashCode" }] };
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", getenvHook] };
+      const getenvHook: InputNativeHookDetails = { symbol: "getenv", returns: ["char *", { decoder: "hashCode" }] };
+      const nativeCollection: InputNativeHookCollection = { module: "libc.so", hooks: ["free", getenvHook] };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
       const message = skipWarning();
       expect(message).toContain("decoder 'hashCode' is no native decoder. The native decoders are: string, base64, hex, utf16,");
     });
 
-    it("skips a hook that passes a role its decoder doesn't accept", () => {
+    it("skips a hook with a length its decoder doesn't accept", () => {
       const closeHook: InputNativeHookDetails = {
         symbol: "close",
-        params: [["int", "fd", { decoder: "fd", decoderArgs: { length: 1 } }]],
+        params: [["int", "fd", { decoder: "fd", length: 1 }]],
       };
-      const nativeCollection: InputNativeHookCollection = { type: "native", module: "libc.so", hooks: ["free", closeHook] };
+      const nativeCollection: InputNativeHookCollection = { module: "libc.so", hooks: ["free", closeHook] };
 
-      const result = validator.validateAndNormalizeHooks({ hookCollection: [nativeCollection] }, defaultSettings);
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [nativeCollection] }, defaultSettings);
 
       expect(result.map((hook) => hook.symbol)).toEqual(["free"]);
       const message = skipWarning();
-      expect(message).toContain("decoder 'fd' doesn't accept the role 'length'. It accepts no decoderArgs.");
+      expect(message).toContain("decoder 'fd' doesn't accept 'length'. It accepts neither 'length' nor 'offset'.");
     });
 
-    it("skips a hook whose retType declaration is in an unrecognized format, without aborting the rest of the collection", () => {
-      const invalidRetTypeHook = { symbol: "bad", retType: 42 as unknown as string };
+    it("skips a hook whose returns declaration is in an unrecognized format, without aborting the rest of the collection", () => {
+      const invalidRetTypeHook = { symbol: "bad", returns: 42 as unknown as string };
       const nativeCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libc.so",
         hooks: [invalidRetTypeHook, "malloc"],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
+      const config: InputFrookyConfig = { hookCollections: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -356,12 +357,11 @@ describe("NativeHookValidator", () => {
 
     it("still validates the remaining native hook collections after one collection contained an unnormalizable hook", () => {
       const brokenCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libc.so",
         hooks: [{ symbol: "bad", params: [123 as unknown as string] }],
       };
-      const healthyCollection: InputNativeHookCollection = { type: "native", module: "libssl.so", hooks: ["SSL_write"] };
-      const config: InputFrookyConfig = { hookCollection: [brokenCollection, healthyCollection] };
+      const healthyCollection: InputNativeHookCollection = { module: "libssl.so", hooks: ["SSL_write"] };
+      const config: InputFrookyConfig = { hookCollections: [brokenCollection, healthyCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -372,11 +372,10 @@ describe("NativeHookValidator", () => {
       const invalidHookA = { symbol: 1 as unknown as string };
       const invalidHookB = { symbol: 2 as unknown as string };
       const nativeCollection: InputNativeHookCollection = {
-        type: "native",
         module: "libc.so",
         hooks: [invalidHookA, "validSymbol", invalidHookB],
       };
-      const config: InputFrookyConfig = { hookCollection: [nativeCollection] };
+      const config: InputFrookyConfig = { hookCollections: [nativeCollection] };
 
       const result = validator.validateAndNormalizeHooks(config, defaultSettings);
 
@@ -387,9 +386,8 @@ describe("NativeHookValidator", () => {
     describe("high-frequency libc hook warnings", () => {
       it("warns when nativeStackTrace is enabled on a high-frequency libc function", () => {
         const config: InputFrookyConfig = {
-          hookCollection: [
+          hookCollections: [
             {
-              type: "native",
               module: "libc.so",
               hookSettings: { nativeStackTrace: true },
               hooks: ["open"],
@@ -404,13 +402,12 @@ describe("NativeHookValidator", () => {
         expect(messages.some((msg) => msg.includes("Capturing stack traces on high-frequency libc function 'open' in 'libc.so'"))).toBe(true);
       });
 
-      it("warns when platformStackTrace is enabled on a high-frequency libc function", () => {
+      it("warns when javaStackTrace is enabled on a high-frequency libc function", () => {
         const config: InputFrookyConfig = {
-          hookCollection: [
+          hookCollections: [
             {
-              type: "native",
               module: "libc.so",
-              hookSettings: { platformStackTrace: true },
+              hookSettings: { javaStackTrace: true },
               hooks: ["read"],
             },
           ],
@@ -427,16 +424,13 @@ describe("NativeHookValidator", () => {
         const infoSpy = spyOn(logger, "info");
         try {
           const hooksWith = (hookSettings: InputNativeHookCollection["hookSettings"]) =>
-            validator.validateAndNormalizeHooks(
-              { hookCollection: [{ type: "native", module: "libapp.so", hooks: ["run"], hookSettings }] },
-              defaultSettings,
-            );
-          hooksWith({ early: true, platformStackTrace: true });
+            validator.validateAndNormalizeHooks({ hookCollections: [{ module: "libapp.so", hooks: ["run"], hookSettings }] }, defaultSettings);
+          hooksWith({ early: true, javaStackTrace: true });
           hooksWith({ early: true, nativeStackTrace: true });
-          hooksWith({ platformStackTrace: true });
+          hooksWith({ javaStackTrace: true });
           const notes = infoSpy.mock.calls.map((call) => String(call[0])).filter((message) => message.includes("before-ready"));
           expect(notes).toEqual([
-            "libapp.so!run has early: true and platformStackTrace: its calls before targetReady get native frames, but no Java frames (skipped: before-ready), as walking the Java stack of a thread that is still attaching to the Java VM crashes the app.",
+            "libapp.so!run has early: true and javaStackTrace: its calls before targetReady get native frames, but no Java frames (skipped: before-ready), as walking the Java stack of a thread that is still attaching to the Java VM crashes the app.",
           ]);
         } finally {
           infoSpy.mockRestore();
@@ -446,7 +440,7 @@ describe("NativeHookValidator", () => {
       describe("blocked functions", () => {
         const warnings = () => warnSpy.mock.calls.map((call) => String(call[0]));
         const hooksOf = (module: string, hooks: InputNativeHookCollection["hooks"], hookSettings?: InputNativeHookCollection["hookSettings"]) =>
-          validator.validateAndNormalizeHooks({ hookCollection: [{ type: "native", module, hooks, hookSettings }] }, defaultSettings);
+          validator.validateAndNormalizeHooks({ hookCollections: [{ module, hooks, hookSettings }] }, defaultSettings);
 
         it("skips a function the hook breaks the app on", () => {
           expect(hooksOf("libc.so", ["pthread_getspecific", "getpid"]).map((hook) => hook.symbol)).toEqual(["getpid"]);
@@ -477,17 +471,17 @@ describe("NativeHookValidator", () => {
         });
 
         it("keeps a hook without the stack traces that crash in it", () => {
-          const [hook] = hooksOf("libc.so", ["sigprocmask"], { nativeStackTrace: true, platformStackTrace: true });
+          const [hook] = hooksOf("libc.so", ["sigprocmask"], { nativeStackTrace: true, javaStackTrace: true });
 
           expect(hook.hookSettings!.nativeStackTrace).toBe(false);
-          expect(hook.hookSettings!.platformStackTrace).toBe(false);
+          expect(hook.hookSettings!.javaStackTrace).toBe(false);
           expect(warnings()).toEqual([
             "No stack traces for native function 'sigprocmask' from module 'libc.so': the native stack walk crashes the app in it.",
           ]);
         });
 
         it("keeps a hook without stack traces only under the runtime and with the early setting they break in", () => {
-          const stackTraces = { nativeStackTrace: true, platformStackTrace: true };
+          const stackTraces = { nativeStackTrace: true, javaStackTrace: true };
           const script = globalThis as unknown as { Script: { runtime: string } };
           const originalScript = script.Script;
           script.Script = { runtime: "V8" };
@@ -495,7 +489,7 @@ describe("NativeHookValidator", () => {
             const [early] = hooksOf("libc.so", ["mmap"], { ...stackTraces, early: true, callerFilter: ["^libapp\\.so$"] });
             const [late] = hooksOf("libc.so", ["mmap"], stackTraces);
             expect(early.hookSettings!.nativeStackTrace).toBe(false);
-            expect(early.hookSettings!.platformStackTrace).toBe(false);
+            expect(early.hookSettings!.javaStackTrace).toBe(false);
             expect(late.hookSettings!.nativeStackTrace).toBe(true);
           } finally {
             script.Script = originalScript;
@@ -516,9 +510,8 @@ describe("NativeHookValidator", () => {
 
       it("does not warn on non-libc module even if symbol matches high-frequency name", () => {
         const config: InputFrookyConfig = {
-          hookCollection: [
+          hookCollections: [
             {
-              type: "native",
               module: "libcustom.so",
               hooks: ["open"],
             },
@@ -532,9 +525,8 @@ describe("NativeHookValidator", () => {
 
       it("does not warn on low-frequency libc functions", () => {
         const config: InputFrookyConfig = {
-          hookCollection: [
+          hookCollections: [
             {
-              type: "native",
               module: "libc.so",
               hooks: ["getenv", "unlink"],
             },
@@ -548,9 +540,8 @@ describe("NativeHookValidator", () => {
 
       it("warns when early is true on a high-frequency libc function without a callerFilter", () => {
         const config: InputFrookyConfig = {
-          hookCollection: [
+          hookCollections: [
             {
-              type: "native",
               module: "libc.so",
               hookSettings: { early: true },
               hooks: ["open"],
@@ -573,9 +564,8 @@ describe("NativeHookValidator", () => {
 
       it("does not warn when early is true on a high-frequency libc function with a callerFilter", () => {
         const config: InputFrookyConfig = {
-          hookCollection: [
+          hookCollections: [
             {
-              type: "native",
               module: "libc.so",
               hookSettings: { early: true, callerFilter: ["libapp.so"] },
               hooks: ["open"],
@@ -590,9 +580,8 @@ describe("NativeHookValidator", () => {
 
       it("does not warn when early is false on a high-frequency libc function without callerFilter and no stack traces", () => {
         const config: InputFrookyConfig = {
-          hookCollection: [
+          hookCollections: [
             {
-              type: "native",
               module: "libc.so",
               hookSettings: { early: false },
               hooks: ["open"],

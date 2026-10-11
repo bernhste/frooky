@@ -24,7 +24,7 @@ metadata:
 # value through. Startup and UI are noticeably slower. Compare with level 1.
 
 
-hookCollection:
+hookCollections:
   # Docs: https://developer.android.com/reference/java/util/HashMap#put(K,%20V)
   # Docs: https://developer.android.com/reference/java/util/HashMap#get(java.lang.Object)
   - javaClass: java.util.HashMap

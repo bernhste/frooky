@@ -14,12 +14,12 @@ metadata:
 # The offsets are valid for the x86_64 build of the app. Other ABIs or builds need other offsets:
 #   llvm-nm -D --defined-only libreceiveFundamentalValue.so
 
-hookCollection:
+hookCollections:
   - module: libreceiveFundamentalValue.so
     hooks:
       # int receive_int(int minValue, int maxValue)
       - offset: 0x1400
-        retType: int
+        returns: int
         params:
           - [int, minValue]
           - [int, maxValue]

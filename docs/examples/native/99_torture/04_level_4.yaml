@@ -16,21 +16,20 @@ metadata:
 # - Calls on an alternate signal stack (`sigaltstack`) skip the backtrace: their events have empty stack traces.
 # - `callerFilter` on `close` never matches: every call is dropped before decoding and the stack walk.
 #
-# Known gap: no `platformStackTrace` on the libc functions. A Java stack trace enters the Java VM from inside
+# Known gap: no `javaStackTrace` on the libc functions. A Java stack trace enters the Java VM from inside
 # the call; with `write` this hangs the app during startup (ANR), as the caller can hold a lock that the VM
 # then waits for.
 #
 # Expected: heavy stutter, possibly an ANR. ~35 us per symbolized native frame x 32 frames x thousands of calls/s.
 # A crash here (SIGSEGV / SEGV_ACCERR on a small thread stack) is a finding; try `--runtime v8` next.
 
-settings:
-  hookSettings:
-    nativeStackTrace: true
-    maxStackFrames: 32
-  decoderSettings:
-    maxItems: 256
+hookSettings:
+  nativeStackTrace: true
+  maxStackFrames: 32
+decoderSettings:
+  maxItems: 256
 
-hookCollection:
+hookCollections:
   # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
@@ -39,12 +38,12 @@ hookCollection:
   - module: libc.so
     hooks:
       - symbol: open
-        retType: [int, { decoder: fd }]
+        returns: [int, { decoder: fd }]
         params:
           - ["const char *", path]
           - [int, flags, { decoder: openFlags }]
       - symbol: openat
-        retType: [int, { decoder: fd }]
+        returns: [int, { decoder: fd }]
         params:
           - [int, dirfd]
           - ["const char *", path]
@@ -54,23 +53,23 @@ hookCollection:
         hookSettings:
           callerFilter:
             - frooky-never-matches
-        retType: int
+        returns: int
         params:
           - [int, fd, { decoder: fd }]
       - symbol: read
-        retType: ssize_t
+        returns: ssize_t
         params:
           - [int, fd, { decoder: fd }]
-          - ["void *", buf, { direction: out, decoderArgs: { length: $ret }, decoder: string }]
+          - ["void *", buf, { direction: out, length: $ret, decoder: string }]
           - [size_t, count]
       - symbol: write
-        retType: ssize_t
+        returns: ssize_t
         params:
           - [int, fd, { decoder: fd }]
-          - ["const void *", buf, { decoderArgs: { length: count }, decoder: string }]
+          - ["const void *", buf, { length: count, decoder: string }]
           - [size_t, count]
       - symbol: mmap
-        retType: "void *"
+        returns: "void *"
         params:
           - ["void *", addr]
           - [size_t, length]
@@ -82,11 +81,11 @@ hookCollection:
   # the app's own functions, with stack traces as deep as they go
   - module: libreceiveString.so
     hookSettings:
-      platformStackTrace: true
+      javaStackTrace: true
       maxStackFrames: 1000
     hooks:
       - symbol: receive_cstring
-        retType: "char *"
+        returns: "char *"
         params:
           - ["char *", s]
       - symbol: track_event

@@ -14,9 +14,9 @@ metadata:
 # What the filter matches:
 # - Each Java method on the stack as "<class>.<method>", without file and line.
 # - The whole stack, not only the direct caller, but not the hooked method itself.
-# - It needs no stack trace: `platformStackTrace` only decides whether the event contains the frames.
+# - It needs no stack trace: `javaStackTrace` only decides whether the event contains the frames.
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
       callerFilter:

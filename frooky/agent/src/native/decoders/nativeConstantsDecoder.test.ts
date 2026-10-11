@@ -15,19 +15,19 @@ describe("NativeConstantsDecoder", () => {
   const constants = { MODE_A: 1, MODE_B: 2, ERROR: -1 };
 
   it("decodes a value to the name of its constant", () => {
-    expect(decode("int", { decoder: "constants", config: { constants } }, ptr(2))).toBe("MODE_B");
+    expect(decode("int", { decoder: "constants", decoderOptions: { constants } }, ptr(2))).toBe("MODE_B");
   });
 
   it("decodes a negative value", () => {
-    expect(decode("int", { decoder: "constants", config: { constants } }, negative(-1))).toBe("ERROR");
+    expect(decode("int", { decoder: "constants", decoderOptions: { constants } }, negative(-1))).toBe("ERROR");
   });
 
   it("decodes a value without a constant as the number", () => {
-    expect(decode("int", { decoder: "constants", config: { constants } }, ptr(7))).toBe(7);
+    expect(decode("int", { decoder: "constants", decoderOptions: { constants } }, ptr(7))).toBe(7);
   });
 
   it("reads a type frooky doesn't know as an int", () => {
-    expect(decode("my_mode_t", { decoder: "constants", config: { constants } }, negative(-1))).toBe("ERROR");
+    expect(decode("my_mode_t", { decoder: "constants", decoderOptions: { constants } }, negative(-1))).toBe("ERROR");
   });
 
   it("decodes the value as a number without constants", () => {
@@ -38,8 +38,8 @@ describe("NativeConstantsDecoder", () => {
     expect(decode("int", { decoder: "socketDomain" }, ptr(10))).toBe("AF_INET6");
   });
 
-  it("uses the preset, not config.constants", () => {
-    expect(decode("int", { decoder: "socketDomain", config: { constants } }, ptr(2))).toBe("AF_INET");
+  it("uses the preset, not decoderOptions.constants", () => {
+    expect(decode("int", { decoder: "socketDomain", decoderOptions: { constants } }, ptr(2))).toBe("AF_INET");
   });
 });
 
@@ -47,30 +47,30 @@ describe("NativeBitmaskDecoder", () => {
   const constants = { READ: 0x1, WRITE: 0x2, EXEC: 0x4, NONE: 0 };
 
   it("decodes the names of the bits that are set, in the order of the constants", () => {
-    expect(decode("int", { decoder: "bitmask", config: { constants } }, ptr(0x5))).toEqual(["READ", "EXEC"]);
+    expect(decode("int", { decoder: "bitmask", decoderOptions: { constants } }, ptr(0x5))).toEqual(["READ", "EXEC"]);
   });
 
   it("decodes 0 as the constant with value 0", () => {
-    expect(decode("int", { decoder: "bitmask", config: { constants } }, ptr(0))).toEqual(["NONE"]);
+    expect(decode("int", { decoder: "bitmask", decoderOptions: { constants } }, ptr(0))).toEqual(["NONE"]);
   });
 
   it("decodes 0 as an empty list without such a constant", () => {
-    expect(decode("int", { decoder: "bitmask", config: { constants: { READ: 1 } } }, ptr(0))).toEqual([]);
+    expect(decode("int", { decoder: "bitmask", decoderOptions: { constants: { READ: 1 } } }, ptr(0))).toEqual([]);
   });
 
   it("adds the bits no constant matches as hex", () => {
-    expect(decode("int", { decoder: "bitmask", config: { constants } }, ptr(0x103))).toEqual(["READ", "WRITE", "0x100"]);
+    expect(decode("int", { decoder: "bitmask", decoderOptions: { constants } }, ptr(0x103))).toEqual(["READ", "WRITE", "0x100"]);
   });
 
   it("matches a constant with several bits first and doesn't repeat its bits", () => {
     const withCombined = { LOW: 0x1, BOTH: 0x3 };
-    expect(decode("int", { decoder: "bitmask", config: { constants: withCombined } }, ptr(0x3))).toEqual(["BOTH"]);
+    expect(decode("int", { decoder: "bitmask", decoderOptions: { constants: withCombined } }, ptr(0x3))).toEqual(["BOTH"]);
   });
 
   it("only reads the bits of the declared type", () => {
     // an int's upper register bits are undefined
-    expect(decode("int", { decoder: "bitmask", config: { constants } }, ptr("0xffffffff00000001"))).toEqual(["READ"]);
-    expect(decode("uint8_t", { decoder: "bitmask", config: { constants } }, ptr(0x101))).toEqual(["READ"]);
+    expect(decode("int", { decoder: "bitmask", decoderOptions: { constants } }, ptr("0xffffffff00000001"))).toEqual(["READ"]);
+    expect(decode("uint8_t", { decoder: "bitmask", decoderOptions: { constants } }, ptr(0x101))).toEqual(["READ"]);
   });
 
   it("decodes the value as a number without constants", () => {

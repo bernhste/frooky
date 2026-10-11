@@ -73,11 +73,11 @@ class TestValuePassingNative:
         _, pid = app_session(f"{TARGET_APP.replace('-', '_')}.frooky.target.app")
         offset = _export_offset(frida_device, int(pid), MODULE_VALUE, "receive_int")
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - offset: {offset}
-                    retType: int
+                    returns: int
                     params:
                       - [int, minValue]
                       - [int, maxValue]
@@ -93,47 +93,47 @@ class TestValuePassingNative:
     def test_by_value_fundamental_types(self, run_frooky, count_matched_events):
         """Basic usage + named parameters: fundamental types passed by value (see Type Descriptors)."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - symbol: receive_bool
-                    retType: bool
+                    returns: bool
                     params:
                       - [bool, minValue]
                       - [bool, maxValue]
                   # declared as "char" (by value): NativeValueDecoder treats it as a signed byte, not a C string.
                   - symbol: receive_char
-                    retType: char
+                    returns: char
                     params:
                       - [char, minValue]
                       - [char, maxValue]
                   - symbol: receive_schar
-                    retType: "signed char"
+                    returns: "signed char"
                     params:
                       - ["signed char", minValue]
                       - ["signed char", maxValue]
                   - symbol: receive_uchar
-                    retType: "unsigned char"
+                    returns: "unsigned char"
                     params:
                       - ["unsigned char", minValue]
                       - ["unsigned char", maxValue]
                   - symbol: receive_short
-                    retType: short
+                    returns: short
                     params:
                       - [short, minValue]
                       - [short, maxValue]
                   - symbol: receive_ushort
-                    retType: "unsigned short"
+                    returns: "unsigned short"
                     params:
                       - ["unsigned short", minValue]
                       - ["unsigned short", maxValue]
                   - symbol: receive_int
-                    retType: int
+                    returns: int
                     params:
                       - [int, minValue]
                       - [int, maxValue]
                   - symbol: receive_uint
-                    retType: "unsigned int"
+                    returns: "unsigned int"
                     params:
                       - ["unsigned int", minValue]
                       - ["unsigned int", maxValue]
@@ -164,36 +164,36 @@ class TestValuePassingNative:
     def test_by_value_wide_and_floating_point_types(self, run_frooky, find_matched_events):
         """64-bit/word-sized ints may decode as decimal strings (precision-safe); floats round-trip via IEEE-754."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - symbol: receive_long
-                    retType: long
+                    returns: long
                     params:
                       - [long, minValue]
                       - [long, maxValue]
                   - symbol: receive_ulong
-                    retType: "unsigned long"
+                    returns: "unsigned long"
                     params:
                       - ["unsigned long", minValue]
                       - ["unsigned long", maxValue]
                   - symbol: receive_llong
-                    retType: "long long"
+                    returns: "long long"
                     params:
                       - ["long long", minValue]
                       - ["long long", maxValue]
                   - symbol: receive_ullong
-                    retType: "unsigned long long"
+                    returns: "unsigned long long"
                     params:
                       - ["unsigned long long", minValue]
                       - ["unsigned long long", maxValue]
                   - symbol: receive_float
-                    retType: float
+                    returns: float
                     params:
                       - [float, minValue]
                       - [float, maxValue]
                   - symbol: receive_double
-                    retType: double
+                    returns: double
                     params:
                       - [double, minValue]
                       - [double, maxValue]
@@ -238,11 +238,11 @@ class TestValuePassingNative:
         test here only ever hooks an all-int or all-float signature, which can't tell a correct
         per-class index apart from a naively reused raw position; this one can."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - symbol: receive_interleaved_types
-                    retType: double
+                    returns: double
                     params:
                       - [int, intArg1]
                       - [double, doubleArg1]
@@ -272,11 +272,11 @@ class TestValuePassingNative:
         register-class handling, which frooky has to do itself - see nativeFloatArgs.ts); this
         confirms that's actually true rather than just assumed."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - symbol: receive_many_ints
-                    retType: int
+                    returns: int
                     params:
                       - [int, a]
                       - [int, b]
@@ -303,7 +303,7 @@ class TestValuePassingNative:
         prototype - drives which decoder runs, e.g. "int8 *"/"uint8 *" avoid the char/uchar
         pointer decoders' C-string guessing for lone byte pointers."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_REFERENCE}
                 hooks:
                   - symbol: receive_bool_ref
@@ -384,7 +384,7 @@ class TestValuePassingNative:
                 "module": MODULE_REFERENCE,
                 "symbol": symbol,
                 "argsIn": [{"name": "minValue", "value": min_value}, {"name": "maxValue", "value": max_value}],
-                # no retType declared for these hooks, so no returnValue field is present.
+                # no returns declared for these hooks, so no returnValue field is present.
                 "argsOut": [],
             }
             assert count_matched_events(expected) == 1, f"{symbol} did not decode as expected."
@@ -415,7 +415,7 @@ class TestValuePassingNative:
         """`long double` has no frida/frooky type mapping either by value or by reference (see
         nativeFridaType.ts), so `receive_ldouble_ref` can only be hooked in short form."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_REFERENCE}
                 hooks:
                   - receive_ldouble_ref
@@ -427,14 +427,14 @@ class TestValuePassingNative:
         assert count_matched_events(expected) == 1
 
     def test_buffer_with_decoder_arg_and_direction_inout(self, run_frooky, find_matched_events):
-        """`decoderArgs: {length: ...}` + `direction: inout` (see decoders.md): decode a length-bounded buffer before/after the call."""
+        """`length: ...` + `direction: inout` (see decoders.md): decode a length-bounded buffer before/after the call."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_REFERENCE}
                 hooks:
                   - symbol: receive_byte_array
                     params:
-                      - ["unsigned char *", data, {{direction: inout, decoderArgs: {{length: length}}}}]
+                      - ["unsigned char *", data, {{direction: inout, length: length}}]
                       - [int, length]
             """)
 
@@ -448,9 +448,9 @@ class TestValuePassingNative:
         assert event["argsOut"][0]["value"] == "0xb79a939390"
 
     def test_null_terminated_buffer_with_direction_inout(self, run_frooky, count_matched_events):
-        """Without the role `length`, a `char *`/`unsigned char *` decodes as a NUL-terminated C string."""
+        """Without `length`, a `char *`/`unsigned char *` decodes as a NUL-terminated C string."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_REFERENCE}
                 hooks:
                   - symbol: reverse_byte_array
@@ -472,15 +472,15 @@ class TestValuePassingNative:
     def test_null_terminated_strings(self, run_frooky, count_matched_events):
         """Named native parameters + return type decoding for plain NUL-terminated C strings."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_STRING}
                 hooks:
                   - symbol: receive_cstring
-                    retType: "char *"
+                    returns: "char *"
                     params:
                       - ["char *", s]
                   - symbol: receive_utf8
-                    retType: "char *"
+                    returns: "char *"
                     params:
                       - ["char *", s]
             """)
@@ -513,10 +513,10 @@ class TestValuePassingNative:
         """Short form (symbol only): the hook fires with no argument/return type decoding at all.
 
         `long double` also has no frida/frooky type mapping (see nativeFridaType.ts), so it can only
-        be hooked this way - without declaring `params`/`retType`.
+        be hooked this way - without declaring `params`/`returns`.
         """
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - receive_ldouble
@@ -530,7 +530,7 @@ class TestValuePassingNative:
     def test_short_form_with_decoder_settings_tuple(self, run_frooky, find_matched_events):
         """`[<symbol name>, {<decoder settings>}]` tuple: override decoderSettings without the expanded form."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - [receive_int, {{maxItems: 5}}]
@@ -538,14 +538,14 @@ class TestValuePassingNative:
 
         run_frooky(hook_file, TARGET_APP)
 
-        # short form still means no params/retType, regardless of the decoderSettings override
+        # short form still means no params/returns, regardless of the decoderSettings override
         events = find_matched_events({"module": MODULE_VALUE, "symbol": "receive_int", "argsIn": [], "argsOut": []})
         assert len(events) == 1
 
     def test_address_and_hash_code(self, run_frooky, find_matched_events):
         """Every native event carries the function's `address` and a `hashCode` of it."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - receive_int
@@ -558,12 +558,12 @@ class TestValuePassingNative:
         assert event["hashCode"] == _address_hash_code(event["address"])
 
     # Stack traces (see additional-features.md#stack-traces) are opt-in: `nativeStackTrace` captures the
-    # C/C++ frames from the hook's CPU context, `platformStackTrace` the Java frames of the calling thread
+    # C/C++ frames from the hook's CPU context, `javaStackTrace` the Java frames of the calling thread
     # (receive_int is called from a JNI method, so there are some). `maxStackFrames` caps each of them.
 
     def _receive_int_events(self, run_frooky, find_matched_events, hook_settings, expect_events=True):
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hookSettings: {hook_settings}
                 hooks:
@@ -573,12 +573,12 @@ class TestValuePassingNative:
         return find_matched_events({"module": MODULE_VALUE, "symbol": "receive_int"})
 
     def test_no_stack_trace_by_default(self, run_frooky, find_matched_events):
-        """Without `platformStackTrace`/`nativeStackTrace`, no frames are captured, which keeps hooks on
+        """Without `javaStackTrace`/`nativeStackTrace`, no frames are captured, which keeps hooks on
         low-level functions (e.g. libc's open) safe on small signal stacks."""
         events = self._receive_int_events(run_frooky, find_matched_events, "{}")
 
         assert len(events) == 1
-        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+        assert events[0]["stackTrace"] == {"javaStackTrace": [], "nativeStackTrace": []}
 
     def test_native_stack_trace_only(self, run_frooky, find_matched_events):
         """`nativeStackTrace` alone captures the native frames, starting in the JNI caller in the same library."""
@@ -589,26 +589,26 @@ class TestValuePassingNative:
         native_frames = events[0]["stackTrace"]["nativeStackTrace"]
         assert 0 < len(native_frames) <= limit
         assert MODULE_VALUE in native_frames[0]
-        assert events[0]["stackTrace"]["platformStackTrace"] == []
+        assert events[0]["stackTrace"]["javaStackTrace"] == []
 
-    def test_platform_stack_trace_only(self, run_frooky, find_matched_events):
-        """`platformStackTrace` alone captures the Java frames that led to the native call."""
+    def test_java_stack_trace_only(self, run_frooky, find_matched_events):
+        """`javaStackTrace` alone captures the Java frames that led to the native call."""
         limit = 5
-        events = self._receive_int_events(run_frooky, find_matched_events, f"{{platformStackTrace: true, maxStackFrames: {limit}}}")
+        events = self._receive_int_events(run_frooky, find_matched_events, f"{{javaStackTrace: true, maxStackFrames: {limit}}}")
 
         assert len(events) == 1
-        platform_frames = events[0]["stackTrace"]["platformStackTrace"]
-        assert 0 < len(platform_frames) <= limit
-        assert any(frame.startswith("org.owasp.mastestapp") for frame in platform_frames)
+        java_frames = events[0]["stackTrace"]["javaStackTrace"]
+        assert 0 < len(java_frames) <= limit
+        assert any(frame.startswith("org.owasp.mastestapp") for frame in java_frames)
         assert events[0]["stackTrace"]["nativeStackTrace"] == []
 
-    def test_native_and_platform_stack_traces_are_capped_separately(self, run_frooky, find_matched_events):
+    def test_native_and_java_stack_traces_are_capped_separately(self, run_frooky, find_matched_events):
         """With both enabled, `maxStackFrames` applies to each trace on its own."""
         limit = 3
-        events = self._receive_int_events(run_frooky, find_matched_events, f"{{nativeStackTrace: true, platformStackTrace: true, maxStackFrames: {limit}}}")
+        events = self._receive_int_events(run_frooky, find_matched_events, f"{{nativeStackTrace: true, javaStackTrace: true, maxStackFrames: {limit}}}")
 
         assert len(events) == 1
-        assert 0 < len(events[0]["stackTrace"]["platformStackTrace"]) <= limit
+        assert 0 < len(events[0]["stackTrace"]["javaStackTrace"]) <= limit
         assert 0 < len(events[0]["stackTrace"]["nativeStackTrace"]) <= limit
 
     def test_caller_filter_keeps_event_when_the_caller_module_matches(self, run_frooky, find_matched_events):
@@ -617,7 +617,7 @@ class TestValuePassingNative:
         events = self._receive_int_events(run_frooky, find_matched_events, "{callerFilter: ['^libreceiveFundamentalValue\\.so$']}")
 
         assert len(events) == 1
-        assert events[0]["stackTrace"] == {"platformStackTrace": [], "nativeStackTrace": []}
+        assert events[0]["stackTrace"] == {"javaStackTrace": [], "nativeStackTrace": []}
 
     def test_caller_filter_drops_event_when_the_caller_module_does_not_match(self, run_frooky, find_matched_events):
         """A call from any other module is dropped."""
@@ -637,7 +637,7 @@ class TestValuePassingNative:
         event per call, decoded with their own params. Both events carry the same `address` and `hashCode`, those of
         receive_int, while another function has its own."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - symbol: receive_int
@@ -672,7 +672,7 @@ class TestValuePassingNative:
     def test_identical_declarations_record_one_event(self, run_frooky, count_matched_events):
         """An identical declaration repeated in one hook file is hooked once."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - receive_int
@@ -688,7 +688,7 @@ class TestValuePassingNative:
     def test_arg_filter_of_one_declaration_does_not_affect_another(self, run_frooky, count_matched_events):
         """Each hook on the same function applies its own filters."""
         hook_file = textwrap.dedent(f"""\
-            hookCollection:
+            hookCollections:
               - module: {MODULE_VALUE}
                 hooks:
                   - symbol: receive_int
@@ -711,7 +711,7 @@ class TestValuePassingNative:
 
         def hook_file(*names):
             hooks = "".join(f"      - symbol: receive_int\n        params:\n          - [int, {name}]\n" for name in names)
-            return f"hookCollection:\n  - module: {MODULE_VALUE}\n    hooks:\n{hooks}"
+            return f"hookCollections:\n  - module: {MODULE_VALUE}\n    hooks:\n{hooks}"
 
         def recorded_by(frooky):
             events = frooky.click_start_and_collect({"module": MODULE_VALUE, "symbol": "receive_int"})
@@ -733,7 +733,7 @@ class TestValuePassingNative:
         """A hook on a function of a library that frooky installs while the library loads is active before its
         constructor runs, also while another thread is in a hook callback, which keeps Frida from committing it."""
         hook_file = textwrap.dedent("""\
-            hookCollection:
+            hookCollections:
               - module: libloadTime.so
                 hookSettings:
                   early: true
@@ -750,7 +750,7 @@ class TestValuePassingNative:
         """While frooky waits for its hooks on a loading library to be committed, another thread's hook still
         captures native frames: the fuzzy backtracer, as the loading thread holds the linker's lock (`linker-busy`)."""
         hook_file = textwrap.dedent("""\
-            hookCollection:
+            hookCollections:
               - module: libloadTime.so
                 hookSettings:
                   early: true
@@ -777,11 +777,11 @@ class TestValuePassingNative:
         on an app thread that sets a timer, and a Java stack walk inside that call hangs, so the agent sets its
         timers on Frida's own thread."""
         hook_file = textwrap.dedent("""\
-            hookCollection:
+            hookCollections:
               - module: libc.so
                 hookSettings:
                   early: true
-                  platformStackTrace: true
+                  javaStackTrace: true
                 hooks:
                   - symbol: write
         """)
@@ -790,4 +790,4 @@ class TestValuePassingNative:
         traces = [event["stackTrace"] for event in find_matched_events({"module": "libc.so", "symbol": "write"})]
         # no Java frames before targetReady; the Java frames of later calls show that the app went on from there
         assert any(trace.get("skipped") == "before-ready" for trace in traces)
-        assert any(trace["platformStackTrace"] for trace in traces)
+        assert any(trace["javaStackTrace"] for trace in traces)

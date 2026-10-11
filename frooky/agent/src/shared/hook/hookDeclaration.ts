@@ -5,10 +5,10 @@ import { DecoderSettings, HookSettings, BaseDecoderSettings } from "../frookySet
 // functions: shorthands are expanded, the class or module is inherited from the collection, and every settings
 // object is complete, merged from the defaults, the file, the collection, the hook and the value itself.
 
-// A declared overload of a Java method. Without `retType`, the return value is decoded with the hook's decoderSettings.
+// A declared overload of a Java method. Without `returns`, the return value is decoded with the hook's decoderSettings.
 export interface JavaOverloadDeclaration {
   params: Param[];
-  retType?: DecoderSettings;
+  returns?: DecoderSettings;
 }
 
 export interface JavaHookDeclaration {
@@ -26,8 +26,8 @@ interface NativeHookDeclarationBase {
   module: string;
   // without params, no arguments are decoded
   params?: Param[];
-  // without retType, the return value isn't decoded
-  retType?: RetType;
+  // without returns, the return value isn't decoded
+  returns?: RetType;
   hookSettings: HookSettings;
   decoderSettings: BaseDecoderSettings;
 }

@@ -1,7 +1,7 @@
 import { NativeHookManager } from "./native/hook/nativeHookManager";
 import { NativeHookValidator } from "./native/hook/nativeHookValidator";
 import { markTargetReady, watchLinker } from "./native/unsafeContext";
-import { validateAndRepairFrookyConfig } from "./shared/configValidator";
+import { validateFrookyConfig } from "./shared/configValidator";
 import { CrashReport, installCrashReporter } from "./shared/crashReporter";
 import { DEFAULT_SETTING_LOG_LEVEL, DEFAULT_SETTING_LOG_TO, PROGRESS_INTERVAL_MS } from "./shared/defaultValues";
 import { BaseEvent } from "./shared/event/baseEvent";
@@ -43,7 +43,7 @@ export class FrookyAgent {
   private reportProgress?: (progress: HookProgress) => void;
   // The point in the target's startup at which its own code is loaded and about to run, e.g. on Android once the app's
   // class loader exists and before its Application class is loaded. Lookups of the target's classes, native hooks
-  // without `early: true` and the platform frames of a native hook's stack trace wait for it. Resolved by the
+  // without `early: true` and the Java frames of a native hook's stack trace wait for it. Resolved by the
   // platform's entry point, right away when attaching.
   public readonly targetReady: Promise<void>;
   public isTargetReady = false;
@@ -139,19 +139,18 @@ export class FrookyAgent {
     const label = describeConfig(inputFrookyConfig, configId);
     logger.debug(`Parsing ${label}`);
 
-    let validFrookyConfig: InputFrookyConfig;
+    let validatedFrookySettings: FrookySettings;
     try {
-      validFrookyConfig = validateAndRepairFrookyConfig(inputFrookyConfig, this.platform);
+      validatedFrookySettings = validateFrookyConfig(inputFrookyConfig, this.platform);
     } catch (e) {
+      const reason = e instanceof Error ? e.message : e;
       if (configId !== undefined && this.registry.has(configId)) {
-        logger.warn(`Not reloaded ${configLabel(configId)}, keeping the previous version: ${e}`);
+        logger.warn(`Not reloaded ${configLabel(configId)}, keeping the previous version: ${reason}`);
       } else {
-        logger.warn(`Skipping frooky config: ${e}`);
+        logger.warn(`Skipping ${label}: ${reason}`);
       }
       return undefined;
     }
-
-    const validatedFrookySettings = validFrookyConfig.settings as FrookySettings;
 
     logger.debug(`Validating '${this.platform}' hooks`);
     const validPlatformHooks = this.platformHookValidator.validateAndNormalizeHooks(inputFrookyConfig, validatedFrookySettings);

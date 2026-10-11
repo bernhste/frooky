@@ -225,13 +225,13 @@ def _add_stack_section(out: _Lines, label: str, frames: list) -> None:
 
 def _add_stack(out: _Lines, stack_trace: list | dict) -> None:
     if isinstance(stack_trace, dict):
-        platform_stack = stack_trace.get("platformStackTrace") or []
+        java_stack = stack_trace.get("javaStackTrace") or []
         native_stack = stack_trace.get("nativeStackTrace") or []
-        if platform_stack and native_stack:
-            _add_stack_section(out, "platform stack", platform_stack)
+        if java_stack and native_stack:
+            _add_stack_section(out, "java stack", java_stack)
             _add_stack_section(out, "native stack", native_stack)
-        elif platform_stack:
-            _add_stack_section(out, _LABEL_STACK, platform_stack)
+        elif java_stack:
+            _add_stack_section(out, _LABEL_STACK, java_stack)
         elif native_stack:
             _add_stack_section(out, "native stack", native_stack)
         # e.g. `signal-stack`, see "Skipped Stack Traces" in docs/additional-features.md

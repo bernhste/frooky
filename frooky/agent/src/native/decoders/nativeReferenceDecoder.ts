@@ -78,7 +78,7 @@ const BUFFER_POINTEES = new Set<FridaFundamentalType>(["void", "char", "uchar"])
 export class NativeReferenceDecoder extends Decoder<NativePointer> {
   readonly decoderName: string = "NativeReferenceDecoder";
   readonly description: string =
-    "Decodes a native pointer by reading what it points to as its declared type, e.g. `char *` as a string, `int *` as an int, `char **` by following both pointers, or an array with the roles `length` and `offset` of `decoderArgs`.";
+    "Decodes a native pointer by reading what it points to as its declared type, e.g. `char *` as a string, `int *` as an int, `char **` by following both pointers, or an array with `length` and `offset`.";
 
   protected fridaReference: FridaReferenceType;
 
@@ -141,7 +141,7 @@ export class NativeReferenceDecoder extends Decoder<NativePointer> {
   }
 }
 
-// `decoder: nullTerminated`: a `T **` read as an array that ends at a NULL pointer, like `argv` and `envp` of
+// `decoder: nullTerminatedArray`: a `T **` read as an array that ends at a NULL pointer, like `argv` and `envp` of
 // execve(2), e.g. `char **` as ["ls", "-l"]. At most `maxItems` elements are decoded.
 export class NativeNullTerminatedArrayDecoder extends NativeReferenceDecoder {
   readonly decoderName = "NativeNullTerminatedArrayDecoder";

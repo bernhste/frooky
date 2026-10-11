@@ -24,6 +24,6 @@ export abstract class Decoder<TValue> {
     return this.type;
   }
 
-  // `args` are the values of the roles in `decoderArgs`, only set for the roles the decoder accepts
+  // `args` are the values of `length` and `offset`, only set for the ones the decoder accepts
   public abstract decode(value: TValue, args?: DecoderArgValues): DecodedValue;
 }

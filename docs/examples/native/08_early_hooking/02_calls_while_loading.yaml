@@ -20,7 +20,7 @@ metadata:
 # This needs no `early: true`: the app loads these libraries after targetReady, like most apps do. See
 # 04_before_target_ready.yaml for a library that loads before.
 
-hookCollection:
+hookCollections:
   # a function of the loading library itself, hooked before its constructor runs
   - module: libloadTime.so
     hooks:

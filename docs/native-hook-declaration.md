@@ -1,6 +1,6 @@
-# `NativeHook` Declaration
+# Native Hook Declaration
 
-A native hook collection hooks functions of one native module, e.g. a shared library such as `libssl.so`.
+A native hook collection hooks functions of one native module, e.g. a shared library such as `libssl.so`. `module` is the file name of the module, not its path.
 
 <!-- TOC -->
 
@@ -28,7 +28,7 @@ hooks:
   - <symbol>                                          # short form
   - [<symbol>, { <decoder settings> }]                # short form with settings
   - symbol: <symbol>                                  # expanded form, or `offset: <offset>`
-    retType: <return type declaration>  # Optional
+    returns: <return type declaration>  # Optional
     params:                             # Optional
       - <parameter declaration>
     hookSettings:                       # Optional. Override the collection's settings for this hook
@@ -41,9 +41,9 @@ hooks:
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Short               | Record the calls of a function, without its arguments or return value                                                                      |
 | Short with settings | The same, with its own `decoderSettings`                                                                                                   |
-| Expanded            | Decode arguments (`params`) and the return value (`retType`), hook by [`offset`](#hooking-functions-without-a-symbol), or set own settings |
+| Expanded            | Decode arguments (`params`) and the return value (`returns`), hook by [`offset`](#hooking-functions-without-a-symbol), or set own settings |
 
-A native function has no type information at runtime, so frooky only decodes what `params` and `retType` declare. See [Parameter Declaration](./parameter-declaration.md) and [Return Type Declaration](./return-type-declaration.md).
+A native function has no type information at runtime, so frooky only decodes what `params` and `returns` declare. See [Parameter Declaration](./parameter-declaration.md) and [Return Type Declaration](./return-type-declaration.md).
 
 ## Basic Usage
 
@@ -92,7 +92,7 @@ hooks:
 
 - A pattern only matches exported functions, not exported variables.
 - YAML reads a value that starts with `*` as an alias, so quote it: `"*addrinfo"`.
-- `params` and `retType` apply to every matching function, so only use them for functions with the same signature.
+- `params` and `returns` apply to every matching function, so only use them for functions with the same signature.
 - If several matching names belong to one function (e.g. `memcpy` and `memmove` in some libcs), frooky hooks it once, under the first name.
 - Functions that frooky never hooks (e.g. `pthread_getspecific`, see [Blocked Functions](./additional-features.md#blocked-functions)) are skipped with a warning, also when a pattern matches them. A broad pattern on `libc.so` can still match functions the app calls very often, which slows it down.
 
@@ -125,7 +125,7 @@ A function the module doesn't export, e.g. one found by reverse engineering a st
 module: libfoo.so
 hooks:
   - offset: 0x1a2b4
-    retType: int
+    returns: int
     params:
       - ["const char *", input]
       - [size_t, length]
@@ -151,13 +151,13 @@ Ghidra shows the image base in _Window → Memory Map_, where you can also set i
 
 ## Decoding Arguments and Return Values
 
-`params` and `retType` are written as C types:
+`params` and `returns` are written as C types:
 
 ```yaml
 module: libssl.so
 hooks:
   - symbol: OSSL_CMP_validate_cert_path
-    retType: int
+    returns: int
     params:
       - ["const OSSL_CMP_CTX *", ctx]
       - ["X509_STORE *", trusted_store]
@@ -172,7 +172,7 @@ int OSSL_CMP_validate_cert_path(const OSSL_CMP_CTX *ctx,
                                 X509 *cert);
 ```
 
-How each type is decoded, e.g. `char *` as a string and `int *` as the `int` it points to, is described in [Decoders for Native Hooks](./decoders-native.md). Buffers and output parameters need [decoder settings](./decoders.md#decoder-settings) such as `decoderArgs` and `direction`.
+How each type is decoded, e.g. `char *` as a string and `int *` as the `int` it points to, is described in [Decoders for Native Hooks](./decoders-native.md). Buffers and output parameters need [decoder settings](./decoders.md#decoder-settings) such as `length` and `direction`.
 
 ## Hook and Decoder Settings
 
@@ -186,10 +186,10 @@ hookSettings:
   callerFilter: ['^libapp\.so$']
 hooks:
   - symbol: SSL_write
-    retType: int
+    returns: int
     params:
       - ["SSL *", ssl]
-      - ["const void *", buf, { decoderArgs: { length: num } }]
+      - ["const void *", buf, { length: num }]
       - [int, num]
 ```
 

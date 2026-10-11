@@ -22,21 +22,21 @@ metadata:
 # The offsets are only valid for the x86_64 build of the app
 # (nm -D --defined-only libreceiveString.so).
 
-hookCollection:
+hookCollections:
   - module: libreceiveString.so
     hookSettings:
       maxStackFrames: 0
     hooks:
       - offset: 0xc30             # receive_cstring
         params:
-          - [char *, string]
+          - ["char *", string]
       - offset: 0xc40             # receive_utf8
         params:
-          - [char *, string]
+          - ["char *", string]
 
       # Rejected, not hooked: 0x822 lies in .rodata, which this small library
       # maps into its executable segment. Hooking it would overwrite a string
       # literal, which causes the same crash as the script.
       - offset: 0x822
         params:
-          - [char *, string]
+          - ["char *", string]

@@ -46,7 +46,7 @@ def running_app(frida_device):
 def hook_file(tmp_path):
     """Provide a minimal valid hook file targeting a standard runtime class."""
     hook_yaml = textwrap.dedent("""\
-        hookCollection:
+        hookCollections:
           - javaClass: java.security.MessageDigest
             hooks:
               - getInstance

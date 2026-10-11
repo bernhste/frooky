@@ -8,12 +8,12 @@ import { javaBits } from "../utils/javaBits";
 
 // `decoder: bitmask`: the names of the constants whose bits are set in an integer bitmask, e.g.
 // `["PURPOSE_ENCRYPT", "PURPOSE_DECRYPT"]` for the purposes of a Keystore key. The constants are the map in
-// `config.constants`, or else the `static final` fields of `config.class` or of the hooked class that match
-// `config.fields`. Bits no constant matches are added as hex. A value that is no integer is returned as is.
+// `decoderOptions.constants`, or else the `static final` fields of `decoderOptions.class` or of the hooked class that match
+// `decoderOptions.fields`. Bits no constant matches are added as hex. A value that is no integer is returned as is.
 export class BitmaskDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "BitmaskDecoder";
   readonly description =
-    "Decodes an integer bitmask to the names of the constants whose bits are set: of `config.constants`, or else of the `static final` constants of `config.class` or of the hooked class.";
+    "Decodes an integer bitmask to the names of the constants whose bits are set: of `decoderOptions.constants`, or else of the `static final` constants of `decoderOptions.class` or of the hooked class.";
 
   private warned = false;
   private readonly constants = this.resolveConstants();
@@ -23,7 +23,9 @@ export class BitmaskDecoder extends Decoder<Java.Wrapper> {
     const bits = value == null ? undefined : javaBits(value, this.type);
     if (!constants || bits === undefined) {
       if (!constants && !this.warned) {
-        logger.warn(`decoder: bitmask on '${this.name ?? this.type}' needs 'config.constants' or 'config.class', it is decoded as a number.`);
+        logger.warn(
+          `decoder: bitmask on '${this.name ?? this.type}' needs 'decoderOptions.constants' or 'decoderOptions.class', it is decoded as a number.`,
+        );
         this.warned = true;
       }
       return { type: this.type, name: this.name, value };
@@ -35,9 +37,9 @@ export class BitmaskDecoder extends Decoder<Java.Wrapper> {
   // above 2^53 keeps its bits only if it is a power of two, e.g. `1L << 62`. Undefined without constants; for a class,
   // configClassConstants() has warned about that.
   private resolveConstants(): Record<string, number> | undefined {
-    const config = this.settings.config;
-    if (config?.constants) return config.constants;
-    if (!config?.class && !this.decodable.declaringClass) return undefined;
+    const options = this.settings.decoderOptions;
+    if (options?.constants) return options.constants;
+    if (!options?.class && !this.decodable.declaringClass) return undefined;
     const entries = configClassConstants(this.decodable).flatMap(({ name, value }) => {
       const bits = javaBits(value, this.type);
       return name !== undefined && bits !== undefined ? [[name, bits.toNumber()] as const] : [];

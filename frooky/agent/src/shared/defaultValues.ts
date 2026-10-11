@@ -11,15 +11,16 @@ export const DEFAULT_BASE_DECODER_SETTINGS: BaseDecoderSettings = {
 
 export const DEFAULT_DECODER_SETTINGS: DecoderSettings = {
   ...DEFAULT_BASE_DECODER_SETTINGS,
-  decoderArgs: undefined,
-  config: undefined,
+  length: undefined,
+  offset: undefined,
+  decoderOptions: undefined,
   argFilter: undefined,
 };
 
 export const DEFAULT_HOOK_SETTINGS: HookSettings = {
   maxStackFrames: 5,
   nativeStackTrace: false,
-  platformStackTrace: false,
+  javaStackTrace: false,
   callerFilter: [],
   early: false,
 };

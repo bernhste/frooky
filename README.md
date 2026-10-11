@@ -73,22 +73,23 @@ See `frooky -h` for all options.
 
 frooky uses _hook files_, which are structured YAML files including declarations of methods or functions to be hooked.
 
-A hook file consists of optional metadata and a list of _hook declarations_ called `hookCollection`. The following YAML file describes the basic structure:
+A hook file consists of optional metadata, optional default settings and a list of _hook collections_ called `hookCollections`. frooky rejects properties it doesn't know and invalid values, so a misspelled setting is reported instead of ignored: it skips the file, hook collection or hook they are set on, with a warning. Only `metadata` is free: it may contain fields of your own. The following YAML file describes the basic structure:
 
 ```yaml
-metadata:                         # All metadata is optional
-  name: <name>                    # Name of the hook collection
+schemaVersion: 1                  # Optional. Version of the hook-file format, default 1
+
+metadata:                         # Optional and informational; may contain fields of your own
+  name: <name>                    # Name of the hook file
   platform: Android               # Target platform
-  description: <description>      # Description of what the hook collection does
-  category: <category>            # Category of the hook collection
+  description: <description>      # Description of what the hooks capture
+  category: <category>            # Category of the hook file
   author: <author>                # Your name or organization
-  version: <version>              # Version number of the hook collection (e.g., 1)
+  version: <version>              # Version number of the hook file (e.g., 1)
 
-settings:                         # Optional. Default hookSettings/decoderSettings applied to all hook declarations
-  hookSettings: { ... }
-  decoderSettings: { ... }
+hookSettings: { ... }             # Optional. Default hook settings for all hook declarations
+decoderSettings: { ... }          # Optional. Default decoder settings for all parameters and return values
 
-hookCollection:                   # Collection of hook declarations
+hookCollections:                  # Hook collections, each for one Java class or native module
   - <hook_declaration>
 ```
 
@@ -98,10 +99,10 @@ Depending on the platform, the `<hook_declaration>` may look different. Please r
 
 At the moment, frooky supports these types of hooks:
 
-| Hook Type    | Platform | Description                                 | Documentation                                                 |
-| ------------ | -------- | ------------------------------------------- | ------------------------------------------------------------- |
-| `JavaHook`   | Android  | Hook for Java/Kotlin methods                | [`JavaHook`-Declaration](./docs/java-hook-declaration.md)     |
-| `NativeHook` | Android  | Hook for native functions (C/C++/Rust etc.) | [`NativeHook`-Declaration](./docs/native-hook-declaration.md) |
+| Hook Type   | Platform | Description                                 | Documentation                                                |
+| ----------- | -------- | ------------------------------------------- | ------------------------------------------------------------ |
+| Java hook   | Android  | Hook for Java/Kotlin methods                | [Java Hook Declaration](./docs/java-hook-declaration.md)     |
+| Native hook | Android  | Hook for native functions (C/C++/Rust etc.) | [Native Hook Declaration](./docs/native-hook-declaration.md) |
 
 > [!NOTE]
 > frooky supports Android only. iOS support is [planned](https://github.com/bernhste/frooky/tree/feature/ios-agent-poc).
@@ -133,12 +134,12 @@ metadata:
   author: frooky dev team
   version: 1
 
-hookCollection:
+hookCollections:
   - javaClass: javax.crypto.Cipher
     hookSettings:
-      platformStackTrace: true
+      javaStackTrace: true
     hooks:
-      - [ doFinal, {decoder: "string"} ]
+      - [doFinal, { decoder: string }]
 ```
 
 Then run `frooky` with the hook file against your target app:
@@ -147,7 +148,7 @@ Then run `frooky` with the hook file against your target app:
 frooky -U -f org.owasp.mastestapp cipher_dofinal.yaml
 ```
 
-Events are written to the output file as newline-separated batches, each line a JSON array of the events captured in that batch (see [Understanding Output Format](./docs/output.md) for the full schema). A single event, pretty-printed:
+Events are written to the output file as NDJSON, one JSON event object per line (see [Understanding Output Format](./docs/output.md) for the full schema). A single event, pretty-printed:
 
 ```json
 {
@@ -160,7 +161,7 @@ Events are written to the output file as newline-separated batches, each line a 
         "fieldType": "instance"
     },
     "stackTrace": {
-      "platformStackTrace": [
+      "javaStackTrace": [
         "javax.crypto.Cipher.doFinal (Cipher.java:2066)",
         "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:58)",
         "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)",

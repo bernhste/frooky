@@ -17,9 +17,9 @@ export interface HookSettings {
   nativeStackTrace: boolean;
 
   /**
-   * Whether to capture platform (managed runtime, e.g. Java) stack frames. Default: `false`.
+   * Whether to capture the Java stack frames that led to the call. Default: `false`.
    */
-  platformStackTrace: boolean;
+  javaStackTrace: boolean;
 
   /**
    * Regular expressions; the call is only captured if its caller matches one of them. Java hooks match the methods
@@ -75,31 +75,39 @@ export interface BaseDecoderSettings {
  */
 export interface DecoderSettings extends BaseDecoderSettings {
   /**
-   * Values the decoder needs to decode the parameter, by their role, e.g. `{ length: len }` for a buffer whose length is
-   * in the parameter `len`. Each decoder accepts some roles; any other role makes the hook invalid.
+   * How many elements to decode, e.g. the number of bytes of a buffer or of elements of an array: the name of another
+   * parameter, `$ret` for the return value (only with `direction: out`), or a number. Parameters only; a decoder
+   * that doesn't accept a length makes the hook invalid.
    */
-  decoderArgs?: DecoderArgs;
+  length?: DecoderArgValue;
+
+  /**
+   * How many elements to skip before decoding, e.g. where a slice starts in a Java `byte[]`: the name of another
+   * parameter, `$ret` for the return value (only with `direction: out`), or a number. Parameters only; a decoder
+   * that doesn't accept an offset makes the hook invalid.
+   */
+  offset?: DecoderArgValue;
 
   /**
    * Options of the decoder selected with `decoder:`, e.g. `{ constants: { O_CREAT: 0x40 } }`. Each decoder accepts some
    * options; any other option makes the hook invalid.
    */
-  config?: DecoderConfig;
+  decoderOptions?: DecoderOptions;
 
   /**
    * Filter patterns matched against the decoded value: numeric comparisons (`> 100`, `>= 0`, `< 10`, `<= 50`, `== 42`,
    * `!= -1`) against numbers, or regular expressions against strings and numbers. The event is only captured if at least
-   * one matches. Lists, booleans and `null` always pass.
+   * one matches. Lists, booleans and `null` always pass. Parameters only.
    */
   argFilter?: string[];
 }
 
 /**
- * Options of a decoder, set with `config:` next to `decoder:`.
+ * Options of a decoder, set with `decoderOptions:` next to `decoder:`.
  *
  * @public
  */
-export interface DecoderConfig {
+export interface DecoderOptions {
   /**
    * Names of the values of an integer, e.g. `{ O_CREAT: 0x40 }`, for `decoder: constants` and `decoder: bitmask`. In Java
    * hooks, it can't be combined with `class` and `fields`.
@@ -143,7 +151,7 @@ export type NativeConstantsPresetName = "socketDomain";
 
 /**
  * Decoders of native hooks, selected with `decoder:`: the decoders of every platform (`string`, `base64`, `hex`,
- * `constants`, `bitmask`), `utf16`, `errno`, `fd`, `nullTerminated` and the presets. See docs/decoders.md.
+ * `constants`, `bitmask`), `utf16`, `errno`, `fd`, `nullTerminatedArray` and the presets. See docs/decoders.md.
  *
  * @public
  */
@@ -156,7 +164,7 @@ export type NativeDecoderName =
   | "fd"
   | "constants"
   | "bitmask"
-  | "nullTerminated"
+  | "nullTerminatedArray"
   | NativeBitmaskPresetName
   | NativeConstantsPresetName;
 
@@ -169,29 +177,12 @@ export type NativeDecoderName =
 export type DecoderName = JavaDecoderName | NativeDecoderName;
 
 /**
- * A value passed to a decoder: the name of another parameter, `$ret` for the return value (only for a parameter with
- * `direction: out`), or a number.
+ * The value of `length` or `offset`: the name of another parameter, `$ret` for the return value (only for a parameter
+ * with `direction: out`), or a number.
  *
  * @public
  */
 export type DecoderArgValue = string | number;
-
-/**
- * The roles a value can have for a decoder. Each role means the same for every decoder that accepts it.
- *
- * @public
- */
-export interface DecoderArgs {
-  /**
-   * Role `length`: how many elements to decode, e.g. the number of bytes of a buffer or of elements of an array.
-   */
-  length?: DecoderArgValue;
-
-  /**
-   * Role `offset`: how many elements to skip before decoding, e.g. where a slice starts in a Java `byte[]`.
-   */
-  offset?: DecoderArgValue;
-}
 
 export interface FrookySettings {
   hookSettings: HookSettings;

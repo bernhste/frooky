@@ -20,13 +20,13 @@ metadata:
 # Change both hooks to `early: false` and run it again: the events of the "factory" stage are gone, the others
 # stay. Only code that runs before targetReady needs `early: true`.
 
-hookCollection:
+hookCollections:
   # the app's own libraries, hooked while the linker loads them
   - module: "libstartup*.so"
     hookSettings:
       early: true
       nativeStackTrace: true
-      platformStackTrace: true
+      javaStackTrace: true
       maxStackFrames: 10
     hooks:
       # const char *startup_step(const char *stage, const char *step)
@@ -57,10 +57,10 @@ hookCollection:
 # The stack traces of startup_step. Before targetReady, a native hook gets no Java frames:
 #   "factory":     nativeStackTrace   starts with "startup_constructor+0x... (libstartupFactory.so:0x...)" or
 #                                     "JNI_OnLoad+0x... (libstartupFactory.so:0x...)"
-#                  platformStackTrace [], with skipped: "before-ready"
+#                  javaStackTrace [], with skipped: "before-ready"
 #   "application": nativeStackTrace   as above, in libstartupApplication.so
-#                  platformStackTrace contains "org.owasp.mastestapp.StartupApplication.<clinit> (MastgTest.kt:...)"
+#                  javaStackTrace contains "org.owasp.mastestapp.StartupApplication.<clinit> (MastgTest.kt:...)"
 #   "provider":    nativeStackTrace   as above, in libstartupProvider.so
-#                  platformStackTrace contains "org.owasp.mastestapp.StartupProvider.onCreate (MastgTest.kt:...)"
+#                  javaStackTrace contains "org.owasp.mastestapp.StartupProvider.onCreate (MastgTest.kt:...)"
 #
 # With `early: false`: the same without the four events of the "factory" stage.

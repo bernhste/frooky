@@ -59,19 +59,19 @@ function toSignedValue(bits: UInt64, type: string): number | string {
   return n >= signBit ? n - 2 * signBit : n;
 }
 
-// `decoder: constants`: the name of the constant in `config.constants` with the value of an integer.
+// `decoder: constants`: the name of the constant in `decoderOptions.constants` with the value of an integer.
 export class NativeConstantsDecoder extends Decoder<NativePointer> {
   readonly decoderName = "NativeConstantsDecoder";
-  readonly description = "Decodes an integer to the name of the constant with that value, from `config.constants` or a preset.";
+  readonly description = "Decodes an integer to the name of the constant with that value, from `decoderOptions.constants` or a preset.";
 
   private constants: Record<string, number> | undefined;
 
   // `preset` is a built-in decoder such as `socketDomain`, undefined on a platform it has no values for
   constructor(decodable: Decodable, preset?: ConstantSet | null) {
     super(decodable);
-    this.constants = preset === undefined ? decodable.settings.config?.constants : preset?.constants;
+    this.constants = preset === undefined ? decodable.settings.decoderOptions?.constants : preset?.constants;
     if (!this.constants && preset === undefined) {
-      logger.warn(`decoder: constants on '${decodable.name ?? decodable.type}' needs 'config: { constants }', it is decoded as a number.`);
+      logger.warn(`decoder: constants on '${decodable.name ?? decodable.type}' needs 'decoderOptions: { constants }', it is decoded as a number.`);
     }
   }
 
@@ -85,10 +85,10 @@ export class NativeConstantsDecoder extends Decoder<NativePointer> {
   }
 }
 
-// `decoder: bitmask`: the names of the constants in `config.constants` whose bits are set in an integer.
+// `decoder: bitmask`: the names of the constants in `decoderOptions.constants` whose bits are set in an integer.
 export class NativeBitmaskDecoder extends Decoder<NativePointer> {
   readonly decoderName = "NativeBitmaskDecoder";
-  readonly description = "Decodes an integer bitmask to the names of the constants whose bits are set, from `config.constants` or a preset.";
+  readonly description = "Decodes an integer bitmask to the names of the constants whose bits are set, from `decoderOptions.constants` or a preset.";
 
   private constantSet: ConstantSet | undefined;
 
@@ -96,11 +96,11 @@ export class NativeBitmaskDecoder extends Decoder<NativePointer> {
     super(decodable);
     if (preset !== undefined) {
       this.constantSet = preset ?? undefined;
-    } else if (decodable.settings.config?.constants) {
-      this.constantSet = { constants: decodable.settings.config.constants };
+    } else if (decodable.settings.decoderOptions?.constants) {
+      this.constantSet = { constants: decodable.settings.decoderOptions.constants };
     }
     if (!this.constantSet && preset === undefined) {
-      logger.warn(`decoder: bitmask on '${decodable.name ?? decodable.type}' needs 'config: { constants }', it is decoded as a number.`);
+      logger.warn(`decoder: bitmask on '${decodable.name ?? decodable.type}' needs 'decoderOptions: { constants }', it is decoded as a number.`);
     }
   }
 

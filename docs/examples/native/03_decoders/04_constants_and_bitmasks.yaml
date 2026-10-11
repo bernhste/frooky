@@ -2,7 +2,7 @@ metadata:
   name: "Decoders (Native): Constants and Bitmasks"
   description: |
     `decoder: constants` decodes an integer to the name of its constant, `decoder: bitmask` decodes a bitmask to
-    the names of the bits that are set, and `decoder: hex` shows its bits as hex, also of a float or double. The names come from `config: { constants }`, or from a built-in preset
+    the names of the bits that are set, and `decoder: hex` shows its bits as hex, also of a float or double. The names come from `decoderOptions: { constants }`, or from a built-in preset
     for the flags and constants of system calls on Android and iOS, such as `openFlags` or `socketDomain`.
   version: 1
   author: frooky dev
@@ -12,19 +12,19 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/03_decoders/04_constants_and_bitmasks.yaml
 # See:    docs/decoders.md#constants-and-bitmask-decode-named-constants
 
-hookCollection:
+hookCollections:
   - module: libreceiveFundamentalValue.so
     hooks:
       # int set_log_level(enum log_level level) with LOG_LEVEL_WARN, which is 5
       - symbol: set_log_level
         params:
-          - [int, level, { decoder: constants, config: { constants: { LOG_LEVEL_DEBUG: 3, LOG_LEVEL_INFO: 4, LOG_LEVEL_WARN: 5 } } }]
+          - [int, level, { decoder: constants, decoderOptions: { constants: { LOG_LEVEL_DEBUG: 3, LOG_LEVEL_INFO: 4, LOG_LEVEL_WARN: 5 } } }]
 
       # unsigned int set_permissions(unsigned int permissions) with PERMISSION_READ | PERMISSION_SHARE | 0x100.
       # 0x100 has no constant, so it is shown as hex.
       - symbol: set_permissions
         params:
-          - [unsigned int, permissions, { decoder: bitmask, config: { constants: { PERMISSION_READ: 0x1, PERMISSION_WRITE: 0x2, PERMISSION_SHARE: 0x4 } } }]
+          - [unsigned int, permissions, { decoder: bitmask, decoderOptions: { constants: { PERMISSION_READ: 0x1, PERMISSION_WRITE: 0x2, PERMISSION_SHARE: 0x4 } } }]
 
       # int receive_int(int minValue, int maxValue) with INT_MIN and INT_MAX. `hex` shows the bits of an integer
       # at the size of its type, e.g. INT_MIN as 0x80000000.
@@ -40,7 +40,7 @@ hookCollection:
           - [float, minValue, { decoder: hex }]
           - [float, maxValue, { decoder: hex }]
       - symbol: receive_double
-        retType: [double, { decoder: hex }]
+        returns: [double, { decoder: hex }]
         params:
           - [double, minValue, { decoder: hex }]
           - [double, maxValue, { decoder: hex }]

@@ -30,10 +30,10 @@ export function planArgSlots(params: Param[] | undefined): NativeArgSlot[] {
 }
 
 // A float/double return value is always in the first FP register (XMM0 / D0).
-export function planFloatRetTypeSlot(retType: { type: string } | undefined): FloatArgSlot | undefined {
-  if (!retType) return undefined;
+export function planFloatRetTypeSlot(returns: { type: string } | undefined): FloatArgSlot | undefined {
+  if (!returns) return undefined;
 
-  const fridaType = parseNativeFridaType(retType.type);
+  const fridaType = parseNativeFridaType(returns.type);
   if (fridaType === "float" || fridaType === "double") {
     return { fpIndex: 0, byteLength: fridaType === "float" ? 4 : 8 };
   }

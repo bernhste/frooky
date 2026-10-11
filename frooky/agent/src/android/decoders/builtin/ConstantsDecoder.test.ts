@@ -1,6 +1,6 @@
 import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
-import { DecoderConfig } from "../../../shared/frookySettings";
+import { DecoderOptions } from "../../../shared/frookySettings";
 import { logger } from "../../../shared/logger";
 import { ConstantsDecoder } from "./ConstantsDecoder";
 
@@ -36,11 +36,15 @@ describe("ConstantsDecoder", () => {
       expect(result).toEqual({ type: "int", name: undefined, value: unwrapMode });
     });
 
-    describe("with config.class and config.fields", () => {
-      const withConfig = (config: DecoderConfig) =>
-        new ConstantsDecoder({ type: "int", declaringClass: "javax.crypto.Cipher", settings: { ...DEFAULT_DECODER_SETTINGS, config } });
+    describe("with decoderOptions.class and decoderOptions.fields", () => {
+      const withConfig = (config: DecoderOptions) =>
+        new ConstantsDecoder({
+          type: "int",
+          declaringClass: "javax.crypto.Cipher",
+          settings: { ...DEFAULT_DECODER_SETTINGS, decoderOptions: config },
+        });
 
-      it("should use the fields of the hooked class that match config.fields", () => {
+      it("should use the fields of the hooked class that match decoderOptions.fields", () => {
         const encryptMode: number = Cipher.ENCRYPT_MODE.value;
         const publicKey: number = Cipher.PUBLIC_KEY.value;
 
@@ -49,7 +53,7 @@ describe("ConstantsDecoder", () => {
         expect(withConfig({ fields: "*_KEY" }).decode(publicKey as unknown as Java.Wrapper).value).toBe("PUBLIC_KEY");
       });
 
-      it("should use the fields of config.class instead of the hooked class", () => {
+      it("should use the fields of decoderOptions.class instead of the hooked class", () => {
         const actionDown: number = Java.use("android.view.MotionEvent").ACTION_DOWN.value;
 
         expect(withConfig({ class: "android.view.MotionEvent", fields: "ACTION_*" }).decode(actionDown as unknown as Java.Wrapper).value).toBe(
@@ -61,7 +65,7 @@ describe("ConstantsDecoder", () => {
         const decoder = new ConstantsDecoder({
           type: "long",
           declaringClass: "org.example.Scheduler",
-          settings: { ...DEFAULT_DECODER_SETTINGS, config: { class: "android.text.format.DateUtils", fields: "*_IN_MILLIS" } },
+          settings: { ...DEFAULT_DECODER_SETTINGS, decoderOptions: { class: "android.text.format.DateUtils", fields: "*_IN_MILLIS" } },
         });
         const minute = Java.use("android.text.format.DateUtils").MINUTE_IN_MILLIS.value;
 
@@ -69,12 +73,12 @@ describe("ConstantsDecoder", () => {
         expect(decoder.decode(60000 as unknown as Java.Wrapper).value).toBe("MINUTE_IN_MILLIS");
       });
 
-      it("should use every field of config.class without config.fields", () => {
+      it("should use every field of decoderOptions.class without decoderOptions.fields", () => {
         const unwrapMode: number = Cipher.UNWRAP_MODE.value;
         const decoder = new ConstantsDecoder({
           type: "int",
           declaringClass: "org.example.CryptoHelper",
-          settings: { ...DEFAULT_DECODER_SETTINGS, config: { class: "javax.crypto.Cipher" } },
+          settings: { ...DEFAULT_DECODER_SETTINGS, decoderOptions: { class: "javax.crypto.Cipher" } },
         });
 
         expect(decoder.decode(unwrapMode as unknown as Java.Wrapper).value).toBe("UNWRAP_MODE");
@@ -91,14 +95,18 @@ describe("ConstantsDecoder", () => {
       });
     });
 
-    describe("with config.constants", () => {
+    describe("with decoderOptions.constants", () => {
       const withConstants = (type: string, constants: Record<string, number>) =>
-        new ConstantsDecoder({ type, declaringClass: "javax.crypto.Cipher", settings: { ...DEFAULT_DECODER_SETTINGS, config: { constants } } });
+        new ConstantsDecoder({
+          type,
+          declaringClass: "javax.crypto.Cipher",
+          settings: { ...DEFAULT_DECODER_SETTINGS, decoderOptions: { constants } },
+        });
 
-      it("should use config.constants instead of the constants of the hooked class", () => {
+      it("should use decoderOptions.constants instead of the constants of the hooked class", () => {
         const decoder = withConstants("int", { MODE_ONE: 1, MODE_TWO: 2 });
 
-        // 1 is Cipher.ENCRYPT_MODE, but config.constants wins
+        // 1 is Cipher.ENCRYPT_MODE, but decoderOptions.constants wins
         expect(decoder.decode(1 as unknown as Java.Wrapper).value).toBe("MODE_ONE");
       });
 

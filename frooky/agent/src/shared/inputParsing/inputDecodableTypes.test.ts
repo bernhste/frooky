@@ -1,15 +1,17 @@
-import { Decodable as RetType, Param } from "../decoders/decodable";
 import { DEFAULT_DECODER_SETTINGS } from "../defaultValues";
 import {
   normalizeInputParams,
-  normalizeInputRetType,
-  normalizeInputRetTypeSettings,
+  normalizeInputReturn,
+  normalizeInputReturnSettings,
   validateDecoderArgRoles,
-  validateDecoderConfig,
+  validateDecoderOptions,
   validateDecoderNames,
 } from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
-import { inputParamSchema, inputRetTypeSettingsSchema } from "./zodSchemas/inputDecodableTypes.zod";
+import { validateInput } from "../configValidator";
+import { decoderArgsOf } from "../decoders/decoderArgs";
+import { inputParamSchema, inputReturnSchema } from "./zodSchemas/inputDecodableTypes.zod";
+import { inputReturnSettingsSchema } from "./zodSchemas/inputSettings.zod";
 
 describe("inputDecodableTypes", () => {
   describe("normalizeInputParams(), param formats", () => {
@@ -46,13 +48,17 @@ describe("inputDecodableTypes", () => {
       });
     });
 
-    it("should keep a complete Param as it is", () => {
-      const param: Param = { type: "testParam", name: "paramName", direction: "out", settings: expectedSettings };
-      expect(normalizeInputParams([param])[0]).toEqual(param);
+    it("should normalize an object with its settings to a Param", () => {
+      expect(normalizeInputParams([{ type: "testParam", name: "paramName", ...inlineSettings }])[0]).toEqual({
+        type: "testParam",
+        name: "paramName",
+        direction: "out",
+        settings: expectedSettings,
+      });
     });
 
     it("should complete an object with only type and name", () => {
-      const input = { type: "java.lang.String", name: "action" } as Param;
+      const input = { type: "java.lang.String", name: "action" };
       expect(normalizeInputParams([input])[0]).toEqual({
         type: "java.lang.String",
         name: "action",
@@ -76,62 +82,50 @@ describe("inputDecodableTypes", () => {
     });
 
     it("lets the param's own settings override the outer ones field by field, in every form", () => {
-      const params = normalizeInputParams(
-        [["int", { maxItems: 5 }], ["int", "n", { maxItems: 5 }], { type: "int", settings: { maxItems: 5 } } as Param],
-        outerSettings,
-      );
+      const params = normalizeInputParams([["int", { maxItems: 5 }], ["int", "n", { maxItems: 5 }], { type: "int", maxItems: 5 }], outerSettings);
       for (const param of params) expect(param.settings).toEqual({ ...outerSettings, maxItems: 5 });
     });
   });
 
-  describe("normalizeInputParams(), decoderArgs", () => {
-    it("accepts the roles with another param, a number or the return value", () => {
+  describe("normalizeInputParams(), length and offset", () => {
+    it("accepts another param, a number or the return value", () => {
       const params = normalizeInputParams([
-        ["[B", "key", { decoderArgs: { offset: "offset", length: 16 } }],
+        ["[B", "key", { offset: "offset", length: 16 }],
         ["int", "offset"],
-        ["void *", "buf", { direction: "out", decoderArgs: { length: "$ret" } }],
+        ["void *", "buf", { direction: "out", length: "$ret" }],
       ]);
-      expect(params[0].settings.decoderArgs).toEqual({ offset: "offset", length: 16 });
-      expect(params[2].settings.decoderArgs).toEqual({ length: "$ret" });
+      expect(decoderArgsOf(params[0].settings)).toEqual({ offset: "offset", length: 16 });
+      expect(decoderArgsOf(params[2].settings)).toEqual({ length: "$ret" });
     });
 
-    it("throws for decoderArg, which is no setting", () => {
+    it("throws for an unknown setting", () => {
       expect(() =>
         normalizeInputParams([
-          ["const void *", "buf", { decoderArg: "count" } as never],
+          ["const void *", "buf", { size: "count" } as never],
           ["size_t", "count"],
         ]),
-      ).toThrow("'decoderArg' is no decoder setting. Pass the value by its role, e.g. 'decoderArgs: { length: len }' on 'buf'.");
-    });
-
-    it("throws for an unknown role", () => {
-      expect(() =>
-        normalizeInputParams([
-          ["const void *", "buf", { decoderArgs: { size: "count" } as never }],
-          ["size_t", "count"],
-        ]),
-      ).toThrow("decoderArgs of 'buf': 'size' is no role. The roles are: length, offset.");
+      ).toThrow("decoder settings contains unknown properties: size");
     });
 
     it("throws when no param has the name", () => {
-      expect(() => normalizeInputParams(["int", ["const void *", "buf", { decoderArgs: { length: "count" } }], "size_t"])).toThrow(
-        "decoderArgs of 'buf': 'length: count' names no parameter. Use the name of another parameter, '$ret' or a number.",
+      expect(() => normalizeInputParams(["int", ["const void *", "buf", { length: "count" }], "size_t"])).toThrow(
+        "'length: count' of 'buf' names no parameter. Use the name of another parameter, '$ret' or a number.",
       );
     });
 
     it("throws for a number that is no count", () => {
-      expect(() => normalizeInputParams([["const void *", "buf", { decoderArgs: { length: -1 } }]])).toThrow("must be a non-negative integer");
-      expect(() => normalizeInputParams([["const void *", "buf", { decoderArgs: { offset: 1.5 } }]])).toThrow("must be a non-negative integer");
+      expect(() => normalizeInputParams([["const void *", "buf", { length: -1 }]])).toThrow("must be a non-negative integer");
+      expect(() => normalizeInputParams([["const void *", "buf", { offset: 1.5 }]])).toThrow("must be a non-negative integer");
     });
 
     it("throws when a role names the param itself", () => {
-      expect(() => normalizeInputParams([["const void *", "buf", { decoderArgs: { length: "buf" } }], "size_t"])).toThrow("is the parameter itself");
+      expect(() => normalizeInputParams([["const void *", "buf", { length: "buf" }], "size_t"])).toThrow("is the parameter itself");
     });
 
     it("throws when a role names more than one param", () => {
       expect(() =>
         normalizeInputParams([
-          ["const void *", { decoderArgs: { length: "n" } }],
+          ["const void *", { length: "n" }],
           ["size_t", "n"],
           ["int", "n"],
         ]),
@@ -139,35 +133,35 @@ describe("inputDecodableTypes", () => {
     });
 
     it("throws when the return value is passed to a param decoded on entry", () => {
-      expect(() => normalizeInputParams(["int", ["void *", "buf", { decoderArgs: { length: "$ret" } }]])).toThrow("Set 'direction: out' on 'buf'");
-      expect(() => normalizeInputParams(["int", ["void *", "buf", { direction: "inout", decoderArgs: { length: "$ret" } }]])).toThrow(
-        "Set 'direction: out'",
-      );
+      expect(() => normalizeInputParams(["int", ["void *", "buf", { length: "$ret" }]])).toThrow("Set 'direction: out' on 'buf'");
+      expect(() => normalizeInputParams(["int", ["void *", "buf", { direction: "inout", length: "$ret" }]])).toThrow("Set 'direction: out'");
     });
   });
 
   describe("validateDecoderArgRoles()", () => {
-    const params = normalizeInputParams([["[B", "key", { decoderArgs: { offset: 1, length: 2 } }], "int"]);
+    const params = normalizeInputParams([["[B", "key", { offset: 1, length: 2 }], "int"]);
 
-    it("accepts roles the decoder accepts", () => {
+    it("accepts what the decoder accepts", () => {
       expect(() => validateDecoderArgRoles(params, () => ["length", "offset"])).not.toThrow();
     });
 
-    it("throws for a role the decoder doesn't accept, naming the accepted ones", () => {
+    it("throws for what the decoder doesn't accept, naming what it accepts", () => {
       expect(() => validateDecoderArgRoles(params, () => ["length"])).toThrow(
-        "decoderArgs of 'key': the decoder of '[B' doesn't accept the role 'offset'. It accepts: length.",
+        "'key': the decoder of '[B' doesn't accept 'offset'. It accepts: length.",
       );
-      expect(() => validateDecoderArgRoles(params, () => [])).toThrow("doesn't accept the roles 'offset', 'length'. It accepts no decoderArgs.");
+      expect(() => validateDecoderArgRoles(params, () => [])).toThrow(
+        "doesn't accept 'length' and 'offset'. It accepts neither 'length' nor 'offset'.",
+      );
     });
   });
 
-  describe("validateDecoderConfig()", () => {
-    const withConstants = { ...DEFAULT_DECODER_SETTINGS, config: { constants: { A: 1 } } };
+  describe("validateDecoderOptions()", () => {
+    const withConstants = { ...DEFAULT_DECODER_SETTINGS, decoderOptions: { constants: { A: 1 } } };
     const acceptsConstants = () => ["constants"];
 
-    it("accepts options the decoder accepts, and values without config", () => {
+    it("accepts options the decoder accepts, and values without decoderOptions", () => {
       expect(() =>
-        validateDecoderConfig(
+        validateDecoderOptions(
           [
             ["mode", { ...withConstants, decoder: "bitmask" }],
             ["len", DEFAULT_DECODER_SETTINGS],
@@ -179,21 +173,21 @@ describe("inputDecodableTypes", () => {
     });
 
     it("throws for an option the decoder doesn't accept, naming the value and the decoder", () => {
-      expect(() => validateDecoderConfig([["data", { ...withConstants, decoder: "base64" }]], () => [])).toThrow(
-        "config of 'data': decoder 'base64' doesn't accept 'constants'. It accepts no config.",
+      expect(() => validateDecoderOptions([["data", { ...withConstants, decoder: "base64" }]], () => [])).toThrow(
+        "decoderOptions of 'data': decoder 'base64' doesn't accept 'constants'. It accepts no decoderOptions.",
       );
     });
 
-    it("throws for config without a decoder, naming the decoder of the type", () => {
-      expect(() => validateDecoderConfig([["return value", withConstants]], () => [])).toThrow(
-        "config of 'return value': the decoder of its type doesn't accept 'constants'. It accepts no config.",
+    it("throws for decoderOptions without a decoder, naming the decoder of the type", () => {
+      expect(() => validateDecoderOptions([["return value", withConstants]], () => [])).toThrow(
+        "decoderOptions of 'return value': the decoder of its type doesn't accept 'constants'. It accepts no decoderOptions.",
       );
     });
 
     it("lists the accepted options", () => {
-      const settings = { ...DEFAULT_DECODER_SETTINGS, decoder: "constants" as const, config: { constants: { A: 1 }, other: 1 } as never };
-      expect(() => validateDecoderConfig([["mode", settings]], acceptsConstants)).toThrow(
-        "config of 'mode': decoder 'constants' doesn't accept 'other'. It accepts: constants.",
+      const settings = { ...DEFAULT_DECODER_SETTINGS, decoder: "constants" as const, decoderOptions: { constants: { A: 1 }, other: 1 } as never };
+      expect(() => validateDecoderOptions([["mode", settings]], acceptsConstants)).toThrow(
+        "decoderOptions of 'mode': decoder 'constants' doesn't accept 'other'. It accepts: constants.",
       );
     });
   });
@@ -210,31 +204,40 @@ describe("inputDecodableTypes", () => {
     });
   });
 
-  describe("normalizeInputRetType()", () => {
+  describe("normalizeInputReturn()", () => {
     it("should normalize a valid string to a RetType", () => {
-      expect(normalizeInputRetType("int")).toEqual({ type: "int", settings: DEFAULT_DECODER_SETTINGS });
+      expect(normalizeInputReturn("int")).toEqual({ type: "int", settings: DEFAULT_DECODER_SETTINGS });
     });
 
     it("should normalize a valid [string, Partial<DecoderSettings>] to a RetType", () => {
-      expect(normalizeInputRetType(["android.database.sqlite.SQLiteCursor", { maxItems: 10 }])).toEqual({
+      expect(normalizeInputReturn(["android.database.sqlite.SQLiteCursor", { maxItems: 10 }])).toEqual({
         type: "android.database.sqlite.SQLiteCursor",
         settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 10 },
       });
     });
 
-    it("should return RetType unchanged", () => {
-      const retType: RetType = { type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 30 } };
-      expect(normalizeInputRetType(retType)).toEqual(retType);
+    it("should normalize an object with its settings to a RetType", () => {
+      expect(normalizeInputReturn({ type: "int", name: "result", maxItems: 30 })).toEqual({
+        type: "int",
+        name: "result",
+        settings: { ...DEFAULT_DECODER_SETTINGS, maxItems: 30 },
+      });
+    });
+
+    it("is rejected by the schema with the settings of a parameter", () => {
+      for (const setting of [{ argFilter: ["== -1"] }, { length: 4 }, { direction: "out" }]) {
+        expect(() => validateInput(inputReturnSchema, ["int", setting], "returns")).toThrow("returns contains unknown properties");
+      }
     });
   });
 
-  describe("normalizeInputRetTypeSettings()", () => {
+  describe("normalizeInputReturnSettings()", () => {
     it("normalizes a bare decoder settings object", () => {
-      expect(normalizeInputRetTypeSettings({ maxItems: 10 })).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 10 });
+      expect(normalizeInputReturnSettings({ maxItems: 10 })).toEqual({ ...DEFAULT_DECODER_SETTINGS, maxItems: 10 });
     });
 
     it("merges a bare decoder settings object on top of the given base settings", () => {
-      expect(normalizeInputRetTypeSettings({ maxItems: 10 }, { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30 })).toEqual({
+      expect(normalizeInputReturnSettings({ maxItems: 10 }, { ...DEFAULT_DECODER_SETTINGS, maxDepth: 30 })).toEqual({
         ...DEFAULT_DECODER_SETTINGS,
         maxDepth: 30,
         maxItems: 10,
@@ -242,8 +245,8 @@ describe("inputDecodableTypes", () => {
     });
 
     it("is rejected by the schema for a type declaration", () => {
-      expect(inputRetTypeSettingsSchema.safeParse("int").success).toBe(false);
-      expect(inputRetTypeSettingsSchema.safeParse(["int", { maxItems: 10 }]).success).toBe(false);
+      expect(inputReturnSettingsSchema.safeParse("int").success).toBe(false);
+      expect(inputReturnSettingsSchema.safeParse(["int", { maxItems: 10 }]).success).toBe(false);
     });
   });
 });

@@ -14,7 +14,7 @@ metadata:
 # The app passes the objects of MastgTest.useCryptoTypes() to these methods. To see the objects an app
 # really uses, hook the APIs themselves, e.g. Cipher.init() (see ../api_examples.yaml).
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       # any java.security.Key: algorithm, format and key material as hex

@@ -25,11 +25,10 @@ metadata:                       # optional
   author: <author>
   version: 1
 
-settings:                       # optional, applies to every hook collection
-  hookSettings: { maxStackFrames: 5 }
-  decoderSettings: { maxItems: 50 }
+hookSettings: { maxStackFrames: 5 }     # optional, applies to every hook collection
+decoderSettings: { maxItems: 50 }       # optional
 
-hookCollection:
+hookCollections:
   # Docs: <link to the upstream API>
   - javaClass: java.security.KeyPairGenerator
     hooks:
@@ -38,10 +37,10 @@ hookCollection:
   - module: libssl.so
     hooks:
       - symbol: SSL_write
-        retType: int
+        returns: int
         params:
           - ["SSL *", ssl]
-          - ["const void *", buf, { decoderArgs: { length: num } }]
+          - ["const void *", buf, { length: num }]
           - [int, num]
 ```
 
@@ -51,25 +50,28 @@ hookCollection:
 
 - Use fully qualified names. Inner classes use `$`: `android.security.keystore.KeyGenParameterSpec$Builder`.
 - Constructors are `$init`.
-- Java hooks have **no `retType`**; the return type comes from reflection.
+- Java hooks declare **no return type**; it comes from reflection. `returns` on an overload only takes the decoder settings of the return value, e.g. `returns: { decoder: string }`.
 - Type descriptors: primitives as-is (`int`, `boolean`); primitive arrays in JVM form (`"[B"` for `byte[]`, `"[I"`); object arrays as `"[Ljava.lang.String;"`; objects fully qualified (`java.lang.String`). Quote anything that starts with `[`.
 - Overloads: each entry under `overloads` is one `params:` list matching one exact signature.
 
 **Native (`module`)**
 
-- `module` is the library file name (`libc.so`, `libssl.so`, `libcrypto.so`, or the app's own `lib<name>.so`).
-- Declare `retType` and `params` with C types (`"const char *"`, `int`, `size_t`) if you want decoded values. Without them, only the call is recorded. Quote pointer types.
-- Non-terminated buffers need their length in the role `length`: `{ decoderArgs: { length: <name of the length param> } }`. A Java method that uses a slice of an array (`byte[] b, int off, int len`) needs `{ decoderArgs: { offset: off, length: len } }`. Each decoder accepts only some roles, see `docs/decoders-native.md` and `docs/decoders-java.md`.
+- `module` is the library file name (`libc.so`, `libssl.so`, `libcrypto.so`, or the app's own `lib<name>.so`), never a path.
+- Declare `returns` and `params` with C types (`"const char *"`, `int`, `size_t`) if you want decoded values. Without them, only the call is recorded. Quote pointer types.
+- Non-terminated buffers need their length as `length`: `{ length: <name of the length param> }`. A Java method that uses a slice of an array (`byte[] b, int off, int len`) needs `{ offset: off, length: len }`. Each decoder accepts both, one or none of them, see `docs/decoders-native.md` and `docs/decoders-java.md`.
 
 **Parameter forms** (both platforms): `type` · `[type, name]` · `[type, name, {settings}]` · `{ type: ..., name: ..., <settings> }`. Hook forms: `- name` · `- [name, {decoderSettings}]` · the expanded object form.
 
-**Decoder settings.** `maxDepth`, `maxItems` and `decoder` can be set at the file, hook collection, hook and param/return type level; lower levels override higher ones. All other decoder settings can only be set on a single param or return type:
+**Decoder settings.** `maxDepth`, `maxItems` and `decoder` can be set at the file, hook collection, hook and param/return value level; lower levels override higher ones. All other decoder settings can only be set on a single param or return value:
 
 - `maxDepth` (default 10), `maxItems` (default 100).
-- `decoder: <name>`, which must be one of the registered names. Both: `string`, `base64`, `hex`, `constants`, `bitmask`. Java only: `getters`, `hashCode` (the `hashCode` of the events about the object). Native only: `utf16`, `errno` (return value only), `fd`, `constants`, `bitmask`, `nullTerminated`, and the presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain`, `socketType`. `constants` and `bitmask` take their names from `config: { constants: { NAME: value } }`. In Java hooks, they read the `static final` fields of the hooked class instead, or of `config.class`, filtered by the pattern `config.fields` (`*` matches any characters), e.g. `config: { fields: "*_MODE" }` on `Cipher.init` or `config: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" }`; prefer this over copying values from the docs, and narrow `fields` when a class has several constants with the same value. The names are the types `JavaDecoderName` and `NativeDecoderName` in `frooky/agent/src/shared/frookySettings.ts`. The schema checks them per platform in settings objects, but not inside a param tuple such as `["[B", data, { decoder: string }]`; frooky skips a hook with a decoder of the other platform at runtime. Use `string` to show `byte[]` as text, and `hex` to show bytes or a number as hex.
-- Param and return type only: `direction: in | out | inout` (params only; use `out` or `inout` for buffers the callee fills, e.g. `Cipher.doFinal(byte[] output, ...)`, `RAND_bytes`), `decoderArgs`, `config` (the options of the decoder, accepted only by the decoders that use them, e.g. `config: { constants: {...} }` for `constants` and `bitmask`), and `argFilter` (a regex list; only capture calls whose decoded value matches).
+- `decoder: <name>`, which must be one of the registered names. Both: `string`, `base64`, `hex`, `constants`, `bitmask`. Java only: `getters`, `hashCode` (the `hashCode` of the events about the object). Native only: `utf16`, `errno` (return value only), `fd`, `constants`, `bitmask`, `nullTerminatedArray`, and the presets `openFlags`, `mmapProt`, `mmapFlags`, `dlopenFlags`, `socketDomain`, `socketType`. `constants` and `bitmask` take their names from `decoderOptions: { constants: { NAME: value } }`. In Java hooks, they read the `static final` fields of the hooked class instead, or of `decoderOptions.class`, filtered by the pattern `decoderOptions.fields` (`*` matches any characters), e.g. `decoderOptions: { fields: "*_MODE" }` on `Cipher.init` or `decoderOptions: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" }`; prefer this over copying values from the docs, and narrow `fields` when a class has several constants with the same value. The names are the types `JavaDecoderName` and `NativeDecoderName` in `frooky/agent/src/shared/frookySettings.ts`. The schema checks them per platform in settings objects, but not inside a param tuple such as `["[B", data, { decoder: string }]`; frooky skips a hook with a decoder of the other platform at runtime. Use `string` to show `byte[]` as text, and `hex` to show bytes or a number as hex.
+- Param only: `direction: in | out | inout` (use `out` or `inout` for buffers the callee fills, e.g. `Cipher.doFinal(byte[] output, ...)`, `RAND_bytes`), `length`, `offset`, and `argFilter` (a regex list; only capture calls whose decoded value matches).
+- Param and return value: `decoderOptions` (the options of the decoder, accepted only by the decoders that use them, e.g. `decoderOptions: { constants: {...} }` for `constants` and `bitmask`).
 
-**Hook settings:** `nativeStackTrace`/`platformStackTrace` (off by default), `maxStackFrames` (default 5) and `callerFilter` (a regex list; a call is kept only if its caller matches). On Java hooks, `callerFilter` matches `<class>.<method>` anywhere on the Java stack except the hooked method itself, e.g. `"^org\\.owasp\\."` for the app's own code; it walks the Java stack on every call. On native hooks, it matches only the module name of the direct caller, e.g. `'^libapp\.so$'`, and is cheap; it never matches Java frames, and a libc function called from inside libc (e.g. `open` from `fopen`) has `libc.so` as its caller. It needs no stack trace.
+frooky rejects unknown properties and invalid values: it skips the file, hook collection or hook they are set on.
+
+**Hook settings:** `nativeStackTrace`/`javaStackTrace` (off by default), `maxStackFrames` (default 5) and `callerFilter` (a regex list; a call is kept only if its caller matches). On Java hooks, `callerFilter` matches `<class>.<method>` anywhere on the Java stack except the hooked method itself, e.g. `"^org\\.owasp\\."` for the app's own code; it walks the Java stack on every call. On native hooks, it matches only the module name of the direct caller, e.g. `'^libapp\.so$'`, and is cheap; it never matches Java frames, and a libc function called from inside libc (e.g. `open` from `fopen`) has `libc.so` as its caller. It needs no stack trace.
 
 ## Validate
 
@@ -84,7 +86,7 @@ This checks the file against `docs/schema/frooky-config.schema.json`. For `anyOf
 ## Review checklist
 
 - [ ] Every class/method or module/symbol has a `# Docs:` link and matches upstream exactly.
-- [ ] Output buffers use `direction: out` or `inout`; native buffers without a terminator have the role `length` in `decoderArgs`, and Java slices have `offset` and `length`.
+- [ ] Output buffers use `direction: out` or `inout`; native buffers without a terminator have a `length`, and Java slices have `offset` and `length`.
 - [ ] `decoder:` names come from the registered list.
 - [ ] Hot methods (e.g. `String` methods, `HashMap.put`) are filtered or avoided; hooking them can make the app crawl.
 - [ ] No blocked function or method (e.g. `String.$init`, `Class.forName(String)`, `dlopen`): frooky skips them, see `docs/under-the-hood.md` (Danger Zone sections).

@@ -1,12 +1,24 @@
-import { DecoderArgs } from "../frookySettings";
+import { DecoderArgValue, DecoderSettings } from "../frookySettings";
 import { logger } from "../logger";
 
-export type DecoderArgRole = keyof DecoderArgs;
+// The settings of a parameter that pass another value to its decoder. Each role means the same for every decoder that
+// accepts it.
+export type DecoderArgRole = "length" | "offset";
 
 export const DECODER_ARG_ROLES: readonly DecoderArgRole[] = ["length", "offset"];
 
-// The `decoderArgs` value that passes the return value, e.g. the number of bytes `read` wrote into its buffer.
+// The value of a role that passes the return value, e.g. the number of bytes `read` wrote into its buffer.
 export const RETURN_VALUE_DECODER_ARG = "$ret";
+
+// The roles a parameter sets, e.g. `{ length: "len" }`
+export function decoderArgsOf(settings: Pick<DecoderSettings, DecoderArgRole>): Partial<Record<DecoderArgRole, DecoderArgValue>> {
+  const decoderArgs: Partial<Record<DecoderArgRole, DecoderArgValue>> = {};
+  for (const role of DECODER_ARG_ROLES) {
+    const value = settings[role];
+    if (value !== undefined) decoderArgs[role] = value;
+  }
+  return decoderArgs;
+}
 
 // The values of the roles when a value is decoded: the decoded value of another parameter, the decoded return
 // value, or the number from the hook file
@@ -23,10 +35,10 @@ export function countArg(args: DecoderArgValues | undefined, role: DecoderArgRol
   const value = args[role];
   const count = typeof value === "number" ? value : typeof value === "string" && /^-?\d+$/.test(value) ? Number(value) : NaN;
   if (!Number.isInteger(count)) {
-    throw Error(`decoderArgs '${role}' must be a non-negative integer, but it is: ${JSON.stringify(value)}`);
+    throw Error(`'${role}' must be a non-negative integer, but it is: ${JSON.stringify(value)}`);
   }
   if (count < 0) {
-    throw new NegativeCountError(`decoderArgs '${role}' is negative: ${JSON.stringify(value)}`);
+    throw new NegativeCountError(`'${role}' is negative: ${JSON.stringify(value)}`);
   }
   return count;
 }

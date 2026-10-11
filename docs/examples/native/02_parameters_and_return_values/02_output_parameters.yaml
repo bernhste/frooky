@@ -12,21 +12,21 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/02_parameters_and_return_values/02_output_parameters.yaml
 # See:    docs/decoders.md#direction-declare-the-time-of-decoding
 
-hookCollection:
+hookCollections:
   - module: libreceiveFundamentalReference.so
     hooks:
       # int get_secret(char *out, int out_len) copies the NUL-terminated "s3cr3t" into `out`
       - symbol: get_secret
-        retType: int
+        returns: int
         params:
           - ["char *", out, { direction: out }]
           - [int, out_len]
 
       # unsigned char *receive_byte_array(unsigned char *data, int length) XORs each byte with 0xFF in place.
-      # `data` has no terminator, so the role `length` passes its length.
+      # `data` has no terminator, so `length` passes its length.
       - symbol: receive_byte_array
         params:
-          - ["unsigned char *", data, { direction: inout, decoderArgs: { length: length } }]
+          - ["unsigned char *", data, { direction: inout, length: length }]
           - [int, length]
 
 # Expected events:

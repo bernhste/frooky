@@ -11,7 +11,7 @@ export class IntentDecoder extends RecursiveDecoder<Java.Wrapper> {
 
   private readonly flagsDecoder = new BitmaskDecoder({
     type: "int",
-    settings: { ...this.settings, config: { class: "android.content.Intent", fields: "FLAG_*" } },
+    settings: { ...this.settings, decoderOptions: { class: "android.content.Intent", fields: "FLAG_*" } },
   });
 
   protected decodeRecursive(value: Java.Wrapper): DecodedValue {

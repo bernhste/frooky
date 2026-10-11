@@ -115,22 +115,23 @@ Each hook file is processed on its own, all of them concurrently. Its hook decla
 flowchart LR
     yaml["Input YAML (hook file):<br/>InputFrookyConfig"]
 
-    subgraph file["File validation and repair"]
+    subgraph file["File validation"]
         direction TB
-        vcfg["validateAndRepairFrookyConfig()"] --> vmeta["validate metadata<br/>(frookyMetadataSchema)"]
-        vmeta --> hasColl{"has hookCollection?"}
-        hasColl -->|no| skip(["skip file with error"])
-        hasColl -->|yes| vsettings["validate and repair settings:<br/>reset invalid settings to defaults,<br/>drop invalid callerFilter patterns"]
+        vcfg["validateFrookyConfig()"] --> hasColl{"schemaVersion supported,<br/>hookCollections a list?"}
+        hasColl -->|no| skip(["skip file with a warning"])
+        hasColl -->|yes| vsettings{"validate settings<br/>(inputFrookyConfigSchema):<br/>invalid value, unknown property<br/>or invalid callerFilter pattern?"}
+        vsettings -->|yes| skip
+        vsettings -->|no| vmeta["validate metadata<br/>(frookyMetadataSchema):<br/>warnings only"]
     end
 
-    coll["for each hook collection:<br/>• check that hooks is a list<br/>• merge collection and file settings"]
+    coll["for each hook collection:<br/>• check that hooks is a list<br/>• reject unknown properties and invalid settings<br/>&nbsp;&nbsp;(skips the collection with a warning)<br/>• merge collection and file settings"]
 
     subgraph decl["Declaration validation and normalization"]
         direction TB
-        vhook{"validate input hook<br/>(inputJavaHookSchema /<br/>inputNativeHookSchema)"}
+        vhook{"validate input hook<br/>(inputJavaHookSchema /<br/>inputNativeHookSchema),<br/>reject unknown properties"}
         vhook -->|invalid| drop(["drop declaration with warning"])
-        vhook -->|valid| norm["normalize hook declaration:<br/>• unpack shorthands (names, param tuples)<br/>• cascade merged settings to hook, params and retType<br/>• attach class or module scope"]
-        norm --> sem{"semantic checks:<br/>• decoder args, config and names<br/>• drop blocked methods or functions<br/>• adjust early hooking on Java"}
+        vhook -->|valid| norm["normalize hook declaration:<br/>• unpack shorthands (names, param tuples)<br/>• cascade merged settings to hook, params and returns<br/>• attach class or module scope"]
+        norm --> sem{"semantic checks:<br/>• length, offset, decoder options and names<br/>• drop blocked methods or functions<br/>• adjust early hooking on Java"}
         sem -->|rejected| drop
     end
 
@@ -165,14 +166,16 @@ symbol: EVP_EncryptInit_ex
 params:
   - { type: "EVP_CIPHER_CTX *", direction: in, settings: { maxDepth: 10, maxItems: 32 } }
   - { type: "const unsigned char *", name: key, direction: in, settings: { maxDepth: 10, maxItems: 16 } }
-hookSettings: { maxStackFrames: 5, nativeStackTrace: false, platformStackTrace: false, callerFilter: [], early: false }
+hookSettings: { maxStackFrames: 5, nativeStackTrace: false, javaStackTrace: false, callerFilter: [], early: false }
 decoderSettings: { maxDepth: 10, maxItems: 32 }
 ```
 
 Only the input is validated, against the Zod schemas generated from the input types. The normalized form is produced by frooky itself, and TypeScript guarantees its shape:
 
-- `validateAndRepairFrookyConfig()` checks the file's `metadata` and `settings`. Invalid metadata and unknown properties only cause a warning. An invalid setting is reset to its default, also with a warning, and an invalid regular expression in `callerFilter` is dropped. The settings of a hook collection are repaired the same way. A file without a `hookCollection` is skipped; the other files still load.
-- Each hook declaration is checked against its input schema (`inputJavaHookSchema` or `inputNativeHookSchema`) before it is normalized. An invalid declaration, including an invalid setting on the hook or one of its values, is dropped with a warning that names the invalid field; the other declarations of the file still load. A property the schema doesn't know, e.g. a misspelled `retTyp`, is ignored with a warning.
+- `validateFrookyConfig()` checks the file's `schemaVersion`, `hookSettings` and `decoderSettings`. An invalid value, a property the schema doesn't know or an invalid regular expression in `callerFilter` skips the file with a warning, and so does a file without a `hookCollections` list; the other files still load.
+- `metadata` is informational and never skips a file: fields the schema doesn't know are accepted, and an invalid value or a `platform` other than the device's only causes a warning.
+- The properties and settings of a hook collection are checked the same way. An invalid one skips that collection with a warning; the other collections of the file still load.
+- Each hook declaration is checked against its input schema (`inputJavaHookSchema` or `inputNativeHookSchema`) before it is normalized. An invalid declaration, including an invalid setting on the hook or one of its values, is dropped with a warning that names the invalid field; the other declarations of the file still load. A property the schema doesn't know, e.g. a misspelled `returs`, drops the declaration too.
 
 **Sources:**
 
@@ -283,7 +286,7 @@ The method, symbol or offset is resolved as soon as its class or module is found
 A **Java method** is resolved by `resolveMethodHooks()`:
 
 1. It looks up the method by name on the class (`javaClass[method]`). frida-java-bridge returns a method dispatcher with all overloads of that name.
-2. Without `overloads`, every overload is hooked, each as its own hook. Its parameters are built from the overload's argument types, e.g. `[B`, `int` or `java.lang.String`, each with the declaration's `decoderSettings`. The return type comes from the overload as well. So a Java hook needs no `params` or `retType` in the hook file.
+2. Without `overloads`, every overload is hooked, each as its own hook. Its parameters are built from the overload's argument types, e.g. `[B`, `int` or `java.lang.String`, each with the declaration's `decoderSettings`. The return type comes from the overload as well. So a Java hook needs no `params` or `returns` in the hook file.
 3. With `overloads`, only the declared ones are hooked (`method.overload(...types)`), with the parameters of the hook file. A declared overload that doesn't exist is skipped with a warning.
 
 A **native function** is resolved by `resolveNativeHook()`:
@@ -395,7 +398,7 @@ When attaching, the app is already in stage 3. What can be hooked in each stage:
 | **2. Resumed**         | ⚠️ Only with `early: true`, in the linker while a module loads, before `.init_array` and `JNI_OnLoad` | ⏳ App classes stay `resolving`                                     | ⚠️ No Java frames in native hooks (`before-ready`) |
 | **3. `targetReady`**   | ✅ Every waiting hook on a loaded module is installed                                                 | ✅ App classes are looked up in the app's class loaders             | ✅ Java and native                                 |
 
-Stack traces are off by default: a hook only captures them with `nativeStackTrace: true` or `platformStackTrace: true` (Java frames). In every stage, frooky skips the stack trace of a call it detects as unsafe, see [Stack Traces During Early Hooking](#stack-traces-during-early-hooking).
+Stack traces are off by default: a hook only captures them with `nativeStackTrace: true` or `javaStackTrace: true` (Java frames). In every stage, frooky skips the stack trace of a call it detects as unsafe, see [Stack Traces During Early Hooking](#stack-traces-during-early-hooking).
 
 ### Safe Default: Wait for `targetReady`
 
@@ -565,7 +568,7 @@ How the stack traces are captured, and how the checks stay cheap:
 - **Linker watch:** when the agent starts, before any hook is installed, `watchLinker()` hooks the linker's entry points `__loader_dlopen`, `__loader_android_dlopen_ext` and `__loader_dlclose` and counts the threads inside them. These entry points run before the linker takes its lock, so their callbacks never wait for the agent while holding it.
 - **Stack bounds:** `pthread_getattr_np()` is called once per thread, and its result is cached by thread ID. It counts the guard pages below a thread's stack as stack, e.g. 20KB on Android 15 x86_64, so frooky moves the lower bound above them. A stack pointer outside the cached bounds, e.g. of a new thread with a reused ID, looks the bounds up again.
 
-The event's `stackTrace` gets a `skipped` field with the reason when requested frames are missing, see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces). A Java hook's `callerFilter` walks the Java stack, so it drops the call when that walk is left out, e.g. at `linker-busy` while `Java.backtrace()` isn't initialized yet. A native hook's `callerFilter` reads only the return address and is checked in every call. The validator notes (with `-v`) that a native hook with `early: true` and `platformStackTrace: true` gets no Java frames before `targetReady`. See [`03_stack_traces_while_loading.yaml`](./examples/native/08_early_hooking/03_stack_traces_while_loading.yaml) for the stack traces of a library's constructor and `JNI_OnLoad`.
+The event's `stackTrace` gets a `skipped` field with the reason when requested frames are missing, see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces). A Java hook's `callerFilter` walks the Java stack, so it drops the call when that walk is left out, e.g. at `linker-busy` while `Java.backtrace()` isn't initialized yet. A native hook's `callerFilter` reads only the return address and is checked in every call. The validator notes (with `-v`) that a native hook with `early: true` and `javaStackTrace: true` gets no Java frames before `targetReady`. See [`03_stack_traces_while_loading.yaml`](./examples/native/08_early_hooking/03_stack_traces_while_loading.yaml) for the stack traces of a library's constructor and `JNI_OnLoad`.
 
 These checks cover the known ways a stack walk crashes or hangs the app, not every one. That's why the validator still warns about stack traces on high-frequency libc functions, and why stack traces of `sigprocmask` are [blocked](#danger-zone-blocked-native-functions). A Java hook gets no stack check, as frooky can't prevent the crash: near the end of a thread's stack, e.g. deep in a recursion, ART throws a `StackOverflowError` while frida-java-bridge enters or leaves the hook, before or after frooky's code runs. On an Android 15 x86_64 emulator, a hooked method crashed the app with up to 35KB of stack left, also when the hook only called the original method, and the same call without a hook didn't crash with 11KB left.
 
@@ -591,7 +594,7 @@ See [Caller Filters](./additional-features.md#caller-filters) for how to write t
 - [`nativeCallerFilter.ts`](../frooky/agent/src/native/nativeCallerFilter.ts) (native `callerFilter` and its ranges)
 - [`nativeFilteredListener.ts`](../frooky/agent/src/native/hook/nativeFilteredListener.ts) (`callerFilter` in native code)
 - [`androidStackTrace.ts`](../frooky/agent/src/android/androidStackTrace.ts) (Java `callerFilter`)
-- [`platformStackTrace.ts`](../frooky/agent/src/shared/platformStackTrace.ts) (`compileCallerFilter()`)
+- [`javaStackTrace.ts`](../frooky/agent/src/shared/javaStackTrace.ts) (`compileCallerFilter()`)
 
 ### The Path of a Native Call
 
@@ -634,7 +637,7 @@ A call that the `NativeFilteredListener` passes on reaches JavaScript through a 
 | don't decode `float` or `double` values | on x86_64 and arm64 they are in the FP registers, which are part of the CPU context                 |
 | have at most 16 params                  | the CModule passes up to 16 arguments on                                                            |
 
-Java stack traces (`platformStackTrace`), `argFilter`, `out` params, `errno` and the [checks for unsafe calls](#stack-traces-during-early-hooking) work on both listeners. For the stack checks, the CModule passes an address on the calling thread's stack.
+Java stack traces (`javaStackTrace`), `argFilter`, `out` params, `errno` and the [checks for unsafe calls](#stack-traces-during-early-hooking) work on both listeners. For the stack checks, the CModule passes an address on the calling thread's stack.
 
 When hooks are added or removed, frooky checks the rules again and swaps the listener if needed, e.g. to the JS listener while a second hook file adds a hook with `nativeStackTrace: true` to the same function, and back once it's removed. With `-vv`, frooky logs which listener a function got and why:
 
@@ -725,7 +728,7 @@ A recorded call goes through the same steps on both platforms. Only the hooks th
 1. **Re-entry guard:** `enterHookCode()` marks the thread as running hook code. A hooked function or method that frooky's own code calls on this thread, e.g. `toString()` while decoding a Java object or `readlink` in `decoder: fd`, runs without its hooks, which would otherwise recurse until the stack overflows. Java and native hooks share the guard.
 2. **On enter:** the `callerFilter`, the `in` and `inout` arguments, decoded and checked against their `argFilter`, and the stack trace if the hook needs one, after checking for an [unsafe context](#stack-traces-during-early-hooking). A native hook decodes before it builds the stack trace. A Java hook builds the stack trace first, as its `callerFilter` walks the Java stack. For `out` arguments, the native hook copies the argument pointers, as Frida's arguments are only valid in `onEnter`. `float` and `double` arguments are read from the FP registers.
 3. **The original runs:** a native function returns to the Interceptor. A Java dispatcher calls the original method once for all hooks of the overload.
-4. **On leave:** the return value is decoded first, as an `out` argument with `decoderArgs: { length: $ret }` needs it, then the `out` and `inout` arguments, again checked against their `argFilter`. `errno` is read right after the call, before frooky's code can change it.
+4. **On leave:** the return value is decoded first, as an `out` argument with `length: $ret` needs it, then the `out` and `inout` arguments, again checked against their `argFilter`. `errno` is read right after the call, before frooky's code can change it.
 5. **Event:** `addEventToLog()` creates the event (`NativeHookEvent` or `JavaHookEvent`) with the decoded values and the stack trace, pushes it to the event cache, and counts it and its decoding time for the [hook statistics](./additional-features.md#hook-statistics-s--s-key).
 
 A failing decoder drops the call with an error log, but never the app's call: the original function or method still runs and returns its value.
@@ -814,7 +817,7 @@ A hook runs inside the app's call, often thousands of times per second, and ever
 | --------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------------- |
 | Class or module lookup                                                            | class or module, for all hooks that name it  | `AndroidHookManager`, `NativeHookManager`     |
 | Exports of a module that is loading, read from its ELF                            | module                                       | `NativeHookManager`                           |
-| Decoders, `decoderArgs` sources and `argFilter` expressions                       | hook, when it is installed                   | `HookManager.resolveParamDecoders()`          |
+| Decoders, `length` and `offset` sources and `argFilter` expressions               | hook, when it is installed                   | `HookManager.resolveParamDecoders()`          |
 | Argument slots of `float` and `double` params, the hash code of a native function | hook, when it is installed                   | `NativeHookManager.prepareHook()`             |
 | `callerFilter` expressions                                                        | hook                                         | `compileCallerFilter()`, `NativeCallerFilter` |
 | Address ranges of the modules a native `callerFilter` matches                     | hook, updated when a module loads or unloads | `NativeCallerFilter`                          |

@@ -12,7 +12,7 @@ metadata:
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/03_custom_decoders.yaml
 # See:    docs/decoders.md#built-in-decoders
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       # `string`: a byte[] as text, instead of a list of numbers
@@ -64,12 +64,12 @@ hookCollection:
           - params:
               - [int, mode, { decoder: constants }]
 
-      # `constants` with `config: { constants }`: the names you declare instead of the constants of the hooked class, e.g. for
+      # `constants` with `decoderOptions: { constants }`: the names you declare instead of the constants of the hooked class, e.g. for
       # constants declared on another class, or an obfuscated app whose fields have no meaningful names
       - method: receiveMode
         overloads:
           - params:
-              - [int, opmode, { decoder: constants, config: { constants: { ENCRYPT: 1, DECRYPT: 2 } } }]
+              - [int, opmode, { decoder: constants, decoderOptions: { constants: { ENCRYPT: 1, DECRYPT: 2 } } }]
 
   # `bitmask` with `class`: the names of the constants whose bits are set in a bitmask. The purposes of a Keystore key
   # are a bitmask of KeyProperties.PURPOSE_*, which aren't declared on the hooked Builder class, so `class` names the
@@ -81,7 +81,7 @@ hookCollection:
         overloads:
           - params:
               - [java.lang.String, keystoreAlias]
-              - [int, purposes, { decoder: bitmask, config: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" } }]
+              - [int, purposes, { decoder: bitmask, decoderOptions: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" } }]
 
   # `constants` with `fields`: the constants of the hooked class whose names match. Cipher declares ENCRYPT_MODE and
   # PUBLIC_KEY, both 1, so `*_MODE` picks the constants of `opmode`.
@@ -91,7 +91,7 @@ hookCollection:
       - method: init
         overloads:
           - params:
-              - [int, opmode, { decoder: constants, config: { fields: "*_MODE" } }]
+              - [int, opmode, { decoder: constants, decoderOptions: { fields: "*_MODE" } }]
               - [java.security.Key, key]
               - [java.security.spec.AlgorithmParameterSpec, params]
 
@@ -102,7 +102,7 @@ hookCollection:
       - method: setFlags
         overloads:
           - params:
-              - [int, flags, { decoder: bitmask, config: { fields: "FLAG_*" } }]
+              - [int, flags, { decoder: bitmask, decoderOptions: { fields: "FLAG_*" } }]
 
       # the Intent.URI_* constants set in a bitmask
       # Docs: https://developer.android.com/reference/android/content/Intent#parseUri(java.lang.String,%20int)
@@ -110,7 +110,7 @@ hookCollection:
         overloads:
           - params:
               - [java.lang.String, uri]
-              - [int, flags, { decoder: bitmask, config: { fields: "URI_*" } }]
+              - [int, flags, { decoder: bitmask, decoderOptions: { fields: "URI_*" } }]
 
 # Expected values (argsIn):
 #   receiveTextBytes:  "Hello frooky"

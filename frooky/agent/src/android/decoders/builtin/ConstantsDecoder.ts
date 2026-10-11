@@ -4,17 +4,17 @@ import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { configClassConstants } from "../utils/decodeConstants";
 
 // Decodes a value to the name of the matching constant, e.g. `1` -> `ENCRYPT_MODE` for `Cipher.init(int, Key)`.
-// The constants are the map in `config.constants`, or else the `static final` fields of `config.class` or of the
-// hooked class that match `config.fields`. Falls back to the raw value if no constant matches.
+// The constants are the map in `decoderOptions.constants`, or else the `static final` fields of `decoderOptions.class` or of the
+// hooked class that match `decoderOptions.fields`. Falls back to the raw value if no constant matches.
 export class ConstantsDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "ConstantsDecoder";
   readonly description =
-    "Decodes a value to the name of the matching constant in `config.constants`, or else of the `static final` constants of `config.class` or of the hooked class, e.g. `1` to `ENCRYPT_MODE` for `Cipher.init()`.";
+    "Decodes a value to the name of the matching constant in `decoderOptions.constants`, or else of the `static final` constants of `decoderOptions.class` or of the hooked class, e.g. `1` to `ENCRYPT_MODE` for `Cipher.init()`.";
 
   private readonly constantsOfClass = configClassConstants(this.decodable);
 
   decode(value: Java.Wrapper): DecodedValue {
-    const configConstants = this.settings.config?.constants;
+    const configConstants = this.settings.decoderOptions?.constants;
     const name = configConstants ? this.findInConfig(value, configConstants) : this.findInClass(value);
     return {
       type: this.type,

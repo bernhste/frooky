@@ -12,7 +12,7 @@ metadata:
 # Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/03_decoders/04_decoder_resolution.yaml
 # See:    docs/decoders-java.md#how-frooky-picks-a-java-decoder
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hooks:
       # Declared as Parcelable, receives a LabeledIntent: decoded by the class decoder of its superclass Intent.
@@ -21,7 +21,7 @@ hookCollection:
       - method: receiveParcelable
         overloads:
           - params: [android.os.Parcelable]
-            retType: { decoder: string }
+            returns: { decoder: string }
 
       # Declared as Object, receives a TreeMap: decoded by the interface decoder of java.util.Map.
       - receiveAny

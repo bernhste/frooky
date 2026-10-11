@@ -11,7 +11,7 @@ metadata:
 # Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/02_parameters_and_return_values/01_values_and_pointers.yaml
 # See:    docs/parameter-declaration.md#native-parameters
 
-hookCollection:
+hookCollections:
   # int receive_int(int minValue, int maxValue), double receive_double(double minValue, double maxValue)
   - module: libreceiveFundamentalValue.so
     hooks:

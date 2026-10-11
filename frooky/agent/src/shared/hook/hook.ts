@@ -4,7 +4,7 @@ import { HookSettings, BaseDecoderSettings } from "../frookySettings";
 export interface Hook {
   hookSettings: HookSettings;
   decoderSettings: BaseDecoderSettings;
-  retType?: RetType;
+  returns?: RetType;
   // calls dropped by the callerFilter or an argFilter, for the host's hook statistics
   filteredCalls?: number;
   // calls dropped in native code before reaching JS, while counted there (see NativeFilteredListener)

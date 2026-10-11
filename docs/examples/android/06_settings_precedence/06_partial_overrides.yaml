@@ -7,16 +7,15 @@ metadata:
   author: frooky dev
   platform: Android
 
-# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# Levels, from farthest to closest: default < file < hook collection < hook < parameter/return value.
 # See docs/additional-features.md#settings-precedence.
 # Target: the value-passing-java test app, which calls MastgTest.receiveString("Welcome the first OWASP MASCon 📱❤️") once.
 
-settings:
-  hookSettings:
-    platformStackTrace: true
-    maxStackFrames: 1
+hookSettings:
+  javaStackTrace: true
+  maxStackFrames: 1
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     decoderSettings:
       maxItems: 15
@@ -27,9 +26,9 @@ hookCollection:
         overloads:
           - params:
               - [java.lang.String, arg]
-            retType: { maxItems: 30 }
+            returns: { maxItems: 30 }
 
 # Expected event after pressing Start:
-#   stackTrace:        3 frames in platformStackTrace (hook: maxStackFrames 3); turning the stack traces on still comes from the file
+#   stackTrace:        3 frames in javaStackTrace (hook: maxStackFrames 3); turning the stack traces on still comes from the file
 #   argsIn[0].value:   "Welcome the fir..."                     (hook collection: maxItems 15)
 #   returnValue.value: "Welcome the first OWASP MASCon..."      (return type: maxItems 30)

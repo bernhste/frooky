@@ -7,7 +7,7 @@ The types in this folder are used for the public YAML files. They extend certain
 In the YAML file we can use the following different ways to declare a method:
 
 ```yaml
-hookCollection:
+hookCollections:
   - javaClass: android.security.AttestedKeyPair
     hooks:
       - $init
@@ -25,7 +25,7 @@ hookCollection:
 - module: libssl.so
   hooks:
     - symbol: EVP_EncryptInit_ex
-      retType: int
+      returns: int
       params:
         - "EVP_CIPHER_CTX *"
         - ["const EVP_CIPHER *", type]

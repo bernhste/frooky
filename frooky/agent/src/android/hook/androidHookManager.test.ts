@@ -13,7 +13,7 @@ import { JavaHook } from "./javaHook";
 import { JavaHookEvent } from "./javaHookEvent";
 
 // resolveHooks() installs nothing, so it can run against always-loaded classes like java.lang.String
-const stackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
+const stackTrace: PlatformStackTrace = { build: () => ({ javaStackTrace: [], nativeStackTrace: [] }) };
 const frookyAgent = {} as FrookyAgent;
 
 // true if `promise` hasn't settled within 100 ms
@@ -203,7 +203,7 @@ describe("AndroidHookManager", () => {
       expect(results.every((hooks) => hooks !== null && hooks.length > 0)).toBeTruthy();
     });
 
-    it("carries an overload's retType decoder settings onto the resolved JavaHook", async () => {
+    it("carries an overload's returns decoder settings onto the resolved JavaHook", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
       const retTypeSettings = { ...DEFAULT_DECODER_SETTINGS, decoder: "hashCode" as const };
       const hook: JavaHookDeclaration = {
@@ -211,7 +211,7 @@ describe("AndroidHookManager", () => {
         method: "indexOf",
         hookSettings: DEFAULT_HOOK_SETTINGS,
         decoderSettings: DEFAULT_BASE_DECODER_SETTINGS,
-        overloads: [{ params: normalizeInputParams(["int"]), retType: retTypeSettings }],
+        overloads: [{ params: normalizeInputParams(["int"]), returns: retTypeSettings }],
       };
 
       const results = await resultsOf(await manager.resolveHooks([hook]));
@@ -221,7 +221,7 @@ describe("AndroidHookManager", () => {
       expect(hooks[0].retTypeSettings).toEqual(retTypeSettings);
     });
 
-    it("leaves retTypeSettings undefined when an overload does not declare a retType", async () => {
+    it("leaves retTypeSettings undefined when an overload does not declare a returns", async () => {
       const manager = new AndroidHookManager(stackTrace, frookyAgent);
       const hook: JavaHookDeclaration = {
         javaClass: "java.lang.String",
@@ -248,7 +248,7 @@ describe("AndroidHookManager", () => {
         build: (settings: HookSettings) => {
           if (settings.callerFilter.length > 0) throw new FilterMismatchError();
           calledLimits.push(settings.maxStackFrames);
-          return { platformStackTrace: [], nativeStackTrace: [] };
+          return { javaStackTrace: [], nativeStackTrace: [] };
         },
       };
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
@@ -565,7 +565,7 @@ describe("AndroidHookManager", () => {
       const reentrantStackTrace: PlatformStackTrace = {
         build: () => {
           innerResults.push(reverse(5));
-          return { platformStackTrace: [], nativeStackTrace: [] };
+          return { javaStackTrace: [], nativeStackTrace: [] };
         },
       };
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;

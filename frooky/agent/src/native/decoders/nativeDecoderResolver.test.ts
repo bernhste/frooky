@@ -77,8 +77,8 @@ describe("NativeDecoderResolver", () => {
         expect(accepted("void *", "base64")).toEqual(["length", "offset"]);
       });
 
-      it("accepts offset for decoder: nullTerminated", () => {
-        expect(accepted("char **", "nullTerminated")).toEqual(["offset"]);
+      it("accepts offset for decoder: nullTerminatedArray", () => {
+        expect(accepted("char **", "nullTerminatedArray")).toEqual(["offset"]);
       });
 
       it("accepts no roles for values, unknown types and the other decoders", () => {

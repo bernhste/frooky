@@ -25,7 +25,7 @@ metadata:
 #
 # Expected: some hundred events/s while the UI moves, close to 0 when idle; the app stays usable.
 
-hookCollection:
+hookCollections:
   # Docs: https://developer.android.com/reference/android/os/Handler#dispatchMessage(android.os.Message)
   # Docs: https://developer.android.com/reference/android/os/Handler#sendMessageAtTime(android.os.Message,%20long)
   - javaClass: android.os.Handler

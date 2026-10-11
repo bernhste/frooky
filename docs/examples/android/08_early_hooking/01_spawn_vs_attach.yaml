@@ -19,7 +19,7 @@ metadata:
 # A hook whose class or native library isn't loaded yet is installed as soon as it loads, also much later.
 # Until then, frooky reports it as waiting once the app has started.
 
-hookCollection:
+hookCollections:
   # Docs: https://developer.android.com/reference/android/app/Activity#onCreate(android.os.Bundle)
   - javaClass: org.owasp.mastestapp.MainActivity
     hooks:

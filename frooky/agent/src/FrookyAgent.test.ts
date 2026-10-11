@@ -10,7 +10,7 @@ import { LogEvent } from "./shared/event/logEvent";
 import { logger } from "./shared/logger";
 import { PlatformStackTrace } from "./shared/platformStackTrace";
 
-const fakeStackTrace: PlatformStackTrace = { build: () => ({ platformStackTrace: [], nativeStackTrace: [] }) };
+const fakeStackTrace: PlatformStackTrace = { build: () => ({ javaStackTrace: [], nativeStackTrace: [] }) };
 
 function fakeHook(overrides: Partial<Hook> = {}): Hook {
   return { hookSettings: DEFAULT_HOOK_SETTINGS, decoderSettings: DEFAULT_BASE_DECODER_SETTINGS, ...overrides };
@@ -43,7 +43,7 @@ function fakeResolvingHookManager(): {
 } {
   const manager = fakePlatformHookManager();
   manager.resolveHooks.mockImplementation(async (inputHooks: string[]) =>
-    inputHooks.map((name) => Promise.resolve([fakeHook({ retType: { type: name } as Hook["retType"] })])),
+    inputHooks.map((name) => Promise.resolve([fakeHook({ returns: { type: name } as Hook["returns"] })])),
   );
   manager.registerHooks.mockImplementation((hooks: Hook[]) => hooks.length);
   return manager;
@@ -54,7 +54,7 @@ function resolvedNames(call: unknown[]): string[] {
 }
 
 function hookNames(call: unknown[]): string[] {
-  return (call[0] as Hook[]).map((hook) => hook.retType!.type);
+  return (call[0] as Hook[]).map((hook) => hook.returns!.type);
 }
 
 function fakePlatformHookValidator(normalizedHooks: unknown[] = []): HookValidator<any, any> {
@@ -86,8 +86,9 @@ function createAgent(
 function makeConfig(overrides: Partial<InputFrookyConfig> = {}): InputFrookyConfig {
   return {
     metadata: { name: "Test Config", platform: "Android" },
-    settings: { hookSettings: { ...DEFAULT_HOOK_SETTINGS }, decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS } },
-    hookCollection: [],
+    hookSettings: { ...DEFAULT_HOOK_SETTINGS },
+    decoderSettings: { ...DEFAULT_BASE_DECODER_SETTINGS },
+    hookCollections: [],
     ...overrides,
   };
 }

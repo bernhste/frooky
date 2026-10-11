@@ -1,9 +1,8 @@
-import { validateAndRepairDecoderSettings, validateAndRepairHookSettings } from "../configValidator";
-import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_HOOK_SETTINGS } from "../defaultValues";
+import { validateDecoderSettings, validateHookSettings } from "../configValidator";
 import { BaseDecoderSettings, FrookySettings, HookSettings } from "../frookySettings";
 import { JavaHookDeclaration, JavaOverloadDeclaration } from "../hook/hookDeclaration";
-import { InputParam, InputRetTypeSettings, normalizeInputParams, normalizeInputRetTypeSettings } from "./inputDecodableTypes";
-import { InputDecoderSettings, InputHookSettings } from "./inputSettings";
+import { InputParam, normalizeInputParams, normalizeInputReturnSettings } from "./inputDecodableTypes";
+import { InputDecoderSettings, InputHookSettings, InputReturnSettings } from "./inputSettings";
 
 /**
  * A specific overload of a Java method.
@@ -19,7 +18,7 @@ export interface InputOverload {
   /**
    * Decoder settings for the return value. The return type is resolved via reflection; no type is declared.
    */
-  retType?: InputRetTypeSettings;
+  returns?: InputReturnSettings;
 }
 
 /**
@@ -56,12 +55,8 @@ export type InputJavaHook = string | [string, InputDecoderSettings] | InputJavaH
  * Collection of hooks on methods of one Java class.
  *
  * @public
- * @discriminator {type}
  */
 export interface InputJavaHookCollection {
-  /** Collection kind. Optional in hook files; inferred from `javaClass`. */
-  type: "java";
-
   /**
    * Fully qualified name of the class to hook, e.g. `android.content.Intent`. A `*` matches within a single package
    * segment, while `**` matches across package segments (e.g. `android.**` hooks all matching classes in `android`
@@ -94,12 +89,12 @@ export function isJavaHookScope(hookScopeInput: object): hookScopeInput is Input
 function normalizeOverload(overload: InputOverload, decoderSettings: BaseDecoderSettings): JavaOverloadDeclaration {
   return {
     params: normalizeInputParams(overload.params, decoderSettings),
-    ...(overload.retType && { retType: normalizeInputRetTypeSettings(overload.retType, decoderSettings) }),
+    ...(overload.returns && { returns: normalizeInputReturnSettings(overload.returns, decoderSettings) }),
   };
 }
 
 // Normalizes one hook, validated against the input schema, with the merged collection settings. Throws on an invalid
-// param, so validators can skip a single hook.
+// param or setting, so validators can skip a single hook.
 export function normalizeJavaHook(
   javaClass: string,
   inputHook: InputJavaHook,
@@ -118,13 +113,13 @@ export function normalizeJavaHook(
       ...inherited,
       method,
       hookSettings,
-      decoderSettings: validateAndRepairDecoderSettings({ ...decoderSettings, ...methodDecoderSettings }),
+      decoderSettings: validateDecoderSettings({ ...decoderSettings, ...methodDecoderSettings }),
     };
   }
 
-  const mergedHookSettings = inputHook.hookSettings ? validateAndRepairHookSettings({ ...hookSettings, ...inputHook.hookSettings }) : hookSettings;
+  const mergedHookSettings = inputHook.hookSettings ? validateHookSettings({ ...hookSettings, ...inputHook.hookSettings }) : hookSettings;
   const mergedDecoderSettings = inputHook.decoderSettings
-    ? validateAndRepairDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
+    ? validateDecoderSettings({ ...decoderSettings, ...inputHook.decoderSettings })
     : decoderSettings;
 
   return {
@@ -136,18 +131,16 @@ export function normalizeJavaHook(
   };
 }
 
-// Merges defaults, file settings and the collection's settings, repairing invalid values.
+// Merges the file's settings and the collection's. Throws for an invalid setting.
 export function mergeJavaHookCollectionSettings(
   hookCollection: InputJavaHookCollection,
   settings: FrookySettings,
 ): { hookSettings: HookSettings; decoderSettings: BaseDecoderSettings } {
-  const hookSettings: HookSettings = validateAndRepairHookSettings({
-    ...DEFAULT_HOOK_SETTINGS,
+  const hookSettings: HookSettings = validateHookSettings({
     ...settings.hookSettings,
     ...hookCollection.hookSettings,
   });
-  const decoderSettings: BaseDecoderSettings = validateAndRepairDecoderSettings({
-    ...DEFAULT_BASE_DECODER_SETTINGS,
+  const decoderSettings: BaseDecoderSettings = validateDecoderSettings({
     ...settings.decoderSettings,
     ...hookCollection.decoderSettings,
   });

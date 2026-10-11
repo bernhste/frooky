@@ -3,7 +3,7 @@ import { Decoder } from "../../shared/decoders/baseDecoder";
 import { Decodable } from "../../shared/decoders/decodable";
 import { DecoderArgRole } from "../../shared/decoders/decoderArgs";
 import { DecoderResolver } from "../../shared/decoders/decoderResolver";
-import { DecoderConfig, DecoderSettings, JavaDecoderName } from "../../shared/frookySettings";
+import { DecoderOptions, DecoderSettings, JavaDecoderName } from "../../shared/frookySettings";
 import { ArrayDecoder } from "./builtin/ArrayDecoder";
 import { Base64Decoder } from "./builtin/Base64Decoder";
 import { ConstantsDecoder } from "./builtin/ConstantsDecoder";
@@ -66,7 +66,7 @@ export const JavaDecoderResolver: DecoderResolver<Java.Wrapper> = {
   },
 };
 
-// The `decoderArgs` roles the decoder of a parameter accepts, see the `decoderArgs` table in docs/decoders-java.md
+// Which of `length` and `offset` the decoder of a parameter accepts, see the table in docs/decoders-java.md
 export function acceptedJavaDecoderArgs(decodable: Decodable): readonly DecoderArgRole[] {
   const decoder = decodable.settings.decoder;
   if (decoder === "string" || decoder === "base64") return decodable.type === "[B" || decodable.type === "[C" ? ["length", "offset"] : [];
@@ -75,8 +75,8 @@ export function acceptedJavaDecoderArgs(decodable: Decodable): readonly DecoderA
   return decodable.type.startsWith("[") ? ["length", "offset"] : [];
 }
 
-// The `config` options the decoder of a value accepts: the map or the class constants of `constants` and `bitmask`,
+// The `decoderOptions` options the decoder of a value accepts: the map or the class constants of `constants` and `bitmask`,
 // see docs/decoders.md
-export function acceptedJavaDecoderConfig(settings: DecoderSettings): readonly (keyof DecoderConfig)[] {
+export function acceptedJavaDecoderOptions(settings: DecoderSettings): readonly (keyof DecoderOptions)[] {
   return settings.decoder === "constants" || settings.decoder === "bitmask" ? ["constants", "class", "fields"] : [];
 }

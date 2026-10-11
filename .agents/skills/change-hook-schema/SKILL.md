@@ -1,6 +1,6 @@
 ---
 name: change-hook-schema
-description: Use when adding, renaming, or removing a field or shorthand in the frooky hook-file (YAML) format, including metadata, settings, hookSettings/decoderSettings, java or native hook declarations, params and retType. Covers regenerating the Zod and JSON schemas and updating docs and examples.
+description: Use when adding, renaming, or removing a field or shorthand in the frooky hook-file (YAML) format, including metadata, hookSettings/decoderSettings, java or native hook declarations, params and returns. Covers regenerating the Zod and JSON schemas and updating docs and examples.
 ---
 
 # Changing the hook-file format
@@ -11,13 +11,13 @@ The hook-file format is frooky's public API. A change is only complete when ever
 
 | What you change | File |
 |---|---|
-| Top level (`metadata`, `settings`, `hookCollection`) | `frooky/agent/src/shared/frookyConfig.ts` |
+| Top level (`schemaVersion`, `metadata`, `hookSettings`, `decoderSettings`, `hookCollections`) | `frooky/agent/src/shared/frookyConfig.ts` |
 | Metadata fields | `frooky/agent/src/shared/frookyMetadata.ts` |
 | Normalized settings (`DecoderSettings`, `HookSettings`) | `frooky/agent/src/shared/frookySettings.ts`, with defaults in `defaultValues.ts` |
 | YAML shorthands for settings | `frooky/agent/src/shared/inputParsing/inputSettings.ts` |
 | Java hook declarations | `frooky/agent/src/shared/inputParsing/inputJavaHookCollection.ts` |
 | Native hook declarations | `frooky/agent/src/shared/inputParsing/inputNativeHookCollection.ts` |
-| Params / retType shorthands | `frooky/agent/src/shared/inputParsing/inputDecodableTypes.ts` |
+| Params / returns shorthands | `frooky/agent/src/shared/inputParsing/inputDecodableTypes.ts` |
 
 Input types allow shorthands and partial settings (`InputHookSettings`, `InputDecoderSettings`). Never use a normalized type (`HookSettings`, `DecoderSettings`, `Param`, `RetType`) in an input type, or the schema requires fields hook files leave out. Every new shorthand needs a matching branch in the `normalize*` function in the same file, so that internal code only ever sees the normalized form in `frooky/agent/src/shared/hook/hookDeclaration.ts`. Add a case to the neighboring `*.test.ts`. A new field of the hook declaration also goes into `hookDeclaration.ts`.
 
@@ -31,11 +31,11 @@ npm run build:zodSchema    # -> src/shared/inputParsing/zodSchemas/*.zod.ts
 npm run build:jsonSchema   # -> docs/schema/frooky-config.schema.json
 ```
 
-`scripts/generateJsonSchema.ts` post-processes the JSON schema: it strips the internal `type` discriminator from the hook collections and offers each collection only the decoder names of its platform.
+`scripts/generateJsonSchema.ts` post-processes the JSON schema: it offers each collection only the decoder names of its platform, and rejects unknown properties (`additionalProperties: false`), like the agent does in `validateInput()`.
 
 ## 3. Wire up runtime behavior
 
-- Settings: `frooky/agent/src/shared/configValidator.ts` (merge and repair of partial settings).
+- Settings: `frooky/agent/src/shared/configValidator.ts` (strict validation and completion of partial settings; an invalid value or unknown property throws, which skips the file, collection or hook).
 - Java: `frooky/agent/src/android/hook/androidHookValidator.ts` and `androidHookManager.ts`.
 - Native: `frooky/agent/src/native/hook/nativeHookValidator.ts` and `nativeHookManager.ts`.
 - If the change affects emitted events, update the event types in `src/shared/event/`, the host's pretty printer `frooky/pp_hook_event.py`, and `docs/output.md`.

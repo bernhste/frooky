@@ -5,10 +5,11 @@ import { BitmaskDecoder } from "./BitmaskDecoder";
 
 const PURPOSES = { PURPOSE_ENCRYPT: 1, PURPOSE_DECRYPT: 2, PURPOSE_SIGN: 4, PURPOSE_VERIFY: 8 };
 
-// `constants: null` decodes without `config`
+// `constants: null` decodes without `decoderOptions`
 const decode = (type: string, value: unknown, constants: Record<string, number> | null = PURPOSES) =>
-  new BitmaskDecoder({ type, settings: { ...DEFAULT_DECODER_SETTINGS, config: constants ? { constants } : undefined } }).decode(value as Java.Wrapper)
-    .value;
+  new BitmaskDecoder({ type, settings: { ...DEFAULT_DECODER_SETTINGS, decoderOptions: constants ? { constants } : undefined } }).decode(
+    value as Java.Wrapper,
+  ).value;
 
 describe("BitmaskDecoder", () => {
   it("decodes an int to the names of its bits, in the order of the constants", () => {
@@ -38,18 +39,18 @@ describe("BitmaskDecoder", () => {
     expect(decode("int", 0)).toEqual([]);
   });
 
-  it("decodes with the fields of config.class that match config.fields", () => {
+  it("decodes with the fields of decoderOptions.class that match decoderOptions.fields", () => {
     const KeyProperties = Java.use("android.security.keystore.KeyProperties");
     const purposes: number = KeyProperties.PURPOSE_SIGN.value | KeyProperties.PURPOSE_VERIFY.value;
     const decoder = new BitmaskDecoder({
       type: "int",
-      settings: { ...DEFAULT_DECODER_SETTINGS, config: { class: "android.security.keystore.KeyProperties", fields: "PURPOSE_*" } },
+      settings: { ...DEFAULT_DECODER_SETTINGS, decoderOptions: { class: "android.security.keystore.KeyProperties", fields: "PURPOSE_*" } },
     });
 
     expect(decoder.decode(purposes as unknown as Java.Wrapper).value).toEqual(["PURPOSE_SIGN", "PURPOSE_VERIFY"]);
   });
 
-  it("decodes with the fields of the hooked class without config.class", () => {
+  it("decodes with the fields of the hooked class without decoderOptions.class", () => {
     const Modifier = Java.use("java.lang.reflect.Modifier");
     const modifiers: number = Modifier.PUBLIC.value | Modifier.STATIC.value;
     const decoder = new BitmaskDecoder({ type: "int", declaringClass: "java.lang.reflect.Modifier", settings: DEFAULT_DECODER_SETTINGS });
@@ -60,7 +61,10 @@ describe("BitmaskDecoder", () => {
   it("returns the value as is, with one warning, for a class that isn't found", () => {
     const warnSpy = spyOn(logger, "warn");
     try {
-      const decoder = new BitmaskDecoder({ type: "int", settings: { ...DEFAULT_DECODER_SETTINGS, config: { class: "com.example.Missing" } } });
+      const decoder = new BitmaskDecoder({
+        type: "int",
+        settings: { ...DEFAULT_DECODER_SETTINGS, decoderOptions: { class: "com.example.Missing" } },
+      });
 
       expect(decoder.decode(3 as unknown as Java.Wrapper).value).toBe(3);
       expect(decoder.decode(5 as unknown as Java.Wrapper).value).toBe(5);

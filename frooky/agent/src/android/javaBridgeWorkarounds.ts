@@ -109,7 +109,7 @@ const WALK_STACK_WITH_FLAG_SYMBOL = "_ZN3art12StackVisitor9WalkStackILNS0_16Coun
 // lib/android.js looks up, so api['art::StackVisitor::WalkStack'] is undefined and the backtrace CModule can't be
 // created.
 //
-// frooky runs into this on every Java hook with `platformStackTrace: true` or a `callerFilter`: without it, the
+// frooky runs into this on every Java hook with `javaStackTrace: true` or a `callerFilter`: without it, the
 // stack traces are empty and the callerFilter drops every call.
 //
 // Fix: look up the new name too, and fill it into the bridge's API before the first Java.backtrace().

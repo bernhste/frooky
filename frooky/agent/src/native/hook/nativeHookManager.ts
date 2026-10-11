@@ -457,10 +457,10 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       target,
       inArgDecoders: argDecoders.in,
       outArgDecoders: argDecoders.out,
-      retTypeDecoder: hook.retType ? this.resolveRetTypeDecoder(hook.retType) : undefined,
+      retTypeDecoder: hook.returns ? this.resolveRetTypeDecoder(hook.returns) : undefined,
       argSlots,
       hasFloatArgs: argSlots.some((slot) => slot.kind === "float"),
-      floatRetSlot: planFloatRetTypeSlot(hook.retType),
+      floatRetSlot: planFloatRetTypeSlot(hook.returns),
       needsStackTrace: needsStackTrace(hook.hookSettings),
       callerFilter: hook.hookSettings.callerFilter.length > 0 ? new NativeCallerFilter(hook.hookSettings.callerFilter, target) : undefined,
       hashCode: addressHashCode(hook.symbolAddress),
@@ -594,7 +594,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
     const { hook, target, outArgDecoders, retTypeDecoder, floatRetSlot } = call.installedHook;
     try {
       const decodeStart = Date.now();
-      // first, as `out` parameters with `decoderArgs: { length: $ret }` need it
+      // first, as `out` parameters with `length: $ret` need it
       let decodedRetValue: DecodedValue | undefined;
       if (retTypeDecoder) {
         // returnValue is the general-purpose return register, a float/double is returned in an FP register

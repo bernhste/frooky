@@ -25,29 +25,28 @@ metadata:
 # output.json are a pass; a hung frooky, a lost output.json or a device reboot are findings.
 # 05_level_5_filtered.yaml is the part of this level that the app survives.
 
-settings:
-  decoderSettings:
-    maxItems: 1024
+decoderSettings:
+  maxItems: 1024
 
-hookCollection:
+hookCollections:
   # Docs: https://www.man7.org/linux/man-pages/man3/malloc.3.html
   - module: libc.so
     hooks:
       - symbol: malloc
         hookSettings:
           nativeStackTrace: true
-          platformStackTrace: true
+          javaStackTrace: true
           maxStackFrames: 16
-        retType: "void *"
+        returns: "void *"
         params:
           - [size_t, size]
       - symbol: calloc
-        retType: "void *"
+        returns: "void *"
         params:
           - [size_t, nmemb]
           - [size_t, size]
       - symbol: realloc
-        retType: "void *"
+        returns: "void *"
         params:
           - ["void *", ptr]
           - [size_t, size]
@@ -63,29 +62,29 @@ hookCollection:
   - module: libc.so
     hooks:
       - symbol: memcpy
-        retType: "void *"
+        returns: "void *"
         params:
           - ["void *", dest]
-          - ["const void *", src, { decoderArgs: { length: n } }]
+          - ["const void *", src, { length: n }]
           - [size_t, n]
       - symbol: memmove
-        retType: "void *"
+        returns: "void *"
         params:
           - ["void *", dest]
-          - ["const void *", src, { decoderArgs: { length: n } }]
+          - ["const void *", src, { length: n }]
           - [size_t, n]
       - symbol: memset
-        retType: "void *"
+        returns: "void *"
         params:
           - ["void *", s]
           - [int, c]
           - [size_t, n]
       - symbol: strlen
-        retType: size_t
+        returns: size_t
         params:
           - ["const char *", s]
       - symbol: strcmp
-        retType: int
+        returns: int
         params:
           - ["const char *", s1]
           - ["const char *", s2]
@@ -94,10 +93,10 @@ hookCollection:
   - module: libc.so
     hooks:
       - symbol: pthread_mutex_lock
-        retType: int
+        returns: int
         params:
           - ["pthread_mutex_t *", mutex]
       - symbol: pthread_mutex_unlock
-        retType: int
+        returns: int
         params:
           - ["pthread_mutex_t *", mutex]

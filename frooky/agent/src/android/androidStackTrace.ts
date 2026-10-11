@@ -29,21 +29,21 @@ export const AndroidStackTrace: PlatformStackTrace = {
   },
 
   build(settings: HookSettings, request: StackTraceRequest): HookStackTrace {
-    const { maxStackFrames: limit, nativeStackTrace, platformStackTrace, callerFilter } = settings;
+    const { maxStackFrames: limit, nativeStackTrace, javaStackTrace, callerFilter } = settings;
     const { ctx, unsafeContext } = request;
     const filterCallers = request.filterCallers && callerFilter.length > 0;
     const wantsNativeFrames = nativeStackTrace && ctx !== undefined && limit > 0;
-    const wantsJavaFrames = platformStackTrace && limit > 0;
+    const wantsJavaFrames = javaStackTrace && limit > 0;
 
     // nothing requested: skip the expensive native and Java backtraces
     if (!wantsNativeFrames && !wantsJavaFrames && !filterCallers) {
-      return { platformStackTrace: [], nativeStackTrace: [] };
+      return { javaStackTrace: [], nativeStackTrace: [] };
     }
 
     // too little stack for symbolizing or a Java walk
     if (unsafeContext === "signal-stack" || unsafeContext === "low-stack") {
       if (filterCallers) throw FilterMismatchError.INSTANCE;
-      return { platformStackTrace: [], nativeStackTrace: [], skipped: unsafeContext };
+      return { javaStackTrace: [], nativeStackTrace: [], skipped: unsafeContext };
     }
 
     const linkerBusy = unsafeContext === "linker-busy";
@@ -69,7 +69,7 @@ export const AndroidStackTrace: PlatformStackTrace = {
     const nativeFrames = wantsNativeFrames && ctx ? nativeStackFrames(ctx, limit, linkerBusy) : [];
     const javaFrames = wantsJavaFrames ? javaStack.slice(0, limit).map(formatJavaFrame) : [];
     const skipped = wantsJavaFrames && javaBlocked ? unsafeContext : undefined;
-    return { platformStackTrace: javaFrames, nativeStackTrace: nativeFrames, ...(skipped && { skipped }) };
+    return { javaStackTrace: javaFrames, nativeStackTrace: nativeFrames, ...(skipped && { skipped }) };
   },
 };
 

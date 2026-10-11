@@ -7,20 +7,19 @@ metadata:
   author: frooky dev
   platform: Android
 
-# Levels, from farthest to closest: default < file `settings` < hook collection < hook < parameter/return type.
+# Levels, from farthest to closest: default < file < hook collection < hook < parameter/return value.
 # See docs/additional-features.md#settings-precedence.
 # Target: the value-passing-java test app, which calls MastgTest.receiveString("Welcome the first OWASP MASCon 📱❤️") once.
 
-settings:
-  hookSettings:
-    platformStackTrace: true
-    maxStackFrames: 1
-    callerFilter:
-      - org.owasp.mastestapp
-  decoderSettings:
-    maxItems: 10
+hookSettings:
+  javaStackTrace: true
+  maxStackFrames: 1
+  callerFilter:
+    - org.owasp.mastestapp
+decoderSettings:
+  maxItems: 10
 
-hookCollection:
+hookCollections:
   - javaClass: org.owasp.mastestapp.MastgTest
     hookSettings:
       maxStackFrames: 2
@@ -35,9 +34,9 @@ hookCollection:
         overloads:
           - params:
               - [java.lang.String, arg, { maxItems: 25 }]
-            retType: { maxItems: 30 }
+            returns: { maxItems: 30 }
 
 # Expected event after pressing Start:
-#   stackTrace:        3 frames in platformStackTrace (hook: maxStackFrames 3); the callerFilter keeps the event, as org.owasp.mastestapp code calls receiveString
+#   stackTrace:        3 frames in javaStackTrace (hook: maxStackFrames 3); the callerFilter keeps the event, as org.owasp.mastestapp code calls receiveString
 #   argsIn[0].value:   "Welcome the first OWASP M..."           (parameter: maxItems 25)
 #   returnValue.value: "Welcome the first OWASP MASCon..."      (return type: maxItems 30)

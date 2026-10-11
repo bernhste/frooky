@@ -27,7 +27,7 @@ Hook events additionally carry:
 
 | Field         | Type             | Description                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stackTrace`  | `object`         | Captured stack trace leading to the hooked call (`{ platformStackTrace: string[], nativeStackTrace: string[] }`), enabled via `hookSettings.platformStackTrace`/`nativeStackTrace` and limited by `maxStackFrames`. `skipped` names why requested frames are missing, see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces).                                                    |
+| `stackTrace`  | `object`         | Captured stack trace leading to the hooked call (`{ javaStackTrace: string[], nativeStackTrace: string[] }`), enabled via `hookSettings.javaStackTrace`/`nativeStackTrace` and limited by `maxStackFrames`. `skipped` names why requested frames are missing, see [Skipped Stack Traces](./additional-features.md#skipped-stack-traces).                                                            |
 | `argsIn`      | `DecodedValue[]` | Arguments decoded on entry (`direction: in`/`inout`).                                                                                                                                                                                                                                                                                                                                               |
 | `argsOut`     | `DecodedValue[]` | Arguments decoded on exit (`direction: out`/`inout`).                                                                                                                                                                                                                                                                                                                                               |
 | `returnValue` | `DecodedValue`   | The decoded return value.                                                                                                                                                                                                                                                                                                                                                                           |
@@ -65,7 +65,7 @@ In addition to the [common fields](#common-event-fields), `hook-java` events car
   "method": "receiveString",
   "fieldType": { "fieldType": "instance" },
   "stackTrace": {
-    "platformStackTrace": [
+    "javaStackTrace": [
       "org.owasp.mastestapp.MastgTest.receiveString (MastgTest.kt:-1)",
       "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:98)"
     ],
@@ -108,7 +108,7 @@ In addition to the [common fields](#common-event-fields), `hook-native` events c
   "symbol": "reverse_byte_array",
   "address": "0x763e4c3a2f10",
   "stackTrace": {
-    "platformStackTrace": [
+    "javaStackTrace": [
       "org.owasp.mastestapp.MastgTest.receiveFundamentalReferenceJNI (MastgTest.kt:-2)",
       "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:22)"
     ],
@@ -144,7 +144,7 @@ Notes on this example:
 
 - `stackTrace` is truncated above for brevity; a real trace also includes the app-side Kotlin frames that led to the native call.
 - Buffer/pointer `unsigned char *` was decoded using the built in `string` decoder.
-- `reverse_byte_array` returns `unsigned char *`, but since no `retType` was declared on this hook, no `returnValue` field is present. It's only included when the hook declares a decodable return type (see [`retType`](./native-hook-declaration.md)).
+- `reverse_byte_array` returns `unsigned char *`, but since the hook declares no `returns`, no `returnValue` field is present. It's only included when the hook declares a decodable return type (see [`returns`](./native-hook-declaration.md)).
 
 ## Printing Events to the Terminal
 

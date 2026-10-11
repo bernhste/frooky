@@ -1,4 +1,4 @@
-# `JavaHook` Declaration
+# Java Hook Declaration
 
 A Java hook collection hooks methods of one Java class.
 
@@ -32,7 +32,7 @@ hooks:
     overloads:                      # Optional. Default: all overloads
       - params:
           - <parameter declaration>
-        retType: <decoder settings> # Optional
+        returns: <decoder settings> # Optional
     hookSettings:                   # Optional. Override the collection's settings for this hook
       <hook settings>
     decoderSettings:                # Optional
@@ -45,7 +45,7 @@ hooks:
 | Short with settings | All overloads of the method, with its own `decoderSettings`                 |
 | Expanded            | The overloads listed in `overloads` (all without it), with its own settings |
 
-Java hooks declare no return type: frooky gets it by reflection. `retType` only takes decoder settings, see [Return Type Declaration](./return-type-declaration.md#java-return-types). Parameters are described in [Parameter Declaration](./parameter-declaration.md).
+Java hooks declare no return type: frooky gets it by reflection. `returns` only takes decoder settings, see [Return Type Declaration](./return-type-declaration.md#java-return-types). Parameters are described in [Parameter Declaration](./parameter-declaration.md).
 
 ## Basic Usage
 
@@ -167,7 +167,7 @@ See [`04_custom_class_loaders.yaml`](./examples/android/01_basic_hooking/04_cust
 ```yaml
 javaClass: android.database.sqlite.SQLiteDatabase
 hookSettings:
-  platformStackTrace: true
+  javaStackTrace: true
   maxStackFrames: 5
   callerFilter:
     - ^org\.owasp\.mastestapp\.

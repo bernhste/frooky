@@ -23,7 +23,7 @@ metadata:
 #
 # Expected: app as smooth as without frooky, Event Rate near 0/s (one `open` of /proc/self/status per Start).
 
-hookCollection:
+hookCollections:
   # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
@@ -31,12 +31,12 @@ hookCollection:
   - module: libc.so
     hooks:
       - symbol: open
-        retType: [int, { decoder: fd }]
+        returns: [int, { decoder: fd }]
         params:
           - ["const char *", path, { argFilter: ['^/proc/self/status$'] }]
           - [int, flags, { decoder: openFlags }]
       - symbol: openat
-        retType: [int, { decoder: fd }]
+        returns: [int, { decoder: fd }]
         params:
           - [int, dirfd]
           - ["const char *", path, { argFilter: ['^/proc/self/status$'] }]
@@ -44,18 +44,18 @@ hookCollection:
           - [mode_t, mode]
       # the filter is on the plain int: `decoder: fd` would read /proc/self/fd on every call
       - symbol: close
-        retType: int
+        returns: int
         params:
           - [int, fd, { argFilter: ['frooky-never-matches'] }]
       - symbol: read
-        retType: ssize_t
+        returns: ssize_t
         params:
           - [int, fd, { argFilter: ['frooky-never-matches'] }]
-          - ["void *", buf, { direction: out, decoderArgs: { length: $ret } }]
+          - ["void *", buf, { direction: out, length: $ret }]
           - [size_t, count]
       - symbol: write
-        retType: ssize_t
+        returns: ssize_t
         params:
           - [int, fd, { argFilter: ['frooky-never-matches'] }]
-          - ["const void *", buf, { decoderArgs: { length: count } }]
+          - ["const void *", buf, { length: count }]
           - [size_t, count]
