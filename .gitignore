@@ -36,5 +36,9 @@ htmlcov/
 .idea/
 
 .claude
+
+# local environment of the VS Code Python extension, e.g. ANDROID_SERIAL for the Testing view
+.env
+
 # platform-check reports
 .platform-check/
