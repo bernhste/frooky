@@ -1,0 +1,66 @@
+metadata:
+  name: "Early Hooking (Native): Code That Runs Before targetReady"
+  description: |
+    An app's component factory (android:appComponentFactory) is the one piece of its code that Android
+    runs before targetReady. A native hook only records the libraries it loads and the calls it makes
+    with early: true.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-native (MastgTest.kt, cpp/startupStage.c), which loads one
+#         library per stage of its startup:
+#           libstartupFactory.so      from its component factory, before targetReady
+#           libstartupApplication.so  from the static initializer of its Application class, right after targetReady
+#           libstartupProvider.so     from a content provider's onCreate()
+#         Each calls getenv() and its own startup_step() from its constructor and from JNI_OnLoad.
+# Run:    frooky -U -f value_passing_native.frooky.target.app docs/examples/native/08_early_hooking/04_before_target_ready.yaml
+# See:    docs/additional-features.md#early-true
+#
+# Change both hooks to `early: false` and run it again: the events of the "factory" stage are gone, the others
+# stay. Only code that runs before targetReady needs `early: true`.
+
+hookCollection:
+  # the app's own libraries, hooked while the linker loads them
+  - module: "libstartup*.so"
+    hookSettings:
+      early: true
+      nativeStackTrace: true
+      platformStackTrace: true
+      maxStackFrames: 10
+    hooks:
+      # const char *startup_step(const char *stage, const char *step)
+      - symbol: startup_step
+        params:
+          - ["char *", stage]
+          - ["char *", step]
+
+  # a library that is loaded already when the app is spawned
+  # Docs: https://man7.org/linux/man-pages/man3/getenv.3.html
+  - module: libc.so
+    hookSettings:
+      early: true
+      # the runtime calls getenv() itself while the app starts
+      callerFilter: ['^libstartup\w+\.so$']
+    hooks:
+      - symbol: getenv
+        params:
+          - ["char *", name]
+
+# Expected events, per stage "factory", "application" and "provider", in this order:
+#   getenv:       argsIn [{type: "char *", name: name, value: "FROOKY_STARTUP_<stage>"}]
+#   startup_step: argsIn [{type: "char *", name: stage, value: "<stage>"}, {type: "char *", name: step, value: "constructor"}],
+#                 module "libstartupFactory.so", "libstartupApplication.so" or "libstartupProvider.so"
+#   getenv:       as above
+#   startup_step: as above, with step "JNI_OnLoad"
+#
+# The stack traces of startup_step. Before targetReady, a native hook gets no Java frames:
+#   "factory":     nativeStackTrace   starts with "startup_constructor+0x... (libstartupFactory.so:0x...)" or
+#                                     "JNI_OnLoad+0x... (libstartupFactory.so:0x...)"
+#                  platformStackTrace [], with skipped: "before-ready"
+#   "application": nativeStackTrace   as above, in libstartupApplication.so
+#                  platformStackTrace contains "org.owasp.mastestapp.StartupApplication.<clinit> (MastgTest.kt:...)"
+#   "provider":    nativeStackTrace   as above, in libstartupProvider.so
+#                  platformStackTrace contains "org.owasp.mastestapp.StartupProvider.onCreate (MastgTest.kt:...)"
+#
+# With `early: false`: the same without the four events of the "factory" stage.

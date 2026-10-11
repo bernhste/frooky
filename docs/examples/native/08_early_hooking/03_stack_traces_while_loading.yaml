@@ -14,12 +14,12 @@ metadata:
 # See:    docs/under-the-hood.md#stack-traces-during-early-hooking
 #
 # The library loads after targetReady, from the app's first screen, so the Java frames are captured too. A
-# native hook's calls before targetReady get native frames only (skipped: before-ready).
+# native hook's calls before targetReady, which it only records with `early: true`, get native frames only
+# (skipped: before-ready), see 04_before_target_ready.yaml.
 
 hookCollection:
   - module: libloadStage.so
     hookSettings:
-      early: true
       nativeStackTrace: true
       platformStackTrace: true
       maxStackFrames: 10

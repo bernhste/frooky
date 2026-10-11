@@ -1,4 +1,5 @@
 import Java from "frida-java-bridge";
+import { setTimeoutOnJsThread } from "../../shared/jsThread";
 import { sleepMilliseconds } from "../../shared/utils";
 
 // How long a reverted replacement must see no call before it is released
@@ -65,7 +66,7 @@ export class RetiredReplacements {
   private scheduleRelease(): void {
     if (this.releaseScheduled) return;
     this.releaseScheduled = true;
-    setTimeout(() => {
+    setTimeoutOnJsThread(() => {
       this.releaseScheduled = false;
       this.retired = this.retired.filter((retired) => {
         const { inFlight, finished } = retired.calls;

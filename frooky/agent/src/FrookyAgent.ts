@@ -9,6 +9,7 @@ import { startEventSender } from "./shared/event/eventSender";
 import { HookEvent } from "./shared/event/hookEvent";
 import { LogEvent } from "./shared/event/logEvent";
 import { InputFrookyConfig } from "./shared/frookyConfig";
+import { setTimeoutOnJsThread } from "./shared/jsThread";
 import { Platform } from "./shared/frookyMetadata";
 import { FrookySettings } from "./shared/frookySettings";
 import { diffConfig, HookToResolve } from "./shared/hook/configDiff";
@@ -40,9 +41,13 @@ export class FrookyAgent {
   private nativeHookManager: NativeHookManager;
   private readonly registry = new HookRegistry();
   private reportProgress?: (progress: HookProgress) => void;
-  public readonly targetReady: Promise<void>; // resolves once the target's own code can be looked up (e.g. Java.perform())
+  // The point in the target's startup at which its own code is loaded and about to run, e.g. on Android once the app's
+  // class loader exists and before its Application class is loaded. Lookups of the target's classes, native hooks
+  // without `early: true` and the platform frames of a native hook's stack trace wait for it. Resolved by the
+  // platform's entry point, right away when attaching.
+  public readonly targetReady: Promise<void>;
   public isTargetReady = false;
-  private progressTimer: ReturnType<typeof setTimeout> | null = null;
+  private progressReportScheduled = false;
 
   constructor(
     platform: Platform,
@@ -75,7 +80,7 @@ export class FrookyAgent {
       this.isTargetReady = true;
       platformStackTrace.prepare?.();
       markTargetReady();
-      logger.info("targetReady: the app's classes can be looked up, installing the hooks that waited for it");
+      logger.info("targetReady: the app's code is loaded and about to run, installing the hooks that waited for it");
     });
     watchLinker();
     this.nativeHookManager = new NativeHookManager(platformStackTrace, this);
@@ -312,9 +317,11 @@ export class FrookyAgent {
   // report is sent, so it is always current.
   private scheduleProgressReport(): void {
     const reportProgress = this.reportProgress;
-    if (!reportProgress || this.progressTimer !== null) return;
-    this.progressTimer = setTimeout(() => {
-      this.progressTimer = null;
+    if (!reportProgress || this.progressReportScheduled) return;
+    this.progressReportScheduled = true;
+    // also called on app threads, e.g. at targetReady
+    setTimeoutOnJsThread(() => {
+      this.progressReportScheduled = false;
       reportProgress(this.hookProgress());
     }, PROGRESS_INTERVAL_MS);
   }

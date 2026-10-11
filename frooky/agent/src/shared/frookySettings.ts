@@ -29,10 +29,11 @@ export interface HookSettings {
   callerFilter: string[];
 
   /**
-   * Whether native hooks skip the wait until the app's own code is about to run (`targetReady`). When `true`, they
-   * are installed at spawn, or while the linker loads their module, before its constructors and `JNI_OnLoad` run, e.g.
-   * to observe anti-tampering checks. Give high-frequency libc functions a `callerFilter`. Only matters when
-   * spawning (`-f`). Default: `false`.
+   * Whether native hooks are installed before `targetReady`, the point in a spawned app's startup at which the app's
+   * own code is loaded and about to run. By default they wait for it, as hooks can deadlock the runtime while it
+   * starts. When `true`, they are installed at spawn, or while the linker loads their module, before its constructors
+   * and `JNI_OnLoad` run, e.g. to observe anti-tampering checks. Give high-frequency libc functions a `callerFilter`.
+   * Only matters when spawning (`-f`). Default: `false`.
    */
   early: boolean;
 }

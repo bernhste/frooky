@@ -257,6 +257,41 @@ describe("NativeHookManager", () => {
       manager.unregisterHooks(hooks!);
     });
 
+    it("warns when a module loads before targetReady and its hooks wait for it, but not with early: true", async () => {
+      // system libraries the test app doesn't load by itself (checked on Android 12 to 17)
+      const waitingModule = "libcap.so";
+      const earlyModule = "libext2_uuid.so";
+      expect(Process.findModuleByName(waitingModule)).toBeNull();
+      expect(Process.findModuleByName(earlyModule)).toBeNull();
+      let markReady: () => void = () => {};
+      const agent = { isTargetReady: false, targetReady: new Promise<void>((resolve) => (markReady = resolve)) } as FrookyAgent;
+      const manager = new NativeHookManager(stackTrace, agent);
+      const early = { ...DEFAULT_HOOK_SETTINGS, early: true };
+      const warnSpy = spyOn(logger, "warn");
+
+      try {
+        const pending = await manager.resolveHooks(
+          [nativeHook(waitingModule, "cap_init"), nativeHook(earlyModule, "uuid_generate", { hookSettings: early })],
+          "hooks.yaml",
+        );
+        const waiting = Module.load(`/system/lib64/${waitingModule}`);
+        const hookedEarly = Module.load(`/system/lib64/${earlyModule}`);
+
+        expect(warnSpy.mock.calls.map((call) => String(call[0]))).toEqual([
+          `Module '${waitingModule}' loads before targetReady: 1 hook on it is installed at targetReady, after its constructors and JNI_OnLoad ran. Set 'early: true' to record their calls (hooks.yaml)`,
+        ]);
+        expect(manager.hookIndex.isInHookedModule(waiting.base)).toBe(false);
+        expect(manager.hookIndex.isInHookedModule(hookedEarly.base)).toBe(true);
+
+        markReady();
+        const hooks = (await Promise.all(pending.map(eventually))).flatMap((moduleHooks) => moduleHooks ?? []);
+        expect(manager.hookIndex.isInHookedModule(waiting.base)).toBe(true);
+        manager.unregisterHooks(hooks);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it("skips a symbol that the module only links from another library, and names that library", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
       const libcMalloc = Process.getModuleByName("libc.so").getExportByName("malloc");

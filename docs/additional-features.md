@@ -22,6 +22,7 @@ How to work with a running frooky, the settings that apply to every hook (stack 
   - [Pitfalls](#pitfalls)
 - [Early Hooking](#early-hooking)
   - [Spawn vs. Attach](#spawn-vs-attach)
+  - [`targetReady`](#targetready)
   - [`early: true`](#early-true)
 - [Dangerous Low-Level and High-Frequency Hooks](#dangerous-low-level-and-high-frequency-hooks)
   - [Blocked Functions](#blocked-functions)
@@ -182,7 +183,7 @@ Capturing stack traces provides visibility into the execution path leading up to
 | `nativeStackTrace`   | `boolean`  | `false` | Whether to capture native (C/C++) stack frames. Native hooks only: Java hooks have no native context and always capture an empty native stack trace.                                                                                                                  |
 | `platformStackTrace` | `boolean`  | `false` | Whether to capture platform (managed runtime, e.g. Java on Android) stack frames. For a native hook, these are the Java frames that led to the native call, if it was called from Java.                                                                               |
 | `callerFilter`       | `string[]` | `[]`    | Regular expressions; a call is only recorded if its caller matches one of them. Java hooks match the methods on the Java stack (e.g. `'^com\.myapp\.'`), native hooks the module of the direct caller (e.g. `'^libapp\.so$'`). See [Caller Filters](#caller-filters). |
-| `early`              | `boolean`  | `false` | Whether native hooks skip the wait until the app's own code is about to run (`targetReady`), so they record calls during startup, e.g. from library constructors and `JNI_OnLoad`. Only matters when spawning (`-f`). See [Early Hooking](#early-hooking).            |
+| `early`              | `boolean`  | `false` | Whether native hooks are installed before [`targetReady`](#targetready) instead of waiting for it, so they record what runs before it, e.g. the libraries an app's component factory loads. Only matters when spawning (`-f`). See [Early Hooking](#early-hooking).   |
 
 In the output events, captured stack traces appear in the `stackTrace` object with separate arrays for `platformStackTrace` and `nativeStackTrace` (see [Output Format](./output.md)):
 
@@ -207,7 +208,7 @@ Some calls happen where walking the stack can crash or hang the app. frooky dete
 | `signal-stack` | The call runs in a signal handler, on its small alternate signal stack.                               | none                                                                  |
 | `linker-busy`  | Another thread is loading or unloading a library (`dlopen()`/`dlclose()`), e.g. while the app starts. | approximate native frames; Java frames from shortly after start-up on |
 | `low-stack`    | Less than 64KB are left on the thread's stack. Native hooks only.                                     | none                                                                  |
-| `before-ready` | The app's own code hasn't started yet (spawn mode, before `targetReady`).                             | native hooks: native frames only; Java hooks: everything              |
+| `before-ready` | The call happens before [`targetReady`](#targetready), while a spawned app starts.                    | native hooks: native frames only; Java hooks: everything              |
 
 At `linker-busy`, the `skipped` field is only set if the Java frames are missing. The native frames are approximate and can include addresses that aren't return addresses. Calls from a library's constructor, inside `dlopen()` on their own thread, get full stack traces. See [Stack Traces During Early Hooking](./under-the-hood.md#stack-traces-during-early-hooking) for how frooky detects these calls and why a stack walk in them is unsafe.
 
@@ -353,20 +354,46 @@ Many checks that matter for a security analysis run while the app starts, before
 - **Spawn (`-f`):** frooky starts the app suspended, installs the hooks, and resumes it. Only a spawned app's startup can be recorded.
 - **Attach (`-n`, `-N`, `-p`):** frooky attaches to an app that already runs. Its startup code has already run and isn't recorded.
 
+### `targetReady`
+
+`targetReady` is the point in a spawned app's startup at which the app's own code is loaded and about to run: Android has created the app's class loader and is about to load the app's `Application` class.
+
+- **Before `targetReady`**, the Android runtime and framework set up the process. The app's own classes can't be looked up yet. One piece of the app's code already runs here: its component factory, if the manifest declares one (`android:appComponentFactory`). Android creates it together with the class loader.
+- **From `targetReady` on**, Android loads and runs the app's code: its `Application` class, its content providers and activities, and the native libraries they load.
+
+By default, frooky waits for `targetReady` with everything that isn't possible or safe before:
+
+| What waits                                 | Why                                                                                                   |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Java hooks on the app's own classes        | They are only found through the app's class loader.                                                   |
+| Native hooks without `early: true`         | Hooks on functions like `read` or `close` can deadlock the runtime (ART) while it starts its threads. |
+| Java frames in a native hook's stack trace | Walking the Java stack of a thread that is still attaching to the Java VM crashes the app.            |
+
+Java hooks on framework classes, e.g. `javax.crypto.Cipher`, don't wait: they are installed before the app is resumed.
+
+When attaching, the app is already past `targetReady` and nothing waits. In Under the Hood, the [Overview](./under-the-hood.md#overview) explains how frooky detects it and [Timing](./under-the-hood.md#timing) shows what can be hooked before and after.
+
 ### `early: true`
 
-By default, native hooks wait until the app's own code is about to run (`targetReady`), since hooks on functions like `read` or `close` can deadlock the runtime (ART) while it starts its own threads. A library the app loads during startup, before `targetReady`, then runs its constructors and `JNI_OnLoad` unhooked. Java hooks don't wait, and native hooks on a library loaded after `targetReady` are installed while the linker loads it, before its constructors run.
+By default, native hooks wait for `targetReady`, since hooks on functions like `read` or `close` can deadlock the runtime (ART) while it starts its own threads. For most apps, nothing is lost by waiting: an app loads its native libraries after `targetReady`, from its `Application` class, a content provider or an activity. A hook on such a library is installed while the linker loads it, before its constructors and `JNI_OnLoad` run, with or without `early` (see [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml)).
 
-With `early: true` in `hookSettings`, native hooks don't wait: a hook on a library that is already loaded, e.g. `libc.so`, is installed before the app is resumed, and a hook on a library loaded later is installed while the linker loads it, so its constructors and `JNI_OnLoad` run hooked:
+With `early: true` in `hookSettings`, native hooks don't wait: a hook on a library that is already loaded, e.g. `libc.so`, is installed before the app is resumed, and a hook on a library that loads before `targetReady` is installed while the linker loads it. Only these hooks record what runs before `targetReady`:
+
+- **The app's component factory** (`android:appComponentFactory`), the app's earliest code. A library it loads runs its constructors and `JNI_OnLoad` before `targetReady`, so without `early: true` they run unhooked, and so do their calls into libraries like `libc.so`.
+- **The runtime's and the framework's own startup**, e.g. the files and libraries they open for the app.
 
 ```yaml
 hookCollection:
-  - module: libloadTime.so
+  - module: libstartupFactory.so
     hookSettings:
       early: true
     hooks:
-      - symbol: load_time_constructor
+      - symbol: startup_step
 ```
+
+You don't have to inspect the app first: if a library you hook loads before `targetReady` and the hook waits for it, frooky warns that the library's constructors and `JNI_OnLoad` ran unhooked, and to set `early: true`.
+
+`early` only changes when a hook is installed. A hook is resolved, filtered and decoded the same way with and without it, and Java hooks have no such setting: frooky ignores `early` on them with a warning. A Java hook on a framework class is always installed before the app is resumed. One on the app's own class is installed at `targetReady`, so it misses the calls of the component factory.
 
 `early` only matters when spawning (`-f`): when attaching, the app is already past `targetReady`.
 
@@ -376,7 +403,7 @@ When using `early: true`:
 - **Expect fewer stack frames before `targetReady`.** A native hook's calls before `targetReady` get native frames only (`skipped: before-ready`), see [Skipped Stack Traces](#skipped-stack-traces).
 - **Hook the loader with care.** Hooking `android_dlopen_ext` in `libdl.so` shows which libraries the app loads, but intercepting the dynamic linker can break loads across Android linker namespaces.
 
-See [`01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml), [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) and [`03_stack_traces_while_loading.yaml`](./examples/native/08_early_hooking/03_stack_traces_while_loading.yaml). [Timing](./under-the-hood.md#timing) in Under the Hood shows what can be hooked in each stage of the startup.
+See [`04_before_target_ready.yaml`](./examples/native/08_early_hooking/04_before_target_ready.yaml) for an app whose component factory loads a library, with and without `early: true`. [`01_spawn_vs_attach.yaml`](./examples/native/08_early_hooking/01_spawn_vs_attach.yaml), [`02_calls_while_loading.yaml`](./examples/native/08_early_hooking/02_calls_while_loading.yaml) and [`03_stack_traces_while_loading.yaml`](./examples/native/08_early_hooking/03_stack_traces_while_loading.yaml) record an app's startup without it. [Timing](./under-the-hood.md#timing) in Under the Hood shows what can be hooked in each stage of the startup.
 
 ## Dangerous Low-Level and High-Frequency Hooks
 

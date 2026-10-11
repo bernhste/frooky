@@ -1,5 +1,6 @@
 import Java from "frida-java-bridge";
 import { Resolution, Waiting } from "../../shared/hook/hookManager";
+import { setTimeoutOnJsThread } from "../../shared/jsThread";
 import { logger } from "../../shared/logger";
 import { plural, wildcardPatternToRegExp } from "../../shared/utils";
 
@@ -97,7 +98,7 @@ export class JavaClassResolver {
           stopLookingUp();
         } else if (!classLoader) {
           // reads the names of every class in the app, so not on the app's main thread
-          setTimeout(() => {
+          setTimeoutOnJsThread(() => {
             this.matchPatterns(this.existingLoaders(), true);
             stopLookingUp();
           }, 0);

@@ -55,6 +55,8 @@ rpc.exports = {
       logTo ?? DEFAULT_SETTING_LOG_TO,
       // objects, unlike event batches (arrays)
       (progress) => send({ frooky: "progress", ...progress }),
+      // targetReady: Java.perform() runs its callback once the app's class loader is known. In a spawned app that is
+      // in ActivityThread.handleBindApplication(), before the Application class is loaded; when attaching, right away.
       new Promise((resolve) => Java.perform(() => resolve())),
     );
     frookyAgent.reportCrashes((crash) => send({ frooky: "crash", ...crash }));

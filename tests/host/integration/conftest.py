@@ -7,7 +7,6 @@ import signal
 import subprocess
 import threading
 import time
-from pathlib import Path
 
 import frida
 import pytest
@@ -47,8 +46,6 @@ MAIN_ACTIVITY = "org.owasp.mastestapp.MainActivity"
 # the result text view shows only this until mastgTest() has returned
 MASTG_DEFAULT_MESSAGE = 'Click "Start" to run the test.'
 
-# frooky always writes ./output.json relative to its working directory
-FROOKY_WORKING_DIR = Path(__file__).parent
 FROOKY_OUTPUT_NAME = "output.json"
 
 # if this pattern appears on stdout, frooky resolved all hooks and is ready; waiting hooks are installed when
@@ -251,16 +248,10 @@ def mastg_app_wait_for_result(platform):
 
 
 @pytest.fixture
-def output_file_path():
-    """Path of the output.json frooky writes into its working directory."""
-    return FROOKY_WORKING_DIR / FROOKY_OUTPUT_NAME
-
-
-@pytest.fixture(autouse=True)
-def cleanup_output_json(output_file_path):
-    """Remove output.json before each test, but keep it afterwards for inspection."""
-    output_file_path.unlink(missing_ok=True)
-    yield
+def output_file_path(tmp_path):
+    """Path of the output.json frooky writes (`-o`): in the test's own temporary directory, so test runs on several
+    devices at once don't share it. pytest keeps the directories of the last runs for inspection."""
+    return tmp_path / FROOKY_OUTPUT_NAME
 
 
 def _drain_output(process):
@@ -385,7 +376,7 @@ def run_frooky(platform, output_file_path, app_session, mastg_app_click_start, m
                 str(output_file_path),
                 str(hook_path),
             ],
-            cwd=FROOKY_WORKING_DIR,  # frooky writes ./output.json relative to cwd
+            cwd=tmp_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             # stdout isn't a TTY here, so Python fully block-buffers frooky's own output by
@@ -443,7 +434,7 @@ def run_frooky_spawn(platform, output_file_path, app_session, tmp_path):
                 str(output_file_path),
                 str(hook_path),
             ],
-            cwd=FROOKY_WORKING_DIR,
+            cwd=tmp_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env={**os.environ, "PYTHONUNBUFFERED": "1"},
@@ -533,7 +524,7 @@ def run_frooky_watch(platform, output_file_path, app_session, mastg_app_click_st
                 str(output_file_path),
                 str(hook_path),
             ],
-            cwd=FROOKY_WORKING_DIR,
+            cwd=tmp_path,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env={**os.environ, "PYTHONUNBUFFERED": "1"},

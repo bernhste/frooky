@@ -152,7 +152,9 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       const moduleHooks = this.moduleWatcher.whenLoaded(moduleName, (module) => {
         loaded = true;
         const exports = moduleExports(module, false);
-        return hookIndices.map((i) => this.installWhileLoading(inputHooks[i], module, exports, source));
+        const moduleResults = hookIndices.map((i) => this.installWhileLoading(inputHooks[i], module, exports, source));
+        this.warnAboutUnhookedLoad(module, moduleResults.filter((result) => result instanceof Promise).length, source);
+        return moduleResults;
       });
       hookIndices.forEach((hookIndex, j) => {
         const hooks = moduleHooks.then((moduleResults) => moduleResults[j]);
@@ -231,6 +233,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       (module) => {
         resolvedModules.add(module.path);
         const exports = moduleExports(module, false);
+        let waitingForTargetReady = 0;
         for (const patternHook of matching(module)) {
           if (laterHooks && !laterHooks.wanted(patternHook.index)) {
             patternHook.stopped = true;
@@ -250,9 +253,14 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
             patternHook.settled = true;
             patternHook.settle(hooks);
           };
-          if (patternHook.inputHook.hookSettings.early || this.frookyAgent.isTargetReady) install();
-          else void this.targetReady().then(install);
+          if (patternHook.inputHook.hookSettings.early || this.frookyAgent.isTargetReady) {
+            install();
+          } else {
+            waitingForTargetReady += hooks.length;
+            void this.targetReady().then(install);
+          }
         }
+        this.warnAboutUnhookedLoad(module, waitingForTargetReady, source);
         if (patternHooks.every((patternHook) => patternHook.stopped)) stop();
       },
     );
@@ -284,6 +292,14 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
       this.registerHooks(hooks, source);
       return hooks;
     });
+  }
+
+  // `waitingHooks` of `module`, which is loading before targetReady, are only installed at targetReady
+  private warnAboutUnhookedLoad(module: Module, waitingHooks: number, source?: string): void {
+    if (waitingHooks === 0) return;
+    logger.warn(
+      `Module '${module.name}' loads before targetReady: ${plural(waitingHooks, "hook")} on it ${waitingHooks === 1 ? "is" : "are"} installed at targetReady, after its constructors and JNI_OnLoad ran. Set 'early: true' to record their calls${fromSource(source)}`,
+    );
   }
 
   private targetReady(): Promise<void> {

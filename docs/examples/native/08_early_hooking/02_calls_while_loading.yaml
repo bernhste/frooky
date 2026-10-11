@@ -16,20 +16,19 @@ metadata:
 #
 # The library loads at startup, so this needs spawn (-f). A library the app loads later, e.g. after
 # pressing "Start", is hooked the same way when it loads.
+#
+# This needs no `early: true`: the app loads these libraries after targetReady, like most apps do. See
+# 04_before_target_ready.yaml for a library that loads before.
 
 hookCollection:
   # a function of the loading library itself, hooked before its constructor runs
   - module: libloadTime.so
-    hookSettings:
-      early: true
     hooks:
       # void load_time_constructor(void)
       - symbol: load_time_constructor
 
   # a function of a library loaded before
   - module: libloadStage.so
-    hookSettings:
-      early: true
     hooks:
       # const char *report_load_stage(const char *stage)
       - symbol: report_load_stage

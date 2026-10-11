@@ -3,15 +3,14 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import tempfile
 import textwrap
 import threading
 import time
-from pathlib import Path
 
 import frida
 import pytest
 
-FROOKY_WORKING_DIR = Path(__file__).parent.parent
 TARGET_APP = "value_passing_java.frooky.target.app"
 MAIN_ACTIVITY = "org.owasp.mastestapp.MainActivity"
 
@@ -58,10 +57,16 @@ def hook_file(tmp_path):
 
 
 def run_frooky(args: list[str], timeout: float = 10.0) -> tuple[str, str, int]:
-    """Run frooky with CLI arguments, wait for hooks ready or exit, and stop via SIGINT."""
+    """Run frooky with CLI arguments, wait for hooks ready or exit, and stop via SIGINT. frooky runs in its own
+    temporary directory, where it writes its output.json, so test runs on several devices at once don't share it."""
+    with tempfile.TemporaryDirectory() as working_dir:
+        return _run_frooky(args, timeout, working_dir)
+
+
+def _run_frooky(args: list[str], timeout: float, working_dir: str) -> tuple[str, str, int]:
     process = subprocess.Popen(
         ["frooky", *args],
-        cwd=FROOKY_WORKING_DIR,
+        cwd=working_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env={**os.environ, "PYTHONUNBUFFERED": "1"},

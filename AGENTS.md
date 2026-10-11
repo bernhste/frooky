@@ -53,7 +53,7 @@ Tests that need a device (`npm run test:android`, `pytest tests/host/integration
 
 The integration tests and the examples in `docs/examples/` run against our own test apps in `tests/target-apps/android/<app>/` (`value-passing-java`, `value-passing-native`). Test frooky against these, not against system libraries or third-party apps: a situation a test needs (e.g. a call from a library constructor, a deep call chain, a class loader) belongs in a target app.
 
-- **Sources:** `MastgTest.kt`, `cpp/*.c` with `cpp/CMakeLists.txt`, `build.gradle.kts.*` and the app's `README.md`, which lists what each function or method is for. `<app>/build/` is a generated clone of the base app and `dist/` holds the APKs; both are gitignored, never edit them.
+- **Sources:** `MastgTest.kt`, `cpp/*.c` with `cpp/CMakeLists.txt`, `build.gradle.kts.*`, an optional `AndroidManifest.xml` that replaces the base app's, and the app's `README.md`, which lists what each function or method is for. `<app>/build/` is a generated clone of the base app and `dist/` holds the APKs; both are gitignored, never edit them.
 - **Rebuild and reinstall with `uv run scripts/sync_target_apps.py`** (or the Makefile it calls), never with Gradle or `adb` directly. It builds all apps, compares each device's installed APK with `dist/<app>.apk` and reinstalls the ones that are missing or differ, on every attached device. Pass app names or `-s <serial>` to narrow it down, and `-c` for a clean build after changing `build.gradle.kts.*` or `AndroidManifest.xml` or removing a source file. With the Makefile, `make install` only installs the last built APK, so build first, and uninstall the old app so nothing of the old build remains (`ANDROID_SERIAL` picks the device):
 
   ```bash

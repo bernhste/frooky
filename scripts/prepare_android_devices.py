@@ -34,6 +34,7 @@ RELEASE_URL = "https://github.com/frida/frida/releases/download/{version}/frida-
 ABI_TO_ARCH = {"arm64-v8a": "arm64", "armeabi-v7a": "arm", "armeabi": "arm", "x86_64": "x86_64", "x86": "x86"}
 ADB_TIMEOUT = 30  # seconds
 START_TIMEOUT = 10  # seconds
+FRIDA_TIMEOUT = 30  # seconds
 
 
 class PrepareError(Exception):
@@ -130,10 +131,19 @@ class Device:
         raise PrepareError(f"{path} didn't start within {START_TIMEOUT}s")
 
     def check_frida(self) -> str:
-        access = frida.get_device(self.serial, timeout=5).query_system_parameters().get("access")
-        if access != "full":
-            raise PrepareError(f"frida reports access '{access}', expected 'full' (frida-server not reachable)")
-        return "frida connects (access: full)"
+        # A frida-server process shows up in `ps` before it accepts connections; until then frida reports 'jailed'
+        deadline = time.monotonic() + FRIDA_TIMEOUT
+        while True:
+            try:
+                access = frida.get_device(self.serial, timeout=5).query_system_parameters().get("access")
+                problem = f"frida reports access '{access}', expected 'full'"
+            except (frida.TransportError, frida.ServerNotRunningError) as error:
+                access, problem = None, str(error)
+            if access == "full":
+                return "frida connects (access: full)"
+            if time.monotonic() >= deadline:
+                raise PrepareError(f"{problem} (frida-server not reachable within {FRIDA_TIMEOUT}s)")
+            time.sleep(1)
 
 
 def download(version: str, arch: str) -> Path:

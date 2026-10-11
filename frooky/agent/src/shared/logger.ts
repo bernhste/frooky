@@ -1,5 +1,6 @@
 import { FrookyAgent } from "../FrookyAgent";
 import { LogEvent } from "./event/logEvent";
+import { isJsThread, setTimeoutOnJsThread } from "./jsThread";
 
 export type LogLevel = "none" | "error" | "warn" | "info" | "debug";
 export type LogTo = "console" | "eventlog";
@@ -16,8 +17,6 @@ let frooky: FrookyAgent;
 let verbosity: LogLevel = "error";
 let logTo: LogTo = "console";
 
-// the thread that loads the script: Frida's JS thread, which also runs RPC calls and timers
-const jsThreadId = Process.getCurrentThreadId();
 // messages logged on app threads, e.g. in hook callbacks
 const pendingLogs: { level: LogLevel; msg: string }[] = [];
 
@@ -30,8 +29,8 @@ function shouldLog(level: LogLevel): boolean {
 function emit(level: LogLevel, msg: string): void {
   if (!shouldLog(level)) return;
 
-  if (pendingLogs.length > 0 || Process.getCurrentThreadId() !== jsThreadId) {
-    if (pendingLogs.push({ level, msg }) === 1) setTimeout(writePendingLogs, 0);
+  if (pendingLogs.length > 0 || !isJsThread()) {
+    if (pendingLogs.push({ level, msg }) === 1) setTimeoutOnJsThread(writePendingLogs, 0);
     return;
   }
   write(level, msg);

@@ -644,3 +644,31 @@ class TestNativeExamples:
             assert any(frame.startswith(f"{MASTG_CLASS}.<clinit> ") for frame in trace["platformStackTrace"])
         assert traces["constructor"]["nativeStackTrace"][0].startswith("load_time_constructor+0x")
         assert traces["JNI_OnLoad"]["nativeStackTrace"][0].startswith("JNI_OnLoad+0x")
+
+    @pytest.mark.parametrize("early", [True, False])
+    def test_code_before_target_ready(self, run_frooky_spawn, find_matched_events, early):
+        example = _example("native/08_early_hooking/04_before_target_ready.yaml")
+        # the setting of both hook collections, not the comments that mention it
+        without_early, early_settings = re.subn(r"(?m)^( +early:) true$", r"\1 false", example)
+        assert early_settings == 2
+        run_frooky_spawn(example if early else without_early, NATIVE_APP)
+
+        # the component factory runs before targetReady, the Application class and the content provider after it
+        stages = ["factory", "application", "provider"] if early else ["application", "provider"]
+        steps = self._events(find_matched_events, "startup_step")
+        expected_steps = [(f"libstartup{stage.capitalize()}.so", [stage, step]) for stage in stages for step in ("constructor", "JNI_OnLoad")]
+        assert [(event["module"], [arg["value"] for arg in event["argsIn"]]) for event in steps] == expected_steps
+        getenv_names = [event["argsIn"][0]["value"] for event in self._events(find_matched_events, "getenv", "libc.so")]
+        assert getenv_names == [f"FROOKY_STARTUP_{stage}" for stage in stages for _ in range(2)]
+
+        java_frames = {"application": "org.owasp.mastestapp.StartupApplication.<clinit> ", "provider": "org.owasp.mastestapp.StartupProvider.onCreate "}
+        for event in steps:
+            stage, step = (arg["value"] for arg in event["argsIn"])
+            trace = event["stackTrace"]
+            assert trace["nativeStackTrace"][0].startswith("startup_constructor+0x" if step == "constructor" else "JNI_OnLoad+0x")
+            if stage == "factory":
+                assert trace["skipped"] == "before-ready"
+                assert trace["platformStackTrace"] == []
+            else:
+                assert "skipped" not in trace
+                assert any(frame.startswith(java_frames[stage]) for frame in trace["platformStackTrace"])

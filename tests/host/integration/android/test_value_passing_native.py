@@ -16,6 +16,7 @@ docs/parameter-declaration.md and docs/decoders.md.
 import re
 import struct
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,8 @@ MODULE_VALUE = "libreceiveFundamentalValue.so"
 MODULE_REFERENCE = "libreceiveFundamentalReference.so"
 MODULE_STRING = "libreceiveString.so"
 SCRIPTS = Path(__file__).parent / "scripts"
+# how long the app may take to load its libraries once it has a PID
+MODULE_LOAD_TIMEOUT = 30
 
 
 def _as_int(value):
@@ -44,12 +47,18 @@ def _round_trip_float32(value: float) -> float:
 
 
 def _export_offset(device, pid: int, module: str, symbol: str) -> str:
-    """The offset of an exported symbol from its module's base, e.g. `0xf20`, read from the running app."""
+    """The offset of an exported symbol from its module's base, e.g. `0xf20`, read from the running app. Waits for
+    the module: the app loads its libraries with its first screen, shortly after it has a PID."""
     session = device.attach(pid)
     try:
-        script = session.create_script("rpc.exports = { offset(name, symbol) { const module = Process.getModuleByName(name); return module.getExportByName(symbol).sub(module.base).toString(); } };")
+        script = session.create_script("rpc.exports = { offset(name, symbol) { const module = Process.findModuleByName(name); return module === null ? null : module.getExportByName(symbol).sub(module.base).toString(); } };")
         script.load()
-        return script.exports_sync.offset(module, symbol)
+        deadline = time.monotonic() + MODULE_LOAD_TIMEOUT
+        while (offset := script.exports_sync.offset(module, symbol)) is None:
+            if time.monotonic() > deadline:
+                pytest.fail(f"{module} wasn't loaded within {MODULE_LOAD_TIMEOUT} s")
+            time.sleep(0.2)
+        return offset
     finally:
         session.detach()
 
@@ -762,3 +771,23 @@ class TestValuePassingNative:
         [other] = find_matched_events({"symbol": "report_load_stage", "argsIn": [{"value": "other-thread"}]})
         assert len(other["stackTrace"]["nativeStackTrace"]) > 0
         assert "skipped" not in other["stackTrace"]
+
+    def test_early_hook_on_write_with_java_stack_traces(self, run_frooky_spawn, find_matched_events):
+        """An early hook on libc's write() that walks the Java stack lets the app start. Frida calls write() itself
+        on an app thread that sets a timer, and a Java stack walk inside that call hangs, so the agent sets its
+        timers on Frida's own thread."""
+        hook_file = textwrap.dedent("""\
+            hookCollection:
+              - module: libc.so
+                hookSettings:
+                  early: true
+                  platformStackTrace: true
+                hooks:
+                  - symbol: write
+        """)
+        run_frooky_spawn(hook_file, TARGET_APP)
+
+        traces = [event["stackTrace"] for event in find_matched_events({"module": "libc.so", "symbol": "write"})]
+        # no Java frames before targetReady; the Java frames of later calls show that the app went on from there
+        assert any(trace.get("skipped") == "before-ready" for trace in traces)
+        assert any(trace["platformStackTrace"] for trace in traces)
