@@ -13,7 +13,7 @@ export const decoderArgValueSchema = z.union([z.string(), z.number()]);
 
 export const decoderOptionsSchema = z.object({
     constants: z.record(z.string(), z.number()).optional(),
-    class: z.string().optional(),
+    class: z.string().regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/).optional(),
     fields: z.string().optional()
 });
 

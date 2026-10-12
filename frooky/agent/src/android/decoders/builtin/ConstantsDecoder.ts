@@ -5,7 +5,8 @@ import { configClassConstants } from "../utils/decodeConstants";
 
 // Decodes a value to the name of the matching constant, e.g. `1` -> `ENCRYPT_MODE` for `Cipher.init(int, Key)`.
 // The constants are the map in `decoderOptions.constants`, or else the `static final` fields of `decoderOptions.class` or of the
-// hooked class that match `decoderOptions.fields`. Falls back to the raw value if no constant matches.
+// hooked class that match `decoderOptions.fields`. Falls back to the raw value if no constant matches. Throws for a value
+// that is no primitive, e.g. an `int[]` or a `List`, so OverrideDecoder decodes it with the default decoder of its type.
 export class ConstantsDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "ConstantsDecoder";
   readonly description =
@@ -14,6 +15,7 @@ export class ConstantsDecoder extends Decoder<Java.Wrapper> {
   private readonly constantsOfClass = configClassConstants(this.decodable);
 
   decode(value: Java.Wrapper): DecodedValue {
+    assertPrimitiveValue(value, this.type);
     const configConstants = this.settings.decoderOptions?.constants;
     const name = configConstants ? this.findInConfig(value, configConstants) : this.findInClass(value);
     return {
@@ -43,5 +45,14 @@ export class ConstantsDecoder extends Decoder<Java.Wrapper> {
     if (this.type === "int") return Number(value) >>> 0;
     if (this.type === "long") return String(value);
     return value;
+  }
+}
+
+// Constants are primitives, which Frida passes as numbers, booleans, strings and Int64 (`long`). An object or array
+// can't be returned as it is either: an event only holds decoded values, and sending the wrapper of a Java object
+// fails or, for an array, aborts the app.
+export function assertPrimitiveValue(value: unknown, type: string): void {
+  if (typeof value === "object" && value !== null && !(value instanceof Int64) && !(value instanceof UInt64)) {
+    throw new Error(`${type} is no primitive value`);
   }
 }

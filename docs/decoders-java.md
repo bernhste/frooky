@@ -80,7 +80,7 @@ hooks:
           - [org.owasp.mastestapp.UserProfile, profile, { decoder: getters }]
 ```
 
-This decodes `profile` as `[{ "name": "age", "value": 42 }, { "name": "name", "value": "alice" }, { "name": "admin", "value": true }]`, in the order of reflection. Each getter value is decoded one `maxDepth` level deeper.
+This decodes `profile` as `[{ "name": "age", "value": 42 }, { "name": "name", "value": "alice" }, { "name": "admin", "value": true }]`, in the order of reflection. Each getter value is decoded one `maxDepth` level deeper, with the decoder frooky picks for it, not through its getters again: the `Class` that `getDeclaringClass()` of an enum returns is decoded as `"class <name>"`.
 
 ### `hashCode`
 

@@ -5,9 +5,30 @@ let senderIntervalId: ReturnType<typeof setInterval> | null = null;
 let runningQueue: BaseEvent[] | null = null;
 let originalPush: ((...items: BaseEvent[]) => number) | null = null;
 
+// One NDJSON line per event. An event that can't be serialized, e.g. with the wrapper of a Java object as a value, is
+// dropped with an error, so it doesn't cost the other events.
+export function serializeEvents(events: BaseEvent[]): string {
+  let ndjson = "";
+  for (const event of events) {
+    try {
+      ndjson += JSON.stringify(event) + "\n";
+    } catch (error) {
+      console.error(`Dropping an event that can't be serialized (${describeEvent(event)}): ${error}`);
+    }
+  }
+  return ndjson;
+}
+
+// e.g. `hook-java org.owasp.mastestapp.MastgTest.receiveList`
+function describeEvent(event: BaseEvent): string {
+  const { javaClassName, method, module, symbol, offset } = event as unknown as Record<string, unknown>;
+  const target = javaClassName !== undefined ? `${javaClassName}.${method}` : module !== undefined ? `${module}!${symbol ?? offset}` : undefined;
+  return target ? `${event.type} ${target}` : String(event.type);
+}
+
 function defaultSendEvents(events: BaseEvent[]): void {
-  const ndjson = events.map((e) => JSON.stringify(e)).join("\n") + "\n";
-  send(ndjson);
+  const ndjson = serializeEvents(events);
+  if (ndjson) send(ndjson);
 }
 
 export function startEventSender(

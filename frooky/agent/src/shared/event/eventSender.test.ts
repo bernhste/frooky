@@ -1,6 +1,6 @@
 import { SEND_INTERVAL_MS } from "../defaultValues";
 import { BaseEvent } from "./baseEvent";
-import { startEventSender, stopEventSender } from "./eventSender";
+import { serializeEvents, startEventSender, stopEventSender } from "./eventSender";
 
 class TestEvent extends BaseEvent {
   constructor(public readonly value: string) {
@@ -185,6 +185,51 @@ describe("eventSender", () => {
       await wait(30);
 
       expect(sendSpyB).toHaveBeenCalledWith([eventB]);
+    });
+  });
+
+  describe("serializeEvents()", () => {
+    it("writes one JSON line per event", () => {
+      const lines = serializeEvents([new TestEvent("a"), new TestEvent("b")]).split("\n");
+
+      expect(lines.length).toBe(3);
+      expect(JSON.parse(lines[0]).value).toBe("a");
+      expect(JSON.parse(lines[1]).value).toBe("b");
+      expect(lines[2]).toBe("");
+    });
+
+    it("drops an event that can't be serialized and keeps the others", () => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      // like the wrapper of a Java object, whose serialization calls into the Java VM and fails
+      const unserializable = Object.assign(new TestEvent("bad"), {
+        javaClassName: "com.example.Foo",
+        method: "bar",
+        returnValue: {
+          toJSON: () => {
+            throw new Error("expected a pointer");
+          },
+        },
+      });
+
+      const ndjson = serializeEvents([new TestEvent("first"), unserializable, new TestEvent("last")]);
+
+      expect(
+        ndjson
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line).value),
+      ).toEqual(["first", "last"]);
+      expect(errorSpy).toHaveBeenCalledWith("Dropping an event that can't be serialized (test-event com.example.Foo.bar): Error: expected a pointer");
+      errorSpy.mockRestore();
+    });
+
+    it("returns an empty string if no event is left", () => {
+      const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+      const circular: Record<string, unknown> = {};
+      circular.self = circular;
+
+      expect(serializeEvents([Object.assign(new TestEvent("bad"), { circular })])).toBe("");
+      errorSpy.mockRestore();
     });
   });
 });

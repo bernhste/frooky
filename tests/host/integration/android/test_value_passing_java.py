@@ -537,3 +537,114 @@ class TestValuePassingJava:
 
         frooky.update_hook_file(hook_file("A", "B", "C"))
         assert recorded_by(frooky) == ["A", "B", "C"]
+
+    @pytest.mark.parametrize("decoder", ["constants", "bitmask"])
+    def test_constants_decoders_keep_the_default_decoding_of_arrays_and_objects(self, run_frooky, find_matched_events, decoder):
+        """`decoder: constants` and `decoder: bitmask` only decode primitives. An array, a list or a bundle is decoded
+        as without the decoder, and the app and the events of the other hooks are unaffected."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - javaClass: {MASTG_CLASS}
+                decoderSettings:
+                  decoder: {decoder}
+                hooks:
+                  - receiveBooleanArray
+                  - receiveByteArray
+                  - receiveCharArray
+                  - receiveStringArray
+                  - receiveList
+                  - receiveBundle
+                  - receiveMode
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - trackEvent
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        def argument(method):
+            (event,) = find_matched_events({"javaClassName": MASTG_CLASS, "method": method})
+            return event["argsIn"][0]["value"]
+
+        assert argument("receiveBooleanArray") == [True, False]
+        assert argument("receiveByteArray") == [1, 2, 3]
+        assert argument("receiveCharArray") == ["x", "y", "z"]
+        assert argument("receiveStringArray") == ["a", "b", "c"]
+        assert [element["value"] for element in argument("receiveList")["value"]] == ["a", "b", "c"]
+        assert {extra["name"] for extra in argument("receiveBundle")["value"]} == {"user", "age", "roles"}
+        # MODE_DECRYPT = 2, a constant of the hooked class
+        assert argument("receiveMode") == ("MODE_DECRYPT" if decoder == "constants" else ["MODE_DECRYPT"])
+        # called last, after every value above was decoded and sent
+        assert [event["argsIn"][0]["value"] for event in find_matched_events({"method": "trackEvent"})] == ["button_click", "sdk_flush"]
+
+    def test_getters_decoder_decodes_the_getter_values_with_their_default_decoders(self, run_frooky, find_matched_events):
+        """`decoder: getters` on an enum calls getDeclaringClass(), whose Class is decoded with its toString(), not
+        through its own getters. The events after it are recorded."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - [receiveEnum, {{decoder: getters}}]
+                  - [receiveLevel, {{decoder: getters}}]
+                  - receiveNestedList
+                  - trackEvent
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        def declaring_class(method):
+            (event,) = find_matched_events({"javaClassName": MASTG_CLASS, "method": method})
+            (getter,) = event["argsIn"][0]["value"]
+            assert getter["name"] == "declaringClass"
+            return getter["value"]["value"]
+
+        assert declaring_class("receiveEnum") == f"class {MASTG_CLASS}$Direction"
+        assert declaring_class("receiveLevel") == "class org.owasp.mastestapp.Level"
+        assert len(find_matched_events({"method": "receiveNestedList"})) == 1
+        assert len(find_matched_events({"method": "trackEvent"})) == 2
+
+    def test_getters_decoder_on_every_method_of_a_class(self, run_frooky, find_matched_events):
+        """`decoder: getters` for a whole collection: every call is recorded, whatever type it passes."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - javaClass: {MASTG_CLASS}
+                decoderSettings:
+                  decoder: getters
+                hooks:
+                  - receive*
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - trackEvent
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        methods = {event["method"] for event in find_matched_events({"javaClassName": MASTG_CLASS})}
+        assert {"receiveString", "receiveIntArray", "receiveEnum", "receiveBundle", "receiveIntent", "receiveCipher", "receiveCertificate"} <= methods
+        assert len(find_matched_events({"method": "trackEvent"})) == 2
+
+    def test_collection_with_an_invalid_class_name_is_skipped(self, run_frooky_spawn, find_matched_events):
+        """A `javaClass` that is no class name (empty, with a trailing dot, a JVM descriptor) is skipped when frooky
+        spawns the app: the app starts, and the other hook collections are hooked."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - javaClass: ""
+                hooks: [receiveInt]
+              - javaClass: {MASTG_CLASS}.
+                hooks: [receiveInt]
+              - javaClass: "Lorg/owasp/mastestapp/MastgTest;"
+                hooks: [receiveInt]
+              - javaClass: org/owasp/mastestapp/MastgTest
+                hooks: [receiveInt]
+              - javaClass: org.owasp.mastestapp.MainActivity
+                hooks:
+                  - method: onCreate
+                    overloads:
+                      - params:
+                          - [android.os.Bundle, savedInstanceState]
+            """)
+
+        run_frooky_spawn(hook_file, TARGET_APP)
+
+        events = find_matched_events({"type": "hook-java"})
+        assert [(event["javaClassName"], event["method"]) for event in events] == [("org.owasp.mastestapp.MainActivity", "onCreate")]

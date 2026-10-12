@@ -19,8 +19,8 @@ export const inputJavaHookDetailsSchema = z.object({
 export const inputJavaHookSchema = z.union([z.string(), z.tuple([z.string(), inputDecoderSettingsSchema]), inputJavaHookDetailsSchema]);
 
 export const inputJavaHookCollectionSchema = z.object({
-    javaClass: z.string(),
-    classLoader: z.string().optional(),
+    javaClass: z.string().regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/),
+    classLoader: z.string().regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/).optional(),
     hooks: z.array(inputJavaHookSchema),
     hookSettings: inputHookSettingsSchema.optional(),
     decoderSettings: inputDecoderSettingsSchema.optional()

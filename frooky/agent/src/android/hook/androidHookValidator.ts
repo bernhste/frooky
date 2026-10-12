@@ -26,6 +26,9 @@ export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, 
       let collectionSettings;
       try {
         const { hooks: _hooks, ...header } = javaHookCollection;
+        // before the schema, whose message for a name that doesn't match its pattern has no hint
+        validateJavaClassName(javaHookCollection.javaClass, "javaClass");
+        validateJavaClassName(javaHookCollection.classLoader, "classLoader");
         validateInput(inputJavaHookCollectionHeaderSchema, header, "The hook collection");
         collectionSettings = mergeJavaHookCollectionSettings(javaHookCollection, settings);
       } catch (e) {
@@ -183,4 +186,19 @@ function validateConstantsSource(values: [label: string, settings: DecoderSettin
       );
     }
   }
+}
+
+// Segments separated by single dots, e.g. `android.content.Intent`, `a.b$c` or the pattern `org.owasp.**`. The same
+// as the `@pattern` of `javaClass`, `classLoader` and `decoderOptions.class` in the input types.
+const JAVA_CLASS_NAME = /^[^\s./;[\]<>():,]+(\.[^\s./;[\]<>():,]+)*$/;
+
+// Throws for a string that is no Java class name, e.g. an empty one, one with a trailing dot, or a JVM descriptor such
+// as `Lcom/example/Foo;` or `[B`. Looking such a name up aborts an app that checks its JNI calls (CheckJNI), as ART
+// does for debuggable apps and on emulators. A value that is no string is left to the schema.
+export function validateJavaClassName(name: unknown, property: string): void {
+  if (typeof name !== "string" || JAVA_CLASS_NAME.test(name)) return;
+  const descriptor = /^L(.+);$/.exec(name);
+  const dotted = (descriptor ? descriptor[1] : name).replace(/\//g, ".");
+  const hint = dotted !== name && JAVA_CLASS_NAME.test(dotted) ? ` Did you mean '${dotted}'?` : "";
+  throw new Error(`'${property}' must be a fully qualified Java class name with dots, e.g. 'android.content.Intent', but is '${name}'.${hint}`);
 }

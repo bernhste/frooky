@@ -107,10 +107,12 @@
             "type": "object",
             "properties": {
               "javaClass": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
               },
               "classLoader": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
               },
               "hooks": {
                 "type": "array",
@@ -230,7 +232,8 @@
                                                   }
                                                 },
                                                 "class": {
-                                                  "type": "string"
+                                                  "type": "string",
+                                                  "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
                                                 },
                                                 "fields": {
                                                   "type": "string"
@@ -325,7 +328,8 @@
                                                   }
                                                 },
                                                 "class": {
-                                                  "type": "string"
+                                                  "type": "string",
+                                                  "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
                                                 },
                                                 "fields": {
                                                   "type": "string"
@@ -411,7 +415,8 @@
                                               }
                                             },
                                             "class": {
-                                              "type": "string"
+                                              "type": "string",
+                                              "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
                                             },
                                             "fields": {
                                               "type": "string"
@@ -504,7 +509,8 @@
                                         }
                                       },
                                       "class": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
                                       },
                                       "fields": {
                                         "type": "string"

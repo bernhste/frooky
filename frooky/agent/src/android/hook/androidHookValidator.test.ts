@@ -5,7 +5,7 @@ import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTy
 import { InputJavaHookCollection, InputJavaHookDetails } from "../../shared/inputParsing/inputJavaHookCollection";
 import { InputNativeHookCollection } from "../../shared/inputParsing/inputNativeHookCollection";
 import { logger } from "../../shared/logger";
-import { AndroidHookValidator } from "./androidHookValidator";
+import { AndroidHookValidator, validateJavaClassName } from "./androidHookValidator";
 
 const defaultSettings: FrookySettings = {
   hookSettings: { ...DEFAULT_HOOK_SETTINGS },
@@ -206,6 +206,52 @@ describe("AndroidHookValidator", () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
+    it("skips a hook collection whose javaClass or classLoader is no Java class name", () => {
+      const names = ["", " ", "com.example.Foo.", ".com.example.Foo", "com..Foo", "com/example/Foo", "Lcom/example/Foo;", "[B", " com.example.Foo"];
+      const collections: InputJavaHookCollection[] = [
+        ...names.map((javaClass) => ({ javaClass, hooks: ["skipped"] })),
+        { javaClass: "com.example.Foo", classLoader: "com/example/Loader", hooks: ["skipped"] },
+        { javaClass: "com.example.Foo$Inner", classLoader: "com.example.Loader", hooks: ["inner"] },
+        { javaClass: "com.example.**", hooks: ["pattern"] },
+        { javaClass: "a.b", hooks: ["obfuscated"] },
+      ];
+
+      const hooks = validator.validateAndNormalizeHooks({ hookCollections: collections }, defaultSettings);
+
+      expect(hooks.map((hook) => hook.method)).toEqual(["inner", "pattern", "obfuscated"]);
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages.length).toBe(names.length + 1);
+      expect(messages).toContain(
+        "Skipping the hook collection for class '': 'javaClass' must be a fully qualified Java class name with dots, e.g. 'android.content.Intent', but is ''.",
+      );
+      expect(messages).toContain(
+        "Skipping the hook collection for class 'Lcom/example/Foo;': 'javaClass' must be a fully qualified Java class name with dots, e.g. 'android.content.Intent', but is 'Lcom/example/Foo;'. Did you mean 'com.example.Foo'?",
+      );
+      expect(messages).toContain(
+        "Skipping the hook collection for class 'com.example.Foo': 'classLoader' must be a fully qualified Java class name with dots, e.g. 'android.content.Intent', but is 'com/example/Loader'. Did you mean 'com.example.Loader'?",
+      );
+    });
+
+    it("skips a hook whose decoderOptions.class is no Java class name", () => {
+      const javaCollection: InputJavaHookCollection = {
+        javaClass: "com.example.Foo",
+        hooks: [
+          { method: "a", overloads: [{ params: [["int", "mode", { decoder: "constants", decoderOptions: { class: "" } }]] }] },
+          { method: "b", overloads: [{ params: ["int"], returns: { decoder: "bitmask", decoderOptions: { class: "javax/crypto/Cipher" } } }] },
+          "ok",
+        ],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [javaCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["ok"]);
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages.length).toBe(2);
+      expect(messages[0]).toContain("Skipping hook for java method 'a' from class 'com.example.Foo' due to an invalid declaration:");
+      expect(messages[0]).toContain("overloads[0].params[0][2].decoderOptions.class");
+      expect(messages[1]).toContain("overloads[0].returns.decoderOptions.class");
+    });
+
     it("accepts decoderOptions.class and decoderOptions.fields, and skips a hook that combines them with a map", () => {
       const javaCollection: InputJavaHookCollection = {
         javaClass: "com.example.Foo",
@@ -339,5 +385,28 @@ describe("AndroidHookValidator", () => {
         expect(warnings()).toEqual([]);
       });
     });
+  });
+});
+
+describe("validateJavaClassName()", () => {
+  it("accepts class names, nested classes and patterns", () => {
+    for (const name of [
+      "Foo",
+      "a.b",
+      "android.content.Intent",
+      "com.example.Outer$Inner",
+      "org.owasp.*.HttpClient",
+      "android.**",
+      "*",
+      "kotlin.jvm.internal.Ref$ObjectRef",
+    ]) {
+      expect(() => validateJavaClassName(name, "javaClass")).not.toThrow();
+    }
+  });
+
+  it("only suggests a name that is valid", () => {
+    expect(() => validateJavaClassName("com/example/", "javaClass")).toThrow(
+      "'javaClass' must be a fully qualified Java class name with dots, e.g. 'android.content.Intent', but is 'com/example/'.",
+    );
   });
 });

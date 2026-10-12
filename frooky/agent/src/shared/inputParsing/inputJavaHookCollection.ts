@@ -60,7 +60,9 @@ export interface InputJavaHookCollection {
   /**
    * Fully qualified name of the class to hook, e.g. `android.content.Intent`. A `*` matches within a single package
    * segment, while `**` matches across package segments (e.g. `android.**` hooks all matching classes in `android`
-   * and its subpackages).
+   * and its subpackages). Written with dots, not as a JVM descriptor such as `Landroid/content/Intent;`.
+   *
+   * @pattern ^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$
    */
   javaClass: string;
 
@@ -69,6 +71,8 @@ export interface InputJavaHookCollection {
    * hooked as loaded by instances of this class loader, also when one of them loads it later. Only needed for a class
    * loader that doesn't extend `BaseDexClassLoader` (e.g. one that defines classes with `DexFile.loadClass()`), or to
    * hook a class that also exists in another class loader.
+   *
+   * @pattern ^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$
    */
   classLoader?: string;
 

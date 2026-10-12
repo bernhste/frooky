@@ -23,7 +23,9 @@ export class GetterDecoder extends RecursiveDecoder<Java.Wrapper> {
     return {
       type: this.type,
       name: this.name,
-      value: decodeGetterValues(value, childSettings, this.options),
+      // the values of the getters get their default decoders: with `getters` again, the getters of e.g. the Class
+      // an enum returns from getDeclaringClass() lead to ever more objects
+      value: decodeGetterValues(value, { ...childSettings, decoder: undefined, decoderOptions: undefined }, this.options),
     };
   }
 }

@@ -117,6 +117,8 @@ export interface DecoderOptions {
   /**
    * Java hooks: the class whose `static final` fields are the constants of `decoder: constants` and `decoder: bitmask`,
    * e.g. `javax.crypto.Cipher`. Only the fields of the type of the value are used. Default: the hooked class.
+   *
+   * @pattern ^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$
    */
   class?: string;
 

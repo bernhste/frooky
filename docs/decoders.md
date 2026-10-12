@@ -471,7 +471,7 @@ Many APIs take an integer that stands for one or more named constants, e.g. the 
 The constants are numbers, so only numeric values can be decoded:
 
 - **Native hooks**: integers passed by value, e.g. `int`, `unsigned long` or `uint32_t`. A pointer, e.g. `int *`, isn't followed, so its address is decoded. `float` and `double` aren't supported.
-- **Java hooks**: values of a primitive type. A map in `decoderOptions: { constants }` matches `int`, `long`, `short`, `byte`, `float` and `double` values. The constants of a class are its fields of the type of the value, so a `boolean` or `char` value can be decoded too. Fields of other types, e.g. `String` constants such as `KeyProperties.KEY_ALGORITHM_AES`, are never matched. `bitmask` only decodes `int`, `long`, `short`, `byte` and `char` values.
+- **Java hooks**: values of a primitive type. Any other value, e.g. an `int[]`, a `List` or a boxed `Integer`, is decoded as if no `decoder` were set, and frooky logs a warning, once per parameter. A map in `decoderOptions: { constants }` matches `int`, `long`, `short`, `byte`, `float` and `double` values. The constants of a class are its fields of the type of the value, so a `boolean` or `char` value can be decoded too. Fields of other types, e.g. `String` constants such as `KeyProperties.KEY_ALGORITHM_AES`, are never matched. `bitmask` only decodes `int`, `long`, `short`, `byte` and `char` values.
 
 #### A Map of Constants
 

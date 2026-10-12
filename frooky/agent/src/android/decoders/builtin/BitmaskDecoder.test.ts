@@ -78,4 +78,13 @@ describe("BitmaskDecoder", () => {
     expect(decode("int", 3, null)).toBe(3);
     expect(decode("java.lang.String", "abc")).toBe("abc");
   });
+
+  it("throws for an array and an object, whose wrappers can't be sent in an event", () => {
+    const flags = Java.array("int", [1, 2]);
+    const list = Java.use("java.util.ArrayList").$new();
+
+    expect(() => decode("[I", flags)).toThrow("[I is no primitive value");
+    expect(() => decode("[Z", Java.array("boolean", [true]))).toThrow("[Z is no primitive value");
+    expect(() => decode("java.util.List", list)).toThrow("java.util.List is no primitive value");
+  });
 });

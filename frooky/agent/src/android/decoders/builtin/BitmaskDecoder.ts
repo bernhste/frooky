@@ -5,11 +5,13 @@ import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { logger } from "../../../shared/logger";
 import { configClassConstants } from "../utils/decodeConstants";
 import { javaBits } from "../utils/javaBits";
+import { assertPrimitiveValue } from "./ConstantsDecoder";
 
 // `decoder: bitmask`: the names of the constants whose bits are set in an integer bitmask, e.g.
 // `["PURPOSE_ENCRYPT", "PURPOSE_DECRYPT"]` for the purposes of a Keystore key. The constants are the map in
 // `decoderOptions.constants`, or else the `static final` fields of `decoderOptions.class` or of the hooked class that match
-// `decoderOptions.fields`. Bits no constant matches are added as hex. A value that is no integer is returned as is.
+// `decoderOptions.fields`. Bits no constant matches are added as hex. A primitive that is no integer is returned as is.
+// Throws for a value that is no primitive, so OverrideDecoder decodes it with the default decoder of its type.
 export class BitmaskDecoder extends Decoder<Java.Wrapper> {
   readonly decoderName = "BitmaskDecoder";
   readonly description =
@@ -19,6 +21,7 @@ export class BitmaskDecoder extends Decoder<Java.Wrapper> {
   private readonly constants = this.resolveConstants();
 
   decode(value: Java.Wrapper): DecodedValue {
+    assertPrimitiveValue(value, this.type);
     const constants = this.constants;
     const bits = value == null ? undefined : javaBits(value, this.type);
     if (!constants || bits === undefined) {

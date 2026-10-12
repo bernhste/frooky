@@ -70,6 +70,7 @@ WebView.loadUrl(url: String, additionalHttpHeaders: MutableMap<String!, String!>
 
 - `$init` is the constructor. Events and hook statistics name constructors `$init` too.
 - A nested class is written with `$`, e.g. `android.security.keystore.KeyGenParameterSpec$Builder`.
+- A class is written by its fully qualified name with dots. frooky skips a collection whose `javaClass` or `classLoader` is no such name, e.g. an empty one, `com/example/Foo` or the JVM descriptor `Lcom/example/Foo;`, with a warning.
 
 The short form with settings changes the decoder settings of one method:
 

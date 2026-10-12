@@ -1,6 +1,7 @@
 import Java from "frida-java-bridge";
 import { DecodedValue } from "../../../shared/decoders/decodedValue";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
+import { JavaDecoderResolver } from "../javaDecoderResolver";
 import { GetterDecoder } from "./GetterDecoder";
 
 describe("GetterDecoder", () => {
@@ -52,5 +53,22 @@ describe("GetterDecoder", () => {
 
     expect(properties.find((p) => p.name === "host")?.value).toBe("example.org");
     expect(properties.find((p) => p.name === "absolute")?.value).toBe(true);
+  });
+
+  it("decodes the values of the getters with their default decoders, not with `decoder: getters` again", () => {
+    // an enum's getDeclaringClass() returns its Class, whose getters lead to ever more classes, methods and fields
+    const seconds = Java.use("java.util.concurrent.TimeUnit").SECONDS.value;
+    const settings = { ...DEFAULT_DECODER_SETTINGS, decoder: "getters" as const };
+
+    const decoded = JavaDecoderResolver.resolveDecoder({ type: "java.util.concurrent.TimeUnit", name: "unit", settings }).decode(seconds);
+
+    const properties = JSON.parse(JSON.stringify(decoded)).value as DecodedValue[];
+    expect(properties).toEqual([
+      {
+        type: "java.lang.Class",
+        name: "declaringClass",
+        value: { type: "java.lang.Class", name: "declaringClass", value: "class java.util.concurrent.TimeUnit" },
+      },
+    ]);
   });
 });

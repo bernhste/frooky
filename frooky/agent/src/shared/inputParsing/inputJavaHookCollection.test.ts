@@ -3,7 +3,7 @@ import { DecoderSettings, FrookySettings } from "../frookySettings";
 import { normalizeInputParams } from "./inputDecodableTypes";
 import { InputJavaHookCollection, InputJavaHookDetails, isJavaHookScope, normalizeJavaHookCollection } from "./inputJavaHookCollection";
 import { logger } from "../logger";
-import { inputJavaHookSchema } from "./zodSchemas/inputJavaHookCollection.zod";
+import { inputJavaHookCollectionSchema, inputJavaHookSchema } from "./zodSchemas/inputJavaHookCollection.zod";
 
 describe("inputJavaHookCollection", () => {
   describe("isJavaHookScope()", () => {
@@ -360,6 +360,42 @@ describe("inputJavaHookCollection", () => {
       const result = normalizeJavaHookCollection(hookCollection, defaultSettings);
 
       expect(result.javaClass).toBe("com.example.Foo");
+    });
+  });
+
+  describe("schema of the class names", () => {
+    const collection = (javaClass: string, classLoader?: string) =>
+      inputJavaHookCollectionSchema.safeParse({ javaClass, classLoader, hooks: ["bar"] });
+    const constantsClass = (name: string) =>
+      inputJavaHookSchema.safeParse({
+        method: "bar",
+        overloads: [{ params: [["int", "mode", { decoder: "constants", decoderOptions: { class: name } }]] }],
+      });
+
+    it("accepts class names with dots, nested classes and patterns", () => {
+      for (const name of ["Foo", "a.b", "android.content.Intent", "com.example.Outer$Inner", "org.owasp.*.HttpClient", "android.**"]) {
+        expect(collection(name).success).toBe(true);
+        expect(collection("com.example.Foo", name).success).toBe(true);
+        expect(constantsClass(name).success).toBe(true);
+      }
+    });
+
+    it("rejects an empty name, misplaced dots, whitespace and JVM descriptors", () => {
+      for (const name of [
+        "",
+        " ",
+        "com.example.Foo.",
+        ".com.example.Foo",
+        "com..Foo",
+        "com/example/Foo",
+        "Lcom/example/Foo;",
+        "[B",
+        "com.example.Foo ",
+      ]) {
+        expect(collection(name).success).toBe(false);
+        expect(collection("com.example.Foo", name).success).toBe(false);
+        expect(constantsClass(name).success).toBe(false);
+      }
     });
   });
 });

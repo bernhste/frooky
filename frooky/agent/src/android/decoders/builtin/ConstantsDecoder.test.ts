@@ -2,6 +2,7 @@ import Java from "frida-java-bridge";
 import { DEFAULT_DECODER_SETTINGS } from "../../../shared/defaultValues";
 import { DecoderOptions } from "../../../shared/frookySettings";
 import { logger } from "../../../shared/logger";
+import { JavaDecoderResolver } from "../javaDecoderResolver";
 import { ConstantsDecoder } from "./ConstantsDecoder";
 
 describe("ConstantsDecoder", () => {
@@ -128,6 +129,41 @@ describe("ConstantsDecoder", () => {
       it("should not match a value that isn't a number", () => {
         expect(withConstants("java.lang.String", { ONE: 1 }).decode("one" as unknown as Java.Wrapper).value).toBe("one");
       });
+    });
+  });
+
+  describe("on a value that is no primitive", () => {
+    const settings = { ...DEFAULT_DECODER_SETTINGS, decoder: "constants" as const, decoderOptions: { constants: { ONE: 1 } } };
+    const intArray = () => Java.array("int", [1, 2, 3]) as unknown as Java.Wrapper;
+    const list = () => {
+      const javaList = Java.use("java.util.ArrayList").$new();
+      javaList.add("a");
+      return javaList;
+    };
+
+    it("should throw for an array and an object, whose wrappers can't be sent in an event", () => {
+      expect(() => new ConstantsDecoder({ type: "[I", settings }).decode(intArray())).toThrow("[I is no primitive value");
+      expect(() => new ConstantsDecoder({ type: "java.util.List", settings }).decode(list())).toThrow("java.util.List is no primitive value");
+    });
+
+    it("should be decoded with the default decoder of its type when chosen with `decoder: constants`", () => {
+      const warnSpy = spyOn(logger, "warn");
+      try {
+        const decodedArray = JavaDecoderResolver.resolveDecoder({ type: "[I", settings }).decode(intArray());
+        const decodedList = JavaDecoderResolver.resolveDecoder({ type: "java.util.List", settings }).decode(list());
+
+        expect(decodedArray.value).toEqual([1, 2, 3]);
+        // only decoded values, which an event can be serialized with
+        expect(JSON.parse(JSON.stringify(decodedList)).value).toEqual({
+          type: "java.util.ArrayList",
+          value: [{ type: "java.lang.String", value: "a" }],
+        });
+        expect(warnSpy.mock.calls.map(([message]) => message as string)).toContain(
+          "Decoder 'constants' failed on [I, using ArrayDecoder: Error: [I is no primitive value",
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 });
