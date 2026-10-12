@@ -12,7 +12,7 @@ import { fromSource, plural } from "../../shared/utils";
 import { detectUnsafeContext } from "../../native/unsafeContext";
 import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { javaIdentityHashCode } from "../decoders/utils/javaValues";
-import { fixArtMethodAccessFlagsOffset, initializeClass, repairAccessFlags } from "../javaBridgeWorkarounds";
+import { awaitGcInstrumentation, fixArtMethodAccessFlagsOffset, initializeClass, repairAccessFlags } from "../javaBridgeWorkarounds";
 import { asFrooky } from "../scriptReplacements";
 import { hookedClassName, JavaHook } from "./javaHook";
 import { countCalls, ReplacementCalls, RetiredReplacements } from "./retiredReplacements";
@@ -133,6 +133,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
         resolveClassMembers(factory);
         this.preparedFactories.add(factory);
       }
+      awaitGcInstrumentation();
       initializeClass(method);
       const newOverload: HookedOverload = { method, target, hooks: [], observers: [], inFlight: 0, finished: 0 };
       asFrooky(target, () => (newOverload.method.implementation = this.createDispatcher(newOverload)));

@@ -43,6 +43,7 @@ dev = [
   "Appium-Python-Client>=6.0.7",
   "selenium>=4.51.0",
   "ruff>=0.17.0",
+  "pytest-timeout>=2.4.0",
 ]
 
 [project.urls]
@@ -73,6 +74,9 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --strict-markers"
+# seconds per test, above the waits of an integration test (tests/host/integration/conftest.py): a hanging test
+# fails with the stack of every thread
+timeout = 420
 
 
 [tool.ruff]

@@ -1,11 +1,13 @@
 import Java from "frida-java-bridge";
-import { getAndroidApiLevel, getApi, getArtMethodSpec } from "frida-java-bridge/lib/android.js";
+import { getAndroidApiLevel, getApi, getArtMethodSpec, getArtThreadFromEnv } from "frida-java-bridge/lib/android.js";
 import { logger } from "../shared/logger";
+import { asFrooky } from "./scriptReplacements";
 
 declare module "frida-java-bridge/lib/android.js" {
   // the ArtMethod layout frida-java-bridge detects once and uses for every hook, offsets in bytes
   export function getArtMethodSpec(vm: Java.VM): { size: number; offset: { jniCode: number; quickCode: number; accessFlags: number } };
   export function getAndroidApiLevel(): number;
+  export function getArtThreadFromEnv(env: Java.Env): NativePointer;
 }
 
 // Adjustments frooky makes to frida-java-bridge 7.0.13 for some Android versions:
@@ -13,10 +15,12 @@ declare module "frida-java-bridge/lib/android.js" {
 // 2. Android 17: Java.backtrace() throws (resolveArtWalkStack)
 // 3. Android 17: a GC while a hooked method runs crashes the app (fixArtMethodAccessFlagsOffset)
 // 4. Android 12 and 13: hooks on a class that isn't initialized yet miss calls (initializeClass)
+// 5. Android 12 and 12L: a hook installed while a GC runs crashes the app (awaitGcInstrumentation)
 // Remove an adjustment once a newer bridge version no longer needs it. They depend on the bridge's internals (the
 // `_m` mangler, the memoized ArtMethod spec, its API table), so package.json pins the exact version: when upgrading,
 // run javaBridgeWorkarounds.test.ts on Android 15, 16 and 17, and the integration test
 // test_constructors_and_static_methods on Android 12 and 13.
+// Issue 5 has no test: check its repro on Android 12.
 
 // ArtMethod access flags, used by issues 1 and 3
 const kAccNative = 0x0100;
@@ -229,5 +233,62 @@ export function initializeClass(method: Java.Method): void {
     logger.debug(`${className} is initialized before hooking it`);
   } catch (e) {
     logger.warn(`Couldn't initialize ${className} before hooking it, its hooks may miss calls: ${e}`);
+  }
+}
+
+// =====================================================================================================================
+// Issue 5 - Android 12 and 12L: a hook installed while a GC runs crashes the app
+// =====================================================================================================================
+
+// ART's GcCause of a background collection, only used in its trace of the wait
+const kGcCauseBackground = 2;
+const WAIT_FOR_GC_TO_COMPLETE_SYMBOL = "_ZN3art2gc4Heap19WaitForGcToCompleteENS0_7GcCauseEPNS_6ThreadE";
+// a static method of the boot image that does nothing and that nothing calls
+const UNUSED_METHOD = { className: "java.lang.Compiler", name: "disable" };
+
+let gcInstrumentationAwaited = false;
+
+// Issue: the app crashes on the first call of a hooked method if the first hook of the process was installed while a
+// GC was copying objects.
+//
+// Repro (Android 12 x86_64 emulator, value_passing_java.frooky.target.app): attach, intercept
+// ConcurrentCopying::ProcessMarkStack() with a CModule that sleeps 300 ms on its first call, run
+// `Runtime.getRuntime().gc()` on the main thread and, once inside that call, hook MastgTest.receiveBoolean(boolean)
+// with `m.implementation = function (...args) { return m.call(this, ...args); }`. After the GC, the first 32-bit
+// word of the hooked ArtMethod (its declaring class) has changed and the one of its replacement hasn't. Press
+// "Start": SIGSEGV, fault addr 0x10 in art::interpreter::DoCall(), called from MastgTest.mastgTest().
+//
+// How it happens: a hook runs through a native copy of the ArtMethod (the replacement). A copying GC moves the
+// method's class and updates the reference in the ArtMethod, but doesn't know the copy. The bridge updates its
+// copies when ConcurrentCopying::CopyingPhase() and Heap::CollectGarbageInternal() return, with listeners it
+// attaches at the first hook. A GC that is inside these functions at that moment returns without them, the copy
+// keeps the reference to the class's old address, and the GC then clears that memory. The interpreter reads the
+// dex cache of the copy's class from there, which is null.
+//
+// frooky runs into this when it attaches to an app that has just started, as ART collects garbage shortly after
+// start-up: about 1 of 100 integration tests on the Android 12 and 12L emulators of the CI.
+//
+// Fix: before the first hook, hook and unhook a method nothing calls, which attaches the bridge's listeners, then
+// wait until no GC runs with Heap::WaitForGcToComplete(). Every later GC runs through the listeners. Not limited to
+// Android 12, as the bridge updates its copies the same way on every version.
+export function awaitGcInstrumentation(): void {
+  if (gcInstrumentationAwaited) return;
+  gcInstrumentationAwaited = true;
+  const api = getApi();
+  const waitForGcToComplete = Process.findModuleByName("libart.so")?.findExportByName(WAIT_FOR_GC_TO_COMPLETE_SYMBOL);
+  if (api === null || !api.artHeap || !waitForGcToComplete) {
+    logger.debug("Heap::WaitForGcToComplete() of libart.so not found: a hook installed while a GC runs can crash the app");
+    return;
+  }
+  try {
+    const target = `${UNUSED_METHOD.className}.${UNUSED_METHOD.name}`;
+    const method: Java.Method = Java.use(UNUSED_METHOD.className)[UNUSED_METHOD.name].overload();
+    asFrooky(target, () => (method.implementation = function () {}));
+    asFrooky(target, () => (method.implementation = null));
+    // the default scheduling lets other threads run JS meanwhile, e.g. a native hook the GC thread runs into
+    const wait = new NativeFunction(waitForGcToComplete, "int", ["pointer", "int", "pointer"]);
+    Java.vm.perform(() => wait(api.artHeap, kGcCauseBackground, getArtThreadFromEnv(Java.vm.getEnv())));
+  } catch (e) {
+    logger.debug(`Couldn't wait for a running GC before the first hook: ${e}`);
   }
 }

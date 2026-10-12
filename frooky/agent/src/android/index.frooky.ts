@@ -7,7 +7,7 @@ import { runUserScript } from "../shared/userScript";
 import { AndroidStackTrace } from "./androidStackTrace";
 import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
-import { fixArtMethodAccessFlagsOffset } from "./javaBridgeWorkarounds";
+import { awaitGcInstrumentation, fixArtMethodAccessFlagsOffset } from "./javaBridgeWorkarounds";
 import { trackScriptReplacements } from "./scriptReplacements";
 
 let frookyAgent: FrookyAgent | undefined;
@@ -37,6 +37,8 @@ rpc.exports = {
     // before the script's first Java.perform()
     fixArtMethodAccessFlagsOffset();
     trackScriptReplacements();
+    // after trackScriptReplacements(), which sees its hook as frooky's, and before the script's first hook
+    awaitGcInstrumentation();
     runUserScript(name, source, [{ module: "frida-java-bridge", global: "Java", value: Java }]);
   },
   initFrookyAgent(logLevel?: LogLevel, logTo?: LogTo) {
