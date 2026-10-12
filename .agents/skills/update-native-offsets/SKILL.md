@@ -11,7 +11,7 @@ The offsets are for the **x86_64** build, the ABI of the CI emulator.
 
 ## Files with offsets
 
-Find them with `grep -rn "offset:" docs/examples`. Skip `docs/examples/native/api_examples.yaml`: its `libfoo.so` offsets are placeholders.
+Find them with `grep -rn "offset:" docs/examples`.
 
 Current files:
 

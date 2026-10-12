@@ -18,6 +18,28 @@ hookCollections:
       - symbol: track_event
         params:
           - ["char *", name, { argFilter: ["^button_"] }]
+  - module: libreceiveFundamentalValue.so
+    hooks:
+      # int receive_int(int minValue, int maxValue) is called with INT_MIN and INT_MAX. A numeric filter captures
+      # values matching a comparison operator (>, >=, <, <=, ==, !=). With filters on several parameters, each
+      # must match.
+      - symbol: receive_int
+        params:
+          - [int, minValue, { argFilter: ["< 0"] }]
+          - [int, maxValue, { argFilter: ["== 2147483647"] }]
+      # whole numbers are compared exactly, also 64-bit values beyond 2^53: receive_ullong is called with 0 and
+      # ULLONG_MAX, 18446744073709551615, so only the first of these two hooks records it
+      - symbol: receive_ullong
+        params:
+          - [unsigned long long, minValue]
+          - [unsigned long long, max, { argFilter: ["> 18446744073709551614"] }]
+      - symbol: receive_ullong
+        params:
+          - [unsigned long long, minValue]
+          - [unsigned long long, oneLess, { argFilter: ["== 18446744073709551614"] }]
 
 # Expected events:
-#   track_event: only name "button_click"
+#   track_event:    only name "button_click"
+#   receive_int:    minValue -2147483648, maxValue 2147483647
+#   receive_ullong: one event, minValue "0", max "18446744073709551615" (strings: JSON numbers can't hold every
+#                   64-bit value)

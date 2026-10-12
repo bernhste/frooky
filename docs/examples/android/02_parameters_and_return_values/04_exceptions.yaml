@@ -1,0 +1,26 @@
+metadata:
+  name: "Parameters and Return Values (Android): Exceptions"
+  description: |
+    A call that throws is recorded like one that returns: the event has `exception` with what the method
+    threw instead of `returnValue`. The app gets and handles the exception as without the hook.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/02_parameters_and_return_values/04_exceptions.yaml
+# See:    docs/output.md#common-event-fields
+
+hookCollections:
+  - javaClass: org.owasp.mastestapp.MastgTest
+    hooks:
+      # fun parsePort(text: String): Int = text.toInt(), called with "8080" and with "not-a-port"
+      - method: parsePort
+        overloads:
+          - params:
+              - [java.lang.String, text]
+
+# Expected events:
+#   parsePort: argsIn [{type: java.lang.String, name: text, value: "8080"}], returnValue {type: int, value: 8080}
+#   parsePort: argsIn [{..., value: "not-a-port"}], exception "java.lang.NumberFormatException: For input string: \"not-a-port\"",
+#              no returnValue

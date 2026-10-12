@@ -3,112 +3,119 @@ schemaVersion: 1
 metadata:
   name: Native Hook Examples
   platform: Android
-  description: Examples of native C/C++ function hooking
+  description: |
+    Hooks on native APIs that most Android apps use: libc, liblog, Binder, SQLite and BoringSSL (libcrypto,
+    libssl). Each hook collection shows one feature of a native hook declaration.
   category: GENERAL
   author: frooky dev team
   version: 1
 
+# Target: any app, e.g. the Phone or Clock app. All modules are system libraries.
+# Run:    frooky -U -f com.google.android.deskclock docs/examples/native/api_examples.yaml -e
+# See:    docs/native-hook-declaration.md
+#
+# The libc functions an app calls thousands of times while it starts (open, openat, read, write, mmap) have an
+# `argFilter` or a `callerFilter` here, so the events show what the app does with its own files.
+# See docs/additional-features.md#dangerous-low-level-and-high-frequency-hooks.
+#
+# Not in this file, as it only fits one build of one library: `offset`, for functions without an exported
+# symbol, see 01_basic_hooking/02_hook_by_offset.yaml.
+
+# Settings of the file: defaults for every hook collection, which a collection, a hook, a parameter or a
+# return value can override. See docs/additional-features.md#settings-precedence.
+hookSettings:
+  maxStackFrames: 8
+decoderSettings:
+  maxItems: 256
+
 hookCollections:
-  # Hook multiple functions by name (all symbols in a module).
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
-  # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
-  - module: libc.so
-    hooks:
-    - open
-    - close
+  # ---- Hook declarations ----
 
-  # Hook functions using explicit object syntax.
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
-  # Docs: https://www.man7.org/linux/man-pages/man2/close.2.html
+  # Short form: the calls are recorded, without arguments or return value.
+  # Docs: https://www.man7.org/linux/man-pages/man2/unlink.2.html
+  # Docs: https://www.man7.org/linux/man-pages/man2/rename.2.html
   - module: libc.so
     hooks:
-    - symbol: open
-    - symbol: close
+    - unlink
+    - rename
 
-  # Hook with unnamed parameter types and return type (type information required for decoding).
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+  # Expanded form with unnamed parameter types and a return type, which frooky needs to decode the values.
+  # Docs: https://www.man7.org/linux/man-pages/man3/fopen.3.html
   - module: libc.so
     hooks:
-    - symbol: open
-      returns: int
+    - symbol: fopen
+      returns: "FILE *"
       params:
       - "const char *"
-      - int
-      - mode_t
+      - "const char *"
 
-  # Hook with named parameters (names provide context in output).
-  # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
+  # Named parameters, for context in the events. `decoder: bitmask` with a map names the bits of `mode`.
+  # Docs: https://www.man7.org/linux/man-pages/man2/access.2.html
   - module: libc.so
     hooks:
-    - symbol: open
+    - symbol: access
       returns: int
       params:
-      - ["const char *", path]
-      - [int, flags]
-      - [mode_t, mode]
+      - ["const char *", path, { argFilter: ['^/data/'] }]
+      - [int, mode, { decoder: bitmask, decoderOptions: { constants: { F_OK: 0, X_OK: 1, W_OK: 2, R_OK: 4 } } }]
 
-  # Hook multiple functions from the same module with various parameter counts.
-  # The EVP_* functions live in libcrypto.so, not libssl.so (Android ships BoringSSL).
-  # `out` and `outl` are filled by the call, so they are decoded on exit (`direction: out`).
-  # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
-  - module: libcrypto.so
+  # A symbol wildcard: inet_addr, inet_aton, inet_ntop, inet_pton, ... Parameters apply to every match, so
+  # only use them for functions with the same signature.
+  # Docs: https://www.man7.org/linux/man-pages/man3/inet_pton.3.html
+  - module: libc.so
     hooks:
-    - symbol: EVP_CIPHER_CTX_new
-      returns: "EVP_CIPHER_CTX *"
-    - symbol: EVP_CIPHER_CTX_free
-      params:
-      - ["EVP_CIPHER_CTX *", ctx]
-    - symbol: EVP_EncryptUpdate
-      returns: int
-      params:
-      - ["EVP_CIPHER_CTX *", ctx]
-      - ["unsigned char *", out, { direction: out, length: outl }]
-      - ["int *", outl, { direction: out }]
-      - ["const unsigned char *", in, { length: inl }]
-      - [int, inl]
+    - inet_*
 
-  # `key` and `iv` have no length parameter: their lengths depend on the cipher (e.g. 32 and 12 bytes for
-  # AES-256-GCM), which no decoder reads from `type`. As `void *`, they are shown as their addresses.
-  # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
-  - module: libcrypto.so
-    hookSettings:
-      maxStackFrames: 10
+  # A module wildcard: the function in every matching module, e.g. libssl.so of the system and a libssl of
+  # the app's own. The server name of a TLS connection (SNI).
+  # Docs: https://docs.openssl.org/master/man3/SSL_CTX_set_tlsext_servername_callback/
+  - module: libssl*.so
     hooks:
-    - symbol: EVP_EncryptInit_ex
-      returns: int
-      params:
-      - ["EVP_CIPHER_CTX *", ctx]
-      - ["const EVP_CIPHER *", type]
-      - ["ENGINE *", impl]
-      - ["const void *", key]
-      - ["const void *", iv]
-
-  # `length` passes the length of `buf`, since it isn't NUL-terminated.
-  # Docs: https://docs.openssl.org/master/man3/SSL_write/
-  - module: libssl.so
-    hooks:
-    - symbol: SSL_write
+    - symbol: SSL_set_tlsext_host_name
       returns: int
       params:
       - ["SSL *", ssl]
-      - ["const void *", buf, { length: num }]
-      - [int, num]
+      - ["const char *", name]
 
+  # ---- Parameters and return values ----
 
-  # `read` writes up to `count` bytes into `buf` and returns how many it wrote, so `buf` is decoded on return
-  # (`direction: out`) with the return value as `length` (`length: $ret`). A return value of -1 (an
-  # error) decodes `buf` as null. `decoder: fd` shows the file, socket or pipe that `fd` refers to.
-  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
+  # The forms of a parameter and of `returns`: type, [type, name], [type, name, {settings}] and an object.
+  # Parameters after the last one to decode can be left out (`zVfs`). The databases an app opens, also through
+  # android.database.sqlite.
+  # Docs: https://sqlite.org/c3ref/open.html
+  - module: libsqlite.so
+    hooks:
+    - symbol: sqlite3_open_v2
+      returns: { type: int, name: resultCode }
+      params:
+      - ["const char *", filename, { maxItems: 500 }]
+      - "sqlite3 **"
+      - { type: int, name: flags, decoder: bitmask, decoderOptions: { constants: { SQLITE_OPEN_READONLY: 1, SQLITE_OPEN_READWRITE: 2, SQLITE_OPEN_CREATE: 4, SQLITE_OPEN_URI: 0x40, SQLITE_OPEN_MEMORY: 0x80, SQLITE_OPEN_NOMUTEX: 0x8000, SQLITE_OPEN_FULLMUTEX: 0x10000 } } }
+
+  # `direction: out`: the function writes the value, so it is decoded on return. The system properties an app
+  # reads, e.g. ro.build.fingerprint or ro.debuggable.
+  # Docs: https://android.googlesource.com/platform/bionic/+/refs/heads/main/libc/include/sys/system_properties.h
   - module: libc.so
     hooks:
-    - symbol: read
-      returns: ssize_t
+    - symbol: __system_property_get
+      returns: int
       params:
-      - [int, fd, { decoder: fd }]
-      - ["void *", buf, { direction: out, length: $ret, decoder: string, maxItems: 100 }]
-      - [size_t, count]
+      - ["const char *", name]
+      - ["char *", value, { direction: out }]
 
-  # The same for TLS: the plaintext an app receives, before it's parsed.
+  # `length` with the name of another parameter, for a buffer without a terminator. `decoder: hex` shows the
+  # random bytes the app gets, e.g. for keys and nonces.
+  # Docs: https://docs.openssl.org/master/man3/RAND_bytes/
+  - module: libcrypto.so
+    hooks:
+    - symbol: RAND_bytes
+      returns: int
+      params:
+      - ["unsigned char *", buf, { direction: out, length: num, decoder: hex, maxItems: 64 }]
+      - [int, num]
+
+  # `length: $ret`: the return value is the number of bytes the call wrote into `buf`. The plaintext an app
+  # receives over TLS, before it's parsed. A return value of -1 (an error) decodes `buf` as null.
   # Docs: https://docs.openssl.org/master/man3/SSL_read/
   - module: libssl.so
     hooks:
@@ -119,20 +126,97 @@ hookCollections:
       - ["void *", buf, { direction: out, length: $ret, decoder: string }]
       - [int, num]
 
-  # Use `decoder: string` to decode a buffer as text instead of hex/ASCII.
-  # `length` passes the buffer length, since `buf` is not NUL-terminated.
+  # `direction: inout` on a value the function reads and writes: the size of `addr`. `length` with a number.
+  # Docs: https://www.man7.org/linux/man-pages/man2/getsockname.2.html
+  - module: libc.so
+    hooks:
+    - symbol: getsockname
+      returns: [int, { decoder: errno }]
+      params:
+      - [int, sockfd, { decoder: fd }]
+      - ["void *", addr, { direction: out, length: 16 }]
+      - ["unsigned int *", addrlen, { direction: inout }]
+
+  # A pointer that the function sets to its result is decoded on return too: `out` and `outl` of an encryption.
+  # `key` and `iv` of EVP_EncryptInit_ex have no length parameter (it depends on the cipher), so as `void *`
+  # they are shown as their addresses.
+  # Docs: https://docs.openssl.org/master/man3/EVP_EncryptInit/
+  - module: libcrypto.so
+    hooks:
+    - symbol: EVP_EncryptInit_ex
+      returns: int
+      params:
+      - ["EVP_CIPHER_CTX *", ctx]
+      - ["const EVP_CIPHER *", type]
+      - ["ENGINE *", impl]
+      - ["const void *", key]
+      - ["const void *", iv]
+    - symbol: EVP_EncryptUpdate
+      returns: int
+      params:
+      - ["EVP_CIPHER_CTX *", ctx]
+      - ["unsigned char *", out, { direction: out, length: outl }]
+      - ["int *", outl, { direction: out }]
+      - ["const unsigned char *", in, { length: inl }]
+      - [int, inl]
+
+  # ---- Decoders ----
+
+  # `decoder: constants` with a map: the priority of what an app writes to logcat, also with android.util.Log.
+  # Docs: https://developer.android.com/ndk/reference/group/logging#__android_log_buf_write
+  - module: liblog.so
+    hooks:
+    - symbol: __android_log_buf_write
+      returns: int
+      params:
+      - [int, bufID]
+      - [int, prio, { decoder: constants, decoderOptions: { constants: { VERBOSE: 2, DEBUG: 3, INFO: 4, WARN: 5, ERROR: 6, FATAL: 7 } } }]
+      - ["const char *", tag]
+      - ["const char *", text, { maxItems: 500 }]
+
+  # A `char16_t *` is decoded as UTF-16 (use `decoder: utf16` for other pointer types), with its length in code
+  # units. The strings an app sends to system services over Binder: Parcel::writeString16(const char16_t *, size_t).
+  # Docs: https://android.googlesource.com/platform/frameworks/native/+/refs/heads/main/libs/binder/include/binder/Parcel.h
+  - module: libbinder.so
+    hooks:
+    - symbol: _ZN7android6Parcel13writeString16EPKDsm
+      params:
+      - ["Parcel *", parcel]
+      - ["const char16_t *", str, { length: len, maxItems: 200, argFilter: ["^(?!android\\.|com\\.android\\.internal\\.)."] }]
+      - [size_t, len]
+
+  # `decoder: base64` shows what base64 text encodes: as text if it is printable, else as hex.
+  # Docs: https://docs.openssl.org/master/man3/EVP_EncodeInit/
+  - module: libcrypto.so
+    hooks:
+    - symbol: EVP_DecodeBlock
+      returns: int
+      params:
+      - ["unsigned char *", dst]
+      - ["const unsigned char *", src, { decoder: base64, length: src_len }]
+      - [size_t, src_len]
+
+  # `decoder: fd` shows the file, socket or pipe of a file descriptor, and `argFilter` matches its path: what
+  # an app reads from and writes to its own data directory, without pipes, sockets and system files.
+  # Docs: https://www.man7.org/linux/man-pages/man2/read.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/write.2.html
   - module: libc.so
     hooks:
+    - symbol: read
+      returns: ssize_t
+      params:
+      - [int, fd, { decoder: fd, argFilter: ['^/data/(user|data)/'] }]
+      - ["void *", buf, { direction: out, length: $ret, decoder: string, maxItems: 100 }]
+      - [size_t, count]
     - symbol: write
       returns: ssize_t
       params:
-      - int
+      - [int, fd, { decoder: fd, argFilter: ['^/data/(user|data)/'] }]
       - ["const void *", buf, { length: count, decoder: string, maxItems: 200 }]
       - [size_t, count]
 
-  # Flags and enums of system calls with the built-in presets, e.g. `open` flags as ["O_WRONLY", "O_CREAT"].
-  # The presets have the values of Android and iOS.
+  # The presets for the flags and enums of system calls, e.g. `open` flags as ["O_WRONLY", "O_CREAT"].
+  # `openat` and `mmap` are filtered to the files of the app's data directory and of its APK.
   # Docs: https://www.man7.org/linux/man-pages/man2/openat.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/mmap.2.html
   # Docs: https://www.man7.org/linux/man-pages/man2/socket.2.html
@@ -142,7 +226,7 @@ hookCollections:
       returns: [int, { decoder: fd }]
       params:
       - [int, dirfd]
-      - ["const char *", path]
+      - ["const char *", path, { argFilter: ['^/data/'] }]
       - [int, flags, { decoder: openFlags }]
       - [mode_t, mode]
     - symbol: mmap
@@ -152,14 +236,8 @@ hookCollections:
       - [size_t, length]
       - [int, prot, { decoder: mmapProt }]
       - [int, flags, { decoder: mmapFlags }]
-      - [int, fd, { decoder: fd }]
+      - [int, fd, { decoder: fd, argFilter: ['^/data/'] }]
       - [off_t, offset]
-    - symbol: mprotect
-      returns: int
-      params:
-      - ["void *", addr]
-      - [size_t, length]
-      - [int, prot, { decoder: mmapProt }]
     - symbol: socket
       returns: [int, { decoder: fd }]
       params:
@@ -167,7 +245,7 @@ hookCollections:
       - [int, type, { decoder: socketType }]
       - [int, protocol]
 
-  # Connections and why they fail: `decoder: errno` adds the errno of a call that returns -1, e.g. ECONNREFUSED.
+  # `decoder: errno` adds the errno of a call that returns -1: connections and why they fail, e.g. ECONNREFUSED.
   # Docs: https://www.man7.org/linux/man-pages/man2/connect.2.html
   - module: libc.so
     hooks:
@@ -178,7 +256,8 @@ hookCollections:
       - ["const void *", addr]
       - [int, addrlen]
 
-  # The command lines of programs the app starts: `argv` and `envp` end at a NULL pointer.
+  # `decoder: nullTerminatedArray`: an array of pointers that ends at a NULL pointer, like `argv` and `envp` of
+  # the programs an app starts. `offset: 1` skips argv[0], the program name.
   # Docs: https://www.man7.org/linux/man-pages/man2/execve.2.html
   - module: libc.so
     hooks:
@@ -186,33 +265,83 @@ hookCollections:
       returns: int
       params:
       - ["const char *", path]
-      - ["char *const []", argv, { decoder: nullTerminatedArray }]
+      - ["char *const []", argv, { decoder: nullTerminatedArray, offset: 1 }]
       - ["char *const []", envp, { decoder: nullTerminatedArray, maxItems: 20 }]
 
-  # Keep only the files the app's own native library opens on external storage. `callerFilter` is checked
-  # first and only compares the return address, so calls from other modules stay cheap. Replace libapp.so
-  # with the app's library.
+  # ---- Filters, stack traces and early hooks ----
+
+  # `argFilter` with a numeric comparison: only the datagrams and messages of more than 1KB an app sends.
+  # Docs: https://www.man7.org/linux/man-pages/man2/sendto.2.html
+  - module: libc.so
+    hooks:
+    - symbol: sendto
+      returns: ssize_t
+      params:
+      - [int, sockfd, { decoder: fd }]
+      - ["const void *", buf, { length: len, maxItems: 64 }]
+      - [size_t, len, { argFilter: ["> 1024"] }]
+
+  # `callerFilter`: only the calls of one library, here SQLite, i.e. the databases and journals an app opens.
+  # It is checked first and only compares the return address, so the calls of every other module stay cheap.
+  # Use the app's own library, e.g. '^libapp\.so$', to record what its native code opens.
   # Docs: https://www.man7.org/linux/man-pages/man2/open.2.html
   - module: libc.so
     hookSettings:
       callerFilter:
-        - '^libapp\.so$'
+        - '^libsqlite\.so$'
     hooks:
     - symbol: open
-      returns: int
+      returns: [int, { decoder: fd }]
       params:
-      - ["const char *", path, { argFilter: ['^/sdcard', '^/storage/emulated']}]
-      - [int, flags]
+      - ["const char *", path]
+      - [int, flags, { decoder: openFlags }]
       - [mode_t, mode]
-  # Hook functions without an exported symbol by their offset from the module's base address,
-  # e.g. found by reverse engineering a stripped library. Offsets fit only one build and ABI of the
-  # module; replace libfoo.so and the offsets with your own. See docs/native-hook-declaration.md.
-  # Docs: https://frida.re/docs/javascript-api/#module
-  - module: libfoo.so
+
+  # Stack traces: the native callers of a function and the Java methods that led to the call. Who resolves
+  # which host name.
+  # Docs: https://www.man7.org/linux/man-pages/man3/getaddrinfo.3.html
+  - module: libc.so
+    hookSettings:
+      nativeStackTrace: true
+      javaStackTrace: true
+      maxStackFrames: 6
     hooks:
-    - offset: 0x1a2b4
+    - symbol: getaddrinfo
       returns: int
       params:
-      - ["const char *", input]
-      - [size_t, length]
-    - offset: "0x000000000001C3D0"
+      - ["const char *", node]
+      - ["const char *", service]
+
+  # `early: true`: hooked before the app's own code runs, to record what happens while it starts. The
+  # libraries an app loads, with the flags as names (`dlopenFlags`).
+  # Docs: https://developer.android.com/ndk/reference/group/libdl#android_dlopen_ext
+  - module: libdl.so
+    hookSettings:
+      early: true
+    hooks:
+    - symbol: android_dlopen_ext
+      params:
+      - ["const char *", filename, { maxItems: 500, argFilter: ['^/data/'] }]
+      - [int, flags, { decoder: dlopenFlags }]
+
+  # ---- Several hooks on one function ----
+
+  # Each declaration records its own event per call: the plaintext an app sends over TLS as text, and its
+  # first bytes as hex with the stack trace of the sender.
+  # Docs: https://docs.openssl.org/master/man3/SSL_write/
+  - module: libssl.so
+    hooks:
+    - symbol: SSL_write
+      returns: int
+      params:
+      - ["SSL *", ssl]
+      - ["const void *", text, { length: num, decoder: string }]
+      - [int, num]
+    - symbol: SSL_write
+      hookSettings:
+        nativeStackTrace: true
+        javaStackTrace: true
+      params:
+      - ["SSL *", ssl]
+      - ["const void *", bytes, { length: num, decoder: hex, maxItems: 16 }]
+      - [int, num]

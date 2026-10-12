@@ -3,79 +3,63 @@ schemaVersion: 1
 metadata:
   name: Android Hook Examples
   platform: Android
-  description: Examples of Java/Kotlin method hooking on Android
+  description: |
+    Hooks on Java APIs that most Android apps use: preferences, databases, intents, files, logging, crypto
+    and networking. Each hook collection shows one feature of a Java hook declaration.
   category: GENERAL
   author: frooky dev team
   version: 1
 
+# Target: any app, e.g. the Phone or Clock app. All classes are framework classes.
+# Run:    frooky -U -f com.google.android.deskclock docs/examples/android/api_examples.yaml -e
+# See:    docs/java-hook-declaration.md
+#
+# Not in this file, as it needs a class of a certain app: `classLoader`, for the classes of a custom class
+# loader, see 01_basic_hooking/04_custom_class_loaders.yaml.
+
+# Settings of the file: defaults for every hook collection, which a collection, a hook, a parameter or a
+# return value can override. See docs/additional-features.md#settings-precedence.
+hookSettings:
+  maxStackFrames: 8
+decoderSettings:
+  maxItems: 256
+  maxDepth: 4
+
 hookCollections:
-  # Hook multiple hooks by name (all overloads are included).
-  # Docs: https://developer.android.com/reference/android/security/AttestedKeyPair
-  - javaClass: android.security.AttestedKeyPair
+  # ---- Hook declarations ----
+
+  # Short form: every overload of each method. `$init` is the constructor, `$` separates a nested class.
+  # Docs: https://developer.android.com/reference/android/app/AlertDialog.Builder
+  - javaClass: android.app.AlertDialog$Builder
     hooks:
     - $init
-    - getKeyPair
+    - setTitle
+    - setMessage
 
-  # Hook hooks using explicit object syntax with optional `hookSettings.maxStackFrames`.
-  # Docs: https://developer.android.com/reference/android/security/AttestedKeyPair
-  - javaClass: android.security.AttestedKeyPair
-    hookSettings:
-      maxStackFrames: 10
+  # Short form with decoder settings: the `byte[]` arguments and return values of every overload as text.
+  # Docs: https://developer.android.com/reference/javax/crypto/Cipher#doFinal(byte[])
+  - javaClass: javax.crypto.Cipher
     hooks:
-    - method: $init
-    - method: getKeyPair
+    - [doFinal, { decoder: string }]
 
-  # Hook a specific overload by parameter types (unnamed).
-  # Docs: https://developer.android.com/reference/java/net/URL#openConnection(java.net.Proxy)
-  - javaClass: java.net.URL
-    hooks:
-    - method: openConnection
-      overloads:
-      - params:
-        - java.net.Proxy
-
-  # Hook a specific overload by parameter types with names (for better context).
+  # Expanded form, with its own hook settings: who starts which activity.
   # Docs: https://developer.android.com/reference/android/app/Activity#startActivity(android.content.Intent)
   - javaClass: android.app.Activity
     hooks:
     - method: startActivity
-      overloads:
-      - params:
-        - [android.content.Intent, intent]
+      hookSettings:
+        javaStackTrace: true
+        maxStackFrames: 5
 
-  # Use `callerFilter` to keep only the queries made by the app's own code: an event is kept if a method
-  # of the app is on the Java stack. Replace com.example.app with the app's package.
-  # Docs: https://developer.android.com/reference/android/database/sqlite/SQLiteDatabase#query(java.lang.String,%20java.lang.String[],%20java.lang.String,%20java.lang.String[],%20java.lang.String,%20java.lang.String,%20java.lang.String)
-  - javaClass: android.database.sqlite.SQLiteDatabase
-    hooks:
-    - method: query
-      overloads:
-      - params:
-        - [java.lang.String, table]
-        - ["[Ljava.lang.String;", columns]
-        - [java.lang.String, selection]
-        - ["[Ljava.lang.String;", selectionArgs]
-        - [java.lang.String, groupBy]
-        - [java.lang.String, having]
-        - [java.lang.String, orderBy]
-    hookSettings:
-      javaStackTrace: true
-      maxStackFrames: 10
-      callerFilter:
-        - '^com\.example\.app\.'
-
-  # Hook multiple overloads of the same method.
-  # Docs: https://developer.android.com/reference/android/content/Intent
+  # Only some overloads, by their parameter types: unnamed, and named for context in the events.
+  # Docs: https://developer.android.com/reference/android/content/Intent#putExtra(java.lang.String,%20java.lang.String)
   - javaClass: android.content.Intent
     hooks:
     - method: putExtra
       overloads:
       - params:
-        - [java.lang.String, name]
-        - [java.lang.String, value]
-      - params:
-        - [java.lang.String, name]
-        - [int, value]
+        - java.lang.String
+        - java.lang.String
       - params:
         - [java.lang.String, name]
         - [boolean, value]
@@ -83,78 +67,243 @@ hookCollections:
         - [java.lang.String, name]
         - ["[B", value]
 
-  # Use `direction: out` to decode output parameters after method execution.
-  # Docs: https://developer.android.com/reference/javax/crypto/Cipher#doFinal(byte[],%20int)
-  - javaClass: javax.crypto.Cipher
-    hookSettings:
-      maxStackFrames: 3
+  # A static method. `decoder: constants` with a map names the priority: android.util.Log has several
+  # constants with the same value, so its own fields wouldn't tell them apart.
+  # Docs: https://developer.android.com/reference/android/util/Log#println(int,%20java.lang.String,%20java.lang.String)
+  - javaClass: android.util.Log
     hooks:
-    - method: doFinal
+    - method: println
       overloads:
       - params:
-        - ["[B", output, { direction: out, decoder: string }]
-        - [int, outputOffset]
+        - [int, priority, { decoder: constants, decoderOptions: { constants: { VERBOSE: 2, DEBUG: 3, INFO: 4, WARN: 5, ERROR: 6, ASSERT: 7 } } }]
+        - [java.lang.String, tag]
+        - [java.lang.String, msg]
 
-  - javaClass: javax.crypto.Cipher
+  # A method wildcard: putString, putInt, putBoolean, putStringSet, ... of the editor of SharedPreferences.
+  # Only the methods the class declares itself match.
+  # Docs: https://developer.android.com/reference/android/content/SharedPreferences.Editor
+  - javaClass: android.app.SharedPreferencesImpl$EditorImpl
+    hooks:
+    - put*
+
+  # A class wildcard: `*` matches within a package segment, here SecretKeySpec, PBEKeySpec, DESKeySpec, ...
+  # Docs: https://developer.android.com/reference/javax/crypto/spec/package-summary
+  - javaClass: javax.crypto.spec.*KeySpec
+    hooks:
+    - $init
+
+  # `**` matches across package segments: android.database.sqlite.SQLiteStatement.
+  # Docs: https://developer.android.com/reference/android/database/sqlite/SQLiteStatement
+  - javaClass: android.**.SQLiteStatement
+    hooks:
+    - execute*
+    - simpleQuery*
+
+  # An inherited method: Bundle inherits putString() from BaseBundle. Only the calls on a Bundle are recorded,
+  # not those on a PersistableBundle. The events have `declaringClass: android.os.BaseBundle`.
+  # Docs: https://developer.android.com/reference/android/os/BaseBundle#putString(java.lang.String,%20java.lang.String)
+  - javaClass: android.os.Bundle
+    hooks:
+    - putString
+
+  # ---- Parameters and return values ----
+
+  # The forms of a parameter: type, [type, name], [type, {settings}], [type, name, {settings}] and an object.
+  # Docs: https://developer.android.com/reference/android/database/sqlite/SQLiteDatabase#query(java.lang.String,%20java.lang.String[],%20java.lang.String,%20java.lang.String[],%20java.lang.String,%20java.lang.String,%20java.lang.String)
+  - javaClass: android.database.sqlite.SQLiteDatabase
+    hooks:
+    - method: query
+      overloads:
+      - params:
+        - [java.lang.String, table]
+        - ["[Ljava.lang.String;", { maxItems: 20 }]
+        - [java.lang.String, selection, { maxItems: 500 }]
+        - { type: "[Ljava.lang.String;", name: selectionArgs, maxItems: 20 }
+        - java.lang.String
+        - java.lang.String
+        - [java.lang.String, orderBy]
+
+  # `returns` has the decoder settings of the return value: the flags of an Intent by name.
+  # Docs: https://developer.android.com/reference/android/content/Intent#getFlags()
+  - javaClass: android.content.Intent
+    hooks:
+    - method: getFlags
+      overloads:
+      - params: []
+        returns: { decoder: bitmask, decoderOptions: { fields: "FLAG_*" } }
+
+  # `direction: out`: `buf` is written by the call, so it is decoded on return.
+  # Docs: https://developer.android.com/reference/java/security/MessageDigest#digest(byte[],%20int,%20int)
+  - javaClass: java.security.MessageDigest
+    hooks:
+    - method: digest
+      overloads:
+      - params:
+        - ["[B", buf, { direction: out, decoder: hex }]
+        - [int, offset]
+        - [int, len]
+
+  # `direction: inout`: the buffer before and after the call fills it with random bytes.
+  # Docs: https://developer.android.com/reference/java/security/SecureRandom#nextBytes(byte[])
+  - javaClass: java.security.SecureRandom
+    hooks:
+    - method: nextBytes
+      overloads:
+      - params:
+        - ["[B", bytes, { direction: inout, decoder: hex, maxItems: 32 }]
+
+  # `offset` and `length` select the slice of an array a method uses: by the names of other parameters, ...
+  # Docs: https://developer.android.com/reference/java/io/FileOutputStream#write(byte[],%20int,%20int)
+  - javaClass: java.io.FileOutputStream
+    hooks:
+    - method: write
+      overloads:
+      - params:
+        - ["[B", b, { decoder: string, offset: off, length: len, maxItems: 200 }]
+        - [int, off]
+        - [int, len]
+
+  # ... by the return value (`$ret`), for a buffer the call fills (`direction: out`): the bytes read from a file, ...
+  # Docs: https://developer.android.com/reference/java/io/FileInputStream#read(byte[],%20int,%20int)
+  - javaClass: java.io.FileInputStream
+    hooks:
+    - method: read
+      overloads:
+      - params:
+        - ["[B", b, { direction: out, decoder: string, offset: off, length: $ret, maxItems: 200 }]
+        - [int, off]
+        - [int, len]
+
+  # ... or by a number: the first 4 bytes of the data a digest is updated with.
+  # Docs: https://developer.android.com/reference/java/security/MessageDigest#update(byte[])
+  - javaClass: java.security.MessageDigest
     hooks:
     - method: update
       overloads:
       - params:
-        - ["[B", input, { decoder: string }]
-        - [int, inputOffset]
-        - [int, inputLen]
-        - ["[B", output, { direction: out, decoder: string }]
-        - [int, outputOffset]
+        - ["[B", input, { decoder: hex, length: 4 }]
 
-  # Use `direction: inout` to decode a parameter before and after execution.
-  # Docs: https://developer.android.com/reference/java/nio/ByteBuffer#put(byte[])
-  - javaClass: java.nio.ByteBuffer
+  # A call that throws is recorded with its `exception` instead of a `returnValue`: the classes an app looks
+  # up, also the ones that don't exist, e.g. of an optional library. The overload with only a name is one of
+  # the methods frooky never hooks, see docs/additional-features.md#blocked-functions.
+  # Docs: https://developer.android.com/reference/java/lang/Class#forName(java.lang.String,%20boolean,%20java.lang.ClassLoader)
+  - javaClass: java.lang.Class
     hooks:
-    - method: put
+    - method: forName
       overloads:
       - params:
-        - ["[B", src, { direction: inout }]
+        - [java.lang.String, name]
+        - [boolean, initialize]
+        - [java.lang.ClassLoader, loader, { decoder: hashCode }]
+        returns: { decoder: string }
 
-  - javaClass: java.security.Signature
-    hookSettings:
-      maxStackFrames: 5
+  # ---- Decoders ----
+
+  # `decoder: base64` shows what base64 text encodes: as text if it is printable, else as hex.
+  # Docs: https://developer.android.com/reference/android/util/Base64#decode(java.lang.String,%20int)
+  - javaClass: android.util.Base64
     hooks:
-    - method: initSign
+    - method: decode
       overloads:
       - params:
-        - [java.security.PrivateKey, privateKey, { decoder: hashCode }]
+        - [java.lang.String, str, { decoder: base64 }]
+        - [int, flags, { decoder: bitmask, decoderOptions: { fields: "*" } }]
+        returns: { decoder: string }
 
-
+  # `decoder: constants` with the constants of the hooked class whose names match `fields`, and
+  # `decoder: hashCode` to tell the key objects apart without decoding the key.
+  # Docs: https://developer.android.com/reference/javax/crypto/Cipher#init(int,%20java.security.Key)
   - javaClass: javax.crypto.Cipher
-    hookSettings:
-      maxStackFrames: 5
     hooks:
     - method: init
       overloads:
       - params:
-        - [int, opmode, { decoder: constants }]
+        - [int, opmode, { decoder: constants, decoderOptions: { fields: "*_MODE" } }]
         - [java.security.Key, key, { decoder: hashCode }]
-        - [java.security.SecureRandom, random]
 
-
-  - javaClass: javax.crypto.Cipher
-    hooks: 
-      - doFinal
-
-  - javaClass: javax.crypto.Cipher
-    hookSettings:
-      maxStackFrames: 5
-    hooks: 
-      - [doFinal, { decoder: string }]
-  # Mutable PendingIntents can be changed by the app they are passed to. `decoder: bitmask` shows the flags
-  # by name, from the FLAG_* constants of PendingIntent.
-  # Docs: https://developer.android.com/reference/android/app/PendingIntent#getActivity(android.content.Context,%20int,%20android.content.Intent,%20int)
-  - javaClass: android.app.PendingIntent
+  # `decoder: bitmask` with the constants of another class (`class`): the purposes of a Keystore key.
+  # Docs: https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec.Builder#Builder(java.lang.String,%20int)
+  - javaClass: android.security.keystore.KeyGenParameterSpec$Builder
     hooks:
-    - method: getActivity
+    - method: $init
       overloads:
       - params:
-        - [android.content.Context, context]
-        - [int, requestCode]
-        - [android.content.Intent, intent]
-        - [int, flags, { decoder: bitmask, decoderOptions: { fields: "FLAG_*" } }]
+        - [java.lang.String, keystoreAlias]
+        - [int, purposes, { decoder: bitmask, decoderOptions: { class: android.security.keystore.KeyProperties, fields: "PURPOSE_*" } }]
+
+  # `decoder: getters`: an object through its get*() and is*() methods, here the parts of a parsed Uri
+  # (scheme, host, path, ...).
+  # Docs: https://developer.android.com/reference/android/net/Uri#parse(java.lang.String)
+  - javaClass: android.net.Uri
+    hooks:
+    - method: parse
+      overloads:
+      - params:
+        - [java.lang.String, uriString]
+        returns: { decoder: getters }
+
+  # `maxDepth` and `maxItems` limit nested and large values: the extras of the Intent a broadcast is sent with.
+  # Docs: https://developer.android.com/reference/android/content/ContextWrapper#sendBroadcast(android.content.Intent)
+  - javaClass: android.content.ContextWrapper
+    hooks:
+    - method: sendBroadcast
+      overloads:
+      - params:
+        - [android.content.Intent, intent, { maxDepth: 3, maxItems: 20 }]
+
+  # ---- Filters and stack traces ----
+
+  # `argFilter` with a regular expression: only the preferences whose key matches.
+  # Docs: https://developer.android.com/reference/android/content/SharedPreferences#getString(java.lang.String,%20java.lang.String)
+  - javaClass: android.app.SharedPreferencesImpl
+    hooks:
+    - method: getString
+      overloads:
+      - params:
+        - [java.lang.String, key, { argFilter: ["(token|secret|password|key|id)", "^pref_"] }]
+        - [java.lang.String, defValue]
+
+  # `argFilter` with a numeric comparison: only connections to well-known ports.
+  # Docs: https://developer.android.com/reference/java/net/InetSocketAddress#InetSocketAddress(java.lang.String,%20int)
+  - javaClass: java.net.InetSocketAddress
+    hooks:
+    - method: $init
+      overloads:
+      - params:
+        - [java.net.InetAddress, addr]
+        - [int, port, { argFilter: ["<= 1024"] }]
+
+  # `callerFilter`: only the calls with a method outside the Android framework on the Java stack, i.e. made
+  # by the app's own code or one of its libraries. For one app, use its package, e.g. '^com\.example\.app\.'.
+  # `javaStackTrace` adds the frames to the event.
+  # Docs: https://developer.android.com/reference/android/provider/Settings.Secure#getString(android.content.ContentResolver,%20java.lang.String)
+  - javaClass: android.provider.Settings$Secure
+    hookSettings:
+      javaStackTrace: true
+      callerFilter:
+        - '^(?!(android|androidx|com\.android\.internal|java|javax|kotlin|kotlinx|dalvik|libcore|sun)\.)'
+    hooks:
+    - method: getString
+      overloads:
+      - params:
+        - [android.content.ContentResolver, resolver, { decoder: hashCode }]
+        - [java.lang.String, name]
+
+  # ---- Several hooks on one method ----
+
+  # Each declaration records its own event per call: every SQL statement, and the ones that change data
+  # also with the stack trace of the caller.
+  # Docs: https://developer.android.com/reference/android/database/sqlite/SQLiteDatabase#execSQL(java.lang.String)
+  - javaClass: android.database.sqlite.SQLiteDatabase
+    hooks:
+    - method: execSQL
+      overloads:
+      - params:
+        - [java.lang.String, sql]
+    - method: execSQL
+      hookSettings:
+        javaStackTrace: true
+        maxStackFrames: 3
+      overloads:
+      - params:
+        - [java.lang.String, changing, { argFilter: ["^\\s*(INSERT|UPDATE|DELETE|DROP|ALTER)"] }]

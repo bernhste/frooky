@@ -25,7 +25,18 @@ hookCollections:
         overloads:
           - params:
               - [int, value, { argFilter: ["> 1000"] }]
+      # whole numbers are compared exactly, also a long beyond 2^53: receiveLong is called with Long.MAX_VALUE,
+      # 9223372036854775807, so only the first of these two hooks records it
+      - method: receiveLong
+        overloads:
+          - params:
+              - [long, max, { argFilter: ["== 9223372036854775807"] }]
+      - method: receiveLong
+        overloads:
+          - params:
+              - [long, oneLess, { argFilter: ["== 9223372036854775806"] }]
 
 # Expected events:
-#   trackEvent: only name "button_click"
-#   receiveInt: value 2147483647
+#   trackEvent:  only name "button_click"
+#   receiveInt:  value 2147483647
+#   receiveLong: one event, max "9223372036854775807" (a string: JSON numbers can't hold every long)

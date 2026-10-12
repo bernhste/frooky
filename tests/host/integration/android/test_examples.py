@@ -99,6 +99,26 @@ class TestAndroidExamples:
         assert event["method"] == "put"
         assert [(arg["name"], arg["value"]["value"]) for arg in event["argsIn"]] == [("key", "Accept"), ("value", "application/json")]
 
+    def test_api_examples(self, run_frooky, find_matched_events):
+        """The hooks on framework APIs: every hook is valid, and the app's calls of these APIs are recorded."""
+        run_frooky(_example("android/api_examples.yaml"), JAVA_APP)
+
+        # an inherited method, recorded for the hooked class
+        [user] = [event for event in find_matched_events({"javaClass": "android.os.Bundle", "method": "putString"}) if _values(event["argsIn"]) == ["user", "alice"]]
+        assert user["declaringClass"] == "android.os.BaseBundle"
+        # a class wildcard with `$init`
+        key_specs = {event["javaClass"] for event in find_matched_events({"method": "$init"}) if event["javaClass"].startswith("javax.crypto.spec.")}
+        assert key_specs == {"javax.crypto.spec.SecretKeySpec", "javax.crypto.spec.PBEKeySpec"}
+        # `decoder: bitmask` with the constants of another class
+        [builder] = find_matched_events({"javaClass": "android.security.keystore.KeyGenParameterSpec$Builder", "method": "$init"})
+        assert _values(builder["argsIn"]) == ["TestKeyPair", ["PURPOSE_SIGN", "PURPOSE_VERIFY"]]
+        # one of several declared overloads, with unnamed parameters
+        [extra] = [event for event in find_matched_events({"javaClass": "android.content.Intent", "method": "putExtra"}) if _values(event["argsIn"]) == ["token", "abc123"]]
+        assert "name" not in extra["argsIn"][0]
+        # `decoder: getters` on a return value
+        [uri] = [event for event in find_matched_events({"javaClass": "android.net.Uri", "method": "parse"}) if event["argsIn"][0]["value"] == "https://example.org"]
+        assert {"name": "host", "type": "java.lang.String", "value": "example.org"} in uri["returnValue"]["value"]
+
     def test_named_parameters(self, run_frooky, find_matched_events):
         run_frooky(_example("android/02_parameters_and_return_values/01_named_parameters.yaml"), JAVA_APP)
 
@@ -126,6 +146,17 @@ class TestAndroidExamples:
         assert toggle["returnValue"] == {"type": "[B", "value": "FROOKY"}
         [big_integer] = self._events(find_matched_events, "receiveBigInteger")
         assert re.fullmatch(r"java\.math\.BigInteger@[0-9a-f]+", big_integer["returnValue"]["value"])
+
+    def test_exceptions(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/02_parameters_and_return_values/04_exceptions.yaml"), JAVA_APP)
+
+        returned, threw = self._events(find_matched_events, "parsePort")
+        assert returned["argsIn"] == [{"type": "java.lang.String", "name": "text", "value": "8080"}]
+        assert returned["returnValue"] == {"type": "int", "value": 8080}
+        assert "exception" not in returned
+        assert _values(threw["argsIn"]) == ["not-a-port"]
+        assert threw["exception"] == 'java.lang.NumberFormatException: For input string: "not-a-port"'
+        assert "returnValue" not in threw
 
     def test_java_types(self, run_frooky, find_matched_events):
         run_frooky(_example("android/03_decoders/01_java_types.yaml"), JAVA_APP)
@@ -333,6 +364,7 @@ class TestAndroidExamples:
 
         assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "trackEvent")] == [["button_click"]]
         assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "receiveInt")] == [[2147483647]]
+        assert [event["argsIn"] for event in self._events(find_matched_events, "receiveLong")] == [[{"type": "long", "name": "max", "value": "9223372036854775807"}]]
 
     def test_decoder_args(self, run_frooky, find_matched_events):
         run_frooky(_example("android/04_decoder_settings/04_decoder_args.yaml"), JAVA_APP)
@@ -562,6 +594,9 @@ class TestNativeExamples:
         run_frooky(_example("native/04_decoder_settings/02_arg_filter.yaml"), NATIVE_APP)
 
         assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "track_event")] == [["button_click"]]
+        assert [_values(event["argsIn"]) for event in self._events(find_matched_events, "receive_int", "libreceiveFundamentalValue.so")] == [[-2147483648, 2147483647]]
+        [unsigned] = self._events(find_matched_events, "receive_ullong", "libreceiveFundamentalValue.so")
+        assert [(arg["name"], arg["value"]) for arg in unsigned["argsIn"]] == [("minValue", "0"), ("max", "18446744073709551615")]
 
     def test_native_and_java_stack_traces(self, run_frooky, find_matched_events):
         run_frooky(_example("native/05_hook_settings/01_native_and_java_stack_traces.yaml"), NATIVE_APP)
@@ -631,6 +666,27 @@ class TestNativeExamples:
         run_frooky(_example("native/08_early_hooking/01_spawn_vs_attach.yaml"), NATIVE_APP, expect_events=False)
 
         assert self._events(find_matched_events, "android_dlopen_ext") == []
+
+    def test_api_examples(self, run_frooky_spawn, find_matched_events):
+        """The hooks on system libraries while the app starts: every hook is installed, also the one with a
+        `callerFilter` next to the hook on `mmap`, and the app's calls are recorded."""
+        run_frooky_spawn(_example("native/api_examples.yaml"), NATIVE_APP)
+
+        # `early: true`: what the app loads from /data, from the component factory's library on. Some Android
+        # versions load the app's compiled code (base.odex) the same way.
+        loads = self._events(find_matched_events, "android_dlopen_ext", "libdl.so")
+        libraries = [name for name in (event["argsIn"][0]["value"].rsplit("/", 1)[1] for event in loads) if name.endswith(".so")]
+        assert libraries[0] == "libstartupFactory.so"
+        assert "libreceiveString.so" in libraries
+        assert all(event["argsIn"][1]["value"] == ["RTLD_NOW"] for event in loads)
+        # `direction: out`
+        properties = self._events(find_matched_events, "__system_property_get", "libc.so")
+        assert properties
+        assert all(event["argsIn"][0]["name"] == "name" and event["argsOut"][0]["name"] == "value" for event in properties)
+        # `argFilter` on the path of an fd
+        mapped = self._events(find_matched_events, "mmap", "libc.so")
+        assert mapped
+        assert all(event["argsIn"][4]["value"]["path"].startswith("/data/") for event in mapped)
 
     def test_calls_while_loading(self, run_frooky_spawn, find_matched_events):
         run_frooky_spawn(_example("native/08_early_hooking/02_calls_while_loading.yaml"), NATIVE_APP)
