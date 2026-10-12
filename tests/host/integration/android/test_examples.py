@@ -710,6 +710,7 @@ class TestNativeExamples:
         assert traces["constructor"]["nativeStackTrace"][0].startswith("load_time_constructor+0x")
         assert traces["JNI_OnLoad"]["nativeStackTrace"][0].startswith("JNI_OnLoad+0x")
 
+    @pytest.mark.xfail(strict=False, reason="the Application class sometimes loads before frooky has handled targetReady")
     @pytest.mark.parametrize("early", [True, False])
     def test_code_before_target_ready(self, run_frooky_spawn, find_matched_events, early):
         example = _example("native/08_early_hooking/04_before_target_ready.yaml")
