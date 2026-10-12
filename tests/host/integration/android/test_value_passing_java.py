@@ -52,7 +52,7 @@ class TestValuePassingJava:
         for method, arg_type, value in cases:
             expected = {
                 "type": "hook-java",
-                "javaClassName": MASTG_CLASS,
+                "javaClass": MASTG_CLASS,
                 "method": method,
                 "argsIn": [{"type": arg_type, "value": value}],
                 "returnValue": {"type": arg_type, "value": value},
@@ -71,7 +71,7 @@ class TestValuePassingJava:
         run_frooky(hook_file, TARGET_APP)
 
         expected = {
-            "javaClassName": MASTG_CLASS,
+            "javaClass": MASTG_CLASS,
             "method": "receiveLong",
             "argsIn": [{"type": "long", "value": "9223372036854775807"}],
         }
@@ -88,7 +88,7 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        events = find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveByteArray"})
+        events = find_matched_events({"javaClass": MASTG_CLASS, "method": "receiveByteArray"})
         assert len(events) == 1
         event = events[0]
         # the "string" decoder applies to argsIn AND the return value here, since the tuple form
@@ -113,7 +113,7 @@ class TestValuePassingJava:
         run_frooky(hook_file, TARGET_APP)
 
         expected = {
-            "javaClassName": MASTG_CLASS,
+            "javaClass": MASTG_CLASS,
             "method": "receiveString",
             "argsIn": [{"type": "java.lang.String", "name": "receivedString", "value": "Welcome the first OWASP MASCon 📱❤️"}],
         }
@@ -139,12 +139,12 @@ class TestValuePassingJava:
             ("receiveBooleanArray", "[Z", [True, False]),
         ]
         for method, arg_type, value in cases:
-            expected = {"javaClassName": MASTG_CLASS, "method": method, "argsIn": [{"type": arg_type, "value": value}]}
+            expected = {"javaClass": MASTG_CLASS, "method": method, "argsIn": [{"type": arg_type, "value": value}]}
             assert count_matched_events(expected) == 1, f"{method} did not decode as expected."
 
         # reference array element type descriptors are less certain to pin down exactly (see the
         # Type Descriptors table), so only the decoded (already-unwrapped) values are checked here.
-        expected_string_array = {"javaClassName": MASTG_CLASS, "method": "receiveStringArray", "argsIn": [{"value": ["a", "b", "c"]}]}
+        expected_string_array = {"javaClass": MASTG_CLASS, "method": "receiveStringArray", "argsIn": [{"value": ["a", "b", "c"]}]}
         assert count_matched_events(expected_string_array) == 1
 
     def test_collection_and_reference_types_fire(self, run_frooky, count_matched_events):
@@ -172,7 +172,7 @@ class TestValuePassingJava:
         run_frooky(hook_file, TARGET_APP)
 
         for method in methods:
-            assert count_matched_events({"javaClassName": MASTG_CLASS, "method": method}) == 1, f"{method} did not fire exactly once."
+            assert count_matched_events({"javaClass": MASTG_CLASS, "method": method}) == 1, f"{method} did not fire exactly once."
 
     def test_max_items_cuts_java_strings(self, run_frooky, find_matched_events):
         """`maxItems` cuts a java.lang.String after that many characters and appends `...` (see decoders.md)."""
@@ -188,7 +188,7 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        events = find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"})
+        events = find_matched_events({"javaClass": MASTG_CLASS, "method": "receiveString"})
         assert len(events) == 1
         assert events[0]["argsIn"] == [{"type": "java.lang.String", "name": "receivedString", "value": "Welcome..."}]
 
@@ -205,7 +205,7 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        events = find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveList"})
+        events = find_matched_events({"javaClass": MASTG_CLASS, "method": "receiveList"})
         assert len(events) == 1
         # receiveList's param has no explicit type declared (short-form hook), so it goes through
         # ReferenceTypeDecoder, which wraps the resolved element decoder's own {type, value}
@@ -234,7 +234,7 @@ class TestValuePassingJava:
         # setFlags is a framework method: the app's own process could in principle call it more
         # than once, so look for our specific flag combination among however many events fired,
         # rather than assuming there's exactly one.
-        events = find_matched_events({"javaClassName": "android.content.Intent", "method": "setFlags"})
+        events = find_matched_events({"javaClass": "android.content.Intent", "method": "setFlags"})
         assert len(events) >= 1
         expected_flags = {
             "FLAG_GRANT_READ_URI_PERMISSION",
@@ -262,7 +262,7 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        events = find_matched_events({"javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder", "method": "build"})
+        events = find_matched_events({"javaClass": "android.security.keystore.KeyGenParameterSpec$Builder", "method": "build"})
         assert len(events) >= 1
         assert all(re.match(r"^android\.security\.keystore\.KeyGenParameterSpec@[0-9a-f]+$", e["returnValue"]["value"]) for e in events)
 
@@ -280,13 +280,13 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        events = find_matched_events({"javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder", "method": "setKeySize"})
+        events = find_matched_events({"javaClass": "android.security.keystore.KeyGenParameterSpec$Builder", "method": "setKeySize"})
         assert len(events) >= 1
         for event in events:
             assert event["returnValue"]["value"] == f"android.security.keystore.KeyGenParameterSpec$Builder@{event['hashCode']}"
 
     def test_string_decoder_on_static_method_return_value(self, run_frooky, count_matched_events, find_matched_events):
-        """`decoder: string` on a reference return type calls toString(); also verifies a static fieldType."""
+        """`decoder: string` on a reference return type calls toString(); also verifies a static methodType."""
         hook_file = textwrap.dedent("""\
             hookCollections:
               - javaClass: java.security.KeyPairGenerator
@@ -305,15 +305,15 @@ class TestValuePassingJava:
         assert (
             count_matched_events(
                 {
-                    "javaClassName": "java.security.KeyPairGenerator",
+                    "javaClass": "java.security.KeyPairGenerator",
                     "method": "getInstance",
-                    "fieldType": {"fieldType": "static"},
+                    "methodType": "static",
                 }
             )
             >= 1
         )
 
-        events = find_matched_events({"javaClassName": "java.security.KeyPairGenerator", "method": "getInstance"})
+        events = find_matched_events({"javaClass": "java.security.KeyPairGenerator", "method": "getInstance"})
         assert len(events) >= 1
         assert all(isinstance(e["returnValue"]["value"], str) for e in events)
 
@@ -329,7 +329,7 @@ class TestValuePassingJava:
                   - receiveString
             """)
         run_frooky(hook_file, TARGET_APP, expect_events=expect_events)
-        return find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveString"})
+        return find_matched_events({"javaClass": MASTG_CLASS, "method": "receiveString"})
 
     def test_no_stack_trace_by_default(self, run_frooky, find_matched_events):
         """Without `javaStackTrace`/`nativeStackTrace`, no frames are captured."""
@@ -394,7 +394,7 @@ class TestValuePassingJava:
                           - [int, arg, {{argFilter: ['^2147483647$']}}]
             """)
         run_frooky(matching_hook_file, TARGET_APP)
-        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 1
+        assert count_matched_events({"javaClass": MASTG_CLASS, "method": "receiveInt"}) == 1
 
     def test_arg_filter_excludes_non_matching_values(self, run_frooky, count_matched_events):
         non_matching_hook_file = textwrap.dedent(f"""\
@@ -410,7 +410,7 @@ class TestValuePassingJava:
         # FilterMismatchError drops the event before it's ever logged), so no events at all
         # are expected to be written.
         run_frooky(non_matching_hook_file, TARGET_APP, expect_events=False)
-        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 0
+        assert count_matched_events({"javaClass": MASTG_CLASS, "method": "receiveInt"}) == 0
 
     def test_arg_filter_numeric_comparison(self, run_frooky, count_matched_events):
         """Numeric comparisons in `argFilter` filter values by relational operator."""
@@ -424,7 +424,7 @@ class TestValuePassingJava:
                           - [int, arg, {{argFilter: ['> 1000']}}]
             """)
         run_frooky(matching_hook_file, TARGET_APP)
-        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 1
+        assert count_matched_events({"javaClass": MASTG_CLASS, "method": "receiveInt"}) == 1
 
         non_matching_hook_file = textwrap.dedent(f"""\
             hookCollections:
@@ -436,7 +436,7 @@ class TestValuePassingJava:
                           - [int, arg, {{argFilter: ['<= 1024']}}]
             """)
         run_frooky(non_matching_hook_file, TARGET_APP, expect_events=False)
-        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 0
+        assert count_matched_events({"javaClass": MASTG_CLASS, "method": "receiveInt"}) == 0
 
     def test_same_method_hooked_twice_records_one_event_per_declaration(self, run_frooky, find_matched_events):
         """Multiple hooks (see additional-features.md): two declarations of the same method each record their own
@@ -462,15 +462,15 @@ class TestValuePassingJava:
         events = []
         for name in ["first", "second"]:
             expected = {
-                "javaClassName": MASTG_CLASS,
+                "javaClass": MASTG_CLASS,
                 "method": "receiveString",
-                "fieldType": {"fieldType": "instance"},
+                "methodType": "instance",
                 "argsIn": [{"type": "java.lang.String", "name": name, "value": "Welcome the first OWASP MASCon 📱❤️"}],
             }
             matched = find_matched_events(expected)
             assert len(matched) == 1, f"the '{name}' declaration did not fire exactly once."
             events += matched
-        events += find_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"})
+        events += find_matched_events({"javaClass": MASTG_CLASS, "method": "receiveInt"})
 
         assert len(events) == 3
         hash_codes = {event["hashCode"] for event in events}
@@ -491,7 +491,7 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        assert count_matched_events({"javaClassName": MASTG_CLASS, "method": "receiveInt"}) == 1
+        assert count_matched_events({"javaClass": MASTG_CLASS, "method": "receiveInt"}) == 1
 
     def test_arg_filter_of_one_declaration_does_not_affect_another(self, run_frooky, count_matched_events):
         """Each hook on the same method applies its own filters."""
@@ -523,7 +523,7 @@ class TestValuePassingJava:
             return f"hookCollections:\n  - javaClass: {MASTG_CLASS}\n    hooks:\n{hooks}"
 
         def recorded_by(frooky):
-            events = frooky.click_start_and_collect({"javaClassName": MASTG_CLASS, "method": "receiveString"})
+            events = frooky.click_start_and_collect({"javaClass": MASTG_CLASS, "method": "receiveString"})
             return sorted(event["argsIn"][0]["name"] for event in events)
 
         frooky = run_frooky_watch(hook_file("A", "B", "C"), TARGET_APP)
@@ -563,7 +563,7 @@ class TestValuePassingJava:
         run_frooky(hook_file, TARGET_APP)
 
         def argument(method):
-            (event,) = find_matched_events({"javaClassName": MASTG_CLASS, "method": method})
+            (event,) = find_matched_events({"javaClass": MASTG_CLASS, "method": method})
             return event["argsIn"][0]["value"]
 
         assert argument("receiveBooleanArray") == [True, False]
@@ -593,7 +593,7 @@ class TestValuePassingJava:
         run_frooky(hook_file, TARGET_APP)
 
         def declaring_class(method):
-            (event,) = find_matched_events({"javaClassName": MASTG_CLASS, "method": method})
+            (event,) = find_matched_events({"javaClass": MASTG_CLASS, "method": method})
             (getter,) = event["argsIn"][0]["value"]
             assert getter["name"] == "declaringClass"
             return getter["value"]["value"]
@@ -619,7 +619,7 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        methods = {event["method"] for event in find_matched_events({"javaClassName": MASTG_CLASS})}
+        methods = {event["method"] for event in find_matched_events({"javaClass": MASTG_CLASS})}
         assert {"receiveString", "receiveIntArray", "receiveEnum", "receiveBundle", "receiveIntent", "receiveCipher", "receiveCertificate"} <= methods
         assert len(find_matched_events({"method": "trackEvent"})) == 2
 
@@ -647,7 +647,7 @@ class TestValuePassingJava:
         run_frooky_spawn(hook_file, TARGET_APP)
 
         events = find_matched_events({"type": "hook-java"})
-        assert [(event["javaClassName"], event["method"]) for event in events] == [("org.owasp.mastestapp.MainActivity", "onCreate")]
+        assert [(event["javaClass"], event["method"]) for event in events] == [("org.owasp.mastestapp.MainActivity", "onCreate")]
 
     def test_parameter_named_off_is_a_name_not_a_boolean(self, run_frooky, find_matched_events):
         """`off`, `on`, `yes` and `no` are names in a hook file, e.g. of the `off` and `len` parameters of a write()."""
@@ -665,7 +665,7 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        (event,) = find_matched_events({"javaClassName": MASTG_CLASS, "method": "sendPacket"})
+        (event,) = find_matched_events({"javaClass": MASTG_CLASS, "method": "sendPacket"})
         assert [(arg["name"], arg["value"]) for arg in event["argsIn"]] == [("b", "hello frooky"), ("off", 7), ("len", 12)]
 
     def test_values_of_the_wrong_type_are_rejected_where_they_are_set(self, run_frooky, find_matched_events):
@@ -705,4 +705,4 @@ class TestValuePassingJava:
 
         run_frooky(hook_file, TARGET_APP)
 
-        assert {event["method"] for event in find_matched_events({"javaClassName": MASTG_CLASS})} == {"receiveInt"}
+        assert {event["method"] for event in find_matched_events({"javaClass": MASTG_CLASS})} == {"receiveInt"}

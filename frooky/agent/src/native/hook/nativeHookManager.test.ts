@@ -820,6 +820,38 @@ describe("NativeHookManager", () => {
         ]);
       });
 
+      it("serializes the fields of an event in a fixed order", async () => {
+        const { manager, hooks, events, addOne } = await setup("first");
+
+        expect(manager.registerHooks(hooks)).toBe(1);
+        try {
+          await untilHooked(
+            () => addOne(0),
+            () => events.length > 0,
+          );
+        } finally {
+          manager.unregisterHooks(hooks);
+        }
+
+        const order = [
+          "id",
+          "timestamp",
+          "type",
+          "module",
+          "symbol",
+          "offset",
+          "address",
+          "hashCode",
+          "argsIn",
+          "argsOut",
+          "returnValue",
+          "stackTrace",
+        ];
+        const keys = Object.keys(JSON.parse(JSON.stringify(events[0])));
+        expect(keys).toEqual(order.filter((key) => keys.includes(key)));
+        expect(keys).toContain("returnValue");
+      });
+
       it("keeps recording with the remaining hook when one of them is unregistered", async () => {
         const { manager, hooks, events, addOne, recordedBy } = await setup("first", "second");
         const [first, second] = hooks;

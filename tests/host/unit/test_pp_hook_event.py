@@ -90,9 +90,9 @@ class TestPpHookEvent:
         hook = {
             "type": "java-hook",
             "timestamp": "2026-01-01T00:00:00Z",
-            "javaClassName": "com.example.Foo",
+            "javaClass": "com.example.Foo",
             "method": "bar",
-            "fieldType": {"fieldType": "method"},
+            "methodType": "static",
             "argsIn": [{"type": "String", "name": "x", "value": {"type": "String", "value": "hi"}}],
             "returnValue": {"type": "void"},
             "stackTrace": ["frame1", "frame2"],
@@ -101,7 +101,7 @@ class TestPpHookEvent:
         pp_hook_event(hook)
 
         out = "\n".join(_plain(capsys.readouterr().out.splitlines()))
-        assert "java (method)" in out
+        assert "java (static)" in out
         assert _local_time("2026-01-01T00:00:00Z") in out
         assert "com.example.Foo" in out
         assert "bar(String x)" in out
@@ -109,18 +109,6 @@ class TestPpHookEvent:
         assert "void" in out
         assert "frame1" in out
         assert "frame2" in out
-
-    def test_java_hook_field_type_as_plain_string(self, capsys):
-        hook = {
-            "type": "java-hook",
-            "javaClassName": "com.example.Foo",
-            "method": "bar",
-            "fieldType": "field",
-        }
-
-        pp_hook_event(hook)
-
-        assert "java (field)" in capsys.readouterr().out
 
     def test_native_hook_prints_module_and_symbol(self, capsys):
         hook = {
@@ -166,9 +154,9 @@ class TestPpHookEvent:
         hook = {
             "type": "hook-java",
             "timestamp": "t",
-            "javaClassName": "org.owasp.mastestapp.MastgTest",
+            "javaClass": "org.owasp.mastestapp.MastgTest",
             "method": "receiveString",
-            "fieldType": {"fieldType": "instance"},
+            "methodType": "instance",
             "hashCode": "c437358",
             "argsIn": [],
         }
@@ -181,7 +169,7 @@ class TestPpHookEvent:
         hook = {
             "type": "hook-java",
             "timestamp": "t",
-            "javaClassName": "org.owasp.mastestapp.Headers",
+            "javaClass": "org.owasp.mastestapp.Headers",
             "declaringClass": "java.util.HashMap",
             "method": "put",
             "argsIn": [],
@@ -192,12 +180,12 @@ class TestPpHookEvent:
         assert lines[2:5] == ["│ class:        org.owasp.mastestapp.Headers", "│ declared in:  java.util.HashMap", "│ method:       put()"]
 
     def test_method_of_the_hooked_class_prints_no_declaring_class(self):
-        hook = {"type": "hook-java", "timestamp": "t", "javaClassName": "C", "method": "m", "argsIn": []}
+        hook = {"type": "hook-java", "timestamp": "t", "javaClass": "C", "method": "m", "argsIn": []}
 
         assert "declared in:" not in "\n".join(_plain(format_hook_event(hook)))
 
     def test_hook_without_address_and_hash_code_prints_neither(self):
-        hook = {"type": "hook-java", "timestamp": "t", "javaClassName": "C", "method": "m", "argsIn": []}
+        hook = {"type": "hook-java", "timestamp": "t", "javaClass": "C", "method": "m", "argsIn": []}
 
         out = "\n".join(_plain(format_hook_event(hook)))
 
@@ -272,7 +260,7 @@ class TestPpHookEvent:
         assert lines[ret_start + 1 : ret_start + 3] == ["│     ssize_t", "│       4"]
 
     def test_void_return_has_no_value_line(self):
-        hook = {"type": "java-hook", "javaClassName": "C", "method": "m", "returnValue": {"type": "void"}}
+        hook = {"type": "java-hook", "javaClass": "C", "method": "m", "returnValue": {"type": "void"}}
 
         lines = _plain(format_hook_event(hook))
 
@@ -297,7 +285,7 @@ class TestPpHookEvent:
         long_type = "java.security.spec.AlgorithmParameterSpec"
         hook = {
             "type": "java-hook",
-            "javaClassName": "C",
+            "javaClass": "C",
             "method": "m",
             "argsIn": [{"type": long_type, "name": "p", "value": {"a": 1, "b": 2}}, {"type": "int", "name": "n", "value": 3}],
         }
@@ -310,7 +298,7 @@ class TestPpHookEvent:
     def test_no_line_is_wider_than_the_box(self):
         hook = {
             "type": "java-hook",
-            "javaClassName": "c" * 200,
+            "javaClass": "c" * 200,
             "method": "m",
             "argsIn": [{"type": "t" * 100, "name": "n" * 100, "value": {"k": "v" * 300}}],
             "stackTrace": ["f" * 300],
@@ -340,7 +328,7 @@ class TestPpHookEvent:
         hook = {
             "type": "java-hook",
             "timestamp": "t",
-            "javaClassName": "C",
+            "javaClass": "C",
             "method": "m",
             "stackTrace": {
                 "javaStackTrace": ["frame1"],

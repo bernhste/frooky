@@ -13,7 +13,7 @@ class TestDescribeEvent:
         assert describe_event({"module": "libfoo.so", "offset": "0x1a2b4"}) == "libfoo.so+0x1a2b4"
 
     def test_java_method(self):
-        assert describe_event({"javaClassName": "com.example.Foo", "method": "bar"}) == "com.example.Foo.bar"
+        assert describe_event({"javaClass": "com.example.Foo", "method": "bar"}) == "com.example.Foo.bar"
 
     def test_neither_returns_none(self):
         assert describe_event({}) is None
@@ -64,7 +64,7 @@ class TestOutputWriter:
         writer = OutputWriter(tmp_path / "out.json")
 
         writer.record_event({"module": "libc.so", "symbol": "strcpy"})
-        writer.record_event({"javaClassName": "com.example.Foo", "method": "bar"})
+        writer.record_event({"javaClass": "com.example.Foo", "method": "bar"})
 
         assert writer.event_count == 2
         assert writer.last_event == "com.example.Foo.bar"
@@ -82,7 +82,7 @@ class TestOutputWriter:
         writer = OutputWriter(tmp_path / "out.json")
         payload = [
             {"module": "libc.so", "symbol": "strcpy"},
-            {"javaClassName": "com.example.Foo", "method": "bar"},
+            {"javaClass": "com.example.Foo", "method": "bar"},
             {},
         ]
 
@@ -140,7 +140,7 @@ class TestOutputWriter:
         writer = OutputWriter(tmp_path / "out.json")
         lines = [
             json.dumps({"module": "libc.so", "symbol": "strcpy"}),
-            json.dumps({"javaClassName": "com.example.Foo", "method": "bar"}),
+            json.dumps({"javaClass": "com.example.Foo", "method": "bar"}),
         ]
 
         writer.record_events_raw(lines)

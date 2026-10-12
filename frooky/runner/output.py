@@ -12,7 +12,7 @@ def describe_event(event: dict) -> Optional[str]:
     if event.get("offset"):
         return f"{event.get('module')}+{event.get('offset')}"
     if event.get("method"):
-        return f"{event.get('javaClassName')}.{event.get('method')}"
+        return f"{event.get('javaClass')}.{event.get('method')}"
     return None
 
 

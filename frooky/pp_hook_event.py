@@ -292,10 +292,8 @@ def format_hook_event(hook: dict, width: int = _DEFAULT_WIDTH) -> list[str]:
     """Format a NativeHookEvent or JavaHookEvent dict as the lines of a box `width` columns wide, with ANSI colors."""
     out = _Lines(max(width, _MIN_WIDTH))
     if "java" in hook.get("type", ""):
-        field_type = hook.get("fieldType", {})
-        ft_str = field_type.get("fieldType", str(field_type)) if isinstance(field_type, dict) else str(field_type)
-        label, color = f"java ({ft_str})", _C_TYPE_J
-        _format_hook(out, hook, "javaClassName", "class", "method", "method")
+        label, color = f"java ({hook.get('methodType')})", _C_TYPE_J
+        _format_hook(out, hook, "javaClass", "class", "method", "method")
     else:
         label, color = "native", _C_TYPE_N
         # hooks declared by `offset` instead of `symbol` carry the offset in its place

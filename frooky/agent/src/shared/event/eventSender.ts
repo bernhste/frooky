@@ -21,8 +21,8 @@ export function serializeEvents(events: BaseEvent[]): string {
 
 // e.g. `hook-java org.owasp.mastestapp.MastgTest.receiveList`
 function describeEvent(event: BaseEvent): string {
-  const { javaClassName, method, module, symbol, offset } = event as unknown as Record<string, unknown>;
-  const target = javaClassName !== undefined ? `${javaClassName}.${method}` : module !== undefined ? `${module}!${symbol ?? offset}` : undefined;
+  const { javaClass, method, module, symbol, offset } = event as unknown as Record<string, unknown>;
+  const target = javaClass !== undefined ? `${javaClass}.${method}` : module !== undefined ? `${module}!${symbol ?? offset}` : undefined;
   return target ? `${event.type} ${target}` : String(event.type);
 }
 

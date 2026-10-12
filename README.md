@@ -150,21 +150,9 @@ Events are written to the output file as NDJSON, one JSON event object per line 
     "id": "0a6c400a-a7fe-44ab-8842-d1e4a67e0487",
     "timestamp": "2026-09-16T06:20:33.163Z",
     "type": "hook-java",
-    "javaClassName": "javax.crypto.Cipher",
+    "javaClass": "javax.crypto.Cipher",
     "method": "doFinal",
-    "fieldType": {
-        "fieldType": "instance"
-    },
-    "stackTrace": {
-      "javaStackTrace": [
-        "javax.crypto.Cipher.doFinal (Cipher.java:2066)",
-        "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:58)",
-        "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)",
-        "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)",
-        "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)"
-      ],
-      "nativeStackTrace": []
-    },
+    "methodType": "instance",
     "argsIn": [
         {
             "type": "[B",
@@ -175,6 +163,16 @@ Events are written to the output file as NDJSON, one JSON event object per line 
     "returnValue": {
         "type": "[B",
         "value": "We ❤️ OWASP MAS 📱"
+    },
+    "stackTrace": {
+      "javaStackTrace": [
+        "javax.crypto.Cipher.doFinal (Cipher.java:2066)",
+        "org.owasp.mastestapp.MastgTest.mastgTest (MastgTest.kt:58)",
+        "org.owasp.mastestapp.MainActivityKt.MainScreen$lambda$12$lambda$11 (MainActivity.kt:101)",
+        "org.owasp.mastestapp.MainActivityKt.$r8$lambda$Pm6AsbKBmypP53K-UABM21E_Xxk (MainActivity.kt:-1)",
+        "org.owasp.mastestapp.MainActivityKt$$ExternalSyntheticLambda3.run (D8$$SyntheticClass:0)"
+      ],
+      "nativeStackTrace": []
     }
 }
 ```

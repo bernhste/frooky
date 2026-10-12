@@ -32,7 +32,7 @@ def _values(args):
 @pytest.mark.parametrize("platform", ["android"], indirect=True)
 class TestAndroidExamples:
     def _events(self, find_matched_events, method, java_class=MASTG_CLASS):
-        return find_matched_events({"javaClassName": java_class, "method": method})
+        return find_matched_events({"javaClass": java_class, "method": method})
 
     def test_hook_by_name(self, run_frooky, find_matched_events):
         run_frooky(_example("android/01_basic_hooking/01_hook_by_name.yaml"), JAVA_APP)
@@ -60,7 +60,7 @@ class TestAndroidExamples:
         assert constructor["returnValue"] == {"type": "void"}
         [static] = self._events(find_matched_events, "receiveStatic", "org.owasp.mastestapp.MastgTestKt")
         assert _values(static["argsIn"]) == ["static"]
-        assert static["fieldType"] == {"fieldType": "static"}
+        assert static["methodType"] == "static"
 
     def test_custom_class_loaders(self, run_frooky, find_matched_events):
         run_frooky(_example("android/01_basic_hooking/04_custom_class_loaders.yaml"), JAVA_APP)
@@ -72,7 +72,7 @@ class TestAndroidExamples:
     def test_method_wildcards(self, run_frooky, find_matched_events):
         run_frooky(_example("android/01_basic_hooking/05_method_wildcards.yaml"), JAVA_APP)
 
-        assert {event["method"] for event in find_matched_events({"javaClassName": MASTG_CLASS})} == {"receiveBoolean", "receiveBooleanArray"}
+        assert {event["method"] for event in find_matched_events({"javaClass": MASTG_CLASS})} == {"receiveBoolean", "receiveBooleanArray"}
         [bool_event] = self._events(find_matched_events, "receiveBoolean")
         assert bool_event["argsIn"] == [{"type": "boolean", "value": True}]
         [array_event] = self._events(find_matched_events, "receiveBooleanArray")
@@ -94,7 +94,7 @@ class TestAndroidExamples:
         run_frooky(_example("android/01_basic_hooking/07_inherited_methods.yaml"), JAVA_APP)
 
         [event] = find_matched_events({"type": "hook-java"})
-        assert event["javaClassName"] == "org.owasp.mastestapp.Headers"
+        assert event["javaClass"] == "org.owasp.mastestapp.Headers"
         assert event["declaringClass"] == "java.util.HashMap"
         assert event["method"] == "put"
         assert [(arg["name"], arg["value"]["value"]) for arg in event["argsIn"]] == [("key", "Accept"), ("value", "application/json")]
@@ -226,7 +226,7 @@ class TestAndroidExamples:
         assert {prop["name"]: prop["value"] for prop in profile["argsIn"][0]["value"]} == {"name": "alice", "age": 42, "admin": True}
         modes = sorted(event["argsIn"][0]["name"] + "=" + event["argsIn"][0]["value"] for event in self._events(find_matched_events, "receiveMode"))
         assert modes == ["mode=MODE_DECRYPT", "opmode=DECRYPT"]
-        builders = find_matched_events({"javaClassName": "android.security.keystore.KeyGenParameterSpec$Builder"})
+        builders = find_matched_events({"javaClass": "android.security.keystore.KeyGenParameterSpec$Builder"})
         assert ["TestKeyPair", ["PURPOSE_SIGN", "PURPOSE_VERIFY"]] in [_values(event["argsIn"]) for event in builders]
         # init is a framework method, so the app process may call it more than once
         opmodes = [event["argsIn"][0]["value"] for event in self._events(find_matched_events, "init", "javax.crypto.Cipher")]
@@ -338,7 +338,7 @@ class TestAndroidExamples:
         run_frooky(_example("android/04_decoder_settings/04_decoder_args.yaml"), JAVA_APP)
 
         # the framework may create other keys, the app's key has the offset 16
-        keys = [event for event in find_matched_events({"javaClassName": "javax.crypto.spec.SecretKeySpec"}) if event["argsIn"][1]["value"] == 16]
+        keys = [event for event in find_matched_events({"javaClass": "javax.crypto.spec.SecretKeySpec"}) if event["argsIn"][1]["value"] == 16]
         assert len(keys) == 1
         assert _values(keys[0]["argsIn"]) == [list(range(16, 32)), 16, 16, "AES"]
         [packet] = self._events(find_matched_events, "sendPacket")

@@ -26,6 +26,10 @@ export class NativeHookEvent extends HookEvent {
     this.address = hook.symbolAddress.toString();
     this.hashCode = hashCode;
   }
+
+  protected targetFields(): Record<string, unknown> {
+    return { module: this.module, symbol: this.symbol, offset: this.offset, address: this.address };
+  }
 }
 
 // The 32-bit hash code of a function's address, as native calls have no instance. Computed like Java's

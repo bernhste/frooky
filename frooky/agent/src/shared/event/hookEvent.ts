@@ -23,4 +23,22 @@ export abstract class HookEvent extends BaseEvent {
     this.returnValue = returnValue;
     this.stackTrace = stackTrace;
   }
+
+  // the fields naming the hooked method or function, e.g. `javaClass` and `method`
+  protected abstract targetFields(): Record<string, unknown>;
+
+  // sets the order of the fields in the output
+  toJSON(): Record<string, unknown> {
+    return {
+      id: this.id,
+      timestamp: this.timestamp,
+      type: this.type,
+      ...this.targetFields(),
+      hashCode: this.hashCode,
+      argsIn: this.argsIn,
+      argsOut: this.argsOut,
+      returnValue: this.returnValue,
+      stackTrace: this.stackTrace,
+    };
+  }
 }

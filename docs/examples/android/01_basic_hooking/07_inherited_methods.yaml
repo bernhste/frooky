@@ -23,6 +23,6 @@ hookCollections:
               - [java.lang.Object, value]
 
 # Expected event:
-#   put: javaClassName "org.owasp.mastestapp.Headers", declaringClass "java.util.HashMap",
+#   put: javaClass "org.owasp.mastestapp.Headers", declaringClass "java.util.HashMap",
 #        argsIn key "Accept", value "application/json"
 #   (no event for the put() on the app's LinkedHashMap, or on any other HashMap of the app and the framework)

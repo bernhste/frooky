@@ -475,7 +475,7 @@ describe("AndroidHookManager", () => {
           .map((call) => call[0] as JavaHookEvent)
           .filter((event) => event.hashCode === formatHashCode(identityHashCode(counter)));
         expect(events.length).toBe(2);
-        expect(events.map((event) => event.fieldType)).toEqual([{ fieldType: "instance" }, { fieldType: "instance" }]);
+        expect(events.map((event) => event.methodType)).toEqual(["instance", "instance"]);
       });
     });
 
@@ -513,7 +513,7 @@ describe("AndroidHookManager", () => {
       }
 
       const event = addEventToLog.mock.calls[0][0] as JavaHookEvent;
-      expect(event.fieldType).toEqual({ fieldType: "static" });
+      expect(event.methodType).toBe("static");
       expect(event.hashCode).toBeUndefined();
     });
   });
@@ -550,11 +550,27 @@ describe("AndroidHookManager", () => {
 
       expect(events().length).toBe(1);
       const [event] = events();
-      expect(event.javaClassName).toBe("java.util.Stack");
+      expect(event.javaClass).toBe("java.util.Stack");
       expect(event.declaringClass).toBe("java.util.Vector");
       expect(event.method).toBe("addElement");
       expect(event.hashCode).toBe(formatHashCode(identityHashCode(stack)));
-      expect(JSON.parse(JSON.stringify(event)).declaringClass).toBe("java.util.Vector");
+      const keys = Object.keys(JSON.parse(JSON.stringify(event)));
+      const order = [
+        "id",
+        "timestamp",
+        "type",
+        "javaClass",
+        "declaringClass",
+        "method",
+        "methodType",
+        "hashCode",
+        "argsIn",
+        "argsOut",
+        "returnValue",
+        "stackTrace",
+      ];
+      expect(keys).toEqual(order.filter((key) => keys.includes(key)));
+      expect(keys).toContain("declaringClass");
       // the call on the Vector
       expect(hooks[0].filteredCalls).toBeGreaterThan(0);
       // both ran the original method
@@ -577,7 +593,7 @@ describe("AndroidHookManager", () => {
         manager.unregisterHooks(declared);
       }
 
-      expect(events().map((event) => [event.javaClassName, event.declaringClass, event.argsIn![0].value])).toEqual([
+      expect(events().map((event) => [event.javaClass, event.declaringClass, event.argsIn![0].value])).toEqual([
         ["java.util.Vector", undefined, { type: "java.lang.String", value: "in a vector" }],
         ["java.util.Stack", "java.util.Vector", { type: "java.lang.String", value: "in a stack" }],
         ["java.util.Vector", undefined, { type: "java.lang.String", value: "in a stack" }],
@@ -605,7 +621,7 @@ describe("AndroidHookManager", () => {
       const equalsEvents = (agent.addEventToLog as unknown as Mock).mock.calls
         .map(([event]) => event as JavaHookEvent)
         .filter((event) => event.method === "equals" && event.hashCode === formatHashCode(identityHashCode(stack)));
-      expect(equalsEvents.map((event) => [event.javaClassName, event.declaringClass])).toEqual([["java.util.Stack", "java.util.Vector"]]);
+      expect(equalsEvents.map((event) => [event.javaClass, event.declaringClass])).toEqual([["java.util.Stack", "java.util.Vector"]]);
     });
 
     it("has no declaringClass in the events of a method the class declares itself", async () => {

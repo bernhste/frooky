@@ -2,7 +2,7 @@ metadata:
   name: "Basic Hooking (Android): Constructors and Static Methods"
   description: |
     `$init` hooks the constructors of a class. Static methods are hooked like instance methods;
-    the event's `fieldType` tells them apart. Kotlin top-level functions are static methods of the
+    the event's `methodType` tells them apart. Kotlin top-level functions are static methods of the
     class `<File>Kt`.
   version: 1
   author: frooky dev
@@ -28,4 +28,4 @@ hookCollections:
 
 # Expected events:
 #   Secret.$init:  argsIn [{type: java.lang.String, name: value, value: "s3cr3t"}], returnValue {type: void}
-#   receiveStatic: argsIn [{type: java.lang.String, value: "static"}], fieldType {fieldType: static}
+#   receiveStatic: argsIn [{type: java.lang.String, value: "static"}], methodType "static"

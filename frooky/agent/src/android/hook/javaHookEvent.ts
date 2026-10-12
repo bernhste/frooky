@@ -2,19 +2,19 @@ import { DecodedValue } from "../../shared/decoders/decodedValue";
 import { HookEvent } from "../../shared/event/hookEvent";
 import { DecodedArgs } from "../../shared/hook/hookManager";
 import { HookStackTrace } from "../../shared/platformStackTrace";
-import { FieldType } from "./androidHookManager";
+import { MethodType } from "./androidHookManager";
 import { hookedClassName, JavaHook } from "./javaHook";
 
 export class JavaHookEvent extends HookEvent {
-  readonly javaClassName: string;
+  readonly javaClass: string;
   // the superclass that declares the method, for a method the hooked class inherits
   readonly declaringClass?: string;
   readonly method: string;
-  readonly fieldType: FieldType;
+  readonly methodType: MethodType;
 
   constructor(
     hook: JavaHook,
-    fieldType: FieldType,
+    methodType: MethodType,
     hashCode: string | undefined,
     decodedArgs?: DecodedArgs,
     returnValue?: DecodedValue,
@@ -22,10 +22,14 @@ export class JavaHookEvent extends HookEvent {
   ) {
     super(decodedArgs, returnValue, stackTrace);
     this.type += "-java";
-    this.javaClassName = hookedClassName(hook);
+    this.javaClass = hookedClassName(hook);
     if (hook.inheritedBy) this.declaringClass = String(hook.method.holder.$className);
     this.method = hook.methodName;
-    this.fieldType = fieldType;
+    this.methodType = methodType;
     this.hashCode = hashCode;
+  }
+
+  protected targetFields(): Record<string, unknown> {
+    return { javaClass: this.javaClass, declaringClass: this.declaringClass, method: this.method, methodType: this.methodType };
   }
 }

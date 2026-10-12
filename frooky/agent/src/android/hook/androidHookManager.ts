@@ -33,9 +33,7 @@ function resolveClassMembers(factory: Java.ClassFactory): void {
 // How long prepareDetach() waits for the threads inside reverted replacements
 const DETACH_RELEASE_TIMEOUT_MS = 3000;
 
-export type FieldType = {
-  fieldType: "static" | "instance";
-};
+export type MethodType = "static" | "instance";
 
 // A registered hook with the decoders it uses on every call
 type InstalledJavaHook = {
@@ -370,13 +368,13 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     }
     const decodeMs = call.decodeMs + Date.now() - decodeStart;
 
-    const fieldType = this.buildFieldType(instance);
-    const hashCode = fieldType.fieldType === "instance" ? javaIdentityHashCode(instance) : undefined;
-    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, fieldType, hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook, decodeMs);
+    const methodType = this.methodTypeOf(instance);
+    const hashCode = methodType === "instance" ? javaIdentityHashCode(instance) : undefined;
+    this.frookyAgent.addEventToLog(new JavaHookEvent(hook, methodType, hashCode, decodedArgs, decodedRetValue, call.stackTrace), hook, decodeMs);
   }
 
-  private buildFieldType(instance: Java.Wrapper): FieldType {
+  private methodTypeOf(instance: Java.Wrapper): MethodType {
     // `this` of a static method is the class wrapper, which has no object handle
-    return { fieldType: instance?.$h == null ? "static" : "instance" };
+    return instance?.$h == null ? "static" : "instance";
   }
 }

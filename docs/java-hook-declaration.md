@@ -151,7 +151,7 @@ hooks:
 
 An inherited method exists once, in the class that declares it, so frooky hooks it there and records only the calls on instances of the hooked class and its subclasses. A `put` on any other `HashMap` isn't recorded.
 
-- The event names the hooked class as `javaClassName` and the class that declares the method as `declaringClass`, see [Output](./output.md#hook-java-events).
+- The event names the hooked class as `javaClass` and the class that declares the method as `declaringClass`, see [Output](./output.md#hook-java-events).
 - frooky logs which class the method is inherited from. The [hook statistics](./additional-features.md#hook-statistics-s--s-key) list the hook under the hooked class, e.g. `org.owasp.mastestapp.Headers.put`, and count the calls on other objects as filtered.
 - The hook still runs for every call of the method in the process, so a hook on a method of a widely used class, e.g. `hashCode` or `toString` of `java.lang.Object`, slows the app down even if few calls are recorded. `getClass` of `java.lang.Object` is [blocked](./additional-features.md#blocked-functions).
 - A method the class overrides is its own: it is hooked in the class, and calls of the superclass's method on other objects never reach the hook.

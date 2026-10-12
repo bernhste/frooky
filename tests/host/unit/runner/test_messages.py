@@ -70,7 +70,7 @@ class TestCreateMessageHandler:
     def test_writes_list_payload_and_updates_status_from_java_method(self, tmp_path):
         output = OutputWriter(tmp_path / "out.json")
         on_message = create_message_handler(output, MagicMock(), print_events=lambda: False)
-        payload = [{"javaClassName": "com.example.Foo", "method": "bar"}]
+        payload = [{"javaClass": "com.example.Foo", "method": "bar"}]
 
         on_message({"type": "send", "payload": payload}, None)
 

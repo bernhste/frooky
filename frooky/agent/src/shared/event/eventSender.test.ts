@@ -202,7 +202,7 @@ describe("eventSender", () => {
       const errorSpy = spyOn(console, "error").mockImplementation(() => {});
       // like the wrapper of a Java object, whose serialization calls into the Java VM and fails
       const unserializable = Object.assign(new TestEvent("bad"), {
-        javaClassName: "com.example.Foo",
+        javaClass: "com.example.Foo",
         method: "bar",
         returnValue: {
           toJSON: () => {
