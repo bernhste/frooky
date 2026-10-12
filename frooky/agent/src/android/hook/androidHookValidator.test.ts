@@ -232,6 +232,48 @@ describe("AndroidHookValidator", () => {
       );
     });
 
+    it("skips a hook with a parameter type that is no Java type descriptor, suggesting the descriptor", () => {
+      const javaCollection: InputJavaHookCollection = {
+        javaClass: "com.example.Foo",
+        hooks: [
+          { method: "a", overloads: [{ params: [["byte[]", "data"]] }] },
+          { method: "b", overloads: [{ params: ["java.lang.String[]"] }] },
+          { method: "c", overloads: [{ params: ["const char *"] }] },
+          { method: "ok", overloads: [{ params: ["[B", "[Ljava.lang.String;", "int"] }] },
+        ],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [javaCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["ok"]);
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages.length).toBe(3);
+      expect(messages[0]).toContain("'byte[]' as the type of 'data' is no Java type descriptor. Did you mean '[B'?");
+      expect(messages[1]).toContain("'java.lang.String[]' as a type is no Java type descriptor. Did you mean '[Ljava.lang.String;'?");
+      expect(messages[2]).toContain("'const char *' as a type is no Java type descriptor.");
+    });
+
+    it("skips a hook with an argFilter that is neither a comparison nor a regular expression, and keeps the others", () => {
+      const javaCollection: InputJavaHookCollection = {
+        javaClass: "com.example.Foo",
+        hooks: [
+          "first",
+          { method: "a", overloads: [{ params: [["java.lang.String", "text", { argFilter: ["(?i)welcome"] }]] }] },
+          { method: "b", overloads: [{ params: [["int", "count", { argFilter: ["= 5"] }]] }] },
+          { method: "ok", overloads: [{ params: [["int", "count", { argFilter: ["== 5", "^1"] }]] }] },
+          "last",
+        ],
+      };
+
+      const result = validator.validateAndNormalizeHooks({ hookCollections: [javaCollection] }, defaultSettings);
+
+      expect(result.map((hook) => hook.method)).toEqual(["first", "ok", "last"]);
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages.length).toBe(2);
+      expect(messages[0]).toContain("argFilter of 'text': '(?i)welcome' is no regular expression:");
+      expect(messages[1]).toContain("argFilter of 'count': '= 5' is no numeric comparison.");
+    });
+
     it("skips a hook whose decoderOptions.class is no Java class name", () => {
       const javaCollection: InputJavaHookCollection = {
         javaClass: "com.example.Foo",

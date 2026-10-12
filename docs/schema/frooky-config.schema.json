@@ -34,7 +34,9 @@
           "type": "string"
         },
         "version": {
-          "type": "number"
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         }
       }
     },
@@ -42,8 +44,9 @@
       "type": "object",
       "properties": {
         "maxStackFrames": {
-          "type": "number",
-          "minimum": 0
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         },
         "nativeStackTrace": {
           "type": "boolean"
@@ -54,7 +57,8 @@
         "callerFilter": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           }
         },
         "early": {
@@ -67,12 +71,14 @@
       "type": "object",
       "properties": {
         "maxDepth": {
-          "type": "number",
-          "minimum": 1
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "maxItems": {
-          "type": "number",
-          "minimum": 1
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "decoder": {
           "type": "string",
@@ -119,24 +125,28 @@
                 "items": {
                   "anyOf": [
                     {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "^[^\\s./;\\[\\]<>():,]+$"
                     },
                     {
                       "type": "array",
                       "items": [
                         {
-                          "type": "string"
+                          "type": "string",
+                          "pattern": "^[^\\s./;\\[\\]<>():,]+$"
                         },
                         {
                           "type": "object",
                           "properties": {
                             "maxDepth": {
-                              "type": "number",
-                              "minimum": 1
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
                             },
                             "maxItems": {
-                              "type": "number",
-                              "minimum": 1
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
                             },
                             "decoder": {
                               "type": "string",
@@ -162,7 +172,8 @@
                       "type": "object",
                       "properties": {
                         "method": {
-                          "type": "string"
+                          "type": "string",
+                          "pattern": "^[^\\s./;\\[\\]<>():,]+$"
                         },
                         "overloads": {
                           "type": "array",
@@ -174,16 +185,19 @@
                                 "items": {
                                   "anyOf": [
                                     {
-                                      "type": "string"
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                     },
                                     {
                                       "type": "array",
                                       "items": [
                                         {
-                                          "type": "string"
+                                          "type": "string",
+                                          "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                         },
                                         {
-                                          "type": "string"
+                                          "type": "string",
+                                          "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                         }
                                       ],
                                       "additionalItems": false,
@@ -194,18 +208,21 @@
                                       "type": "array",
                                       "items": [
                                         {
-                                          "type": "string"
+                                          "type": "string",
+                                          "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                         },
                                         {
                                           "type": "object",
                                           "properties": {
                                             "maxDepth": {
-                                              "type": "number",
-                                              "minimum": 1
+                                              "type": "integer",
+                                              "minimum": 1,
+                                              "maximum": 9007199254740991
                                             },
                                             "maxItems": {
-                                              "type": "number",
-                                              "minimum": 1
+                                              "type": "integer",
+                                              "minimum": 1,
+                                              "maximum": 9007199254740991
                                             },
                                             "decoder": {
                                               "type": "string",
@@ -236,7 +253,8 @@
                                                   "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
                                                 },
                                                 "fields": {
-                                                  "type": "string"
+                                                  "type": "string",
+                                                  "pattern": "^[A-Za-z0-9_$*]+$"
                                                 }
                                               },
                                               "additionalProperties": false
@@ -258,21 +276,36 @@
                                               ]
                                             },
                                             "length": {
-                                              "type": [
-                                                "string",
-                                                "number"
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                                },
+                                                {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991
+                                                }
                                               ]
                                             },
                                             "offset": {
-                                              "type": [
-                                                "string",
-                                                "number"
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                                },
+                                                {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991
+                                                }
                                               ]
                                             },
                                             "argFilter": {
                                               "type": "array",
                                               "items": {
-                                                "type": "string"
+                                                "type": "string",
+                                                "minLength": 1
                                               }
                                             }
                                           },
@@ -287,21 +320,25 @@
                                       "type": "array",
                                       "items": [
                                         {
-                                          "type": "string"
+                                          "type": "string",
+                                          "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                         },
                                         {
-                                          "type": "string"
+                                          "type": "string",
+                                          "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                         },
                                         {
                                           "type": "object",
                                           "properties": {
                                             "maxDepth": {
-                                              "type": "number",
-                                              "minimum": 1
+                                              "type": "integer",
+                                              "minimum": 1,
+                                              "maximum": 9007199254740991
                                             },
                                             "maxItems": {
-                                              "type": "number",
-                                              "minimum": 1
+                                              "type": "integer",
+                                              "minimum": 1,
+                                              "maximum": 9007199254740991
                                             },
                                             "decoder": {
                                               "type": "string",
@@ -332,7 +369,8 @@
                                                   "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
                                                 },
                                                 "fields": {
-                                                  "type": "string"
+                                                  "type": "string",
+                                                  "pattern": "^[A-Za-z0-9_$*]+$"
                                                 }
                                               },
                                               "additionalProperties": false
@@ -354,21 +392,36 @@
                                               ]
                                             },
                                             "length": {
-                                              "type": [
-                                                "string",
-                                                "number"
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                                },
+                                                {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991
+                                                }
                                               ]
                                             },
                                             "offset": {
-                                              "type": [
-                                                "string",
-                                                "number"
+                                              "anyOf": [
+                                                {
+                                                  "type": "string",
+                                                  "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                                },
+                                                {
+                                                  "type": "integer",
+                                                  "minimum": 0,
+                                                  "maximum": 9007199254740991
+                                                }
                                               ]
                                             },
                                             "argFilter": {
                                               "type": "array",
                                               "items": {
-                                                "type": "string"
+                                                "type": "string",
+                                                "minLength": 1
                                               }
                                             }
                                           },
@@ -383,12 +436,14 @@
                                       "type": "object",
                                       "properties": {
                                         "maxDepth": {
-                                          "type": "number",
-                                          "minimum": 1
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "maximum": 9007199254740991
                                         },
                                         "maxItems": {
-                                          "type": "number",
-                                          "minimum": 1
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "maximum": 9007199254740991
                                         },
                                         "decoder": {
                                           "type": "string",
@@ -419,7 +474,8 @@
                                               "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
                                             },
                                             "fields": {
-                                              "type": "string"
+                                              "type": "string",
+                                              "pattern": "^[A-Za-z0-9_$*]+$"
                                             }
                                           },
                                           "additionalProperties": false
@@ -441,28 +497,45 @@
                                           ]
                                         },
                                         "length": {
-                                          "type": [
-                                            "string",
-                                            "number"
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                            },
+                                            {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991
+                                            }
                                           ]
                                         },
                                         "offset": {
-                                          "type": [
-                                            "string",
-                                            "number"
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                            },
+                                            {
+                                              "type": "integer",
+                                              "minimum": 0,
+                                              "maximum": 9007199254740991
+                                            }
                                           ]
                                         },
                                         "argFilter": {
                                           "type": "array",
                                           "items": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "minLength": 1
                                           }
                                         },
                                         "type": {
-                                          "type": "string"
+                                          "type": "string",
+                                          "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                         },
                                         "name": {
-                                          "type": "string"
+                                          "type": "string",
+                                          "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                         }
                                       },
                                       "required": [
@@ -477,12 +550,14 @@
                                 "type": "object",
                                 "properties": {
                                   "maxDepth": {
-                                    "type": "number",
-                                    "minimum": 1
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
                                   },
                                   "maxItems": {
-                                    "type": "number",
-                                    "minimum": 1
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 9007199254740991
                                   },
                                   "decoder": {
                                     "type": "string",
@@ -513,7 +588,8 @@
                                         "pattern": "^[^\\s./;\\[\\]<>():,]+(\\.[^\\s./;\\[\\]<>():,]+)*$"
                                       },
                                       "fields": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9_$*]+$"
                                       }
                                     },
                                     "additionalProperties": false
@@ -532,8 +608,9 @@
                           "type": "object",
                           "properties": {
                             "maxStackFrames": {
-                              "type": "number",
-                              "minimum": 0
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
                             },
                             "nativeStackTrace": {
                               "type": "boolean"
@@ -544,7 +621,8 @@
                             "callerFilter": {
                               "type": "array",
                               "items": {
-                                "type": "string"
+                                "type": "string",
+                                "minLength": 1
                               }
                             },
                             "early": {
@@ -557,12 +635,14 @@
                           "type": "object",
                           "properties": {
                             "maxDepth": {
-                              "type": "number",
-                              "minimum": 1
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
                             },
                             "maxItems": {
-                              "type": "number",
-                              "minimum": 1
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
                             },
                             "decoder": {
                               "type": "string",
@@ -592,8 +672,9 @@
                 "type": "object",
                 "properties": {
                   "maxStackFrames": {
-                    "type": "number",
-                    "minimum": 0
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   },
                   "nativeStackTrace": {
                     "type": "boolean"
@@ -604,7 +685,8 @@
                   "callerFilter": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "type": "string",
+                      "minLength": 1
                     }
                   },
                   "early": {
@@ -617,12 +699,14 @@
                 "type": "object",
                 "properties": {
                   "maxDepth": {
-                    "type": "number",
-                    "minimum": 1
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
                   },
                   "maxItems": {
-                    "type": "number",
-                    "minimum": 1
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
                   },
                   "decoder": {
                     "type": "string",
@@ -650,31 +734,36 @@
             "type": "object",
             "properties": {
               "module": {
-                "type": "string"
+                "type": "string",
+                "pattern": "^[^/\\s]+$"
               },
               "hooks": {
                 "type": "array",
                 "items": {
                   "anyOf": [
                     {
-                      "type": "string"
+                      "type": "string",
+                      "pattern": "^\\S+$"
                     },
                     {
                       "type": "array",
                       "items": [
                         {
-                          "type": "string"
+                          "type": "string",
+                          "pattern": "^\\S+$"
                         },
                         {
                           "type": "object",
                           "properties": {
                             "maxDepth": {
-                              "type": "number",
-                              "minimum": 1
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
                             },
                             "maxItems": {
-                              "type": "number",
-                              "minimum": 1
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
                             },
                             "decoder": {
                               "type": "string",
@@ -714,16 +803,19 @@
                               "items": {
                                 "anyOf": [
                                   {
-                                    "type": "string"
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                   },
                                   {
                                     "type": "array",
                                     "items": [
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                       },
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                       }
                                     ],
                                     "additionalItems": false,
@@ -734,18 +826,21 @@
                                     "type": "array",
                                     "items": [
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                       },
                                       {
                                         "type": "object",
                                         "properties": {
                                           "maxDepth": {
-                                            "type": "number",
-                                            "minimum": 1
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 9007199254740991
                                           },
                                           "maxItems": {
-                                            "type": "number",
-                                            "minimum": 1
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 9007199254740991
                                           },
                                           "decoder": {
                                             "type": "string",
@@ -799,21 +894,36 @@
                                             ]
                                           },
                                           "length": {
-                                            "type": [
-                                              "string",
-                                              "number"
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
                                             ]
                                           },
                                           "offset": {
-                                            "type": [
-                                              "string",
-                                              "number"
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
                                             ]
                                           },
                                           "argFilter": {
                                             "type": "array",
                                             "items": {
-                                              "type": "string"
+                                              "type": "string",
+                                              "minLength": 1
                                             }
                                           }
                                         },
@@ -828,21 +938,25 @@
                                     "type": "array",
                                     "items": [
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                       },
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                       },
                                       {
                                         "type": "object",
                                         "properties": {
                                           "maxDepth": {
-                                            "type": "number",
-                                            "minimum": 1
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 9007199254740991
                                           },
                                           "maxItems": {
-                                            "type": "number",
-                                            "minimum": 1
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 9007199254740991
                                           },
                                           "decoder": {
                                             "type": "string",
@@ -896,21 +1010,36 @@
                                             ]
                                           },
                                           "length": {
-                                            "type": [
-                                              "string",
-                                              "number"
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
                                             ]
                                           },
                                           "offset": {
-                                            "type": [
-                                              "string",
-                                              "number"
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
                                             ]
                                           },
                                           "argFilter": {
                                             "type": "array",
                                             "items": {
-                                              "type": "string"
+                                              "type": "string",
+                                              "minLength": 1
                                             }
                                           }
                                         },
@@ -925,12 +1054,14 @@
                                     "type": "object",
                                     "properties": {
                                       "maxDepth": {
-                                        "type": "number",
-                                        "minimum": 1
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 9007199254740991
                                       },
                                       "maxItems": {
-                                        "type": "number",
-                                        "minimum": 1
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 9007199254740991
                                       },
                                       "decoder": {
                                         "type": "string",
@@ -984,28 +1115,45 @@
                                         ]
                                       },
                                       "length": {
-                                        "type": [
-                                          "string",
-                                          "number"
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                          },
+                                          {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
                                         ]
                                       },
                                       "offset": {
-                                        "type": [
-                                          "string",
-                                          "number"
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                          },
+                                          {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
                                         ]
                                       },
                                       "argFilter": {
                                         "type": "array",
                                         "items": {
-                                          "type": "string"
+                                          "type": "string",
+                                          "minLength": 1
                                         }
                                       },
                                       "type": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                       },
                                       "name": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                       }
                                     },
                                     "required": [
@@ -1019,24 +1167,28 @@
                             "returns": {
                               "anyOf": [
                                 {
-                                  "type": "string"
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                 },
                                 {
                                   "type": "array",
                                   "items": [
                                     {
-                                      "type": "string"
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                     },
                                     {
                                       "type": "object",
                                       "properties": {
                                         "maxDepth": {
-                                          "type": "number",
-                                          "minimum": 1
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "maximum": 9007199254740991
                                         },
                                         "maxItems": {
-                                          "type": "number",
-                                          "minimum": 1
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "maximum": 9007199254740991
                                         },
                                         "decoder": {
                                           "type": "string",
@@ -1085,12 +1237,14 @@
                                   "type": "object",
                                   "properties": {
                                     "maxDepth": {
-                                      "type": "number",
-                                      "minimum": 1
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 9007199254740991
                                     },
                                     "maxItems": {
-                                      "type": "number",
-                                      "minimum": 1
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 9007199254740991
                                     },
                                     "decoder": {
                                       "type": "string",
@@ -1128,10 +1282,12 @@
                                       "additionalProperties": false
                                     },
                                     "type": {
-                                      "type": "string"
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                     },
                                     "name": {
-                                      "type": "string"
+                                      "type": "string",
+                                      "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                     }
                                   },
                                   "required": [
@@ -1145,8 +1301,9 @@
                               "type": "object",
                               "properties": {
                                 "maxStackFrames": {
-                                  "type": "number",
-                                  "minimum": 0
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
                                 },
                                 "nativeStackTrace": {
                                   "type": "boolean"
@@ -1157,7 +1314,8 @@
                                 "callerFilter": {
                                   "type": "array",
                                   "items": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "minLength": 1
                                   }
                                 },
                                 "early": {
@@ -1170,12 +1328,14 @@
                               "type": "object",
                               "properties": {
                                 "maxDepth": {
-                                  "type": "number",
-                                  "minimum": 1
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 9007199254740991
                                 },
                                 "maxItems": {
-                                  "type": "number",
-                                  "minimum": 1
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 9007199254740991
                                 },
                                 "decoder": {
                                   "type": "string",
@@ -1201,7 +1361,8 @@
                               "additionalProperties": false
                             },
                             "symbol": {
-                              "type": "string"
+                              "type": "string",
+                              "pattern": "^\\S+$"
                             },
                             "offset": {
                               "not": {}
@@ -1220,16 +1381,19 @@
                               "items": {
                                 "anyOf": [
                                   {
-                                    "type": "string"
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                   },
                                   {
                                     "type": "array",
                                     "items": [
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                       },
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                       }
                                     ],
                                     "additionalItems": false,
@@ -1240,18 +1404,21 @@
                                     "type": "array",
                                     "items": [
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                       },
                                       {
                                         "type": "object",
                                         "properties": {
                                           "maxDepth": {
-                                            "type": "number",
-                                            "minimum": 1
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 9007199254740991
                                           },
                                           "maxItems": {
-                                            "type": "number",
-                                            "minimum": 1
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 9007199254740991
                                           },
                                           "decoder": {
                                             "type": "string",
@@ -1305,21 +1472,36 @@
                                             ]
                                           },
                                           "length": {
-                                            "type": [
-                                              "string",
-                                              "number"
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
                                             ]
                                           },
                                           "offset": {
-                                            "type": [
-                                              "string",
-                                              "number"
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
                                             ]
                                           },
                                           "argFilter": {
                                             "type": "array",
                                             "items": {
-                                              "type": "string"
+                                              "type": "string",
+                                              "minLength": 1
                                             }
                                           }
                                         },
@@ -1334,21 +1516,25 @@
                                     "type": "array",
                                     "items": [
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                       },
                                       {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                       },
                                       {
                                         "type": "object",
                                         "properties": {
                                           "maxDepth": {
-                                            "type": "number",
-                                            "minimum": 1
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 9007199254740991
                                           },
                                           "maxItems": {
-                                            "type": "number",
-                                            "minimum": 1
+                                            "type": "integer",
+                                            "minimum": 1,
+                                            "maximum": 9007199254740991
                                           },
                                           "decoder": {
                                             "type": "string",
@@ -1402,21 +1588,36 @@
                                             ]
                                           },
                                           "length": {
-                                            "type": [
-                                              "string",
-                                              "number"
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
                                             ]
                                           },
                                           "offset": {
-                                            "type": [
-                                              "string",
-                                              "number"
+                                            "anyOf": [
+                                              {
+                                                "type": "string",
+                                                "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                              },
+                                              {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 9007199254740991
+                                              }
                                             ]
                                           },
                                           "argFilter": {
                                             "type": "array",
                                             "items": {
-                                              "type": "string"
+                                              "type": "string",
+                                              "minLength": 1
                                             }
                                           }
                                         },
@@ -1431,12 +1632,14 @@
                                     "type": "object",
                                     "properties": {
                                       "maxDepth": {
-                                        "type": "number",
-                                        "minimum": 1
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 9007199254740991
                                       },
                                       "maxItems": {
-                                        "type": "number",
-                                        "minimum": 1
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 9007199254740991
                                       },
                                       "decoder": {
                                         "type": "string",
@@ -1490,28 +1693,45 @@
                                         ]
                                       },
                                       "length": {
-                                        "type": [
-                                          "string",
-                                          "number"
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                          },
+                                          {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
                                         ]
                                       },
                                       "offset": {
-                                        "type": [
-                                          "string",
-                                          "number"
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "pattern": "^(\\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$"
+                                          },
+                                          {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 9007199254740991
+                                          }
                                         ]
                                       },
                                       "argFilter": {
                                         "type": "array",
                                         "items": {
-                                          "type": "string"
+                                          "type": "string",
+                                          "minLength": 1
                                         }
                                       },
                                       "type": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                       },
                                       "name": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                       }
                                     },
                                     "required": [
@@ -1525,24 +1745,28 @@
                             "returns": {
                               "anyOf": [
                                 {
-                                  "type": "string"
+                                  "type": "string",
+                                  "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                 },
                                 {
                                   "type": "array",
                                   "items": [
                                     {
-                                      "type": "string"
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                     },
                                     {
                                       "type": "object",
                                       "properties": {
                                         "maxDepth": {
-                                          "type": "number",
-                                          "minimum": 1
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "maximum": 9007199254740991
                                         },
                                         "maxItems": {
-                                          "type": "number",
-                                          "minimum": 1
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "maximum": 9007199254740991
                                         },
                                         "decoder": {
                                           "type": "string",
@@ -1591,12 +1815,14 @@
                                   "type": "object",
                                   "properties": {
                                     "maxDepth": {
-                                      "type": "number",
-                                      "minimum": 1
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 9007199254740991
                                     },
                                     "maxItems": {
-                                      "type": "number",
-                                      "minimum": 1
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 9007199254740991
                                     },
                                     "decoder": {
                                       "type": "string",
@@ -1634,10 +1860,12 @@
                                       "additionalProperties": false
                                     },
                                     "type": {
-                                      "type": "string"
+                                      "type": "string",
+                                      "pattern": "^[A-Za-z_$\\[]([A-Za-z0-9_$.;:*&<>,\\[\\] /]*[A-Za-z0-9_$;*&>\\]])?$"
                                     },
                                     "name": {
-                                      "type": "string"
+                                      "type": "string",
+                                      "pattern": "^(?!\\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$"
                                     }
                                   },
                                   "required": [
@@ -1651,8 +1879,9 @@
                               "type": "object",
                               "properties": {
                                 "maxStackFrames": {
-                                  "type": "number",
-                                  "minimum": 0
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
                                 },
                                 "nativeStackTrace": {
                                   "type": "boolean"
@@ -1663,7 +1892,8 @@
                                 "callerFilter": {
                                   "type": "array",
                                   "items": {
-                                    "type": "string"
+                                    "type": "string",
+                                    "minLength": 1
                                   }
                                 },
                                 "early": {
@@ -1676,12 +1906,14 @@
                               "type": "object",
                               "properties": {
                                 "maxDepth": {
-                                  "type": "number",
-                                  "minimum": 1
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 9007199254740991
                                 },
                                 "maxItems": {
-                                  "type": "number",
-                                  "minimum": 1
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 9007199254740991
                                 },
                                 "decoder": {
                                   "type": "string",
@@ -1707,9 +1939,16 @@
                               "additionalProperties": false
                             },
                             "offset": {
-                              "type": [
-                                "string",
-                                "number"
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "pattern": "^0x[0-9a-fA-F]+$"
+                                },
+                                {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
                               ]
                             },
                             "symbol": {
@@ -1730,8 +1969,9 @@
                 "type": "object",
                 "properties": {
                   "maxStackFrames": {
-                    "type": "number",
-                    "minimum": 0
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
                   },
                   "nativeStackTrace": {
                     "type": "boolean"
@@ -1742,7 +1982,8 @@
                   "callerFilter": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "type": "string",
+                      "minLength": 1
                     }
                   },
                   "early": {
@@ -1755,12 +1996,14 @@
                 "type": "object",
                 "properties": {
                   "maxDepth": {
-                    "type": "number",
-                    "minimum": 1
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
                   },
                   "maxItems": {
-                    "type": "number",
-                    "minimum": 1
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
                   },
                   "decoder": {
                     "type": "string",

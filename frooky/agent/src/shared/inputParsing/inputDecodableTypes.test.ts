@@ -6,6 +6,7 @@ import {
   validateDecoderArgRoles,
   validateDecoderOptions,
   validateDecoderNames,
+  validateValueTypes,
 } from "./inputDecodableTypes";
 import { InputParamSettings } from "./inputSettings";
 import { validateInput } from "../configValidator";
@@ -114,8 +115,9 @@ describe("inputDecodableTypes", () => {
     });
 
     it("throws for a number that is no count", () => {
-      expect(() => normalizeInputParams([["const void *", "buf", { length: -1 }]])).toThrow("must be a non-negative integer");
-      expect(() => normalizeInputParams([["const void *", "buf", { offset: 1.5 }]])).toThrow("must be a non-negative integer");
+      expect(() => normalizeInputParams([["const void *", "buf", { length: -1 }]])).toThrow("decoder settings is invalid");
+      expect(() => normalizeInputParams([["const void *", "buf", { offset: 1.5 }]])).toThrow("decoder settings is invalid");
+      expect(normalizeInputParams([["const void *", "buf", { length: 0, offset: 16 }]])[0].settings.length).toBe(0);
     });
 
     it("throws when a role names the param itself", () => {
@@ -249,6 +251,128 @@ describe("inputDecodableTypes", () => {
       expect(inputReturnSettingsSchema.safeParse(["int", { maxItems: 10 }]).success).toBe(false);
     });
   });
-});
 
-export {};
+  describe("argFilter patterns", () => {
+    const withFilter = (argFilter: string[]) => normalizeInputParams([["int", "value", { argFilter }]]);
+
+    it("accepts numeric comparisons and regular expressions", () => {
+      for (const pattern of ["> 100", ">=0", "< -1.5", "<= 1e3", "== 42", "!= 0", "^button_", "<html>", "a=b", "[<>]=?"]) {
+        expect(() => withFilter([pattern])).not.toThrow();
+      }
+    });
+
+    it("throws for a pattern that starts like a comparison but isn't one", () => {
+      for (const pattern of ["= 5", " > 5", "> 5 < 10", "== 0x10", ">5 ", "<= 1,5"]) {
+        expect(() => withFilter([pattern])).toThrow(`argFilter of 'value': '${pattern}' is no numeric comparison.`);
+      }
+    });
+
+    it("throws for a pattern that is no regular expression, naming the parameter", () => {
+      expect(() => withFilter(["^ok$", "(?i)welcome"])).toThrow("argFilter of 'value': '(?i)welcome' is no regular expression:");
+      expect(() => normalizeInputParams([["int", { argFilter: ["("] }]])).toThrow("argFilter of 'int': '(' is no regular expression:");
+    });
+
+    it("throws for an empty pattern", () => {
+      expect(() => withFilter([""])).toThrow("decoder settings is invalid");
+    });
+  });
+
+  describe("validateValueTypes()", () => {
+    const types = (...names: string[]) => names.map((type) => ({ type }));
+
+    it("accepts Java type descriptors in Java hooks", () => {
+      expect(() =>
+        validateValueTypes(
+          types("int", "boolean", "java.lang.String", "a.b$c", "Foo", "[B", "[[I", "[Ljava.lang.String;", "[[Lcom.example.Outer$Inner;"),
+          "Java",
+        ),
+      ).not.toThrow();
+    });
+
+    it("throws for a Java type written the Java or JNI way, suggesting its descriptor", () => {
+      const message = (type: string, name?: string) => {
+        try {
+          validateValueTypes([{ type, name }], "Java");
+        } catch (e) {
+          return (e as Error).message;
+        }
+        return undefined;
+      };
+
+      expect(message("byte[]", "data")).toContain("'byte[]' as the type of 'data' is no Java type descriptor. Did you mean '[B'?");
+      expect(message("java.lang.String[]")).toContain(
+        "'java.lang.String[]' as a type is no Java type descriptor. Did you mean '[Ljava.lang.String;'?",
+      );
+      expect(message("int[][]")).toContain("Did you mean '[[I'?");
+      expect(message("[Ljava/lang/String;")).toContain("Did you mean '[Ljava.lang.String;'?");
+      expect(message("Ljava/lang/String;")).toContain("Did you mean 'java.lang.String'?");
+      expect(message("java/lang/String")).toContain("Did you mean 'java.lang.String'?");
+      expect(message("const char *")).toContain("'const char *' as a type is no Java type descriptor. Write a primitive or a class");
+      expect(message("[X")).toContain("is no Java type descriptor.");
+    });
+
+    it("accepts C types in native hooks", () => {
+      expect(() =>
+        validateValueTypes(
+          types(
+            "int",
+            "unsigned long long",
+            "const char *",
+            "char*",
+            "char **",
+            "char *const []",
+            "int[4]",
+            "struct foo *",
+            "std::string &",
+            "size_t",
+            "uint8_t",
+          ),
+          "native",
+        ),
+      ).not.toThrow();
+    });
+
+    it("throws for a type that is no C type in a native hook", () => {
+      for (const type of ["java.lang.String", "[B", "[Ljava.lang.String;", "int;", "$ret"]) {
+        expect(() => validateValueTypes([{ type, name: "arg" }], "native")).toThrow(`'${type}' as the type of 'arg' is no C type.`);
+      }
+    });
+  });
+
+  describe("schema of types and names", () => {
+    const param = (value: unknown) => inputParamSchema.safeParse(value).success;
+
+    it("accepts the types of both platforms and identifiers as names", () => {
+      for (const type of ["int", "java.lang.String", "[B", "[Ljava.lang.String;", "const char *", "char *const []", "java.lang.String[]"]) {
+        expect(param(type)).toBe(true);
+        expect(param([type, "value"])).toBe(true);
+        expect(param({ type, name: "out_len" })).toBe(true);
+      }
+      expect(param(["int", "$receiver"])).toBe(true);
+    });
+
+    it("rejects a type that is empty, has whitespace around it or isn't made of type characters", () => {
+      for (const type of ["", " ", " int", "int ", "...", "int (*)(void)", "1int", "char\t*"]) {
+        expect(param(type)).toBe(false);
+        expect(param([type, "value"])).toBe(false);
+        expect(param({ type })).toBe(false);
+      }
+    });
+
+    it("rejects a name that is empty, no identifier or `$ret`", () => {
+      for (const name of ["", "$ret", "out len", "1st", "a-b", "a.b"]) {
+        expect(param(["int", name])).toBe(false);
+        expect(param(["int", name, {}])).toBe(false);
+        expect(param({ type: "int", name })).toBe(false);
+        expect(inputReturnSchema.safeParse({ type: "int", name }).success).toBe(false);
+      }
+    });
+
+    it("accepts only the name of a parameter, `$ret` or a whole number that isn't negative as length and offset", () => {
+      const withLength = (length: unknown) => param(["void *", "buf", { length }]);
+
+      for (const length of ["len", "$ret", "out_len", 0, 16]) expect(withLength(length)).toBe(true);
+      for (const length of ["2", "", "a b", -1, 1.5, true, null]) expect(withLength(length)).toBe(false);
+    });
+  });
+});

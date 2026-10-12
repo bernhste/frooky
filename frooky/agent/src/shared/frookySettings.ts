@@ -5,9 +5,10 @@
  */
 export interface HookSettings {
   /**
-   * Maximum number of stack frames captured per event. Default: `5`.
+   * Maximum number of stack frames captured per event, a whole number. Default: `5`.
    *
    * @minimum 0
+   * @schema .int()
    */
   maxStackFrames: number;
 
@@ -26,7 +27,7 @@ export interface HookSettings {
    * on the Java stack as `<class>.<method>`, e.g. `'^com\.myapp\.'`. Native hooks match the name of the module
    * that called the function directly, e.g. `'^libapp\.so$'`. Default: `[]`.
    */
-  callerFilter: string[];
+  callerFilter: FilterPattern[];
 
   /**
    * Whether native hooks are installed before `targetReady`, the point in a spawned app's startup at which the app's
@@ -46,17 +47,19 @@ export interface HookSettings {
  */
 export interface BaseDecoderSettings {
   /**
-   * Maximum number of nested levels decoded. Default: `10`.
+   * Maximum number of nested levels decoded, a whole number. Default: `10`.
    *
    * @minimum 1
+   * @schema .int()
    */
   maxDepth: number;
 
   /**
    * Maximum number of elements decoded per array, list or map, bytes per buffer, or characters per Java string (also for
-   * each string in a list or map). Default: `100`.
+   * each string in a list or map). A whole number. Default: `100`.
    *
    * @minimum 1
+   * @schema .int()
    */
   maxItems: number;
 
@@ -99,7 +102,7 @@ export interface DecoderSettings extends BaseDecoderSettings {
    * `!= -1`) against numbers, or regular expressions against strings and numbers. The event is only captured if at least
    * one matches. Lists, booleans and `null` always pass. Parameters only.
    */
-  argFilter?: string[];
+  argFilter?: FilterPattern[];
 }
 
 /**
@@ -125,6 +128,8 @@ export interface DecoderOptions {
   /**
    * Java hooks: a pattern for the names of the fields of `class` (or of the hooked class) that are the constants, in
    * which `*` matches any characters, e.g. `*_MODE`. Default: all fields.
+   *
+   * @pattern ^[A-Za-z0-9_$*]+$
    */
   fields?: string;
 }
@@ -179,12 +184,39 @@ export type NativeDecoderName =
 export type DecoderName = JavaDecoderName | NativeDecoderName;
 
 /**
+ * A `callerFilter` or `argFilter` pattern: a regular expression, or for `argFilter` also a numeric comparison such as
+ * `> 100`. Not empty.
+ *
+ * @minLength 1
+ * @public
+ */
+export type FilterPattern = string;
+
+/**
+ * The name of another parameter as the value of `length` or `offset`, or `$ret` for the return value (only for a
+ * parameter with `direction: out`).
+ *
+ * @pattern ^(\$ret|[A-Za-z_$][A-Za-z0-9_$]*)$
+ * @public
+ */
+export type DecoderArgName = string;
+
+/**
+ * A fixed number of elements as the value of `length` or `offset`: a whole number, not negative.
+ *
+ * @minimum 0
+ * @schema .int()
+ * @public
+ */
+export type DecoderArgCount = number;
+
+/**
  * The value of `length` or `offset`: the name of another parameter, `$ret` for the return value (only for a parameter
  * with `direction: out`), or a number.
  *
  * @public
  */
-export type DecoderArgValue = string | number;
+export type DecoderArgValue = DecoderArgName | DecoderArgCount;
 
 export interface FrookySettings {
   hookSettings: HookSettings;

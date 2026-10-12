@@ -22,6 +22,15 @@ export interface InputOverload {
 }
 
 /**
+ * The name of a Java method, e.g. `doFinal`, or `$init` for constructors: only the name, without parameter types. A
+ * `*` or `**` matches any characters.
+ *
+ * @pattern ^[^\s./;\[\]<>():,]+$
+ * @public
+ */
+export type JavaMethodName = string;
+
+/**
  * Detailed declaration of a Java method hook.
  *
  * @public
@@ -31,7 +40,7 @@ export interface InputJavaHookDetails {
    * Method name. Use `$init` for constructors. A `*` or `**` matches any characters, e.g. `get*` hooks every method of
    * the class whose name starts with `get`, but no inherited method and no constructor.
    */
-  method: string;
+  method: JavaMethodName;
 
   /** Overloads to hook. If omitted, all overloads are hooked. */
   overloads?: InputOverload[];
@@ -49,7 +58,7 @@ export interface InputJavaHookDetails {
  *
  * @public
  */
-export type InputJavaHook = string | [string, InputDecoderSettings] | InputJavaHookDetails;
+export type InputJavaHook = JavaMethodName | [JavaMethodName, InputDecoderSettings] | InputJavaHookDetails;
 
 /**
  * Collection of hooks on methods of one Java class.

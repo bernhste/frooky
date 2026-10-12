@@ -70,8 +70,6 @@ See `frooky -h` for all options.
 
 frooky uses _hook files_, which are structured YAML files including declarations of methods or functions to be hooked.
 
-A hook file consists of optional metadata, optional default settings and a list of _hook collections_ called `hookCollections`. frooky rejects properties it doesn't know and invalid values, so a misspelled setting is reported instead of ignored: it skips the file, hook collection or hook they are set on, with a warning. Only `metadata` is free: it may contain fields of your own. The following YAML file describes the basic structure:
-
 ```yaml
 schemaVersion: 1                  # Optional. Version of the hook-file format, default 1
 

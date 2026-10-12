@@ -648,3 +648,61 @@ class TestValuePassingJava:
 
         events = find_matched_events({"type": "hook-java"})
         assert [(event["javaClassName"], event["method"]) for event in events] == [("org.owasp.mastestapp.MainActivity", "onCreate")]
+
+    def test_parameter_named_off_is_a_name_not_a_boolean(self, run_frooky, find_matched_events):
+        """`off`, `on`, `yes` and `no` are names in a hook file, e.g. of the `off` and `len` parameters of a write()."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: sendPacket
+                    overloads:
+                      - params:
+                          - ["[B", b, {{decoder: string, offset: off, length: len}}]
+                          - [int, off]
+                          - [int, len]
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        (event,) = find_matched_events({"javaClassName": MASTG_CLASS, "method": "sendPacket"})
+        assert [(arg["name"], arg["value"]) for arg in event["argsIn"]] == [("b", "hello frooky"), ("off", 7), ("len", 12)]
+
+    def test_values_of_the_wrong_type_are_rejected_where_they_are_set(self, run_frooky, find_matched_events):
+        """A boolean must be `true` or `false`, a count a whole number, a type a Java type descriptor and a filter
+        a comparison or a regular expression. frooky skips the collection or hook with such a value, and hooks
+        the others."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - javaClass: {MASTG_CLASS}
+                hookSettings: {{javaStackTrace: yes}}
+                hooks: [receiveString]
+              - javaClass: {MASTG_CLASS}
+                hookSettings: {{maxStackFrames: 2.5}}
+                hooks: [receiveBoolean]
+              - javaClass: {MASTG_CLASS}
+                decoderSettings: {{maxItems: 1.5}}
+                hooks: [receiveByte]
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: receiveByteArray
+                    overloads:
+                      - params: ["byte[]"]
+                  - method: receiveShort
+                    overloads:
+                      - params: [[short, "$ret"]]
+                  - method: receiveLong
+                    overloads:
+                      - params: [[long, value, {{argFilter: ["= 5"]}}]]
+                  - method: receiveChar
+                    overloads:
+                      - params: [[char, value, {{argFilter: ["(?i)a"]}}]]
+                  - method: receiveIntArray
+                    overloads:
+                      - params: [["[I", values, {{length: "2"}}]]
+                  - receiveInt
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        assert {event["method"] for event in find_matched_events({"javaClassName": MASTG_CLASS})} == {"receiveInt"}

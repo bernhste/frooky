@@ -23,7 +23,9 @@
 
 The object form has the same settings as the tuple forms, next to `type` and `name`.
 
-The name is optional, but name your parameters: events show it next to the value, and [`length` and `offset`](./decoders.md#length-and-offset-pass-other-values-to-the-decoder) refer to other parameters by it. A name they refer to must be unique within the hook.
+The name is optional, but name your parameters: events show it next to the value, and [`length` and `offset`](./decoders.md#length-and-offset-pass-other-values-to-the-decoder) refer to other parameters by it. A name is an identifier (letters, digits, `_` and `$`, not starting with a digit), e.g. `buf` or `out_len`; `$ret` is the return value and can't be a name. A name that `length` or `offset` refer to must be unique within the hook.
+
+A type must be written as the hook's platform writes types: frooky skips a hook with a C type in a Java hook or the other way round, and suggests the descriptor for a Java type written the Java way, e.g. `[B` for `byte[]`.
 
 YAML needs quotes around a type that starts with `[` (`"[B"`) or contains `[]` (`"char *const []"`). Quote pointer types as well (`"char *"`), as the examples do: a type that starts with `*` would otherwise be read as a YAML alias.
 

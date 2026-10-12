@@ -25,6 +25,32 @@ export interface InputNativeHookBase {
 }
 
 /**
+ * The exported symbol name of a function, e.g. `open` or `_ZN7android6Parcel13writeString16EPKDsm`, without
+ * whitespace. A `*` or `**` matches any characters.
+ *
+ * @pattern ^\S+$
+ * @public
+ */
+export type NativeSymbolName = string;
+
+/**
+ * An offset as a hex string: `0x` and hex digits, e.g. `"0x1a2b4"` or `"0x000000000001A2B4"`.
+ *
+ * @pattern ^0x[0-9a-fA-F]+$
+ * @public
+ */
+export type ModuleOffsetText = string;
+
+/**
+ * An offset as a YAML number, e.g. `0x1a2b4`: a whole number, not negative.
+ *
+ * @minimum 0
+ * @schema .int()
+ * @public
+ */
+export type ModuleOffsetNumber = number;
+
+/**
  * A native function hook located by its exported symbol name.
  *
  * @public
@@ -34,7 +60,7 @@ export interface InputNativeSymbolHook extends InputNativeHookBase {
    * Exported symbol name of the function. A `*` or `**` matches any characters, e.g. `SSL_*` hooks every exported
    * function of the module whose name starts with `SSL_`.
    */
-  symbol: string;
+  symbol: NativeSymbolName;
 
   /** Not allowed together with `symbol`. */
   offset?: never;
@@ -50,7 +76,7 @@ export interface InputNativeOffsetHook extends InputNativeHookBase {
    * Offset of the function from the module's base address, e.g. `0x1a2b4`: the address shown by a disassembler
    * minus the image base it loaded the module at. A YAML number, or a string starting with `0x`.
    */
-  offset: string | number;
+  offset: ModuleOffsetText | ModuleOffsetNumber;
 
   /** Not allowed together with `offset`. */
   symbol?: never;
@@ -69,7 +95,7 @@ export type InputNativeHookDetails = InputNativeSymbolHook | InputNativeOffsetHo
  *
  * @public
  */
-export type InputNativeHook = string | [string, InputDecoderSettings] | InputNativeHookDetails;
+export type InputNativeHook = NativeSymbolName | [NativeSymbolName, InputDecoderSettings] | InputNativeHookDetails;
 
 /**
  * Collection of hooks on functions of one native module.
@@ -81,6 +107,8 @@ export interface InputNativeHookCollection {
    * File name of the module that exports the functions, e.g. `libssl.so`, without its path. A `*` or `**` matches any
    * characters, e.g. `libssl*.so` hooks the functions in every module whose name matches, also in modules that load
    * later.
+   *
+   * @pattern ^[^/\s]+$
    */
   module: string;
 
@@ -147,7 +175,7 @@ export function normalizeModuleOffset(offset: string | number): string {
     }
     return `0x${offset.toString(16)}`;
   }
-  const match = /^0x([0-9a-f]+)$/i.exec(offset.trim());
+  const match = /^0x([0-9a-fA-F]+)$/.exec(offset);
   if (!match) {
     throw new Error(`Invalid offset "${offset}": must be a hex number starting with 0x, e.g. 0x1a2b4.`);
   }

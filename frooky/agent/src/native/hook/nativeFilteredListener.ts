@@ -122,6 +122,17 @@ function compile(): CModule {
   return cm;
 }
 
+// Compiles the CModule, if it isn't compiled yet. The compiler maps and unmaps memory for the code, so it must run
+// before `mmap` or `munmap` are hooked: compiling with a hook on them, on the app's thread that installs the hooks
+// of a spawned app, hangs the app. A compiler error is kept for the first NativeFilteredListener.
+export function compileFilteredListener(): void {
+  try {
+    compile();
+  } catch (e) {
+    logger.debug(`The native caller filter doesn't compile: ${e}`);
+  }
+}
+
 // An Interceptor listener on `address` whose callerFilter runs in native code, see SOURCE
 export class NativeFilteredListener {
   readonly listener: InvocationListener;

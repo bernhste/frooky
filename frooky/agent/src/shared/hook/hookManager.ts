@@ -6,10 +6,10 @@ import { DecoderResolver } from "../decoders/decoderResolver";
 import { DecoderArgRole, decoderArgsOf, DecoderArgValues, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
 import { logger } from "../logger";
 import { PlatformStackTrace } from "../platformStackTrace";
-import { FilterMismatchError, previewValue } from "../utils";
+import { ARG_FILTER_COMPARISON, FilterMismatchError, previewValue } from "../utils";
 import { countFilteredCall, Hook } from "./hook";
 
-export type NumberComparator = ">" | ">=" | "<" | "<=" | "==" | "!=" | "=";
+export type NumberComparator = ">" | ">=" | "<" | "<=" | "==" | "!=";
 
 export type NumberFilter = {
   operator: NumberComparator;
@@ -18,14 +18,12 @@ export type NumberFilter = {
 
 export type ArgFilter = RegExp | NumberFilter;
 
-const COMPARISON_REGEX = /^([<>]=?|==|!=|=)\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
-
 // Compiles an argFilter pattern into a numeric comparison or a regular expression
 export function compileArgFilter(pattern: string | RegExp | ArgFilter): ArgFilter {
   if (pattern instanceof RegExp || (typeof pattern === "object" && pattern !== null && "operator" in pattern)) {
     return pattern;
   }
-  const match = String(pattern).match(COMPARISON_REGEX);
+  const match = String(pattern).match(ARG_FILTER_COMPARISON);
   if (match) {
     return {
       operator: match[1] as NumberComparator,
@@ -60,7 +58,6 @@ function evaluateComparison(val: number, op: NumberComparator, target: number): 
     case "<=":
       return val <= target;
     case "==":
-    case "=":
       return val === target;
     case "!=":
       return val !== target;

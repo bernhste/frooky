@@ -5,7 +5,12 @@ import { InputFrookyConfig } from "../../shared/frookyConfig";
 import { DecoderSettings, FrookySettings } from "../../shared/frookySettings";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { HookValidator } from "../../shared/hook/hookValidator";
-import { validateDecoderArgRoles, validateDecoderOptions, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
+import {
+  validateDecoderArgRoles,
+  validateDecoderOptions,
+  validateDecoderNames,
+  validateValueTypes,
+} from "../../shared/inputParsing/inputDecodableTypes";
 import {
   InputJavaHookCollection,
   isJavaHookScope,
@@ -48,6 +53,7 @@ export class AndroidHookValidator implements HookValidator<JavaHookDeclaration, 
             javaHookCollection.classLoader,
           );
           const overloads = normalizedJavaHook.overloads ?? [];
+          overloads.forEach((overload) => validateValueTypes(overload.params, "Java"));
           overloads.forEach((overload) => validateDecoderArgRoles(overload.params, acceptedJavaDecoderArgs));
           const values = overloads.flatMap((overload) => [
             ...overload.params.map((p): [string, DecoderSettings] => [p.name ?? p.type, p.settings]),

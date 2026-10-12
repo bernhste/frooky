@@ -791,3 +791,25 @@ class TestValuePassingNative:
         # no Java frames before targetReady; the Java frames of later calls show that the app went on from there
         assert any(trace.get("skipped") == "before-ready" for trace in traces)
         assert any(trace["javaStackTrace"] for trace in traces)
+
+    @pytest.mark.parametrize("function", ["mmap", "munmap"])
+    def test_caller_filter_next_to_a_hook_on_mmap_when_spawning(self, run_frooky_spawn, find_matched_events, function):
+        """A hook with a `callerFilter` is installed after one on `mmap` or `munmap`: the code of the native filter
+        is compiled before, as compiling it maps memory."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - module: libc.so
+                hooks:
+                  - symbol: {function}
+              - module: libc.so
+                hookSettings:
+                  callerFilter: ['^libreceiveString\\.so$']
+                hooks:
+                  - symbol: fopen
+                    params:
+                      - ["const char *", pathname]
+            """)
+
+        run_frooky_spawn(hook_file, TARGET_APP)
+
+        assert len(find_matched_events({"module": "libc.so", "symbol": function})) > 0

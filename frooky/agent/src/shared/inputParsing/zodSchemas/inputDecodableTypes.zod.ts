@@ -3,16 +3,26 @@ import { z } from "zod";
 
 import { inputParamSettingsSchema, inputReturnSettingsSchema } from "./inputSettings.zod";
 
+export const valueTypeSchema = z.string().regex(/^[A-Za-z_$\[]([A-Za-z0-9_$.;:*&<>,\[\] /]*[A-Za-z0-9_$;*&>\]])?$/);
+
+export const valueNameSchema = z.string().regex(/^(?!\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$/);
+
 export const inputParamObjectSchema = inputParamSettingsSchema.extend({
-    type: z.string(),
-    name: z.string().optional()
+  type: valueTypeSchema,
+  name: valueNameSchema.optional(),
 });
 
-export const inputParamSchema = z.union([z.string(), z.tuple([z.string(), z.string()]), z.tuple([z.string(), inputParamSettingsSchema]), z.tuple([z.string(), z.string(), inputParamSettingsSchema]), inputParamObjectSchema]);
+export const inputParamSchema = z.union([
+  valueTypeSchema,
+  z.tuple([valueTypeSchema, valueNameSchema]),
+  z.tuple([valueTypeSchema, inputParamSettingsSchema]),
+  z.tuple([valueTypeSchema, valueNameSchema, inputParamSettingsSchema]),
+  inputParamObjectSchema,
+]);
 
 export const inputReturnObjectSchema = inputReturnSettingsSchema.extend({
-    type: z.string(),
-    name: z.string().optional()
+  type: valueTypeSchema,
+  name: valueNameSchema.optional(),
 });
 
-export const inputReturnSchema = z.union([z.string(), z.tuple([z.string(), inputReturnSettingsSchema]), inputReturnObjectSchema]);
+export const inputReturnSchema = z.union([valueTypeSchema, z.tuple([valueTypeSchema, inputReturnSettingsSchema]), inputReturnObjectSchema]);

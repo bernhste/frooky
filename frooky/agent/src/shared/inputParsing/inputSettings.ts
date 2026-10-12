@@ -1,5 +1,5 @@
 import { Direction } from "../decoders/decodable";
-import { DecoderArgValue, DecoderOptions, HookSettings, BaseDecoderSettings } from "../frookySettings";
+import { DecoderArgValue, DecoderOptions, FilterPattern, HookSettings, BaseDecoderSettings } from "../frookySettings";
 
 /**
  * Hook settings in a hook file. Every field is optional; missing fields are inherited.
@@ -56,5 +56,5 @@ export interface InputParamSettings extends InputReturnSettings {
    * `!= -1`) against numbers, or regular expressions against strings and numbers. The event is only captured if at least
    * one matches. Lists, booleans and `null` always pass.
    */
-  argFilter?: string[];
+  argFilter?: FilterPattern[];
 }

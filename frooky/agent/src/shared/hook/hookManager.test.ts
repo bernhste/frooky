@@ -352,7 +352,6 @@ describe("HookManager", () => {
       expect(manager.exposedMatchesFilter({ type: "int", value: 50 }, ["< 50"])).toBeFalsy();
       expect(manager.exposedMatchesFilter({ type: "int", value: 49 }, ["<= 50"])).toBeTruthy();
       expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["== 42"])).toBeTruthy();
-      expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["= 42"])).toBeTruthy();
       expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["!= 42"])).toBeFalsy();
       expect(manager.exposedMatchesFilter({ type: "int", value: 42 }, ["!= 0"])).toBeTruthy();
       // decimal strings (e.g. from 64-bit int / long)

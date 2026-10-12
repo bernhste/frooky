@@ -6,6 +6,14 @@
 export type Platform = "Android" | "iOS";
 
 /**
+ * Version of a hook file: a whole number, e.g. `1`.
+ *
+ * @schema .int()
+ * @public
+ */
+export type MetadataVersion = number;
+
+/**
  * Descriptive information about a hook file. Informational: it changes neither the hooks nor the events, and may
  * contain further fields of your own.
  *
@@ -38,7 +46,7 @@ export interface FrookyMetadata {
   author?: string;
 
   /**
-   * Version of the hook file.
+   * Version of the hook file, a whole number.
    */
-  version?: number;
+  version?: MetadataVersion;
 }

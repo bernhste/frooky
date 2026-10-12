@@ -100,6 +100,40 @@ describe("configValidator", () => {
     });
   });
 
+  describe("types of the settings", () => {
+    it("accepts only whole numbers for maxStackFrames, maxItems and maxDepth", () => {
+      expect(validateHookSettings({ maxStackFrames: 0 }).maxStackFrames).toBe(0);
+      expect(validateDecoderSettings({ maxItems: 1, maxDepth: 1 })).toEqual({ ...DEFAULT_BASE_DECODER_SETTINGS, maxItems: 1, maxDepth: 1 });
+      for (const value of [1.5, -1, "5", true, null, NaN, Infinity]) {
+        expect(() => validateHookSettings({ maxStackFrames: value } as unknown as InputHookSettings)).toThrow("hookSettings is invalid");
+        expect(() => validateDecoderSettings({ maxItems: value } as unknown as InputDecoderSettings)).toThrow();
+        expect(() => validateDecoderSettings({ maxDepth: value } as unknown as InputDecoderSettings)).toThrow();
+      }
+      expect(() => validateDecoderSettings({ maxItems: 0 })).toThrow();
+    });
+
+    it("accepts only booleans for javaStackTrace, nativeStackTrace and early", () => {
+      for (const setting of ["javaStackTrace", "nativeStackTrace", "early"]) {
+        expect(validateHookSettings({ [setting]: true })[setting as "early"]).toBe(true);
+        for (const value of ["true", "yes", "on", 1, 0, null, []]) {
+          expect(() => validateHookSettings({ [setting]: value } as unknown as InputHookSettings)).toThrow("hookSettings is invalid");
+        }
+      }
+    });
+
+    it("rejects an empty callerFilter pattern", () => {
+      expect(() => validateHookSettings({ callerFilter: [""] })).toThrow("hookSettings is invalid");
+      expect(() => validateHookSettings({ callerFilter: "^a" } as unknown as InputHookSettings)).toThrow("hookSettings is invalid");
+    });
+
+    it("accepts only a pattern of field names for decoderOptions.fields", () => {
+      const withFields = (fields: string) => validateValueDecoderSettings({ decoder: "constants", decoderOptions: { fields } });
+
+      expect(withFields("*_MODE").decoderOptions?.fields).toBe("*_MODE");
+      for (const fields of ["", "A B", "FLAG_.*", "a,b"]) expect(() => withFields(fields)).toThrow();
+    });
+  });
+
   describe("validateInput()", () => {
     it("returns the input when it matches the schema", () => {
       expect(validateInput(inputParamSchema, ["int", "len", { direction: "out" }], "The param")).toEqual(["int", "len", { direction: "out" }]);

@@ -10,6 +10,7 @@ import {
 } from "./inputNativeHookCollection";
 
 import { logger } from "../logger";
+import { inputNativeHookCollectionSchema, inputNativeHookSchema } from "./zodSchemas/inputNativeHookCollection.zod";
 
 describe("inputNativeHookCollection", () => {
   describe("isNativeHookCollection()", () => {
@@ -384,6 +385,12 @@ describe("inputNativeHookCollection", () => {
         expect(() => normalizeModuleOffset("1234")).toThrow("starting with 0x");
       });
 
+      it("rejects a string with whitespace around it or an uppercase prefix", () => {
+        for (const offset of [" 0x1a2b4", "0x1a2b4 ", "0X1A2B4", "0x", "-0x10", "1a2b4h"]) {
+          expect(() => normalizeModuleOffset(offset)).toThrow("starting with 0x");
+        }
+      });
+
       it("rejects negative and non-integer numbers", () => {
         expect(() => normalizeModuleOffset(-1)).toThrow("non-negative integer");
         expect(() => normalizeModuleOffset(1.5)).toThrow("non-negative integer");
@@ -398,6 +405,32 @@ describe("inputNativeHookCollection", () => {
       expect(result.module).toBe("libc.so");
     });
   });
-});
 
-export {};
+  describe("schema of modules, symbols and offsets", () => {
+    const collection = (module: unknown) => inputNativeHookCollectionSchema.safeParse({ module, hooks: ["open"] }).success;
+    const hook = (value: unknown) => inputNativeHookSchema.safeParse(value).success;
+
+    it("accepts a module by its file name or a pattern, and rejects an empty name, a path and whitespace", () => {
+      for (const module of ["libc.so", "libssl*.so", "*", "base.odex"]) expect(collection(module)).toBe(true);
+      for (const module of ["", " ", "lib c.so", "/system/lib64/libc.so", "lib/libc.so", 5, null]) expect(collection(module)).toBe(false);
+    });
+
+    it("accepts a symbol without whitespace in every form of a hook", () => {
+      for (const symbol of ["open", "SSL_*", "_ZN7android6Parcel13writeString16EPKDsm", "*"]) {
+        expect(hook(symbol)).toBe(true);
+        expect(hook([symbol, { maxItems: 5 }])).toBe(true);
+        expect(hook({ symbol })).toBe(true);
+      }
+      for (const symbol of ["", " ", "open ", "int open(const char *)"]) {
+        expect(hook(symbol)).toBe(false);
+        expect(hook([symbol, { maxItems: 5 }])).toBe(false);
+        expect(hook({ symbol })).toBe(false);
+      }
+    });
+
+    it("accepts an offset as a whole number that isn't negative, or as `0x` and hex digits", () => {
+      for (const offset of [0x1a2b4, 0, "0x1a2b4", "0x000000000001A2B4"]) expect(hook({ offset })).toBe(true);
+      for (const offset of [-1, 1.5, "1a2b4", "0X1A2B4", " 0x1a2b4", "0x", "", true, null]) expect(hook({ offset })).toBe(false);
+    });
+  });
+});

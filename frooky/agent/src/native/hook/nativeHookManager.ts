@@ -19,7 +19,7 @@ import { ModuleExports, moduleExports, resolveNativeHook, resolveNativeHookInMat
 import { NativeHook } from "./nativeHook";
 import { NativeHookIndex } from "./nativeHookIndex";
 import { addressHashCode, NativeHookEvent } from "./nativeHookEvent";
-import { MAX_FILTERED_ARGS, ModuleRange, NativeFilteredListener } from "./nativeFilteredListener";
+import { compileFilteredListener, MAX_FILTERED_ARGS, ModuleRange, NativeFilteredListener } from "./nativeFilteredListener";
 
 // A hook declaration with a module wildcard pattern while resolveModulePatterns() looks for its hooks
 type ModulePatternHook = {
@@ -309,6 +309,8 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
   // Hooks that are already installed, e.g. by resolveHooks() while their module loaded, count as installed.
   public registerHooks(hooks: NativeHook[], source?: string): number {
     let countSuccessfulHooks = 0;
+    // before the first hook: one of these or of a later hook file can be on `mmap`, see compileFilteredListener()
+    if (hooks.length > 0) compileFilteredListener();
 
     for (const hook of hooks) {
       if (this.hookIndex.has(hook)) {

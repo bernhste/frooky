@@ -359,3 +359,25 @@ function isText(bytes: Uint8Array): boolean {
 export function fromSource(source?: string): string {
   return source ? ` (${source})` : "";
 }
+
+// A numeric comparison of an `argFilter`: an operator and a decimal number, e.g. `> 100`, `<= 0.5` or `== -1`
+export const ARG_FILTER_COMPARISON = /^(>=|<=|==|!=|>|<)\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
+
+// starts like a comparison: an operator, also a single `=`, and a number
+const COMPARISON_START = /^\s*(?:[<>]=?|[=!]=?)\s*[+-]?\.?\d/;
+
+// Throws unless an `argFilter` pattern is a numeric comparison or a regular expression. A pattern that starts like a
+// comparison but isn't one, e.g. `= 5`, `> 5 < 10` or `== 0x10`, is no regular expression anyone means.
+export function validateArgFilterPattern(pattern: string): void {
+  if (ARG_FILTER_COMPARISON.test(pattern)) return;
+  if (COMPARISON_START.test(pattern)) {
+    throw new Error(
+      `'${pattern}' is no numeric comparison. Use one operator (>, >=, <, <=, ==, !=) and a decimal number, without spaces around them, e.g. '> 100' or '== -1'.`,
+    );
+  }
+  try {
+    new RegExp(pattern);
+  } catch (e) {
+    throw new Error(`'${pattern}' is no regular expression: ${e instanceof Error ? e.message : e}`);
+  }
+}

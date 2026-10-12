@@ -398,6 +398,26 @@ describe("inputJavaHookCollection", () => {
       }
     });
   });
+
+  describe("schema of method names", () => {
+    const hook = (value: unknown) => inputJavaHookSchema.safeParse(value).success;
+
+    it("accepts a method name, `$init` and patterns in every form of a hook", () => {
+      for (const method of ["doFinal", "$init", "get*", "*", "access$000", "a"]) {
+        expect(hook(method)).toBe(true);
+        expect(hook([method, { maxItems: 5 }])).toBe(true);
+        expect(hook({ method })).toBe(true);
+      }
+    });
+
+    it("rejects an empty name, whitespace, a class prefix and parameter types", () => {
+      for (const method of ["", " ", "doFinal ", "Cipher.doFinal", "doFinal(byte[])", "<init>", "a,b"]) {
+        expect(hook(method)).toBe(false);
+        expect(hook([method, { maxItems: 5 }])).toBe(false);
+        expect(hook({ method })).toBe(false);
+      }
+    });
+  });
 });
 
 export {};

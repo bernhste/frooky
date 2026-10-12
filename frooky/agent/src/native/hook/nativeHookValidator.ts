@@ -15,7 +15,12 @@ import {
 } from "../../shared/inputParsing/inputNativeHookCollection";
 import { inputNativeHookCollectionSchema, inputNativeHookSchema } from "../../shared/inputParsing/zodSchemas/inputNativeHookCollection.zod";
 import { logger } from "../../shared/logger";
-import { validateDecoderArgRoles, validateDecoderOptions, validateDecoderNames } from "../../shared/inputParsing/inputDecodableTypes";
+import {
+  validateDecoderArgRoles,
+  validateDecoderOptions,
+  validateDecoderNames,
+  validateValueTypes,
+} from "../../shared/inputParsing/inputDecodableTypes";
 import { acceptedNativeDecoderArgs, acceptedNativeDecoderOptions, NATIVE_DECODER_NAMES } from "../decoders/nativeDecoderResolver";
 
 const inputNativeHookCollectionHeaderSchema = inputNativeHookCollectionSchema.omit({ hooks: true });
@@ -29,8 +34,9 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
       let collectionSettings;
       try {
         const { hooks: _hooks, ...header } = nativeHookCollection;
-        validateInput(inputNativeHookCollectionHeaderSchema, header, "The hook collection");
+        // before the schema, whose message for a name that doesn't match its pattern has no hint
         rejectModulePath(nativeHookCollection.module);
+        validateInput(inputNativeHookCollectionHeaderSchema, header, "The hook collection");
         collectionSettings = mergeNativeHookCollectionSettings(nativeHookCollection, settings);
       } catch (e) {
         logger.warn(`Skipping the hook collection for module '${nativeHookCollection.module}': ${e instanceof Error ? e.message : e}`);
@@ -42,6 +48,7 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
         try {
           const validInputHook = validateInput(inputNativeHookSchema, inputNativeHook, "The hook");
           const validatedHook = normalizeNativeHook(validInputHook, nativeHookCollection.module, hookSettings, decoderSettings);
+          validateValueTypes([...(validatedHook.params ?? []), ...(validatedHook.returns ? [validatedHook.returns] : [])], "native");
           validateDecoderArgRoles(validatedHook.params, acceptedNativeDecoderArgs);
           const values: [string, DecoderSettings | undefined][] = [
             ...(validatedHook.params ?? []).map((p): [string, DecoderSettings] => [p.name ?? p.type, p.settings]),
@@ -204,8 +211,8 @@ export function noteEarlyPlatformStackTrace(hook: NativeHookDeclaration): void {
 }
 
 // The linker and Frida know a module by its file name; a path would never match the modules a pattern is compared with
-function rejectModulePath(module: string): void {
-  if (module.includes("/")) {
+function rejectModulePath(module: unknown): void {
+  if (typeof module === "string" && module.includes("/")) {
     throw Error(`'module' must be the file name of the module, e.g. '${module.slice(module.lastIndexOf("/") + 1)}', not a path.`);
   }
 }

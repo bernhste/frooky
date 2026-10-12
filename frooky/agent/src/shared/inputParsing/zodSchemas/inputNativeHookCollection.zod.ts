@@ -5,29 +5,39 @@ import { inputParamSchema, inputReturnSchema } from "./inputDecodableTypes.zod";
 import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputSettings.zod";
 
 export const inputNativeHookBaseSchema = z.object({
-    params: z.array(inputParamSchema).optional(),
-    returns: inputReturnSchema.optional(),
-    hookSettings: inputHookSettingsSchema.optional(),
-    decoderSettings: inputDecoderSettingsSchema.optional()
+  params: z.array(inputParamSchema).optional(),
+  returns: inputReturnSchema.optional(),
+  hookSettings: inputHookSettingsSchema.optional(),
+  decoderSettings: inputDecoderSettingsSchema.optional(),
 });
 
+export const nativeSymbolNameSchema = z.string().regex(/^\S+$/);
+
+export const moduleOffsetTextSchema = z.string().regex(/^0x[0-9a-fA-F]+$/);
+
+export const moduleOffsetNumberSchema = z.number().min(0).int();
+
 export const inputNativeSymbolHookSchema = inputNativeHookBaseSchema.extend({
-    symbol: z.string(),
-    offset: z.never().optional()
+  symbol: nativeSymbolNameSchema,
+  offset: z.never().optional(),
 });
 
 export const inputNativeOffsetHookSchema = inputNativeHookBaseSchema.extend({
-    offset: z.union([z.string(), z.number()]),
-    symbol: z.never().optional()
+  offset: z.union([moduleOffsetTextSchema, moduleOffsetNumberSchema]),
+  symbol: z.never().optional(),
 });
 
 export const inputNativeHookDetailsSchema = z.union([inputNativeSymbolHookSchema, inputNativeOffsetHookSchema]);
 
-export const inputNativeHookSchema = z.union([z.string(), z.tuple([z.string(), inputDecoderSettingsSchema]), inputNativeHookDetailsSchema]);
+export const inputNativeHookSchema = z.union([
+  nativeSymbolNameSchema,
+  z.tuple([nativeSymbolNameSchema, inputDecoderSettingsSchema]),
+  inputNativeHookDetailsSchema,
+]);
 
 export const inputNativeHookCollectionSchema = z.object({
-    module: z.string(),
-    hooks: z.array(inputNativeHookSchema),
-    hookSettings: inputHookSettingsSchema.optional(),
-    decoderSettings: inputDecoderSettingsSchema.optional()
+  module: z.string().regex(/^[^/\s]+$/),
+  hooks: z.array(inputNativeHookSchema),
+  hookSettings: inputHookSettingsSchema.optional(),
+  decoderSettings: inputDecoderSettingsSchema.optional(),
 });

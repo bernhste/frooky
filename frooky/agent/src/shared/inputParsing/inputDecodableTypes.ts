@@ -3,7 +3,28 @@ import { Param, RetType } from "../decoders/decodable";
 import { DEFAULT_DECODE_AT, DEFAULT_BASE_DECODER_SETTINGS } from "../defaultValues";
 import { DecoderSettings, BaseDecoderSettings } from "../frookySettings";
 import { DecoderArgRole, decoderArgsOf, RETURN_VALUE_DECODER_ARG } from "../decoders/decoderArgs";
+import { validateArgFilterPattern } from "../utils";
 import { InputParamSettings, InputReturnSettings } from "./inputSettings";
+
+/**
+ * The declared type of a parameter or return value. In a Java hook, a type descriptor: a primitive or a class by its
+ * name with dots, an array by its JVM descriptor, e.g. `int`, `java.lang.String`, `[B` or `[Ljava.lang.String;`. In a
+ * native hook, a C type, e.g. `int`, `const char *` or `char *const []`. frooky checks the type against the platform
+ * of the hook.
+ *
+ * @pattern ^[A-Za-z_$\[]([A-Za-z0-9_$.;:*&<>,\[\] /]*[A-Za-z0-9_$;*&>\]])?$
+ * @public
+ */
+export type ValueType = string;
+
+/**
+ * The name of a parameter or return value, shown in events and used by `length` and `offset` of other parameters: an
+ * identifier, e.g. `buf` or `out_len`. `$ret` is the return value and can't be used as a name.
+ *
+ * @pattern ^(?!\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$
+ * @public
+ */
+export type ValueName = string;
 
 /**
  * A parameter declared as an object: its type, its name and its settings.
@@ -12,10 +33,10 @@ import { InputParamSettings, InputReturnSettings } from "./inputSettings";
  */
 export interface InputParamObject extends InputParamSettings {
   /** Declared type, e.g. `int`, `java.lang.String`, `[B` or `char *`. */
-  type: string;
+  type: ValueType;
 
   /** Name shown for the value in events. */
-  name?: string;
+  name?: ValueName;
 }
 
 /**
@@ -31,7 +52,8 @@ export interface InputParamObject extends InputParamSettings {
  *
  * @public
  */
-export type InputParam = string | [string, string] | [string, InputParamSettings] | [string, string, InputParamSettings] | InputParamObject;
+export type InputParam =
+  ValueType | [ValueType, ValueName] | [ValueType, InputParamSettings] | [ValueType, ValueName, InputParamSettings] | InputParamObject;
 
 function normalizeInputParam(input: InputParam, decoderSettings: BaseDecoderSettings): Param {
   // the param's own settings override the merged file, collection and hook settings field by field
@@ -68,7 +90,60 @@ function normalizeInputParam(input: InputParam, decoderSettings: BaseDecoderSett
 export function normalizeInputParams(inputs: InputParam[], decoderSettings: BaseDecoderSettings = DEFAULT_BASE_DECODER_SETTINGS): Param[] {
   const params = inputs.map((input) => normalizeInputParam(input, decoderSettings));
   params.forEach((param, paramIndex) => validateDecoderArgs(param, paramIndex, params));
+  params.forEach(validateArgFilter);
   return params;
+}
+
+// Throws if a pattern of a parameter's `argFilter` is neither a numeric comparison nor a regular expression
+function validateArgFilter(param: Param): void {
+  for (const pattern of param.settings.argFilter ?? []) {
+    try {
+      validateArgFilterPattern(pattern);
+    } catch (e) {
+      throw new Error(`argFilter of '${param.name ?? param.type}': ${e instanceof Error ? e.message : e}`);
+    }
+  }
+}
+
+// A Java type descriptor: a primitive or a class by its name with dots, or an array by its JVM descriptor
+const JAVA_TYPE = /^(?:\[+(?:[ZBCSIJFD]|L[^\s./;[\]<>():,]+(?:\.[^\s./;[\]<>():,]+)*;)|[^\s./;[\]<>():,]+(?:\.[^\s./;[\]<>():,]+)*)$/;
+// A C type: identifiers, `*`, `[]`, `&` and, for C++ types, `::`, `<` and `>`
+const NATIVE_TYPE = /^[A-Za-z_](?:[A-Za-z0-9_ :*&<>,[\]]*[A-Za-z0-9_*&>\]])?$/;
+const JAVA_PRIMITIVE_DESCRIPTORS: Record<string, string> = {
+  boolean: "Z",
+  byte: "B",
+  char: "C",
+  short: "S",
+  int: "I",
+  long: "J",
+  float: "F",
+  double: "D",
+};
+
+// e.g. `[B` for `byte[]` and `[[Ljava.lang.String;` for `java/lang/String[][]`, undefined if `type` is no Java type
+// written the Java way
+function javaTypeDescriptor(type: string): string | undefined {
+  const match = /^(.+?)((?:\[\])*)$/.exec(type.replace(/\//g, ".").replace(/^L(.+);$/, "$1"));
+  if (!match) return undefined;
+  const [, element, brackets] = match;
+  const dimensions = brackets.length / 2;
+  const descriptor = dimensions === 0 ? element : "[".repeat(dimensions) + (JAVA_PRIMITIVE_DESCRIPTORS[element] ?? `L${element};`);
+  return descriptor !== type && JAVA_TYPE.test(descriptor) ? descriptor : undefined;
+}
+
+// Throws if a declared type isn't written as the hooks of `platform` write types. The input schema accepts both.
+export function validateValueTypes(values: { type: string; name?: string }[], platform: "Java" | "native"): void {
+  for (const { type, name } of values) {
+    if ((platform === "Java" ? JAVA_TYPE : NATIVE_TYPE).test(type)) continue;
+    const label = name ? `the type of '${name}'` : "a type";
+    if (platform === "native") {
+      throw new Error(`'${type}' as ${label} is no C type. Write it as in C, e.g. 'int', 'const char *' or 'char *const []'.`);
+    }
+    const descriptor = javaTypeDescriptor(type);
+    throw new Error(
+      `'${type}' as ${label} is no Java type descriptor.${descriptor ? ` Did you mean '${descriptor}'?` : ""} Write a primitive or a class by its name with dots, and an array by its JVM descriptor, e.g. 'int', 'java.lang.String', '[B' or '[Ljava.lang.String;'.`,
+    );
+  }
 }
 
 // Throws unless the value of `length` and `offset` is a number, the return value of an `out` parameter, or the name
@@ -76,12 +151,8 @@ export function normalizeInputParams(inputs: InputParam[], decoderSettings: Base
 function validateDecoderArgs(param: Param, paramIndex: number, params: Param[]): void {
   const label = param.name ?? param.type;
   for (const [role, value] of Object.entries(decoderArgsOf(param.settings))) {
-    if (typeof value === "number") {
-      if (!Number.isInteger(value) || value < 0) {
-        throw new Error(`'${role}: ${value}' of '${label}' must be a non-negative integer.`);
-      }
-      continue;
-    }
+    // a whole number that isn't negative, as the schema of the settings has checked
+    if (typeof value === "number") continue;
     if (value === RETURN_VALUE_DECODER_ARG) {
       if (param.direction !== "out") {
         throw new Error(
@@ -158,10 +229,10 @@ export function validateDecoderNames(settings: (Partial<DecoderSettings> | undef
  */
 export interface InputReturnObject extends InputReturnSettings {
   /** Declared type, e.g. `int` or `char *`. */
-  type: string;
+  type: ValueType;
 
   /** Name shown for the value in events. */
-  name?: string;
+  name?: ValueName;
 }
 
 /**
@@ -175,7 +246,7 @@ export interface InputReturnObject extends InputReturnSettings {
  *
  * @public
  */
-export type InputReturn = string | [string, InputReturnSettings] | InputReturnObject;
+export type InputReturn = ValueType | [ValueType, InputReturnSettings] | InputReturnObject;
 
 export function normalizeInputReturn(input: InputReturn, decoderSettings: BaseDecoderSettings = DEFAULT_BASE_DECODER_SETTINGS): RetType {
   const toRetType = (type: string, name?: string, settings: InputReturnSettings = {}): RetType => ({

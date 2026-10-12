@@ -40,12 +40,52 @@ def uses_java_bridge(source: str) -> bool:
     return '"frida-java-bridge"' in source or re.search(r"\bJava\b", source) is not None
 
 
+_YAML_TAG = "tag:yaml.org,2002:"
+# The scalars of the YAML 1.2 core schema, which the JSON schema of hook files and its validators read hook files by
+_YAML_SCALARS = {
+    "bool": (r"true|True|TRUE|false|False|FALSE", "tTfF"),
+    "int": (r"[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+", "-+0123456789"),
+    "float": (r"[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN)", "-+0123456789."),
+}
+
+
+def _construct_int(loader: yaml.Loader, node: yaml.ScalarNode) -> int:
+    value = loader.construct_scalar(node)
+    if value.startswith("0x"):
+        return int(value, 16)
+    if value.startswith("0o"):
+        return int(value[2:], 8)
+    # `012` is 12: YAML 1.2 has no octal numbers with a leading zero
+    return int(value, 10)
+
+
+def _hook_file_loader() -> type:
+    """A safe YAML loader that reads booleans and numbers as YAML 1.2 does, like the JSON schema of hook files and
+    the editors that use it. PyYAML reads YAML 1.1, in which `yes`, `no`, `on` and `off` are booleans, `012` is the
+    octal number 10, `1:30` the number 90 and `2026-01-01` a date. In hook files these are names and numbers, e.g.
+    the parameter `off` in `offset: off`, a method `on` of an obfuscated app or the offset `0001a2b4`."""
+    base = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+    replaced = {_YAML_TAG + name for name in (*_YAML_SCALARS, "timestamp")}
+
+    class HookFileLoader(base):
+        pass
+
+    HookFileLoader.yaml_implicit_resolvers = {first: [(tag, pattern) for tag, pattern in resolvers if tag not in replaced] for first, resolvers in base.yaml_implicit_resolvers.items()}
+    # in this order: every int also matches the pattern of a float
+    for name, (pattern, first) in _YAML_SCALARS.items():
+        HookFileLoader.add_implicit_resolver(_YAML_TAG + name, re.compile(f"^(?:{pattern})$"), list(first))
+    HookFileLoader.add_constructor(_YAML_TAG + "int", _construct_int)
+    return HookFileLoader
+
+
+_HOOK_FILE_LOADER = _hook_file_loader()
+
+
 def load_hook_config(hook_path: Path) -> dict:
     """Load a single hook YAML (or deprecated JSON) file."""
     with open(hook_path, "r", encoding="utf-8") as f:
         if Path(hook_path).suffix in (".yaml", ".yml"):
-            loader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
-            return yaml.load(f, Loader=loader)
+            return yaml.load(f, Loader=_HOOK_FILE_LOADER)
         logger.warning("%s is in JSON format, which is deprecated. Please migrate to YAML.", Path(hook_path).name)
         return json.load(f)
 

@@ -1,6 +1,7 @@
 """Unit tests for hook config and user script loading."""
 
 import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -39,6 +40,64 @@ class TestLoadHookConfigs:
         targets = load_hook_configs([hook_file])
 
         assert targets == [{"category": "CRYPTO", "hooks": [{"class": "javax.crypto.Cipher", "methods": ["doFinal"]}]}]
+
+    def test_reads_only_true_and_false_as_booleans(self, tmp_path):
+        hook_file = tmp_path / "hooks.yaml"
+        hook_file.write_text(
+            "hookSettings: { javaStackTrace: true, nativeStackTrace: False, early: TRUE }\n"
+            "hookCollections:\n"
+            "  - javaClass: a.b\n"
+            "    hooks:\n"
+            "      - on\n"
+            "      - no\n"
+            "      - method: yes\n"
+            "        overloads:\n"
+            "          - params:\n"
+            '              - ["[B", b, { offset: off, length: y }]\n'
+            "              - [int, off]\n"
+            "              - [int, y]\n"
+        )
+
+        [config] = load_hook_configs([hook_file])
+
+        assert config["hookSettings"] == {"javaStackTrace": True, "nativeStackTrace": False, "early": True}
+        [collection] = config["hookCollections"]
+        assert collection["hooks"][:2] == ["on", "no"]
+        assert collection["hooks"][2]["method"] == "yes"
+        assert collection["hooks"][2]["overloads"][0]["params"] == [["[B", "b", {"offset": "off", "length": "y"}], ["int", "off"], ["int", "y"]]
+
+    def test_reads_numbers_as_yaml_1_2_does(self, tmp_path):
+        hook_file = tmp_path / "hooks.yaml"
+        hook_file.write_text("hex: 0x1A2b4\noctal: 0o17\nleading_zero: 012\nnegative: -5\nplus: +5\nzero: 0\nfloat: 1.5\nexponent: 1e3\ndot: .5\nquoted: '0x10'\nunderscore: 1_000\nsexagesimal: 1:30\ndate: 2026-01-01\nnull_value: null\ntilde: ~\n")
+
+        [config] = load_hook_configs([hook_file])
+
+        assert config == {
+            "hex": 0x1A2B4,
+            "octal": 15,
+            "leading_zero": 12,
+            "negative": -5,
+            "plus": 5,
+            "zero": 0,
+            "float": 1.5,
+            "exponent": 1000.0,
+            "dot": 0.5,
+            "quoted": "0x10",
+            "underscore": "1_000",
+            "sexagesimal": "1:30",
+            "date": "2026-01-01",
+            "null_value": None,
+            "tilde": None,
+        }
+        assert all(type(config[key]) is int for key in ("hex", "octal", "leading_zero", "negative", "plus", "zero"))
+
+    def test_loads_the_examples_like_the_schema_validator(self):
+        """Every example loads to JSON-serializable values, as the schema validator's YAML 1.2 parser reads it."""
+        examples = sorted((Path(__file__).parents[4] / "docs" / "examples").rglob("*.yaml"))
+
+        assert examples
+        for config in load_hook_configs(examples):
+            json.dumps(config)
 
     def test_loads_deprecated_json_file_and_warns(self, tmp_path, caplog):
         hook_file = tmp_path / "hooks.json"

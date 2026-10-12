@@ -1,6 +1,6 @@
 # Native Hook Declaration
 
-A native hook collection hooks functions of one native module, e.g. a shared library such as `libssl.so`. `module` is the file name of the module, not its path.
+A native hook collection hooks functions of one native module, e.g. a shared library such as `libssl.so`. `module` is the file name of the module, not its path, and a symbol is written without whitespace.
 
 <!-- TOC -->
 
@@ -131,7 +131,7 @@ hooks:
       - [size_t, length]
 ```
 
-frooky hooks the function at `<base address of libfoo.so> + 0x1a2b4`. Write the offset as a YAML number (`0x1a2b4`) or as a string starting with `0x` (`"0x000000000001A2B4"`, leading zeros allowed). A string without `0x` is rejected, because `"1234"` could be meant as hex or decimal. Don't write leading zeros in an unquoted number: YAML reads `0001234` as octal or decimal, depending on the parser.
+frooky hooks the function at `<base address of libfoo.so> + 0x1a2b4`. Write the offset as a YAML number (`0x1a2b4`), which must be a whole number that isn't negative, or as a string of `0x` and hex digits (`"0x000000000001A2B4"`, leading zeros allowed). Any other string is rejected, e.g. one without `0x`, because `"1234"` could be meant as hex or decimal, or one with `0X` or spaces. Don't write leading zeros in an unquoted number without `0x`: `0001234` is the decimal number 1234.
 
 Events of these hooks contain `offset` instead of `symbol`, see [Output](./output.md#hook-native-events).
 

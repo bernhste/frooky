@@ -134,6 +134,38 @@ describe("NativeHookValidator", () => {
       );
     });
 
+    it("skips a hook with a type that is no C type, a name that is no identifier or an invalid argFilter", () => {
+      const collection = {
+        module: "libc.so",
+        hooks: [
+          { symbol: "a", params: [["java.lang.String", "text"]] },
+          { symbol: "b", returns: "[B" },
+          { symbol: "c", params: [["int", "$ret"]] },
+          { symbol: "d", params: [["const char *", "path", { argFilter: ["("] }]] },
+          { symbol: "e", params: [["int", "fd", { argFilter: ["> 5 < 10"] }]] },
+          {
+            symbol: "ok",
+            returns: "ssize_t",
+            params: [
+              ["const char *", "path", { argFilter: ["^/data/"] }],
+              ["size_t", "count", { argFilter: ["> 16"] }],
+            ],
+          },
+        ],
+      } as unknown as InputNativeHookCollection;
+
+      const hooks = validator.validateAndNormalizeHooks({ hookCollections: [collection] }, defaultSettings);
+
+      expect(hooks.map((hook) => hook.symbol)).toEqual(["ok"]);
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages.length).toBe(5);
+      expect(messages[0]).toContain("'java.lang.String' as the type of 'text' is no C type.");
+      expect(messages[1]).toContain("'[B' as a type is no C type.");
+      expect(messages[2]).toContain("Skipping hook for native function 'c' from module 'libc.so' due to an invalid declaration:");
+      expect(messages[3]).toContain("argFilter of 'path': '(' is no regular expression:");
+      expect(messages[4]).toContain("argFilter of 'fd': '> 5 < 10' is no numeric comparison.");
+    });
+
     it("accepts decoderOptions.constants for the constants and bitmask decoders, and rejects it for a preset and other decoders", () => {
       const nativeCollection: InputNativeHookCollection = {
         module: "libfoo.so",
