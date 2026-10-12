@@ -518,6 +518,112 @@ describe("AndroidHookManager", () => {
     });
   });
 
+  describe("a method the hooked class inherits", () => {
+    // java.util.Stack inherits addElement() from java.util.Vector
+    function setup() {
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(stackTrace, agent);
+      const resolve = async (javaClass: string) =>
+        (await resultsOf(await manager.resolveHooks([javaHook(javaClass, "addElement")])))[0] as JavaHook[];
+      // of this thread's calls: the dialer has threads of its own
+      const events = (): JavaHookEvent[] =>
+        (agent.addEventToLog as unknown as Mock).mock.calls
+          .map(([event]) => event as JavaHookEvent)
+          .filter((event) => ["in a stack", "in a vector"].includes(String(event.argsIn?.[0]?.value?.value ?? event.argsIn?.[0]?.value)));
+      const stack = Java.use("java.util.Stack").$new();
+      const vector = Java.use("java.util.Vector").$new();
+      return { manager, resolve, events, stack, vector };
+    }
+
+    it("records only the calls on instances of the hooked class, as calls of that class", async () => {
+      const { manager, resolve, events, stack, vector } = setup();
+      const hooks = await resolve("java.util.Stack");
+
+      try {
+        expect(manager.registerHooks(hooks)).toBe(1);
+        expect(manager.describeInstalledHook(hooks[0])).toBe("java.util.Stack.addElement");
+        vector.addElement("in a vector");
+        stack.addElement("in a stack");
+      } finally {
+        manager.unregisterHooks(hooks);
+      }
+
+      expect(events().length).toBe(1);
+      const [event] = events();
+      expect(event.javaClassName).toBe("java.util.Stack");
+      expect(event.declaringClass).toBe("java.util.Vector");
+      expect(event.method).toBe("addElement");
+      expect(event.hashCode).toBe(formatHashCode(identityHashCode(stack)));
+      expect(JSON.parse(JSON.stringify(event)).declaringClass).toBe("java.util.Vector");
+      // the call on the Vector
+      expect(hooks[0].filteredCalls).toBeGreaterThan(0);
+      // both ran the original method
+      expect(vector.size()).toBe(1);
+      expect(stack.size()).toBe(1);
+    });
+
+    it("records a call once per hook: for the declaring class and for the class that inherits the method", async () => {
+      const { manager, resolve, events, stack, vector } = setup();
+      const inherited = await resolve("java.util.Stack");
+      const declared = await resolve("java.util.Vector");
+
+      try {
+        manager.registerHooks(inherited);
+        manager.registerHooks(declared);
+        vector.addElement("in a vector");
+        stack.addElement("in a stack");
+      } finally {
+        manager.unregisterHooks(inherited);
+        manager.unregisterHooks(declared);
+      }
+
+      expect(events().map((event) => [event.javaClassName, event.declaringClass, event.argsIn![0].value])).toEqual([
+        ["java.util.Vector", undefined, { type: "java.lang.String", value: "in a vector" }],
+        ["java.util.Stack", "java.util.Vector", { type: "java.lang.String", value: "in a stack" }],
+        ["java.util.Vector", undefined, { type: "java.lang.String", value: "in a stack" }],
+      ]);
+    });
+
+    it("checks the instance without running Java code, so the methods of java.lang.Object can be hooked", async () => {
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(stackTrace, agent);
+      const declarations = ["hashCode", "toString", "equals"].map((method) => javaHook("java.util.Stack", method));
+      const hooks = (await resultsOf(await manager.resolveHooks(declarations))).flatMap((resolved) => resolved as JavaHook[]);
+      const stack = Java.use("java.util.Stack").$new();
+      const vector = Java.use("java.util.Vector").$new();
+
+      try {
+        expect(manager.registerHooks(hooks)).toBe(hooks.length);
+        expect(stack.equals(stack)).toBe(true);
+        expect(vector.equals(vector)).toBe(true);
+        expect(typeof stack.hashCode()).toBe("number");
+        expect(vector.toString()).toBe("[]");
+      } finally {
+        manager.unregisterHooks(hooks);
+      }
+
+      const equalsEvents = (agent.addEventToLog as unknown as Mock).mock.calls
+        .map(([event]) => event as JavaHookEvent)
+        .filter((event) => event.method === "equals" && event.hashCode === formatHashCode(identityHashCode(stack)));
+      expect(equalsEvents.map((event) => [event.javaClassName, event.declaringClass])).toEqual([["java.util.Stack", "java.util.Vector"]]);
+    });
+
+    it("has no declaringClass in the events of a method the class declares itself", async () => {
+      const { manager, resolve, events, vector } = setup();
+      const hooks = await resolve("java.util.Vector");
+
+      try {
+        manager.registerHooks(hooks);
+        vector.addElement("in a vector");
+      } finally {
+        manager.unregisterHooks(hooks);
+      }
+
+      expect(events().length).toBe(1);
+      expect("declaringClass" in JSON.parse(JSON.stringify(events()[0]))).toBe(false);
+    });
+  });
+
   describe("prepareDetach()", () => {
     async function setup() {
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;

@@ -90,6 +90,15 @@ class TestAndroidExamples:
             assert event["argsIn"] == [{"type": "java.lang.String", "value": "notes"}]
             assert event["returnValue"]["value"] == returned
 
+    def test_inherited_methods(self, run_frooky, find_matched_events):
+        run_frooky(_example("android/01_basic_hooking/07_inherited_methods.yaml"), JAVA_APP)
+
+        [event] = find_matched_events({"type": "hook-java"})
+        assert event["javaClassName"] == "org.owasp.mastestapp.Headers"
+        assert event["declaringClass"] == "java.util.HashMap"
+        assert event["method"] == "put"
+        assert [(arg["name"], arg["value"]["value"]) for arg in event["argsIn"]] == [("key", "Accept"), ("value", "application/json")]
+
     def test_named_parameters(self, run_frooky, find_matched_events):
         run_frooky(_example("android/02_parameters_and_return_values/01_named_parameters.yaml"), JAVA_APP)
 

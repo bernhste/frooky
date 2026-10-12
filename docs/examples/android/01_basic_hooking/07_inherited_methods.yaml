@@ -1,0 +1,28 @@
+metadata:
+  name: "Basic Hooking (Android): Inherited Methods"
+  description: |
+    A method name also finds a method the class inherits. frooky hooks it in the superclass that declares
+    it, and records only the calls on instances of the hooked class.
+  version: 1
+  author: frooky dev
+  platform: Android
+
+# Target: tests/target-apps/android/value-passing-java (MastgTest.kt), press "Start".
+# Run:    frooky -U -f value_passing_java.frooky.target.app docs/examples/android/01_basic_hooking/07_inherited_methods.yaml
+# See:    docs/java-hook-declaration.md#inherited-methods
+
+hookCollections:
+  # class Headers : LinkedHashMap<String, String>() declares no put() itself
+  # Docs: https://developer.android.com/reference/java/util/HashMap#put(K,%20V)
+  - javaClass: org.owasp.mastestapp.Headers
+    hooks:
+      - method: put
+        overloads:
+          - params:
+              - [java.lang.Object, key]
+              - [java.lang.Object, value]
+
+# Expected event:
+#   put: javaClassName "org.owasp.mastestapp.Headers", declaringClass "java.util.HashMap",
+#        argsIn key "Accept", value "application/json"
+#   (no event for the put() on the app's LinkedHashMap, or on any other HashMap of the app and the framework)

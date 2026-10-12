@@ -177,6 +177,25 @@ class TestPpHookEvent:
 
         assert lines[3:5] == ["│ method:       receiveString()", "│ hashCode:     c437358"]
 
+    def test_inherited_method_prints_the_declaring_class_below_the_hooked_class(self):
+        hook = {
+            "type": "hook-java",
+            "timestamp": "t",
+            "javaClassName": "org.owasp.mastestapp.Headers",
+            "declaringClass": "java.util.HashMap",
+            "method": "put",
+            "argsIn": [],
+        }
+
+        lines = _plain(format_hook_event(hook))
+
+        assert lines[2:5] == ["│ class:        org.owasp.mastestapp.Headers", "│ declared in:  java.util.HashMap", "│ method:       put()"]
+
+    def test_method_of_the_hooked_class_prints_no_declaring_class(self):
+        hook = {"type": "hook-java", "timestamp": "t", "javaClassName": "C", "method": "m", "argsIn": []}
+
+        assert "declared in:" not in "\n".join(_plain(format_hook_event(hook)))
+
     def test_hook_without_address_and_hash_code_prints_neither(self):
         hook = {"type": "hook-java", "timestamp": "t", "javaClassName": "C", "method": "m", "argsIn": []}
 

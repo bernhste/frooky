@@ -107,7 +107,8 @@ const CALLER_LOADER_REASON = "it uses its caller's class loader, which the hook 
 
 // Methods a hook breaks the app on, whatever the hook file says. Measured on Android 12 and 15 (x86_64) with a plain
 // Frida hook that only calls the original method. All of them break the app on Android 12; on Android 15, String
-// constructors never run the hook, and Reflection.getCallerClass() didn't break it.
+// constructors never run the hook, and Reflection.getCallerClass() didn't break it. Object.getClass() was measured on
+// Android 12 to 14 with a frooky hook: it crashes the app on 12 and 14, not on 13.
 export const BLOCKED_METHODS: BlockedMethod[] = [
   {
     javaClass: "java.lang.String",
@@ -119,6 +120,12 @@ export const BLOCKED_METHODS: BlockedMethod[] = [
     javaClass: "java.lang.Object",
     method: "$init",
     reason: "every object allocation in the runtime calls Object.<init>, hooking it floods the event log and destabilizes ART",
+  },
+  {
+    javaClass: "java.lang.Object",
+    method: "getClass",
+    reason:
+      "frida-java-bridge checks the type of an object with Class.isInstance(), which calls getClass() itself on Android 12 and 14, so the hook calls itself until the thread's stack overflows",
   },
   { javaClass: "java.lang.Class", method: "forName", params: ["java.lang.String"], reason: `${CALLER_LOADER_REASON} classes` },
   { javaClass: "java.lang.System", method: "loadLibrary", reason: `${CALLER_LOADER_REASON} native libraries` },

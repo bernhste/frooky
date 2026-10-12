@@ -359,6 +359,12 @@ describe("AndroidHookValidator", () => {
         expect(warnings()[0]).toContain("Skipping hook for java method '$init' from class 'java.lang.Object'");
       });
 
+      it("skips java.lang.Object.getClass, and keeps the other methods of java.lang.Object", () => {
+        expect(hooksOf("java.lang.Object", ["getClass", "hashCode"]).map((hook) => hook.method)).toEqual(["hashCode"]);
+        expect(warnings().length).toBe(1);
+        expect(warnings()[0]).toContain("Skipping hook for java method 'getClass' from class 'java.lang.Object'");
+      });
+
       it("matches the class by its full name", () => {
         expect(hooksOf("com.example.String", ["$init"]).map((hook) => hook.method)).toEqual(["$init"]);
       });

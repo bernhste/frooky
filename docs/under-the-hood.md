@@ -481,7 +481,7 @@ The earliest points where an app's native libraries load are:
 2. **Next earliest: `Application.attachBaseContext()`:**
    Called immediately after the class static initializer, often used by security SDKs or unpackers to load native code.
 3. **Next earliest: `ContentProvider.<clinit>` / `onCreate()`:**
-   Android initializes declared `ContentProvider` components *before* `Application.onCreate()`. Many third-party analytics and security SDKs use custom providers to initialize native libraries early.
+   Android initializes declared `ContentProvider` components _before_ `Application.onCreate()`. Many third-party analytics and security SDKs use custom providers to initialize native libraries early.
 4. **`Application.onCreate()` and `Activity.onCreate()`:**
    Standard app-level initialization.
 
@@ -701,14 +701,15 @@ Most risky hooks only need care, e.g. a `callerFilter` or no stack traces, and t
 
 A few Java methods break the app however they are hooked, also with a plain Frida script that only calls the original method. Most of them look up their caller on the stack: frida-java-bridge calls the original method from its replacement of it, whose class is the hooked method's own class. These methods then see a boot class as their caller instead of the app's class. frooky drops hooks on them while it [validates the hook file](#validation), and logs a warning instead:
 
-| Method                                                | Why                                                                                                                                                                                                 |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `java.lang.String.$init`                              | ART runs each `String` constructor as a `java.lang.StringFactory` method, so the hook never runs. On Android 12, ART finds no `StringFactory` method for the hooked constructor and aborts the app. |
-| `java.lang.Object.$init`                              | Every object allocation in the runtime calls `Object.<init>`, so hooking it floods the event log and destabilizes ART.                                                                              |
-| `java.lang.Class.forName(String)`                     | It loads the class with its caller's class loader, which becomes the boot class loader: the app's classes aren't found (`ClassNotFoundException`).                                                  |
-| `java.lang.System.loadLibrary`                        | It loads the library with its caller's class loader, which becomes the boot class loader: the app's libraries aren't found (`UnsatisfiedLinkError`).                                                |
-| `newUpdater` of the `Atomic*FieldUpdater` classes     | It checks its caller's access to the field, and the caller becomes the updater class: it throws `IllegalAccessException` on private fields, e.g. those of Kotlin coroutines.                        |
-| `VMStack.getStackClass2`, `Reflection.getCallerClass` | The hook adds a frame, so they return the wrong caller and e.g. `Class.forName()` doesn't find the app's classes. On Android 15, `getCallerClass` didn't break the app.                             |
+| Method                                                | Why                                                                                                                                                                                                                                 |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `java.lang.String.$init`                              | ART runs each `String` constructor as a `java.lang.StringFactory` method, so the hook never runs. On Android 12, ART finds no `StringFactory` method for the hooked constructor and aborts the app.                                 |
+| `java.lang.Object.$init`                              | Every object allocation in the runtime calls `Object.<init>`, so hooking it floods the event log and destabilizes ART.                                                                                                              |
+| `java.lang.Object.getClass`                           | frida-java-bridge checks the type of an object with `Class.isInstance()`, which calls `getClass()` itself on Android 12 and 14, so the hook calls itself until the thread's stack overflows. On Android 13 it didn't crash the app. |
+| `java.lang.Class.forName(String)`                     | It loads the class with its caller's class loader, which becomes the boot class loader: the app's classes aren't found (`ClassNotFoundException`).                                                                                  |
+| `java.lang.System.loadLibrary`                        | It loads the library with its caller's class loader, which becomes the boot class loader: the app's libraries aren't found (`UnsatisfiedLinkError`).                                                                                |
+| `newUpdater` of the `Atomic*FieldUpdater` classes     | It checks its caller's access to the field, and the caller becomes the updater class: it throws `IllegalAccessException` on private fields, e.g. those of Kotlin coroutines.                                                        |
+| `VMStack.getStackClass2`, `Reflection.getCallerClass` | The hook adds a frame, so they return the wrong caller and e.g. `Class.forName()` doesn't find the app's classes. On Android 15, `getCallerClass` didn't break the app.                                                             |
 
 The method is matched by the exact class name and, for `forName`, by the parameter types. Declared `overloads` are filtered while the hook file is validated; a hook on every overload skips the blocked ones when the class is resolved (`resolveOverloads()`). Measured on Android 12 and 15 (x86_64). See [Blocked Functions](./additional-features.md#blocked-functions) for the list with alternatives.
 

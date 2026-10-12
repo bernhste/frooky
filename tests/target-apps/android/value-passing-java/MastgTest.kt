@@ -58,7 +58,8 @@ class PluginClassLoader(context: Context) : ClassLoader(context.classLoader) {
         }
 }
 
-// Implements the unrelated interfaces Map and Iterable, both with a decoder, like OkHttp's Headers.
+// Implements the unrelated interfaces Map and Iterable, both with a decoder, like OkHttp's Headers. It inherits put()
+// from java.util.HashMap, for hooks on inherited methods.
 class Headers : LinkedHashMap<String, String>(), Iterable<Map.Entry<String, String>> {
         override fun iterator(): Iterator<Map.Entry<String, String>> = entries.iterator()
 }
@@ -446,6 +447,8 @@ class MastgTest(private val context: Context) {
                 receiveParcelable(LabeledIntent(Intent(Intent.ACTION_SEND), "org.owasp.mastestapp", "Share", 0))
                 receiveAny(sortedMapOf("b" to "2", "a" to "1"))
                 receiveHeaders(Headers().apply { put("Accept", "application/json") })
+                // the same HashMap.put() as above, on a map that is no Headers
+                LinkedHashMap<String, String>().put("Accept", "text/html")
                 r.add(Status.PASS, "decoder resolution")
 
                 receiveByteBuffer(ByteBuffer.wrap("frooky".toByteArray()).position(2) as ByteBuffer)

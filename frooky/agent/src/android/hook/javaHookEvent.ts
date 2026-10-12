@@ -3,10 +3,12 @@ import { HookEvent } from "../../shared/event/hookEvent";
 import { DecodedArgs } from "../../shared/hook/hookManager";
 import { HookStackTrace } from "../../shared/platformStackTrace";
 import { FieldType } from "./androidHookManager";
-import { JavaHook } from "./javaHook";
+import { hookedClassName, JavaHook } from "./javaHook";
 
 export class JavaHookEvent extends HookEvent {
   readonly javaClassName: string;
+  // the superclass that declares the method, for a method the hooked class inherits
+  readonly declaringClass?: string;
   readonly method: string;
   readonly fieldType: FieldType;
 
@@ -20,7 +22,8 @@ export class JavaHookEvent extends HookEvent {
   ) {
     super(decodedArgs, returnValue, stackTrace);
     this.type += "-java";
-    this.javaClassName = String(hook.method.holder.$className);
+    this.javaClassName = hookedClassName(hook);
+    if (hook.inheritedBy) this.declaringClass = String(hook.method.holder.$className);
     this.method = hook.methodName;
     this.fieldType = fieldType;
     this.hashCode = hashCode;

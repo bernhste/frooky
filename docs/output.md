@@ -48,11 +48,12 @@ A `DecodedValue` (used for each `argsIn`/`argsOut` entry and for `returnValue`) 
 
 In addition to the [common fields](#common-event-fields), `hook-java` events carry:
 
-| Field           | Type     | Description                                                                     |
-| --------------- | -------- | ------------------------------------------------------------------------------- |
-| `javaClassName` | `string` | The hooked Java/Kotlin class.                                                   |
-| `method`        | `string` | The hooked method name, `$init` for constructors.                               |
-| `fieldType`     | `object` | `{ "fieldType": "static" \| "instance" }`, whether the hooked method is static. |
+| Field            | Type     | Description                                                                                                                           |
+| ---------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `javaClassName`  | `string` | The hooked Java/Kotlin class.                                                                                                         |
+| `declaringClass` | `string` | The superclass that declares the method. Only for a method the hooked class [inherits](./java-hook-declaration.md#inherited-methods). |
+| `method`         | `string` | The hooked method name, `$init` for constructors.                                                                                     |
+| `fieldType`      | `object` | `{ "fieldType": "static" \| "instance" }`, whether the hooked method is static.                                                       |
 
 **Example:**
 

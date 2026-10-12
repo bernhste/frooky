@@ -9,6 +9,7 @@ A Java hook collection hooks methods of one Java class.
 - [Class Wildcards](#class-wildcards)
 - [Method Wildcards](#method-wildcards)
 - [Method Overloads](#method-overloads)
+- [Inherited Methods](#inherited-methods)
 - [Class Loaders](#class-loaders)
   - [Classes of Custom Class Loaders](#classes-of-custom-class-loaders)
 - [Hook and Decoder Settings](#hook-and-decoder-settings)
@@ -104,7 +105,7 @@ hooks:
   - "*Final"      # doFinal
 ```
 
-- A pattern only matches the methods the class declares itself, not inherited ones (e.g. `hashCode` of `java.lang.Object`) and not constructors. Hook those by name.
+- A pattern only matches the methods the class declares itself, not inherited ones (e.g. `hashCode` of `java.lang.Object`) and not constructors. Hook those by name, see [Inherited Methods](#inherited-methods).
 - YAML reads a value that starts with `*` as an alias, so quote it: `"*Final"`.
 - With `overloads`, frooky hooks the listed overloads of each matching method that has them.
 - Methods that frooky never hooks (e.g. `System.loadLibrary`, see [Blocked Functions](./additional-features.md#blocked-functions)) are skipped with a warning, also when a pattern matches them.
@@ -137,6 +138,28 @@ Intent.putExtra(name: String!, value: BooleanArray?): Intent
 ```
 
 The parameter types must match the method's exactly, written as [type descriptors](#type-descriptors). An overload that doesn't exist is skipped with a warning.
+
+## Inherited Methods
+
+A method name also finds a method the class doesn't declare itself but inherits from a superclass:
+
+```yaml
+javaClass: org.owasp.mastestapp.Headers   # class Headers : LinkedHashMap<String, String>()
+hooks:
+  - put                                   # declared by java.util.HashMap
+```
+
+An inherited method exists once, in the class that declares it, so frooky hooks it there and records only the calls on instances of the hooked class and its subclasses. A `put` on any other `HashMap` isn't recorded.
+
+- The event names the hooked class as `javaClassName` and the class that declares the method as `declaringClass`, see [Output](./output.md#hook-java-events).
+- frooky logs which class the method is inherited from. The [hook statistics](./additional-features.md#hook-statistics-s--s-key) list the hook under the hooked class, e.g. `org.owasp.mastestapp.Headers.put`, and count the calls on other objects as filtered.
+- The hook still runs for every call of the method in the process, so a hook on a method of a widely used class, e.g. `hashCode` or `toString` of `java.lang.Object`, slows the app down even if few calls are recorded. `getClass` of `java.lang.Object` is [blocked](./additional-features.md#blocked-functions).
+- A method the class overrides is its own: it is hooked in the class, and calls of the superclass's method on other objects never reach the hook.
+- An inherited static method has no instance to tell its calls apart by. frooky hooks it with a warning and records the calls through every class, as calls of the declaring class.
+- With `overloads`, list the overloads as the declaring class declares them, e.g. `put(java.lang.Object, java.lang.Object)`.
+- To record the calls on every object, hook the declaring class itself, e.g. `javaClass: java.util.HashMap`.
+
+See [`07_inherited_methods.yaml`](./examples/android/01_basic_hooking/07_inherited_methods.yaml).
 
 ## Class Loaders
 

@@ -89,4 +89,77 @@ describe("resolveMethodHooks()", () => {
     expect(resolveMethodHooks([string()], javaHook("wait*"))).toBeNull();
     expect(resolveMethodHooks([string()], javaHook("*"))!.map((hook) => hook.methodName)).not.toContain("$init");
   });
+
+  describe("a method the class inherits", () => {
+    const use = (name: string) => Java.use(name);
+    const declaration = (javaClass: string, method: string) => javaHook(method, { javaClass });
+
+    it("is resolved as the method of the declaring class, to be recorded for instances of the hooked class only", () => {
+      const infoSpy = spyOn(logger, "info");
+      const hooks = resolveMethodHooks([use("java.util.Stack")], declaration("java.util.Stack", "addElement"))!;
+      const messages = infoSpy.mock.calls.map(([message]) => message as string);
+      infoSpy.mockRestore();
+
+      expect(hooks.length).toBe(1);
+      expect(hooks[0].method.holder.$className).toBe("java.util.Vector");
+      expect(hooks[0].inheritedBy!.$className).toBe("java.util.Stack");
+      // the constants of `decoder: constants` are those of the hooked class
+      expect(hooks[0].params![0].declaringClass).toBe("java.util.Stack");
+      expect(messages).toContain(
+        "'java.util.Stack' inherits 'addElement' from 'java.util.Vector'. Only the calls on instances of 'java.util.Stack' are recorded.",
+      );
+    });
+
+    it("is resolved with its declared overloads", () => {
+      const overloads = [{ params: [{ type: "java.lang.Object", name: "element", direction: "in" as const, settings: DEFAULT_DECODER_SETTINGS }] }];
+
+      const hooks = resolveMethodHooks([use("java.util.Stack")], { ...declaration("java.util.Stack", "addElement"), overloads })!;
+
+      expect(hooks.length).toBe(1);
+      expect(hooks[0].inheritedBy!.$className).toBe("java.util.Stack");
+      expect(hooks[0].params![0]).toEqual({ ...overloads[0].params[0], declaringClass: "java.util.Stack" });
+    });
+
+    it("has no `inheritedBy` if the class declares or overrides the method", () => {
+      const declared = resolveMethodHooks([use("java.util.Stack")], declaration("java.util.Stack", "push"))!;
+      const overridden = resolveMethodHooks([use("java.util.LinkedHashMap")], declaration("java.util.LinkedHashMap", "get"))!;
+
+      expect(declared[0].inheritedBy).toBeUndefined();
+      expect(overridden[0].inheritedBy).toBeUndefined();
+      expect(overridden[0].method.holder.$className).toBe("java.util.LinkedHashMap");
+    });
+
+    it("is hooked once if a class pattern matches the declaring class too", () => {
+      const hooks = resolveMethodHooks([use("java.util.Vector"), use("java.util.Stack")], declaration("java.util.*", "addElement"))!;
+
+      expect(hooks.length).toBe(1);
+      expect(hooks[0].method.holder.$className).toBe("java.util.Vector");
+      expect(hooks[0].inheritedBy).toBeUndefined();
+    });
+
+    it("is skipped if the method of the declaring class is blocked", () => {
+      const warnSpy = spyOn(logger, "warn");
+      const hooks = resolveMethodHooks([use("java.util.Stack")], declaration("java.util.Stack", "getClass"));
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      warnSpy.mockRestore();
+
+      expect(hooks).toBeNull();
+      expect(messages.length).toBe(1);
+      expect(messages[0]).toContain("Skipping hook for java method 'getClass' from class 'java.lang.Object':");
+    });
+
+    it("warns about a static method, whose calls can't be told apart by an instance", () => {
+      const warnSpy = spyOn(logger, "warn");
+      const hooks = resolveMethodHooks([use("android.os.HandlerThread")], declaration("android.os.HandlerThread", "currentThread"))!;
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      warnSpy.mockRestore();
+
+      expect(hooks.length).toBe(1);
+      expect(hooks[0].method.holder.$className).toBe("java.lang.Thread");
+      expect(hooks[0].inheritedBy).toBeUndefined();
+      expect(messages).toEqual([
+        "'android.os.HandlerThread' inherits the static method 'currentThread' from 'java.lang.Thread'. A static method has no instance, so the calls through every class are recorded, as calls of 'java.lang.Thread'.",
+      ]);
+    });
+  });
 });

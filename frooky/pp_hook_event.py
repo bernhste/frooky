@@ -266,6 +266,9 @@ def _format_hook(out: _Lines, hook: dict, id_key: str, id_label: str, fn_key: st
 
     _add_field(out, "time", _local_time(hook.get("timestamp", "?")))
     _add_field(out, id_label, hook.get(id_key, "?"))
+    # Java events of a method the hooked class inherits
+    if "declaringClass" in hook:
+        _add_field(out, "declared in", hook["declaringClass"])
     colors_in, colors_out = _param_colors(args_in, args_out)
     _add_field(out, fn_label, _signature_spans(hook.get(fn_key, "?"), args_in, colors_in))
     # native events only

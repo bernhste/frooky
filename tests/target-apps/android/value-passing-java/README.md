@@ -47,3 +47,4 @@ For the examples in `docs/examples/android/`, the app also has:
 - `receiveBase64`, called with the base64 of a text and of 16 binary bytes, for `decoder: base64`
 - `trackEvent`, called both directly and through `ThirdPartySdk`, for stack traces and stack trace filters
 - `CloudBackup.upload` and `LocalBackup.upload`, two classes with the same method, for class wildcards
+- `Headers`, which inherits `put` from `java.util.HashMap`. The app calls `put` on a `Headers` and on a plain `LinkedHashMap`, for hooks on inherited methods

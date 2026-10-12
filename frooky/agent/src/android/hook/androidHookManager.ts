@@ -2,6 +2,7 @@ import Java from "frida-java-bridge";
 import { FrookyAgent } from "../../FrookyAgent";
 import { Decoder } from "../../shared/decoders/baseDecoder";
 import { DecodedValue } from "../../shared/decoders/decodedValue";
+import { countFilteredCall } from "../../shared/hook/hook";
 import { enterHookCode, leaveHookCode } from "../../shared/hook/hookCodeGuard";
 import { DecodedArgs, HookManager, mapResolution, ParamDecoder, Resolution } from "../../shared/hook/hookManager";
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
@@ -13,7 +14,7 @@ import { JavaDecoderResolver } from "../decoders/javaDecoderResolver";
 import { javaIdentityHashCode } from "../decoders/utils/javaValues";
 import { fixArtMethodAccessFlagsOffset, initializeClass, repairAccessFlags } from "../javaBridgeWorkarounds";
 import { asFrooky } from "../scriptReplacements";
-import { JavaHook } from "./javaHook";
+import { hookedClassName, JavaHook } from "./javaHook";
 import { countCalls, ReplacementCalls, RetiredReplacements } from "./retiredReplacements";
 import { resolveMethodHooks } from "./javaMethodResolver";
 import { JavaClassResolver, MethodObserver } from "./javaClassResolver";
@@ -44,6 +45,8 @@ type InstalledJavaHook = {
   outArgDecoders: ParamDecoder<Java.Wrapper>[];
   retTypeDecoder?: Decoder<Java.Wrapper>;
   needsStackTrace: boolean;
+  // java.lang.Class of JavaHook.inheritedBy, kept for isInstanceOf()
+  receiverClass?: Java.Wrapper;
 };
 
 // `observers` run after the original method, e.g. JavaClassResolver's on new class loaders
@@ -145,12 +148,13 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
         countSuccessfulHooks++;
         continue;
       }
-      const target = `${hook.method.holder.$className}.${hook.methodName}`;
+      // of an inherited method, e.g. `com.example.Headers.put`, hooked as `java.util.HashMap.put`
+      const target = `${hookedClassName(hook)}.${hook.methodName}`;
       const installedHook = this.prepareHook(hook, target);
 
       let overload: HookedOverload;
       try {
-        overload = this.hookedOverload(hook.method, target);
+        overload = this.hookedOverload(hook.method, `${hook.method.holder.$className}.${hook.methodName}`);
       } catch (e) {
         logger.warn(`Failed to hook ${target}: ${e}`);
         continue;
@@ -227,7 +231,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     if (hook.method.returnType.className) {
       retTypeDecoder = this.resolveRetTypeDecoder({
         type: hook.method.returnType.className,
-        declaringClass: hook.method.holder.$className,
+        declaringClass: hookedClassName(hook),
         settings: hook.retTypeSettings ?? hook.decoderSettings,
       });
     }
@@ -238,6 +242,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       outArgDecoders: argDecoders.out,
       retTypeDecoder,
       needsStackTrace: needsStackTrace(hook.hookSettings) || hook.hookSettings.callerFilter.length > 0,
+      receiverClass: hook.inheritedBy ? Java.retain(hook.inheritedBy.class) : undefined,
     };
   }
 
@@ -264,7 +269,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       const hooks = overload.hooks;
       const unsafeContext = hooks.some((installedHook) => installedHook.needsStackTrace) ? detectUnsafeContext() : undefined;
       for (const installedHook of hooks) {
-        const call = this.enterHook(installedHook, args, unsafeContext);
+        const call = this.enterHook(installedHook, instance, args, unsafeContext);
         if (call) calls.push(call);
       }
     } finally {
@@ -303,9 +308,21 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     }
   }
 
-  // null if the callerFilter or an argFilter doesn't match, or decoding fails
-  private enterHook(installedHook: InstalledJavaHook, args: Java.Wrapper[], unsafeContext?: UnsafeContext): JavaHookCall | null {
-    const { hook, target, inArgDecoders } = installedHook;
+  // null if the call isn't on an instance of the hooked class, the callerFilter or an argFilter doesn't match, or
+  // decoding fails
+  private enterHook(
+    installedHook: InstalledJavaHook,
+    instance: Java.Wrapper,
+    args: Java.Wrapper[],
+    unsafeContext?: UnsafeContext,
+  ): JavaHookCall | null {
+    const { hook, target, inArgDecoders, receiverClass } = installedHook;
+    // Before the stack trace and the decoders: an inherited method runs for the objects of every other subclass too.
+    // With JNI's IsInstanceOf(), which runs no Java code and so none of the hooked methods.
+    if (receiverClass && !Java.vm.getEnv().isInstanceOf(instance.$h, receiverClass.$h)) {
+      countFilteredCall(hook);
+      return null;
+    }
     let stackTrace: HookStackTrace;
     try {
       stackTrace = this.stackTrace.build(hook.hookSettings, { unsafeContext, filterCallers: true });
