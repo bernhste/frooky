@@ -67,8 +67,25 @@ describe("GetterDecoder", () => {
       {
         type: "java.lang.Class",
         name: "declaringClass",
-        value: { type: "java.lang.Class", name: "declaringClass", value: "class java.util.concurrent.TimeUnit" },
+        value: { type: "java.lang.Class", value: "class java.util.concurrent.TimeUnit" },
       },
     ]);
+  });
+
+  it("calls no getter that changes the object: the relative reads of a buffer and getAnd*()", () => {
+    const buffer = Java.use("java.nio.ByteBuffer").allocate(16);
+    const counter = Java.use("java.util.concurrent.atomic.AtomicInteger").$new(5);
+    const settings = { ...DEFAULT_DECODER_SETTINGS, decoder: "getters" as const };
+
+    const bufferGetters = new GetterDecoder({ type: "java.nio.ByteBuffer", settings }).decode(buffer).value as DecodedValue[];
+    const counterGetters = new GetterDecoder({ type: "java.util.concurrent.atomic.AtomicInteger", settings }).decode(counter).value as DecodedValue[];
+
+    // position() is declared by java.nio.Buffer
+    expect(Java.cast(buffer, Java.use("java.nio.Buffer")).position()).toBe(0);
+    expect(counter.get()).toBe(5);
+    const bufferNames = bufferGetters.map((getter) => getter.name);
+    for (const name of ["char", "short", "int", "long", "float", "double"]) expect(bufferNames).not.toContain(name);
+    expect(bufferNames).toContain("direct");
+    expect(counterGetters.map((getter) => getter.name).filter((name) => name?.startsWith("and"))).toEqual([]);
   });
 });

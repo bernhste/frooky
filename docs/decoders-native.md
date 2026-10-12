@@ -174,6 +174,7 @@ Many C functions report an error by returning `-1` (or `NULL`) and set `errno` t
 - `name` is the name of the constant, `null` for a number frooky has no name for. `message` comes from `strerror` of the C library.
 - frooky reads `errno` right when the function returns, before anything else can change it.
 - Functions that return the error number themselves, such as `pthread_create`, don't use `errno`. Use `decoder: constants` for them.
+- A function that returns a `float` or `double` doesn't report an error with `-1`: its value is decoded, and `errno` is `null`.
 
 `decoder: errno` is only supported on the return value. A native hook needs `returns` for it:
 

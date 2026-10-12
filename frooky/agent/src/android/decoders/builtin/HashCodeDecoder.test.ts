@@ -48,6 +48,14 @@ describe("HashcodeDecoder", () => {
       expect(decoder.decode(value)).toEqual(before);
     });
 
+    it("should name a primitive array by its type descriptor, like Java does", () => {
+      const array = Java.array("int", [1, 2, 3]) as unknown as Java.Wrapper;
+      const decoder = new HashCodeDecoder({ type: "[I", settings: DEFAULT_DECODER_SETTINGS });
+
+      expect(/^\[I@[0-9a-f]+$/.test(String(decoder.decode(array).value))).toBe(true);
+      expect(decoder.decode(array)).toEqual(decoder.decode(array));
+    });
+
     it("should throw for a primitive, so the default decoder takes over", () => {
       const decoder = new HashCodeDecoder({ type: "int", settings: DEFAULT_DECODER_SETTINGS });
 

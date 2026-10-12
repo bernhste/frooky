@@ -148,18 +148,41 @@ describe("resolveMethodHooks()", () => {
       expect(messages[0]).toContain("Skipping hook for java method 'getClass' from class 'java.lang.Object':");
     });
 
-    it("warns about a static method, whose calls can't be told apart by an instance", () => {
+    it("skips a static method, whose calls can't be told apart by an instance, naming the class to hook", () => {
       const warnSpy = spyOn(logger, "warn");
-      const hooks = resolveMethodHooks([use("android.os.HandlerThread")], declaration("android.os.HandlerThread", "currentThread"))!;
+      const hooks = resolveMethodHooks([use("android.os.HandlerThread")], declaration("android.os.HandlerThread", "currentThread"));
       const messages = warnSpy.mock.calls.map(([message]) => message as string);
       warnSpy.mockRestore();
 
-      expect(hooks.length).toBe(1);
-      expect(hooks[0].method.holder.$className).toBe("java.lang.Thread");
-      expect(hooks[0].inheritedBy).toBeUndefined();
+      expect(hooks).toBeNull();
       expect(messages).toEqual([
-        "'android.os.HandlerThread' inherits the static method 'currentThread' from 'java.lang.Thread'. A static method has no instance, so the calls through every class are recorded, as calls of 'java.lang.Thread'.",
+        "Skipping hook for 'currentThread'. 'android.os.HandlerThread' inherits this static method from 'java.lang.Thread': hook it there with 'javaClass: java.lang.Thread'.",
       ]);
+    });
+
+    it("finds a declared overload that only a superclass has, next to the overloads of the class", () => {
+      // BufferedInputStream declares read() and read(byte[], int, int), FilterInputStream read(byte[])
+      const params = (...types: string[]) => ({
+        params: types.map((type) => ({ type, direction: "in" as const, settings: DEFAULT_DECODER_SETTINGS })),
+      });
+      const hook = {
+        ...declaration("java.io.BufferedInputStream", "read"),
+        overloads: [params("[B"), params("[B", "int", "int"), params("java.lang.String")],
+      };
+      const warnSpy = spyOn(logger, "warn");
+
+      const hooks = resolveMethodHooks([use("java.io.BufferedInputStream")], hook)!;
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      warnSpy.mockRestore();
+
+      expect(
+        hooks.map((resolved) => [resolved.method.holder.$className, resolved.inheritedBy?.$className, resolved.method.argumentTypes.length]),
+      ).toEqual([
+        ["java.io.FilterInputStream", "java.io.BufferedInputStream", 1],
+        ["java.io.BufferedInputStream", undefined, 3],
+      ]);
+      expect(hooks[0].params![0].declaringClass).toBe("java.io.BufferedInputStream");
+      expect(messages).toEqual(["Skipping overload for method 'read(java.lang.String)'. The overload does not exist."]);
     });
   });
 });

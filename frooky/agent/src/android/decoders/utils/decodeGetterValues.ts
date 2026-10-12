@@ -5,7 +5,7 @@ import { DecoderSettings } from "../../../shared/frookySettings";
 import { JAVA_PRIMITIVE_TYPES, JavaDecoderResolver } from "../javaDecoderResolver";
 import { logger } from "../../../shared/logger";
 import { StringDecoder } from "../builtin/StringDecoder";
-import { javaBytesToHex, useClassOf } from "./javaValues";
+import { javaBytesToHex, useClassOf, useJavaClass } from "./javaValues";
 
 // java.lang.reflect.Modifier bits
 const MODIFIER_PUBLIC = 0x1;
@@ -43,6 +43,12 @@ function toPropertyName(name: string): string {
   return name[0].toLowerCase() + name.slice(1);
 }
 
+// Getters by name that change the object they are called on: the relative get*() methods of a java.nio.Buffer, and
+// e.g. AtomicInteger.getAndIncrement(). Decoders must leave the app's objects as they are.
+function changesState(methodName: string, isBuffer: boolean): boolean {
+  return methodName.startsWith("getAnd") || (isBuffer && /^get(Char|Short|Int|Long|Float|Double)?$/.test(methodName));
+}
+
 // The public, non-static, zero-argument methods of `className` (and its superclasses if `inherited`) starting with
 // one of `prefixes`, with their property name. A getter declared in a subclass overrides the one of a superclass.
 function getPublicNonArgumentMethodNames(JavaClass: Java.Wrapper, className: string, prefixes: string[], inherited: boolean): JavaMethodDescriptor[] {
@@ -55,6 +61,8 @@ function getPublicNonArgumentMethodNames(JavaClass: Java.Wrapper, className: str
 
   const descriptors: JavaMethodDescriptor[] = [];
   const seen = new Set<string>();
+  // the relative get*() methods of a buffer read at its position and move it, e.g. ByteBuffer.getInt()
+  const isBuffer: boolean = useJavaClass("java.nio.Buffer").class.isAssignableFrom(JavaClass.class);
 
   for (let javaClass: Java.Wrapper | null = JavaClass.class; javaClass !== null; javaClass = inherited ? javaClass.getSuperclass() : null) {
     // Object's only getter is getClass(), which every class would repeat
@@ -71,6 +79,7 @@ function getPublicNonArgumentMethodNames(JavaClass: Java.Wrapper, className: str
       if (seen.has(methodName)) continue;
       const prefix = prefixes.find((candidate) => methodName.startsWith(candidate) && methodName.length > candidate.length);
       if (!prefix) continue;
+      if (changesState(methodName, isBuffer)) continue;
       seen.add(methodName);
 
       const propertyName = toPropertyName(methodName.slice(prefix.length));

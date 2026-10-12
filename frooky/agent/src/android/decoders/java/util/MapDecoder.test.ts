@@ -27,6 +27,19 @@ describe("MapDecoder", () => {
       });
     });
 
+    it("should name the map, not its keys and values", () => {
+      const map = Java.use("java.util.HashMap").$new();
+      map.put("Authorization", "Bearer abc");
+      map.put("Empty", null);
+
+      const result = new MapDecoder({ type: "java.util.Map", name: "headers", settings: DEFAULT_DECODER_SETTINGS }).decode(map);
+
+      expect(result.name).toBe("headers");
+      // the map, and its "key" and "value" collections
+      expect(JSON.stringify(result).match(/"name":"headers"/g)?.length).toBe(1);
+      expect(JSON.stringify(result).match(/"name"/g)?.length).toBe(3);
+    });
+
     it("should decode an empty map to empty key and value collections", () => {
       const HashMap = Java.use("java.util.HashMap");
       const map = HashMap.$new();

@@ -4,6 +4,7 @@ import { DEFAULT_BASE_DECODER_SETTINGS, DEFAULT_DECODER_SETTINGS, DEFAULT_HOOK_S
 import { JavaHookDeclaration } from "../../shared/hook/hookDeclaration";
 import { normalizeInputParams } from "../../shared/inputParsing/inputDecodableTypes";
 import { HookSettings } from "../../shared/frookySettings";
+import { logger } from "../../shared/logger";
 import { PlatformStackTrace } from "../../shared/platformStackTrace";
 import { FilterMismatchError, formatHashCode, sleepMilliseconds } from "../../shared/utils";
 import { registerTestClass } from "../decoders/utils/registerTestClass";
@@ -637,6 +638,49 @@ describe("AndroidHookManager", () => {
 
       expect(events().length).toBe(1);
       expect("declaringClass" in JSON.parse(JSON.stringify(events()[0]))).toBe(false);
+    });
+  });
+
+  describe("a method that throws", () => {
+    it("records the call with its exception instead of a return value, and lets the caller handle the exception", async () => {
+      const agent = { addEventToLog: fn() } as unknown as FrookyAgent;
+      const manager = new AndroidHookManager(stackTrace, agent);
+      const errorSpy = spyOn(logger, "error");
+      const [hooks] = (await resultsOf(await manager.resolveHooks([javaHook("java.lang.Integer", "parseInt")]))) as JavaHook[][];
+      const Integer = Java.use("java.lang.Integer");
+      let thrown: unknown;
+
+      try {
+        manager.registerHooks(hooks);
+        expect(Integer.parseInt("42")).toBe(42);
+        try {
+          Integer.parseInt("frooky-no-number");
+        } catch (e) {
+          thrown = e;
+        }
+      } finally {
+        manager.unregisterHooks(hooks);
+      }
+      const errors = errorSpy.mock.calls.length;
+      errorSpy.mockRestore();
+
+      expect(String(thrown)).toContain("java.lang.NumberFormatException");
+      const events = (agent.addEventToLog as unknown as Mock).mock.calls
+        .map(([event]) => JSON.parse(JSON.stringify(event)))
+        .filter((event) => ["42", "frooky-no-number"].includes(event.argsIn[0].value));
+      // parseInt(String) calls parseInt(String, int), which is hooked too
+      const returned = events.filter((event) => event.argsIn[0].value === "42");
+      const threw = events.filter((event) => event.argsIn[0].value === "frooky-no-number");
+      expect(returned.every((event) => event.returnValue.value === 42 && !("exception" in event))).toBe(true);
+      expect(threw.length).toBe(returned.length);
+      for (const event of threw) {
+        expect(event.exception).toContain("java.lang.NumberFormatException");
+        expect(event.exception).toContain("frooky-no-number");
+        expect("returnValue" in event).toBe(false);
+        expect(event.javaClass).toBe("java.lang.Integer");
+        expect(event.methodType).toBe("static");
+      }
+      expect(errors).toBe(0);
     });
   });
 

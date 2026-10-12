@@ -59,14 +59,13 @@ export class MapDecoder extends RecursiveDecoder<Java.Wrapper> {
       const v = entry.getValue();
 
       if (k === null) {
-        keyValues.push({ type: "null", name: this.name, value: null });
+        keyValues.push({ type: "null", value: null });
       } else {
         const kClassName = k.$className;
         let kDecoder = keyDecoderCache.get(kClassName);
         if (!kDecoder) {
           kDecoder = JavaDecoderResolver.resolveDecoder({
             type: kClassName,
-            name: this.name,
             settings: childSettings,
           });
           keyDecoderCache.set(kClassName, kDecoder);
@@ -75,14 +74,13 @@ export class MapDecoder extends RecursiveDecoder<Java.Wrapper> {
       }
 
       if (v === null) {
-        valValues.push({ type: "null", name: this.name, value: null });
+        valValues.push({ type: "null", value: null });
       } else {
         const vClassName = v.$className;
         let vDecoder = valDecoderCache.get(vClassName);
         if (!vDecoder) {
           vDecoder = JavaDecoderResolver.resolveDecoder({
             type: vClassName,
-            name: this.name,
             settings: childSettings,
           });
           valDecoderCache.set(vClassName, vDecoder);

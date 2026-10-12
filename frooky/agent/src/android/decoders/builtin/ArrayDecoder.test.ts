@@ -222,6 +222,17 @@ describe("ArrayDecoder", () => {
       });
     });
   });
-});
 
-export {};
+  it("names the array, not its elements", () => {
+    const list = Java.use("java.util.ArrayList").$new();
+    list.add("a");
+    const array = Java.array("java.lang.Object", [list, list]);
+
+    const result = new ArrayDecoder({ type: "[Ljava.lang.Object;", name: "items", settings: DEFAULT_DECODER_SETTINGS }).decode(
+      array as unknown as Java.Wrapper,
+    );
+
+    expect(result.name).toBe("items");
+    expect(JSON.stringify(result).match(/"name"/g)?.length).toBe(1);
+  });
+});

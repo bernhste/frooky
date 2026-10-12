@@ -184,7 +184,6 @@ export class ArrayDecoder extends RecursiveDecoder<Java.Wrapper> {
       // reference types and nested arrays
       const elementDecodable: Decodable = {
         type: elementType,
-        name: this.name,
         settings: childSettings,
       };
       const elementDecoder = JavaDecoderResolver.resolveDecoder(elementDecodable);

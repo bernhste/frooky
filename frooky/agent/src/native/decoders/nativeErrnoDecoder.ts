@@ -182,8 +182,11 @@ export class NativeErrnoDecoder extends Decoder<NativePointer> {
     return { type: this.type, name: this.name, value: { value: this.valueDecoder.decode(value).value, errno: null } };
   }
 
-  // `errno` must be read right after the call, before anything else can change it
-  public decodeWithErrno(value: NativePointer, errno: number): DecodedValue {
+  // `errno` must be read right after the call, before anything else can change it. `floatBits`: the return value of
+  // a `float` or `double` function, which is in a floating-point register. Such a function reports no error with -1,
+  // so it gets no errno.
+  public decodeWithErrno(value: NativePointer, errno: number, floatBits?: NativePointer | null): DecodedValue {
+    if (floatBits) return { type: this.type, name: this.name, value: { value: this.valueDecoder.decode(floatBits).value, errno: null } };
     const decodedErrno: DecodedErrno | null = this.isError(value) ? { number: errno, name: errnoName(errno), message: errnoMessage(errno) } : null;
     return { type: this.type, name: this.name, value: { value: this.valueDecoder.decode(value).value, errno: decodedErrno } };
   }

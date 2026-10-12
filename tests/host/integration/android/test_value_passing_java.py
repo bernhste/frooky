@@ -706,3 +706,73 @@ class TestValuePassingJava:
         run_frooky(hook_file, TARGET_APP)
 
         assert {event["method"] for event in find_matched_events({"javaClass": MASTG_CLASS})} == {"receiveInt"}
+
+    def test_call_that_throws_is_recorded_with_its_exception(self, run_frooky, find_matched_events):
+        """A method that throws has an event with `exception` instead of `returnValue`, and the app handles the
+        exception as without the hook."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: parsePort
+                    overloads:
+                      - params:
+                          - [java.lang.String, text]
+                  - trackEvent
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        returned, threw = find_matched_events({"javaClass": MASTG_CLASS, "method": "parsePort"})
+        assert returned["argsIn"][0]["value"] == "8080"
+        assert returned["returnValue"] == {"type": "int", "value": 8080}
+        assert "exception" not in returned
+        assert threw["argsIn"][0]["value"] == "not-a-port"
+        assert threw["exception"].startswith("java.lang.NumberFormatException")
+        assert "returnValue" not in threw
+        # called after the exception was caught
+        assert len(find_matched_events({"method": "trackEvent"})) == 2
+
+    def test_arg_filter_compares_64_bit_integers_exactly(self, run_frooky, find_matched_events):
+        """receiveLong is called with Long.MAX_VALUE, which is no exact double."""
+        filters = {"equal": "== 9223372036854775807", "one_less": "== 9223372036854775806", "greater": "> 9223372036854775806", "not_less": "< 9223372036854775807"}
+        hooks = "".join(f'      - method: receiveLong\n        overloads:\n          - params:\n              - [long, {name}, {{argFilter: ["{pattern}"]}}]\n' for name, pattern in filters.items())
+
+        run_frooky(f"hookCollections:\n  - javaClass: {MASTG_CLASS}\n    hooks:\n{hooks}", TARGET_APP)
+
+        assert {event["argsIn"][0]["name"] for event in find_matched_events({"method": "receiveLong"})} == {"equal", "greater"}
+
+    def test_decoders_leave_names_and_objects_as_they_are(self, run_frooky, find_matched_events):
+        """The name of a parameter is on its value only, not on the elements of a list. `decoder: getters` doesn't
+        move the position of a ByteBuffer, and `decoder: hashCode` names a primitive array by its type."""
+        hook_file = textwrap.dedent(f"""\
+            hookCollections:
+              - javaClass: {MASTG_CLASS}
+                hooks:
+                  - method: receiveList
+                    overloads:
+                      - params:
+                          - [java.util.List, letters]
+                  - method: receiveByteBuffer
+                    overloads:
+                      - params:
+                          - [java.nio.ByteBuffer, buffer, {{decoder: getters}}]
+                  - method: receiveByteArray
+                    overloads:
+                      - params:
+                          - ["[B", bytes, {{decoder: hashCode}}]
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        (letters,) = find_matched_events({"method": "receiveList"})
+        assert letters["argsIn"][0] == {
+            "type": "java.util.List",
+            "name": "letters",
+            "value": {"type": "java.util.Arrays$ArrayList", "value": [{"type": "java.lang.String", "value": letter} for letter in "abc"]},
+        }
+        (buffer,) = find_matched_events({"method": "receiveByteBuffer"})
+        # the app passes the buffer at position 2 and gets it back unchanged
+        assert buffer["returnValue"]["value"]["value"]["position"] == 2
+        (array,) = find_matched_events({"method": "receiveByteArray"})
+        assert re.fullmatch(r"\[B@[0-9a-f]+", array["argsIn"][0]["value"])

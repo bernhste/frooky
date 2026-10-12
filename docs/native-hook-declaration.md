@@ -90,7 +90,7 @@ hooks:
   - "*addrinfo"   # getaddrinfo, freeaddrinfo
 ```
 
-- A pattern only matches exported functions, not exported variables.
+- A pattern only matches exported functions, not exported variables. A symbol that names an exported variable is skipped with a warning.
 - YAML reads a value that starts with `*` as an alias, so quote it: `"*addrinfo"`.
 - `params` and `returns` apply to every matching function, so only use them for functions with the same signature.
 - If several matching names belong to one function (e.g. `memcpy` and `memmove` in some libcs), frooky hooks it once, under the first name.
@@ -147,7 +147,7 @@ Take the function's address from your disassembler and subtract the image base t
 Ghidra shows the image base in _Window → Memory Map_, where you can also set it to `0` to copy addresses unchanged. Check the image base of other tools before copying addresses.
 
 - **Use the virtual address, not the file offset.** A hex editor shows positions in the file, which often differ from the virtual address of the code.
-- **An offset only fits one build and one ABI of the module.** After an app update, or for the `arm64-v8a` and `x86_64` copies of a library, the offsets differ. frooky skips a hook whose offset is outside the module or not in executable memory, but can't detect an offset that points to the wrong code.
+- **An offset only fits one build and one ABI of the module.** After an app update, or for the `arm64-v8a` and `x86_64` copies of a library, the offsets differ. frooky skips a hook whose offset is outside the module, in its ELF header or not in executable memory, but can't detect an offset that points to the wrong code.
 
 ## Decoding Arguments and Return Values
 

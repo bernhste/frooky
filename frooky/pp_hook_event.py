@@ -284,6 +284,10 @@ def _format_hook(out: _Lines, hook: dict, id_key: str, id_label: str, fn_key: st
         _add_arguments(out, _LABEL_ARGS_OUT, args_out, colors_out)
     if return_val:
         _add_return(out, return_val)
+    # Java events of a call that threw instead of returning
+    if "exception" in hook:
+        out.add()
+        _add_field(out, "throws", hook["exception"])
     if stack:
         _add_stack(out, stack)
 

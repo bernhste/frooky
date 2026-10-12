@@ -22,6 +22,7 @@ import {
   validateValueTypes,
 } from "../../shared/inputParsing/inputDecodableTypes";
 import { acceptedNativeDecoderArgs, acceptedNativeDecoderOptions, NATIVE_DECODER_NAMES } from "../decoders/nativeDecoderResolver";
+import { parseNativeFridaType } from "../decoders/nativeFridaType";
 
 const inputNativeHookCollectionHeaderSchema = inputNativeHookCollectionSchema.omit({ hooks: true });
 
@@ -61,6 +62,7 @@ export class NativeHookValidator implements HookValidator<NativeHookDeclaration,
             "native",
           );
           rejectErrnoOnParams(validatedHook.params);
+          rejectConstantsOnFloats([...(validatedHook.params ?? []), ...(validatedHook.returns ? [validatedHook.returns] : [])]);
           rejectOffsetInModulePattern(validatedHook);
           const allowedHook = applyBlockedFunctions(validatedHook);
           if (!allowedHook) continue;
@@ -231,6 +233,30 @@ function rejectErrnoOnParams(params: Param[] | undefined): void {
     throw new Error(
       `decoder: errno on '${param.name ?? param.type}' is only supported on the return value, e.g. 'returns: [int, { decoder: errno }]'.`,
     );
+  }
+}
+
+// The decoders that name the constants of an integer: `constants`, `bitmask` and the presets
+const INTEGER_CONSTANT_DECODERS = new Set([
+  "constants",
+  "bitmask",
+  "openFlags",
+  "mmapProt",
+  "mmapFlags",
+  "dlopenFlags",
+  "socketDomain",
+  "socketType",
+]);
+
+// Throws for a `float` or `double` decoded to the names of constants: it is passed in a floating-point register, so
+// the decoder would read another value.
+function rejectConstantsOnFloats(values: { type: string; name?: string; settings: DecoderSettings }[]): void {
+  for (const { type, name, settings } of values) {
+    if (!settings.decoder || !INTEGER_CONSTANT_DECODERS.has(settings.decoder)) continue;
+    const fridaType = parseNativeFridaType(type);
+    if (fridaType === "float" || fridaType === "double") {
+      throw new Error(`decoder: ${settings.decoder} on '${name ?? type}' only decodes integers, not a ${fridaType}.`);
+    }
   }
 }
 

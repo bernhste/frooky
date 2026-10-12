@@ -161,6 +161,36 @@ describe("NativeHookManager", () => {
       expect(results).toEqual([null]);
     });
 
+    it("returns null when the offset points into the ELF header, also where it is executable", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const warnSpy = spyOn(logger, "warn");
+
+      const results = await resultsOf(await manager.resolveHooks([nativeOffsetHook("libc.so", "0x0"), nativeOffsetHook("libc.so", "0x3f")]));
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      warnSpy.mockRestore();
+
+      expect(results).toEqual([null, null]);
+      expect(messages).toEqual([
+        "Skipping hook for 'libc.so+0x0'. The offset points into the ELF header at the start of the module, not to a function.",
+        "Skipping hook for 'libc.so+0x3f'. The offset points into the ELF header at the start of the module, not to a function.",
+      ]);
+    });
+
+    it("returns null for a symbol the module exports as a variable", async () => {
+      const manager = new NativeHookManager(stackTrace, frookyAgent);
+      const warnSpy = spyOn(logger, "warn");
+
+      const results = await resultsOf(await manager.resolveHooks([nativeHook("libc.so", "environ"), nativeHook("libc.so", "getenv")]));
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      warnSpy.mockRestore();
+
+      expect(results[0]).toBeNull();
+      expect(results[1]?.length).toBe(1);
+      expect(messages).toEqual([
+        "Skipping hook for 'environ'. Module 'libc.so' exports it as a variable, not as a function: a hook would overwrite its value.",
+      ]);
+    });
+
     it("keeps waiting for a module that isn't loaded", async () => {
       const manager = new NativeHookManager(stackTrace, frookyAgent);
 

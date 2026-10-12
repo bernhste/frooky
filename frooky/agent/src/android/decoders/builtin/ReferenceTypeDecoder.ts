@@ -186,9 +186,9 @@ export class ReferenceTypeDecoder extends Decoder<Java.Wrapper> {
       resolvedDecoderCache.set(runtimeClass, decoderClass);
     }
 
+    // without the name, which belongs to the value this decoder returns
     const decoder = new decoderClass({
       type: runtimeClass,
-      name: this.name,
       settings: this.settings,
     });
 

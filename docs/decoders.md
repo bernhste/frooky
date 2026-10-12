@@ -318,7 +318,7 @@ Strings and buffers decoded as hex end with `...` when they're cut, arrays end w
 
 `argFilter` is a list of regular expressions or numeric comparisons (`>`, `>=`, `<`, `<=`, `==`, `!=`). An event is only captured if the decoded value of the parameter matches one of them:
 
-- **Numeric comparisons**: A filter that is one comparison operator and a decimal number (e.g. `"> 100"`, `"<= 0"`, `"== -1"` or `"!= 0"`) compares numerically against decoded numbers or decimal numeric strings (such as 64-bit integers decoded as text). Non-numeric strings or other types do not match numeric comparisons.
+- **Numeric comparisons**: A filter that is one comparison operator and a decimal number (e.g. `"> 100"`, `"<= 0"`, `"== -1"` or `"!= 0"`) compares numerically against decoded numbers or decimal numeric strings (such as 64-bit integers decoded as text). Whole numbers are compared exactly, whatever their size. Non-numeric strings or other types do not match numeric comparisons.
 - **Regular expressions**: Any other filter is treated as a JavaScript regular expression and matched against the value's string representation.
 
 frooky skips a hook with a filter that is neither: an empty one, an invalid regular expression (e.g. `(?i)text`, as JavaScript has no inline flags), or one that starts like a comparison but isn't one, e.g. `"= 5"`, `"> 5 < 10"`, `"== 0x10"` or one with spaces around it.
@@ -472,7 +472,7 @@ Many APIs take an integer that stands for one or more named constants, e.g. the 
 
 The constants are numbers, so only numeric values can be decoded:
 
-- **Native hooks**: integers passed by value, e.g. `int`, `unsigned long` or `uint32_t`. A pointer, e.g. `int *`, isn't followed, so its address is decoded. `float` and `double` aren't supported.
+- **Native hooks**: integers passed by value, e.g. `int`, `unsigned long` or `uint32_t`. A pointer, e.g. `int *`, isn't followed, so its address is decoded. frooky skips a hook that sets one of these decoders, or a [preset](./decoders-native.md#constant-presets), on a `float` or `double`.
 - **Java hooks**: values of a primitive type. Any other value, e.g. an `int[]`, a `List` or a boxed `Integer`, is decoded as if no `decoder` were set, and frooky logs a warning, once per parameter. A map in `decoderOptions: { constants }` matches `int`, `long`, `short`, `byte`, `float` and `double` values. The constants of a class are its fields of the type of the value, so a `boolean` or `char` value can be decoded too. Fields of other types, e.g. `String` constants such as `KeyProperties.KEY_ALGORITHM_AES`, are never matched. `bitmask` only decodes `int`, `long`, `short`, `byte` and `char` values.
 
 #### A Map of Constants

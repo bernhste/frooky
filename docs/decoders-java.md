@@ -69,7 +69,7 @@ Java hooks have the [shared decoders](./decoders.md#shared-decoders) `string`, `
 
 ### `getters`
 
-`decoder: getters` decodes an object through its public `get*()` and `is*()` methods, including inherited ones, e.g. an app class without a decoder:
+`decoder: getters` decodes an object through its public `get*()` and `is*()` methods, including inherited ones, e.g. an app class without a decoder. The getters are code of the app or the framework that frooky runs: it skips the ones known to change the object (the relative `get*()` reads of a `java.nio.Buffer`, and `getAnd*()` such as `AtomicInteger.getAndIncrement()`), but can't know what the getters of an app class do.
 
 ```yaml
 javaClass: org.owasp.mastestapp.MastgTest
@@ -95,7 +95,7 @@ hooks:
           - [java.math.BigInteger, number, { decoder: hashCode }]
 ```
 
-This decodes `number` as `"java.math.BigInteger@<identity hash code in hex>"`. The identity hash code (`System.identityHashCode()`) is the [`hashCode`](./output.md) of the events about the same object, e.g. of a hooked method that returns `this`, so decoded values and events can be matched. It doesn't change while the object changes, and two distinct objects have different ones, even if they are equal. Hash codes can collide. Primitives and strings have no identity, they are decoded as if no `decoder` were set.
+This decodes `number` as `"java.math.BigInteger@<identity hash code in hex>"`. The identity hash code (`System.identityHashCode()`) is the [`hashCode`](./output.md) of the events about the same object, e.g. of a hooked method that returns `this`, so decoded values and events can be matched. It doesn't change while the object changes, and two distinct objects have different ones, even if they are equal. Hash codes can collide. A primitive array is named by its type descriptor, e.g. `[I@c437358`. Primitives, strings and arrays of strings have no identity, they are decoded as if no `decoder` were set.
 
 ## Return Values
 

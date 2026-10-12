@@ -35,8 +35,8 @@ describe("SpecDecoder", () => {
 
     const result = properties(decoder.decode(spec));
 
-    expect(result.modulus).toEqual({ type: "java.math.BigInteger", name: "modulus", value: "3233" });
-    expect(result.publicExponent).toEqual({ type: "java.math.BigInteger", name: "publicExponent", value: "17" });
+    expect(result.modulus).toEqual({ type: "java.math.BigInteger", value: "3233" });
+    expect(result.publicExponent).toEqual({ type: "java.math.BigInteger", value: "17" });
   });
 
   it("is chosen for an IvParameterSpec declared as AlgorithmParameterSpec", () => {

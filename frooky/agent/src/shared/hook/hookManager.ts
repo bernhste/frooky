@@ -14,6 +14,8 @@ export type NumberComparator = ">" | ">=" | "<" | "<=" | "==" | "!=";
 export type NumberFilter = {
   operator: NumberComparator;
   operand: number;
+  // the operand as written if it is an integer, e.g. `9223372036854775807`, which a number can't hold exactly
+  integer?: string;
 };
 
 export type ArgFilter = RegExp | NumberFilter;
@@ -28,9 +30,33 @@ export function compileArgFilter(pattern: string | RegExp | ArgFilter): ArgFilte
     return {
       operator: match[1] as NumberComparator,
       operand: Number(match[2]),
+      integer: INTEGER.test(match[2]) ? match[2] : undefined,
     };
   }
   return new RegExp(pattern);
+}
+
+const INTEGER = /^[+-]?\d+$/;
+
+// -1, 0 or 1 for two decimal integers of any size, e.g. 64-bit values decoded as strings
+export function compareIntegers(a: string, b: string): number {
+  const parse = (text: string) => {
+    const digits = text.replace(/^[+-]?0*(?=\d)/, "");
+    return { negative: text.startsWith("-") && digits !== "0", digits };
+  };
+  const x = parse(a);
+  const y = parse(b);
+  if (x.negative !== y.negative) return x.negative ? -1 : 1;
+  const magnitude =
+    x.digits.length !== y.digits.length ? Math.sign(x.digits.length - y.digits.length) : x.digits < y.digits ? -1 : x.digits > y.digits ? 1 : 0;
+  return x.negative ? -magnitude : magnitude;
+}
+
+// The value as a decimal integer, if it is one: a string of digits, or a number that holds its integer exactly
+function asInteger(value: unknown): string | null {
+  if (typeof value === "string" && INTEGER.test(value.trim())) return value.trim();
+  if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+  return null;
 }
 
 function asNumber(value: unknown): number | null {
@@ -68,6 +94,9 @@ function evaluateComparison(val: number, op: NumberComparator, target: number): 
 
 function matchesArgFilter(filter: ArgFilter, value: unknown): boolean {
   if ("operator" in filter) {
+    // integers are compared digit by digit: as numbers, 64-bit values beyond 2^53 lose their last digits
+    const integer = filter.integer !== undefined ? asInteger(value) : null;
+    if (integer !== null) return evaluateComparison(compareIntegers(integer, filter.integer!), filter.operator, 0);
     const num = asNumber(value);
     return num !== null && evaluateComparison(num, filter.operator, filter.operand);
   }

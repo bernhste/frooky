@@ -209,8 +209,8 @@ describe("HookManager", () => {
       const result = manager.exposedResolveParamDecoders(params);
 
       expect(result[0].argFilter).toEqual([
-        { operator: ">", operand: 100 },
-        { operator: "<=", operand: -5 },
+        { operator: ">", operand: 100, integer: "100" },
+        { operator: "<=", operand: -5, integer: "-5" },
       ]);
     });
 
@@ -359,6 +359,27 @@ describe("HookManager", () => {
       expect(manager.exposedMatchesFilter({ type: "long", value: "50" }, ["> 100"])).toBeFalsy();
       expect(manager.exposedMatchesFilter({ type: "long", value: "-10" }, ["< 0"])).toBeTruthy();
       expect(manager.exposedMatchesFilter({ type: "float", value: 3.14 }, [">= 3.14"])).toBeTruthy();
+    });
+
+    it("compares 64-bit integers exactly, which a number can't hold", () => {
+      const manager = createManager();
+      const max = { type: "long", value: "9223372036854775807" };
+      const unsignedMax = { type: "unsigned long long", value: "18446744073709551615" };
+
+      expect(manager.exposedMatchesFilter(max, ["== 9223372036854775807"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter(max, ["== 9223372036854775806"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter(max, ["> 9223372036854775806"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter(max, ["!= 9223372036854775806"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter(max, ["< 9223372036854775807"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter(unsignedMax, ["> 18446744073709551614"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter(unsignedMax, ["== 18446744073709551614"])).toBeFalsy();
+      expect(manager.exposedMatchesFilter({ type: "long", value: "-9223372036854775808" }, ["< -9223372036854775807"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "long", value: "-5" }, ["< 3"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "long", value: "007" }, ["== 7"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "long", value: "-0" }, ["== 0"])).toBeTruthy();
+      // a fraction on either side is compared as numbers
+      expect(manager.exposedMatchesFilter({ type: "double", value: 3.5 }, ["> 3"])).toBeTruthy();
+      expect(manager.exposedMatchesFilter({ type: "int", value: 3 }, ["< 3.5"])).toBeTruthy();
     });
 
     it("does not match non-numeric strings or empty values against numeric comparisons", () => {

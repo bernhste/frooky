@@ -179,6 +179,21 @@ class TestPpHookEvent:
 
         assert lines[2:5] == ["│ class:        org.owasp.mastestapp.Headers", "│ declared in:  java.util.HashMap", "│ method:       put()"]
 
+    def test_call_that_threw_prints_its_exception_and_no_return_value(self):
+        hook = {
+            "type": "hook-java",
+            "timestamp": "t",
+            "javaClass": "java.lang.Class",
+            "method": "forName",
+            "argsIn": [{"type": "java.lang.String", "value": "com.example.Missing"}],
+            "exception": "java.lang.ClassNotFoundException: com.example.Missing",
+        }
+
+        out = "\n".join(_plain(format_hook_event(hook)))
+
+        assert "│ throws:       java.lang.ClassNotFoundException: com.example.Missing" in out
+        assert "returns" not in out
+
     def test_method_of_the_hooked_class_prints_no_declaring_class(self):
         hook = {"type": "hook-java", "timestamp": "t", "javaClass": "C", "method": "m", "argsIn": []}
 

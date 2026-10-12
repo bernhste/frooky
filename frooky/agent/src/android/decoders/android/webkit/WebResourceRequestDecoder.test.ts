@@ -34,11 +34,13 @@ describe("WebResourceRequestDecoder", () => {
     const byName = Object.fromEntries(properties.map((property) => [property.name, property]));
 
     expect(byName.method.value).toBe("POST");
-    expect(byName.url.value).toEqual({ type: "android.net.Uri$StringUri", name: "url", value: "https://example.org/api" });
+    expect(byName.url.value).toEqual({ type: "android.net.Uri$StringUri", value: "https://example.org/api" });
     expect(byName.forMainFrame.value).toBe(true);
     expect(byName.redirect.value).toBe(false);
     expect(byName.gesture.value).toBe(false);
     const headers = byName.requestHeaders.value as DecodedValue;
     expect(JSON.stringify(headers)).toContain("Bearer abc");
+    // the name of the getter is on its value only, not on the keys and values of the map
+    expect(JSON.stringify(byName.requestHeaders).match(/"name":"requestHeaders"/g)?.length).toBe(1);
   });
 });

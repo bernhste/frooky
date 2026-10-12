@@ -166,6 +166,35 @@ describe("NativeHookValidator", () => {
       expect(messages[4]).toContain("argFilter of 'fd': '> 5 < 10' is no numeric comparison.");
     });
 
+    it("skips a hook that decodes a float or double to the names of constants", () => {
+      const constants = { decoder: "constants", decoderOptions: { constants: { ONE: 1 } } };
+      const collection = {
+        module: "libm.so",
+        hooks: [
+          { symbol: "a", params: [["double", "x", constants]] },
+          { symbol: "b", returns: ["float", { decoder: "bitmask", decoderOptions: { constants: { ONE: 1 } } }] },
+          { symbol: "c", params: [["const double", "x", { decoder: "openFlags" }]] },
+          {
+            symbol: "ok",
+            returns: "double",
+            params: [
+              ["int", "mode", constants],
+              ["double *", "out", { decoder: "hex" }],
+            ],
+          },
+        ],
+      } as unknown as InputNativeHookCollection;
+
+      const hooks = validator.validateAndNormalizeHooks({ hookCollections: [collection] }, defaultSettings);
+
+      expect(hooks.map((hook) => hook.symbol)).toEqual(["ok"]);
+      const messages = warnSpy.mock.calls.map(([message]) => message as string);
+      expect(messages.length).toBe(3);
+      expect(messages[0]).toContain("decoder: constants on 'x' only decodes integers, not a double.");
+      expect(messages[1]).toContain("decoder: bitmask on 'float' only decodes integers, not a float.");
+      expect(messages[2]).toContain("decoder: openFlags on 'x' only decodes integers, not a double.");
+    });
+
     it("accepts decoderOptions.constants for the constants and bitmask decoders, and rejects it for a preset and other decoders", () => {
       const nativeCollection: InputNativeHookCollection = {
         module: "libfoo.so",

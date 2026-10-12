@@ -9,6 +9,8 @@ import { applyBlockedFunctions, warnOnHighFrequencyLibcHook } from "./nativeHook
 export type ModuleExports = {
   find: (symbol: string) => NativePointer | undefined;
   functions: () => ModuleExportDetails[];
+  // whether `symbol` is exported as a variable, e.g. a global, not as a function
+  isVariable: (symbol: string) => boolean;
 };
 
 // Reads the export table at most once. `findByName`: look up single symbols with findExportByName(), only for a
@@ -22,6 +24,7 @@ export function moduleExports(module: Module, findByName: boolean): ModuleExport
       ? (symbol) => module.findExportByName(symbol) ?? undefined
       : (symbol) => (addresses ??= new Map(all().map((e) => [e.name, e.address]))).get(symbol),
     functions: () => all().filter((e) => e.type === "function"),
+    isVariable: (symbol) => all().some((e) => e.name === symbol && e.type === "variable"),
   };
 }
 
@@ -98,6 +101,11 @@ function resolveSymbolPattern(inputHook: NativeSymbolHookDeclaration, module: Mo
 function resolveSymbol(symbol: string, module: Module, exports: ModuleExports): NativePointer {
   const address = exports.find(symbol);
   if (!address) throw Error(`Skipping hook for '${symbol}'. This symbol does not exist in module '${module.name}'.`);
+  if (exports.isVariable(symbol)) {
+    throw Error(
+      `Skipping hook for '${symbol}'. Module '${module.name}' exports it as a variable, not as a function: a hook would overwrite its value.`,
+    );
+  }
   if (address.compare(module.base) < 0 || address.compare(module.base.add(module.size)) >= 0) {
     const owner = Process.findModuleByAddress(address)?.name;
     const escapedName = module.name.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
@@ -109,6 +117,9 @@ function resolveSymbol(symbol: string, module: Module, exports: ModuleExports): 
   return address;
 }
 
+// Elf64_Ehdr and Elf32_Ehdr
+const ELF_HEADER_SIZE = Process.pointerSize === 8 ? 0x40 : 0x34;
+
 // `module.base + offset`. Throws unless the address is inside the module and in a code section: patching
 // data, e.g. with an offset from another build of the library, crashes the app.
 function resolveModuleOffset(offset: string, module: Module): NativePointer {
@@ -116,6 +127,9 @@ function resolveModuleOffset(offset: string, module: Module): NativePointer {
   const moduleOffset = ptr(offset);
   if (moduleOffset.compare(ptr(module.size)) >= 0) {
     throw Error(`Skipping hook for '${target}'. The offset is outside the module, which is only 0x${module.size.toString(16)} bytes large.`);
+  }
+  if (moduleOffset.compare(ptr(ELF_HEADER_SIZE)) < 0) {
+    throw Error(`Skipping hook for '${target}'. The offset points into the ELF header at the start of the module, not to a function.`);
   }
   const address = module.base.add(offset);
   const range = Process.findRangeByAddress(address);

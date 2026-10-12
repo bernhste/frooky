@@ -30,6 +30,11 @@ function resolveClassMembers(factory: Java.ClassFactory): void {
   stringClass.isInstance(null);
 }
 
+// e.g. `java.lang.ClassNotFoundException: com.example.Missing`, as frida-java-bridge words the exception of a method
+function describeException(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 // How long prepareDetach() waits for the threads inside reverted replacements
 const DETACH_RELEASE_TIMEOUT_MS = 3000;
 
@@ -278,9 +283,17 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     try {
       returnValue = overload.method.apply(instance, args);
     } catch (e) {
-      // observed methods such as ClassLoader.loadClass() throw as part of their normal work
-      if (overload.hooks.length > 0) logger.error(`Error during execution of hooked method: ${e}`);
-      throw e; // the app handles its own exception
+      // Methods throw as part of their normal work, e.g. Class.forName() for a class that doesn't exist: the call is
+      // recorded with its exception, which the app handles itself.
+      const throwTid = calls.length > 0 ? enterHookCode() : undefined;
+      if (throwTid !== undefined) {
+        try {
+          for (const call of calls) this.leaveHook(call, instance, args, undefined, describeException(e));
+        } finally {
+          leaveHookCode(throwTid);
+        }
+      }
+      throw e;
     }
 
     const leaveTid = enterHookCode();
@@ -343,9 +356,18 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     return { installedHook, logTarget, stackTrace, decodedArgs, decodeMs: Date.now() - decodeStart };
   }
 
-  private leaveHook(call: JavaHookCall, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any): void {
+  // `exception`: what the method threw. It has no return value then, and its `out` parameters aren't decoded.
+  private leaveHook(call: JavaHookCall, instance: Java.Wrapper, args: Java.Wrapper[], returnValue: any, exception?: string): void {
     const { hook, target, outArgDecoders, retTypeDecoder } = call.installedHook;
     const { decodedArgs, logTarget } = call;
+    if (exception !== undefined) {
+      const methodType = this.methodTypeOf(instance);
+      const hashCode = methodType === "instance" ? javaIdentityHashCode(instance) : undefined;
+      const event = new JavaHookEvent(hook, methodType, hashCode, decodedArgs, undefined, call.stackTrace);
+      event.exception = exception;
+      this.frookyAgent.addEventToLog(event, hook, call.decodeMs);
+      return;
+    }
     const decodeStart = Date.now();
     // first, as `out` parameters with `length: $ret` need it
     let decodedRetValue: DecodedValue | undefined;

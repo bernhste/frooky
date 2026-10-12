@@ -24,6 +24,19 @@ describe("NativeErrnoDecoder", () => {
     expect(errnoDecoder("ssize_t").decodeWithErrno(ptr("0xffffffffffffffff"), 2).value).toEqual({ value: "-1", errno: ENOENT });
   });
 
+  it("decodes a float or double return value from its floating-point register, without errno", () => {
+    const bits = (value: number, type: "float" | "double"): NativePointer => {
+      const memory = Memory.alloc(8);
+      if (type === "float") memory.writeFloat(value);
+      else memory.writeDouble(value);
+      return type === "float" ? ptr(memory.readU32()) : ptr(memory.readU64().toString());
+    };
+
+    // the general-purpose return register holds something else, here -1
+    expect(errnoDecoder("double").decodeWithErrno(ptr("0xffffffffffffffff"), 2, bits(-2.5, "double")).value).toEqual({ value: -2.5, errno: null });
+    expect(errnoDecoder("float").decodeWithErrno(ptr(0), 2, bits(1.5, "float")).value).toEqual({ value: 1.5, errno: null });
+  });
+
   it("decodes the errno of a pointer return value of NULL or MAP_FAILED", () => {
     expect(errnoDecoder("FILE *").decodeWithErrno(ptr(0), 13).value).toEqual({
       value: "0x0",

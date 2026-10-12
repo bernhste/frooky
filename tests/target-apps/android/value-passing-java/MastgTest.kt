@@ -241,6 +241,8 @@ class MastgTest(private val context: Context) {
         fun receiveCryptoObject(arg: BiometricPrompt.CryptoObject): BiometricPrompt.CryptoObject = arg
         fun receiveAndroidXCryptoObject(arg: AndroidXBiometricPrompt.CryptoObject): AndroidXBiometricPrompt.CryptoObject = arg
         fun trackEvent(name: String): String = name
+        // Throws a NumberFormatException for text that is no number, for hooks on methods that throw.
+        fun parsePort(text: String): Int = text.toInt()
 
         // Passes the objects of a typical encryption, signing and signature check to the receive* methods.
         fun useCryptoTypes(): String {
@@ -470,6 +472,13 @@ class MastgTest(private val context: Context) {
                 r.add(Status.PASS, "more android types")
 
                 r.add(Status.PASS, useCryptoTypes())
+
+                parsePort("8080")
+                try {
+                        parsePort("not-a-port")
+                } catch (e: NumberFormatException) {
+                        r.add(Status.PASS, "invalid port rejected")
+                }
 
                 trackEvent("button_click")
                 ThirdPartySdk().flush(this)

@@ -813,3 +813,38 @@ class TestValuePassingNative:
         run_frooky_spawn(hook_file, TARGET_APP)
 
         assert len(find_matched_events({"module": "libc.so", "symbol": function})) > 0
+
+    def test_hooks_that_would_decode_or_patch_the_wrong_thing_are_skipped(self, run_frooky, find_matched_events):
+        """`decoder: errno` on a double return value decodes the double. A hook on an exported variable, at an offset
+        in the ELF header, or with constants for a double is skipped."""
+        hook_file = textwrap.dedent("""\
+            hookCollections:
+              - module: libreceiveFundamentalValue.so
+                hooks:
+                  - symbol: receive_double
+                    returns: [double, {decoder: errno}]
+                  - symbol: receive_float
+                    params:
+                      - [float, minValue, {decoder: constants, decoderOptions: {constants: {ONE: 1}}}]
+                  - offset: 0x10
+                  - receive_bool
+              - module: libloadTime.so
+                hooks:
+                  - load_time_last_stage
+            """)
+
+        run_frooky(hook_file, TARGET_APP)
+
+        events = find_matched_events({"type": "hook-native"})
+        assert sorted(event.get("symbol", event.get("offset")) for event in events) == ["receive_bool", "receive_double"]
+        (receive_double,) = find_matched_events({"symbol": "receive_double"})
+        assert receive_double["returnValue"]["value"] == {"value": -1.7976931348623157e308, "errno": None}
+
+    def test_arg_filter_compares_unsigned_64_bit_integers_exactly(self, run_frooky, find_matched_events):
+        """receive_ullong is called with 0 and ULLONG_MAX, which is no exact double."""
+        filters = {"equal": "== 18446744073709551615", "one_less": "== 18446744073709551614", "greater": "> 18446744073709551614"}
+        hooks = "".join(f'      - symbol: receive_ullong\n        params:\n          - [unsigned long long, minValue]\n          - [unsigned long long, {name}, {{argFilter: ["{pattern}"]}}]\n' for name, pattern in filters.items())
+
+        run_frooky(f"hookCollections:\n  - module: libreceiveFundamentalValue.so\n    hooks:\n{hooks}", TARGET_APP)
+
+        assert {event["argsIn"][1]["name"] for event in find_matched_events({"symbol": "receive_ullong"})} == {"equal", "greater"}

@@ -155,8 +155,9 @@ An inherited method exists once, in the class that declares it, so frooky hooks 
 - frooky logs which class the method is inherited from. The [hook statistics](./additional-features.md#hook-statistics-s--s-key) list the hook under the hooked class, e.g. `org.owasp.mastestapp.Headers.put`, and count the calls on other objects as filtered.
 - The hook still runs for every call of the method in the process, so a hook on a method of a widely used class, e.g. `hashCode` or `toString` of `java.lang.Object`, slows the app down even if few calls are recorded. `getClass` of `java.lang.Object` is [blocked](./additional-features.md#blocked-functions).
 - A method the class overrides is its own: it is hooked in the class, and calls of the superclass's method on other objects never reach the hook.
-- An inherited static method has no instance to tell its calls apart by. frooky hooks it with a warning and records the calls through every class, as calls of the declaring class.
-- With `overloads`, list the overloads as the declaring class declares them, e.g. `put(java.lang.Object, java.lang.Object)`.
+- An inherited static method has no instance to tell its calls apart by, so frooky skips the hook with a warning that names the declaring class. Hook the method there.
+- With `overloads`, list the overloads as the declaring class declares them, e.g. `put(java.lang.Object, java.lang.Object)`. An overload can come from another superclass than the method's other overloads, e.g. `read(byte[])` of `java.io.BufferedInputStream`, which `java.io.FilterInputStream` declares.
+- Without `overloads`, frooky hooks the overloads of the nearest class that declares the method name, not the ones only a class further up has.
 - To record the calls on every object, hook the declaring class itself, e.g. `javaClass: java.util.HashMap`.
 
 See [`07_inherited_methods.yaml`](./examples/android/01_basic_hooking/07_inherited_methods.yaml).

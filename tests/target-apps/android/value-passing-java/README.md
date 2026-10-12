@@ -48,3 +48,4 @@ For the examples in `docs/examples/android/`, the app also has:
 - `trackEvent`, called both directly and through `ThirdPartySdk`, for stack traces and stack trace filters
 - `CloudBackup.upload` and `LocalBackup.upload`, two classes with the same method, for class wildcards
 - `Headers`, which inherits `put` from `java.util.HashMap`. The app calls `put` on a `Headers` and on a plain `LinkedHashMap`, for hooks on inherited methods
+- `parsePort`, called with a number and with text that makes it throw a `NumberFormatException`, for hooks on methods that throw

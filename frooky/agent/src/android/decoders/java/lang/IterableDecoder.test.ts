@@ -25,6 +25,18 @@ describe("IterableDecoder", () => {
       });
     });
 
+    it("should name the list, not its elements", () => {
+      const list = Java.use("java.util.ArrayList").$new();
+      list.add("a");
+      list.add(null);
+      list.add(Java.use("java.util.ArrayList").$new());
+
+      const result = new IterableDecoder({ type: "java.util.List", name: "letters", settings: DEFAULT_DECODER_SETTINGS }).decode(list);
+
+      expect(result.name).toBe("letters");
+      expect(JSON.stringify(result).match(/"name"/g)?.length).toBe(1);
+    });
+
     it("should return an empty array for an empty iterable", () => {
       const ArrayList = Java.use("java.util.ArrayList");
       const list = ArrayList.$new();

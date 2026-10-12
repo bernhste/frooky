@@ -603,7 +603,7 @@ export class NativeHookManager extends HookManager<NativeHookDeclaration, Native
         const floatRetBits = floatRetSlot && context && usesSeparateFloatRegisterFile() ? readFloatArgBits(context, floatRetSlot) : null;
         decodedRetValue =
           retTypeDecoder instanceof NativeErrnoDecoder
-            ? retTypeDecoder.decodeWithErrno(returnValue, errno)
+            ? retTypeDecoder.decodeWithErrno(returnValue, errno, floatRetBits)
             : this.decodeValue(retTypeDecoder, floatRetBits ?? returnValue, `${call.logTarget} return value`);
       }
 

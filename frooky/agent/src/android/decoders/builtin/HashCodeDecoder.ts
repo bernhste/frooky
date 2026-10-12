@@ -15,7 +15,8 @@ export class HashCodeDecoder extends Decoder<Java.Wrapper> {
     if (value != null) {
       // primitives and strings, which Frida passes as JS values, have no identity; OverrideDecoder decodes them as they are
       if (typeof value !== "object") throw new Error(`${typeof value} has no identity hash code`);
-      decodedValue = `${value.$className}@${javaIdentityHashCode(value)}`;
+      // the wrapper of a primitive array has no class name; its class is its declared type, e.g. `[I`
+      decodedValue = `${value.$className ?? this.type}@${javaIdentityHashCode(value)}`;
     }
     return {
       type: this.type,

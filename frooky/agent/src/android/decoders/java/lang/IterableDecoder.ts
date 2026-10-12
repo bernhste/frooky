@@ -28,7 +28,7 @@ export class IterableDecoder extends RecursiveDecoder<Java.Wrapper> {
     while (iterator.hasNext() && count < maxItems) {
       const element = iterator.next();
       if (element === null) {
-        values.push({ type: "null", name: this.name, value: null });
+        values.push({ type: "null", value: null });
         count++;
         continue;
       }
@@ -40,7 +40,6 @@ export class IterableDecoder extends RecursiveDecoder<Java.Wrapper> {
       } else {
         elementDecoder = JavaDecoderResolver.resolveDecoder({
           type: className,
-          name: this.name,
           settings: childSettings,
         });
         decoderCache.set(className, elementDecoder);

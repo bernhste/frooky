@@ -13,6 +13,9 @@ export abstract class HookEvent extends BaseEvent {
   argsIn?: DecodedValue[];
   argsOut?: DecodedValue[];
   returnValue?: DecodedValue;
+  // Java hooks: what the method threw instead of returning, e.g. `java.io.FileNotFoundException: /missing (No such
+  // file or directory)`
+  exception?: string;
 
   constructor(decodedArgs?: DecodedArgs, returnValue?: DecodedValue, stackTrace?: HookStackTrace) {
     super();
@@ -38,6 +41,7 @@ export abstract class HookEvent extends BaseEvent {
       argsIn: this.argsIn,
       argsOut: this.argsOut,
       returnValue: this.returnValue,
+      exception: this.exception,
       stackTrace: this.stackTrace,
     };
   }
