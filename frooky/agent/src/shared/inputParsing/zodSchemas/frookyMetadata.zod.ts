@@ -6,10 +6,10 @@ export const platformSchema = z.union([z.literal("Android"), z.literal("iOS")]);
 export const metadataVersionSchema = z.number().int();
 
 export const frookyMetadataSchema = z.object({
-  platform: platformSchema.optional(),
-  name: z.string().optional(),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  author: z.string().optional(),
-  version: metadataVersionSchema.optional(),
+    platform: platformSchema.optional(),
+    name: z.string().optional(),
+    description: z.string().optional(),
+    category: z.string().optional(),
+    author: z.string().optional(),
+    version: metadataVersionSchema.optional()
 });

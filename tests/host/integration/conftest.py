@@ -48,9 +48,61 @@ MASTG_DEFAULT_MESSAGE = 'Click "Start" to run the test.'
 
 FROOKY_OUTPUT_NAME = "output.json"
 
+# screenshots and crash logs of failed tests, relative to the repository root
+FAILURE_DIR = "test-failures"
+
 # if this pattern appears on stdout, frooky resolved all hooks and is ready; waiting hooks are installed when
 # their class or module loads, e.g. after pressing "Start"
 FROOKY_READY_PATTERN = re.compile(r"Hooks ready:\s*(\d+) hooked(?:, (\d+) waiting)?")
+
+
+def _adb(*args):
+    """Output of an adb command on the device under test, empty if adb fails."""
+    serial = ["-s", ANDROID_SERIAL] if ANDROID_SERIAL else []
+    try:
+        return subprocess.run(["adb", *serial, *args], capture_output=True, text=True, timeout=30, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+@pytest.fixture(scope="session", autouse=True)
+def clear_crash_log():
+    """Start with an empty crash log, so a failed test only reports crashes of this session."""
+    _adb("logcat", "-b", "crash", "-c")
+
+
+def _record_failure(item, report):
+    """Saves what the device shows and its crash log, which tell a slow app from a crashed or covered one."""
+    directory = item.config.rootpath / FAILURE_DIR
+    directory.mkdir(exist_ok=True)
+    name = re.sub(r"[^\w.-]+", "_", item.name)
+
+    driver = item.funcargs.get("appium_drivers", {}).get("android")
+    if driver is not None:
+        try:
+            driver.get_screenshot_as_file(str(directory / f"{name}.png"))
+        except (WebDriverException, urllib3.exceptions.HTTPError):
+            pass
+
+    # e.g. `mCurrentFocus=Window{... Application Not Responding: value_passing_java.frooky.target.app}`
+    focus = "\n".join(line.strip() for line in _adb("shell", "dumpsys", "window").splitlines() if "mCurrentFocus" in line)
+    if focus:
+        report.sections.append(("device focus", focus))
+
+    crashes = _adb("logcat", "-d", "-b", "crash")
+    if crashes.strip():
+        (directory / f"{name}.crash.txt").write_text(crashes)
+        report.sections.append(("device crash log", crashes))
+        # the next failed test reports only the crashes since this one
+        _adb("logcat", "-b", "crash", "-c")
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item, call):
+    report = yield
+    if report.failed and report.when in ("setup", "call") and item.funcargs.get("platform") == "android":
+        _record_failure(item, report)
+    return report
 
 
 def _matches_subset_pattern_recursive(event, pattern):

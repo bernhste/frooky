@@ -4,50 +4,18 @@ import { z } from "zod";
 export const filterPatternSchema = z.string().min(1);
 
 export const decoderOptionsSchema = z.object({
-  constants: z.record(z.string(), z.number()).optional(),
-  class: z
-    .string()
-    .regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/)
-    .optional(),
-  fields: z
-    .string()
-    .regex(/^[A-Za-z0-9_$*]+$/)
-    .optional(),
+    constants: z.record(z.string(), z.number()).optional(),
+    class: z.string().regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/).optional(),
+    fields: z.string().regex(/^[A-Za-z0-9_$*]+$/).optional()
 });
 
-export const javaDecoderNameSchema = z.union([
-  z.literal("string"),
-  z.literal("base64"),
-  z.literal("hex"),
-  z.literal("hashCode"),
-  z.literal("constants"),
-  z.literal("bitmask"),
-  z.literal("getters"),
-]);
+export const javaDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hex"), z.literal("hashCode"), z.literal("constants"), z.literal("bitmask"), z.literal("getters")]);
 
-export const nativeBitmaskPresetNameSchema = z.union([
-  z.literal("openFlags"),
-  z.literal("mmapProt"),
-  z.literal("mmapFlags"),
-  z.literal("dlopenFlags"),
-  z.literal("socketType"),
-]);
+export const nativeBitmaskPresetNameSchema = z.union([z.literal("openFlags"), z.literal("mmapProt"), z.literal("mmapFlags"), z.literal("dlopenFlags"), z.literal("socketType")]);
 
 export const nativeConstantsPresetNameSchema = z.literal("socketDomain");
 
-export const nativeDecoderNameSchema = z.union([
-  z.literal("string"),
-  z.literal("base64"),
-  z.literal("hex"),
-  z.literal("utf16"),
-  z.literal("errno"),
-  z.literal("fd"),
-  z.literal("constants"),
-  z.literal("bitmask"),
-  z.literal("nullTerminatedArray"),
-  nativeBitmaskPresetNameSchema,
-  nativeConstantsPresetNameSchema,
-]);
+export const nativeDecoderNameSchema = z.union([z.literal("string"), z.literal("base64"), z.literal("hex"), z.literal("utf16"), z.literal("errno"), z.literal("fd"), z.literal("constants"), z.literal("bitmask"), z.literal("nullTerminatedArray"), nativeBitmaskPresetNameSchema, nativeConstantsPresetNameSchema]);
 
 export const decoderNameSchema = z.union([javaDecoderNameSchema, nativeDecoderNameSchema]);
 
@@ -58,27 +26,27 @@ export const decoderArgCountSchema = z.number().min(0).int();
 export const decoderArgValueSchema = z.union([decoderArgNameSchema, decoderArgCountSchema]);
 
 export const hookSettingsSchema = z.object({
-  maxStackFrames: z.number().min(0).int(),
-  nativeStackTrace: z.boolean(),
-  javaStackTrace: z.boolean(),
-  callerFilter: z.array(filterPatternSchema),
-  early: z.boolean(),
+    maxStackFrames: z.number().min(0).int(),
+    nativeStackTrace: z.boolean(),
+    javaStackTrace: z.boolean(),
+    callerFilter: z.array(filterPatternSchema),
+    early: z.boolean()
 });
 
 export const baseDecoderSettingsSchema = z.object({
-  maxDepth: z.number().min(1).int(),
-  maxItems: z.number().min(1).int(),
-  decoder: decoderNameSchema.optional(),
+    maxDepth: z.number().min(1).int(),
+    maxItems: z.number().min(1).int(),
+    decoder: decoderNameSchema.optional()
 });
 
 export const decoderSettingsSchema = baseDecoderSettingsSchema.extend({
-  length: decoderArgValueSchema.optional(),
-  offset: decoderArgValueSchema.optional(),
-  decoderOptions: decoderOptionsSchema.optional(),
-  argFilter: z.array(filterPatternSchema).optional(),
+    length: decoderArgValueSchema.optional(),
+    offset: decoderArgValueSchema.optional(),
+    decoderOptions: decoderOptionsSchema.optional(),
+    argFilter: z.array(filterPatternSchema).optional()
 });
 
 export const frookySettingsSchema = z.object({
-  hookSettings: hookSettingsSchema,
-  decoderSettings: baseDecoderSettingsSchema,
+    hookSettings: hookSettingsSchema,
+    decoderSettings: baseDecoderSettingsSchema
 });

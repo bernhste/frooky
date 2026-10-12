@@ -7,9 +7,9 @@ import { inputNativeHookCollectionSchema } from "./inputNativeHookCollection.zod
 import { inputDecoderSettingsSchema, inputHookSettingsSchema } from "./inputSettings.zod";
 
 export const inputFrookyConfigSchema = z.object({
-  schemaVersion: z.literal(1).optional(),
-  metadata: inputFrookyMetadataSchema.optional(),
-  hookSettings: inputHookSettingsSchema.optional(),
-  decoderSettings: inputDecoderSettingsSchema.optional(),
-  hookCollections: z.array(z.union([inputJavaHookCollectionSchema, inputNativeHookCollectionSchema])),
+    schemaVersion: z.literal(1).optional(),
+    metadata: inputFrookyMetadataSchema.optional(),
+    hookSettings: inputHookSettingsSchema.optional(),
+    decoderSettings: inputDecoderSettingsSchema.optional(),
+    hookCollections: z.array(z.union([inputJavaHookCollectionSchema, inputNativeHookCollectionSchema]))
 });

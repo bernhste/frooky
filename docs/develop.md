@@ -273,6 +273,7 @@ uv run scripts/run_integration_tests.py --appium 192.168.1.10             # anot
 - With `-a`, the tests run once per device, one after another. The script then prints a summary and fails if any device failed.
 - The Appium server is `--appium <ip>[:<port>]`, else `$APPIUM_URL`, else `127.0.0.1:4723`. The script stops right away if Appium isn't reachable.
 - The tests need the target apps (`sync_target_apps.py`), a running frida-server (`prepare_android_devices.py`) and a current agent (`uv run compile-agent --dev && uv sync`).
+- A failed test saves a screenshot of the device to `test-failures/<test>.png` and, if an app crashed, the crash log to `test-failures/<test>.crash.txt`. The test's output also shows the crash log and the focused window. In CI, the folder is part of the `test-results-android-api<level>` artifact.
 
 Plain pytest works too. With several devices attached, set `ANDROID_SERIAL`:
 

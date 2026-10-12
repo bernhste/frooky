@@ -5,32 +5,25 @@ import { inputParamSchema } from "./inputDecodableTypes.zod";
 import { inputDecoderSettingsSchema, inputHookSettingsSchema, inputReturnSettingsSchema } from "./inputSettings.zod";
 
 export const inputOverloadSchema = z.object({
-  params: z.array(inputParamSchema),
-  returns: inputReturnSettingsSchema.optional(),
+    params: z.array(inputParamSchema),
+    returns: inputReturnSettingsSchema.optional()
 });
 
 export const javaMethodNameSchema = z.string().regex(/^[^\s./;\[\]<>():,]+$/);
 
 export const inputJavaHookDetailsSchema = z.object({
-  method: javaMethodNameSchema,
-  overloads: z.array(inputOverloadSchema).optional(),
-  hookSettings: inputHookSettingsSchema.optional(),
-  decoderSettings: inputDecoderSettingsSchema.optional(),
+    method: javaMethodNameSchema,
+    overloads: z.array(inputOverloadSchema).optional(),
+    hookSettings: inputHookSettingsSchema.optional(),
+    decoderSettings: inputDecoderSettingsSchema.optional()
 });
 
-export const inputJavaHookSchema = z.union([
-  javaMethodNameSchema,
-  z.tuple([javaMethodNameSchema, inputDecoderSettingsSchema]),
-  inputJavaHookDetailsSchema,
-]);
+export const inputJavaHookSchema = z.union([javaMethodNameSchema, z.tuple([javaMethodNameSchema, inputDecoderSettingsSchema]), inputJavaHookDetailsSchema]);
 
 export const inputJavaHookCollectionSchema = z.object({
-  javaClass: z.string().regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/),
-  classLoader: z
-    .string()
-    .regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/)
-    .optional(),
-  hooks: z.array(inputJavaHookSchema),
-  hookSettings: inputHookSettingsSchema.optional(),
-  decoderSettings: inputDecoderSettingsSchema.optional(),
+    javaClass: z.string().regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/),
+    classLoader: z.string().regex(/^[^\s./;\[\]<>():,]+(\.[^\s./;\[\]<>():,]+)*$/).optional(),
+    hooks: z.array(inputJavaHookSchema),
+    hookSettings: inputHookSettingsSchema.optional(),
+    decoderSettings: inputDecoderSettingsSchema.optional()
 });

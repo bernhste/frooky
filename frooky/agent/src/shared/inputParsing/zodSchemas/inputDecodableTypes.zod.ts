@@ -8,21 +8,15 @@ export const valueTypeSchema = z.string().regex(/^[A-Za-z_$\[]([A-Za-z0-9_$.;:*&
 export const valueNameSchema = z.string().regex(/^(?!\$ret$)[A-Za-z_$][A-Za-z0-9_$]*$/);
 
 export const inputParamObjectSchema = inputParamSettingsSchema.extend({
-  type: valueTypeSchema,
-  name: valueNameSchema.optional(),
+    type: valueTypeSchema,
+    name: valueNameSchema.optional()
 });
 
-export const inputParamSchema = z.union([
-  valueTypeSchema,
-  z.tuple([valueTypeSchema, valueNameSchema]),
-  z.tuple([valueTypeSchema, inputParamSettingsSchema]),
-  z.tuple([valueTypeSchema, valueNameSchema, inputParamSettingsSchema]),
-  inputParamObjectSchema,
-]);
+export const inputParamSchema = z.union([valueTypeSchema, z.tuple([valueTypeSchema, valueNameSchema]), z.tuple([valueTypeSchema, inputParamSettingsSchema]), z.tuple([valueTypeSchema, valueNameSchema, inputParamSettingsSchema]), inputParamObjectSchema]);
 
 export const inputReturnObjectSchema = inputReturnSettingsSchema.extend({
-  type: valueTypeSchema,
-  name: valueNameSchema.optional(),
+    type: valueTypeSchema,
+    name: valueNameSchema.optional()
 });
 
 export const inputReturnSchema = z.union([valueTypeSchema, z.tuple([valueTypeSchema, inputReturnSettingsSchema]), inputReturnObjectSchema]);

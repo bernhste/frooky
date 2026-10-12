@@ -42,3 +42,6 @@ htmlcov/
 
 # platform-check reports
 .platform-check/
+
+# screenshots and crash logs of failed integration tests
+test-failures/
