@@ -374,6 +374,30 @@ describe("FrookyAgent", () => {
       expect(rawManager.registerHooks).toHaveBeenCalledTimes(3);
     });
 
+    it("reports targetReady as handled once the hooks that waited for it are installed, also while a class is waiting", async () => {
+      const { targetReady, markReady } = controlledTargetReady();
+      const { agent, rawManager } = setupWithPendingClass(undefined, targetReady);
+      // hook B is found right away and installed at targetReady
+      rawManager.resolveHooks.mockReset();
+      rawManager.resolveHooks.mockImplementationOnce(async () => {
+        const classALookup = targetReady.then(() => ({ waiting: new Promise<Hook[] | null>(() => {}) }));
+        return [classALookup, classALookup, targetReady.then(() => [fakeHook()])];
+      });
+      await agent.loadFrookyConfigs([makeConfig()], ["hooks.yaml"]);
+      let handled = false;
+      void agent.whenTargetReadyHandled().then(() => (handled = true));
+
+      await new Promise((r) => setTimeout(r, 50));
+      expect(handled).toBe(false);
+      expect(agent.hookProgress().hooked).toBe(0);
+
+      markReady();
+      await agent.whenTargetReadyHandled();
+
+      expect(handled).toBe(true);
+      expect(agent.hookProgress().hooked).toBe(1);
+    });
+
     it("lists every declaration with its state and the events, filtered calls and decode time of its hooks", async () => {
       const { agent, rawManager } = setupWithPendingClass();
       await agent.loadFrookyConfig(makeConfig(), "/tmp/hooks.yaml");

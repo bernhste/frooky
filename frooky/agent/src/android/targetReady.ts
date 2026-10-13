@@ -8,7 +8,7 @@ const SEM_SIZE = 16;
 
 // Lets app threads wait until another thread opens it. A wait gives up the agent's lock, so other threads run the
 // agent's code meanwhile.
-class Gate {
+export class Gate {
   private opened = false;
   private readonly sem = Memory.alloc(SEM_SIZE);
   private readonly semWait: NativeFunction<number, [NativePointer]>;

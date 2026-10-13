@@ -20,7 +20,7 @@ declare module "frida-java-bridge/lib/android.js" {
 // `_m` mangler, the memoized ArtMethod spec, its API table), so package.json pins the exact version: when upgrading,
 // run javaBridgeWorkarounds.test.ts on Android 15, 16 and 17, and the integration test
 // test_constructors_and_static_methods on Android 12 and 13.
-// Issue 5 has no test: check its repro on Android 12.
+// Issue 5's test covers the wait for a running GC, not the crash: check its repro on Android 12.
 
 // ArtMethod access flags, used by issues 1 and 3
 const kAccNative = 0x0100;
@@ -274,21 +274,26 @@ let gcInstrumentationAwaited = false;
 export function awaitGcInstrumentation(): void {
   if (gcInstrumentationAwaited) return;
   gcInstrumentationAwaited = true;
-  const api = getApi();
-  const waitForGcToComplete = Process.findModuleByName("libart.so")?.findExportByName(WAIT_FOR_GC_TO_COMPLETE_SYMBOL);
-  if (api === null || !api.artHeap || !waitForGcToComplete) {
-    logger.debug("Heap::WaitForGcToComplete() of libart.so not found: a hook installed while a GC runs can crash the app");
-    return;
-  }
   try {
     const target = `${UNUSED_METHOD.className}.${UNUSED_METHOD.name}`;
     const method: Java.Method = Java.use(UNUSED_METHOD.className)[UNUSED_METHOD.name].overload();
     asFrooky(target, () => (method.implementation = function () {}));
     asFrooky(target, () => (method.implementation = null));
-    // the default scheduling lets other threads run JS meanwhile, e.g. a native hook the GC thread runs into
-    const wait = new NativeFunction(waitForGcToComplete, "int", ["pointer", "int", "pointer"]);
-    Java.vm.perform(() => wait(api.artHeap, kGcCauseBackground, getArtThreadFromEnv(Java.vm.getEnv())));
+    if (!waitForRunningGc()) {
+      logger.debug("Heap::WaitForGcToComplete() of libart.so not found: a hook installed while a GC runs can crash the app");
+    }
   } catch (e) {
     logger.debug(`Couldn't wait for a running GC before the first hook: ${e}`);
   }
+}
+
+// Returns once no GC runs, with Heap::WaitForGcToComplete(). False if libart.so doesn't have it.
+export function waitForRunningGc(): boolean {
+  const api = getApi();
+  const waitForGcToComplete = Process.findModuleByName("libart.so")?.findExportByName(WAIT_FOR_GC_TO_COMPLETE_SYMBOL);
+  if (api === null || !api.artHeap || !waitForGcToComplete) return false;
+  // the default scheduling lets other threads run JS meanwhile, e.g. a native hook the GC thread runs into
+  const wait = new NativeFunction(waitForGcToComplete, "int", ["pointer", "int", "pointer"]);
+  Java.vm.perform(() => wait(api.artHeap, kGcCauseBackground, getArtThreadFromEnv(Java.vm.getEnv())));
+  return true;
 }

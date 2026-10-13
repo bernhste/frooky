@@ -684,6 +684,35 @@ describe("AndroidHookManager", () => {
     });
   });
 
+  describe("holdBack()", () => {
+    it("runs the wait before the hooks and the original method, and keeps the method hooked without hooks", async () => {
+      const order: string[] = [];
+      const recordingStackTrace: PlatformStackTrace = {
+        build: () => {
+          order.push("hook");
+          return { javaStackTrace: [], nativeStackTrace: [] };
+        },
+      };
+      const manager = new AndroidHookManager(recordingStackTrace, { addEventToLog: fn() } as unknown as FrookyAgent);
+      const [hooks] = (await resultsOf(await manager.resolveHooks([javaHook("java.lang.Integer", "reverse")]))) as JavaHook[][];
+      const reverse = (value: number): number => Java.use("java.lang.Integer").reverse(value);
+      try {
+        manager.registerHooks(hooks);
+        manager.holdBack(hooks[0].method, "reverse", () => order.push("wait"));
+
+        expect(reverse(1)).toBe(-2147483648);
+        expect(order).toEqual(["wait", "hook"]);
+
+        manager.unregisterHooks(hooks);
+        expect(reverse(1)).toBe(-2147483648);
+        expect(order).toEqual(["wait", "hook", "wait"]);
+      } finally {
+        await manager.prepareDetach();
+      }
+      expect(hooks[0].method.implementation).toBeNull();
+    });
+  });
+
   describe("prepareDetach()", () => {
     async function setup() {
       const agent = { addEventToLog: fn() } as unknown as FrookyAgent;

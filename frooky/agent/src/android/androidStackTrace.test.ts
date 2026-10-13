@@ -154,3 +154,33 @@ describe("AndroidStackTrace.build() with a callerFilter", () => {
 });
 
 export {};
+
+describe("AndroidStackTrace.build() with Java frames", () => {
+  const buildOnMainThread = () =>
+    onMainThread(() => AndroidStackTrace.build({ ...settings, javaStackTrace: true, maxStackFrames: 2 }, { filterCallers: false }));
+
+  it("frees the backtrace of its Java walk itself and leaves every other weak binding to Frida", async () => {
+    // the first walk wraps Script.bindWeak(), so the wrapper below sees what the walk passes on
+    await buildOnMainThread();
+    const bindWeak = Script.bindWeak;
+    // the ids Script.bindWeak() returned for frida-java-bridge's Backtraces: 0 if it wasn't bound
+    const backtraceIds: number[] = [];
+    Script.bindWeak = (target: any, callback: () => void) => {
+      const id = bindWeak.call(Script, target, callback);
+      if (target?.handle instanceof NativePointer && "frames" in target) backtraceIds.push(id);
+      return id;
+    };
+    try {
+      const built = await buildOnMainThread();
+      expect(built.javaStackTrace.length).toBe(2);
+      expect(backtraceIds).toEqual([0]);
+
+      const frames = await onMainThread(() => Java.backtrace().frames);
+      expect(frames.length > 0).toBeTruthy();
+      expect(backtraceIds.length).toBe(2);
+      expect(backtraceIds[1]).not.toBe(0);
+    } finally {
+      Script.bindWeak = bindWeak;
+    }
+  });
+});
