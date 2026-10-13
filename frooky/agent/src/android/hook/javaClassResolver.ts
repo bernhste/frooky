@@ -88,7 +88,7 @@ export class JavaClassResolver {
 
       logger.debug(`Waiting for Java class '${javaClass}'${classLoader ? ` from class loader '${classLoader}'` : ""}.`);
       this.lookups.add(lookup);
-      // in spawn mode on the app's main thread, before its code runs: hooks found here are installed in time
+      // in spawn mode while the app's main thread is held back, see TargetReady: hooks found here are installed in time
       void this.targetReady().then(() => {
         if (!this.lookups.has(lookup)) return;
         this.watchNewLoaders();
@@ -97,7 +97,7 @@ export class JavaClassResolver {
           if (this.lookups.has(lookup)) this.findInLoaders(lookup, this.existingLoaders());
           stopLookingUp();
         } else if (!classLoader) {
-          // reads the names of every class in the app, so not on the app's main thread
+          // reads the names of every class in the app, so not on the app thread that reached targetReady
           setTimeoutOnJsThread(() => {
             this.matchPatterns(this.existingLoaders(), true);
             stopLookingUp();

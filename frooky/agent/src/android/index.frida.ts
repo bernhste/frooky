@@ -6,6 +6,7 @@ import { AndroidStackTrace } from "./androidStackTrace";
 import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
 import { fixArtMethodAccessFlagsOffset } from "./javaBridgeWorkarounds";
+import { TargetReady } from "./targetReady";
 
 if (!Java.available) {
   throw new Error("[!] The agent is not run on an Android device. Make sure to run this version of the frooky agent on Android.");
@@ -17,14 +18,19 @@ fixArtMethodAccessFlagsOffset();
 const frookyConfigs: InputFrookyConfig[] = [{}] as InputFrookyConfig[];
 //%%% REPLACE STOP
 
+const targetReady = new TargetReady();
 const frookyAgent = new FrookyAgent(
   "Android",
   new AndroidHookValidator(),
-  (frookyAgent) => new AndroidHookManager(AndroidStackTrace, frookyAgent),
+  (frookyAgent) => {
+    const hookManager = new AndroidHookManager(AndroidStackTrace, frookyAgent);
+    targetReady.holdBackApp(hookManager, frookyAgent.whenTargetReadyHandled());
+    return hookManager;
+  },
   AndroidStackTrace,
   "debug",
   DEFAULT_SETTING_LOG_TO,
   undefined,
-  new Promise((resolve) => Java.perform(() => resolve())),
+  targetReady.promise,
 );
 frookyAgent.loadFrookyConfigs(frookyConfigs);

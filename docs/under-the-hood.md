@@ -86,14 +86,15 @@ The host starts the agent and hands it the hook files over Frida's RPC. Everythi
 - **Native hooks without `early: true`**, as a hook can deadlock the runtime while it starts, see [Safe Default: Wait for `targetReady`](#safe-default-wait-for-targetready).
 - **The Java frames of a native hook's stack trace**, as walking the Java stack of a thread that is still attaching to the Java VM crashes the app, see [Stack Traces During Early Hooking](#stack-traces-during-early-hooking).
 
-In the code, `targetReady` is a promise in `FrookyAgent` that the platform's entry point passes in, so the shared and the native code wait for it without knowing how the platform detects it. On Android, a `Java.perform()` callback resolves it, as `Java.perform()` only runs its callback once it knows the app's class loader. When spawning, frida-java-bridge hooks into `ActivityThread.handleBindApplication()` for that and runs the callback on the app's main thread as soon as the class loader exists, before `LoadedApk.makeApplication()` loads the `Application` class. When attaching, the application already exists and `targetReady` resolves right away.
+In the code, `targetReady` is a promise in `FrookyAgent` that the platform's entry point passes in, so the shared and the native code wait for it without knowing how the platform detects it. On Android, a `Java.perform()` callback resolves it, as `Java.perform()` only runs its callback once it knows the app's class loader. When spawning, frida-java-bridge runs the callback inside the first `ActivityThread.getPackageInfo()` call, as soon as the class loader exists. That call comes from the app's main thread in `handleBindApplication()` or from a binder thread that prepares the first activity, whichever is first. The callback resolves `targetReady`, and frooky holds the app's main thread back in front of `LoadedApk.makeApplication()` (`makeApplicationInner()` since Android 13), which loads the `Application` class, until every hook that waited for `targetReady` is installed or waits for its class or module. Without that, the main thread would load the `Application` class while a binder thread still installs these hooks. When attaching, the application already exists and `targetReady` resolves right away.
 
 One piece of the app's code runs before `targetReady`: its component factory, if the manifest declares one (`android:appComponentFactory`). frida-java-bridge asks the `LoadedApk` for its class loader before it runs the callback, and `LoadedApk.getClassLoader()` creates the factory together with the class loader. So the factory's static initializer and constructor, and the native libraries they load, run before any hook that waits for `targetReady` is installed.
 
 **Sources:**
 
 - [`runner.py`](../frooky/runner/runner.py) (attach or spawn, RPC calls, resume)
-- [`index.frooky.ts`](../frooky/agent/src/android/index.frooky.ts) (RPC exports, `targetReady`)
+- [`index.frooky.ts`](../frooky/agent/src/android/index.frooky.ts) (RPC exports)
+- [`targetReady.ts`](../frooky/agent/src/android/targetReady.ts) (`targetReady` on Android)
 - [`FrookyAgent.ts`](../frooky/agent/src/FrookyAgent.ts)
 - [`messages.py`](../frooky/runner/messages.py) (agent messages on the host)
 
@@ -443,7 +444,7 @@ sequenceDiagram
     Note over Agent,App: Phase 3 — targetReady (Java.perform() resolves)
     App->>App: BIND_APPLICATION creates PathClassLoader and the app's AppComponentFactory<br/>(its code and libraries run before targetReady: only early: true hooks record them)
     App->>Agent: Java.perform() callback fires (targetReady resolves!)
-    Agent->>App: Stage 3 hooks armed & module watcher ready
+    Agent->>App: Stage 3 hooks armed & module watcher ready,<br/>the main thread waits for it before LoadedApk.makeApplication()
 
     Note over Agent,App: Phase 4 — App code & EARLIEST native library load (lib*.so)
     App->>App: LoadedApk.makeApplication() loads custom Application class
@@ -469,7 +470,7 @@ Native libraries packaged inside the APK (`lib/<abi>/lib*.so`) **don't load befo
 
 - In **Phase 1** (paused), the process is frozen at the Zygote fork. Only system libraries preloaded in Zygote (`libc.so`, `libart.so`) are in memory.
 - In **Phase 2** (resumed), only Android framework code (`RuntimeInit`, `ActivityThread`) is running. The app's `PathClassLoader` and native library search paths have not been created yet.
-- In **Phase 3**, `targetReady` resolves synchronously (when the `Java.perform()` callback fires) as soon as `LoadedApk` and `PathClassLoader` are created, **before** the app's `Application` class is loaded.
+- In **Phase 3**, `targetReady` resolves when the `Java.perform()` callback fires, as soon as `LoadedApk` and `PathClassLoader` are created. The app's main thread is held back until the hooks that waited for it are installed, so this is always **before** the app's `Application` class is loaded.
 
 The earliest points where an app's native libraries load are:
 

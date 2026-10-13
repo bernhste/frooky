@@ -47,6 +47,9 @@ export class FrookyAgent {
   // platform's entry point, right away when attaching.
   public readonly targetReady: Promise<void>;
   public isTargetReady = false;
+  private readonly targetReadyMarked: Promise<void>;
+  // per hook manager and loaded config: settles once the lookups at targetReady have run and their hooks are installed
+  private readonly targetReadyLookups: Promise<unknown>[] = [];
   private progressReportScheduled = false;
 
   constructor(
@@ -76,7 +79,7 @@ export class FrookyAgent {
     this.platformHookValidator = platformInputHookValidator;
     this.reportProgress = reportProgress;
     this.targetReady = targetReady;
-    void targetReady.then(() => {
+    this.targetReadyMarked = targetReady.then(() => {
       this.isTargetReady = true;
       platformStackTrace.prepare?.();
       markTargetReady();
@@ -85,6 +88,12 @@ export class FrookyAgent {
     watchLinker();
     this.nativeHookManager = new NativeHookManager(platformStackTrace, this);
     this.platformHookManger = createPlatformHookManager(this);
+  }
+
+  // Resolves once targetReady has resolved and every hook of the configs loaded before it that waited for it is
+  // installed, not found or waiting for its class or module
+  public whenTargetReadyHandled(): Promise<void> {
+    return this.targetReadyMarked.then(() => Promise.all(this.targetReadyLookups)).then(() => undefined);
   }
 
   // Sends a CrashReport when the process is about to die from a native exception, see installCrashReporter().
@@ -288,7 +297,9 @@ export class FrookyAgent {
       );
     });
     markInitialized();
-    this.reportWaiting((await Promise.all(lookedUp)).filter((hookToResolve) => hookToResolve !== undefined));
+    const allLookedUp = Promise.all(lookedUp);
+    this.targetReadyLookups.push(allLookedUp);
+    this.reportWaiting((await allLookedUp).filter((hookToResolve) => hookToResolve !== undefined));
     return countSuccessfulHooks;
   }
 

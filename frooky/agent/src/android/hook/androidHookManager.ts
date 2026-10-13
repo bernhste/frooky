@@ -53,9 +53,16 @@ type InstalledJavaHook = {
 };
 
 // `observers` run after the original method, e.g. JavaClassResolver's on new class loaders
+// `barriers` run before the hooks and the original method, see holdBack()
 // counts the calls in the dispatcher, see RetiredReplacements
 // `target`: e.g. `java.lang.Integer.reverse` or `com.example.Foo.$init`
-type HookedOverload = ReplacementCalls & { method: Java.Method; target: string; hooks: InstalledJavaHook[]; observers: MethodObserver[] };
+type HookedOverload = ReplacementCalls & {
+  method: Java.Method;
+  target: string;
+  hooks: InstalledJavaHook[];
+  observers: MethodObserver[];
+  barriers: (() => void)[];
+};
 
 // what a hook captured before the original method ran
 // `logTarget`: see callLogTarget()
@@ -122,6 +129,12 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
     overload.observers = [...overload.observers, observer];
   }
 
+  // Runs `wait` before every call of `method`, on the calling thread: the call goes on once it returns
+  holdBack(method: Java.Method, methodName: string, wait: () => void): void {
+    const overload = this.hookedOverload(method, `${method.holder.$className}.${methodName}`);
+    overload.barriers = [...overload.barriers, wait];
+  }
+
   // The HookedOverload of `method`, created and installed on first use. Throws if the method can't be hooked.
   private hookedOverload(method: Java.Method, target: string): HookedOverload {
     const key = method.handle.toString();
@@ -135,7 +148,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       }
       awaitGcInstrumentation();
       initializeClass(method);
-      const newOverload: HookedOverload = { method, target, hooks: [], observers: [], inFlight: 0, finished: 0 };
+      const newOverload: HookedOverload = { method, target, hooks: [], observers: [], barriers: [], inFlight: 0, finished: 0 };
       asFrooky(target, () => (newOverload.method.implementation = this.createDispatcher(newOverload)));
       repairAccessFlags(newOverload.method, target);
       overload = newOverload;
@@ -197,7 +210,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
       if (!overload || index < 0) continue;
 
       overload.hooks = overload.hooks.filter((_, i) => i !== index);
-      if (overload.hooks.length > 0 || overload.observers.length > 0) continue;
+      if (overload.hooks.length > 0 || overload.observers.length > 0 || overload.barriers.length > 0) continue;
 
       this.hookedOverloads.delete(key);
       try {
@@ -262,6 +275,7 @@ export class AndroidHookManager extends HookManager<JavaHookDeclaration, JavaHoo
   // its `out` args and return value and logs its event. A call made by hook code (see hookCodeGuard.ts) only runs the
   // original method and the observers.
   private dispatch(overload: HookedOverload, instance: Java.Wrapper, args: Java.Wrapper[]): any {
+    for (const wait of overload.barriers) wait();
     const enterTid = enterHookCode();
     if (enterTid === undefined) {
       const returnValue = overload.method.apply(instance, args);

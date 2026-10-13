@@ -9,6 +9,7 @@ import { AndroidHookManager } from "./hook/androidHookManager";
 import { AndroidHookValidator } from "./hook/androidHookValidator";
 import { awaitGcInstrumentation, fixArtMethodAccessFlagsOffset } from "./javaBridgeWorkarounds";
 import { trackScriptReplacements } from "./scriptReplacements";
+import { TargetReady } from "./targetReady";
 
 let frookyAgent: FrookyAgent | undefined;
 
@@ -48,18 +49,21 @@ rpc.exports = {
     }
     // before the first Java.perform(), which can hook a method already
     fixArtMethodAccessFlagsOffset();
+    const targetReady = new TargetReady();
     frookyAgent = new FrookyAgent(
       "Android",
       new AndroidHookValidator(),
-      (frookyAgent) => new AndroidHookManager(AndroidStackTrace, frookyAgent),
+      (frookyAgent) => {
+        const hookManager = new AndroidHookManager(AndroidStackTrace, frookyAgent);
+        targetReady.holdBackApp(hookManager, frookyAgent.whenTargetReadyHandled());
+        return hookManager;
+      },
       AndroidStackTrace,
       logLevel ?? DEFAULT_SETTING_LOG_LEVEL,
       logTo ?? DEFAULT_SETTING_LOG_TO,
       // objects, unlike event batches (arrays)
       (progress) => send({ frooky: "progress", ...progress }),
-      // targetReady: Java.perform() runs its callback once the app's class loader is known. In a spawned app that is
-      // in ActivityThread.handleBindApplication(), before the Application class is loaded; when attaching, right away.
-      new Promise((resolve) => Java.perform(() => resolve())),
+      targetReady.promise,
     );
     frookyAgent.reportCrashes((crash) => send({ frooky: "crash", ...crash }));
   },
