@@ -9,12 +9,51 @@ on:
 permissions:
   contents: read
 
+# a newer push to the same branch or tag replaces the run of an older one
+concurrency:
+  group: verify-host-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-host:
     uses: ./.github/workflows/build-host.yml
 
   test-host-unit:
     uses: ./.github/workflows/test-host-unit.yml
+
+  # a job of its own: outdated schemas fail this workflow, but don't keep the agent from being built and tested
+  check-schemas:
+    name: Check generated schemas
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: "./frooky/agent/package-lock.json"
+
+      - name: Install dependencies
+        working-directory: frooky/agent
+        run: npm ci
+
+      # the schemas are generated from the hook-file types, so a difference means they weren't regenerated after a
+      # change to the types
+      - name: Check generated schemas
+        working-directory: frooky/agent
+        run: |
+          npm run build:zodSchema
+          npm run build:jsonSchema
+          changes=$(git status --porcelain -- src/shared/inputParsing/zodSchemas ../../docs/schema)
+          if [ -n "$changes" ]; then
+            echo "::error::The generated schemas are out of date. Run 'npm run build:zodSchema && npm run build:jsonSchema' in frooky/agent and commit the result."
+            echo "$changes"
+            git --no-pager diff -- src/shared/inputParsing/zodSchemas ../../docs/schema
+            exit 1
+          fi
 
   verify-host:
     name: Verify host

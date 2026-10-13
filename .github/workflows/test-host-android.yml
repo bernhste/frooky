@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# a newer push to the same branch or tag replaces the run of an older one
+concurrency:
+  group: test-host-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-host:
     uses: ./.github/workflows/build-host.yml

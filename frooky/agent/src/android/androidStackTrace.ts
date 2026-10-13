@@ -19,6 +19,59 @@ let callerWalkState: InitState = "uninitialized";
 
 type InitState = "uninitialized" | "initializing" | "ready";
 
+// frida-java-bridge's Backtrace, which reads its frames from a native handle
+type Backtrace = { handle: NativePointer; frames: Java.Frame[] };
+
+function isBacktrace(target: unknown): target is Backtrace {
+  return typeof target === "object" && target !== null && (target as Backtrace).handle instanceof NativePointer && "frames" in target;
+}
+
+// the threads inside javaBacktraceFrames()
+const walkingThreads = new Set<number>();
+// frees the native handle of a Backtrace, kept instead of binding it weakly
+const backtraceDestructors = new WeakMap<Backtrace, () => void>();
+let bindWeakWrapped = false;
+
+// Java.backtrace() binds a destructor weakly to each Backtrace (Script.bindWeak()), which Frida runs once the
+// Backtrace is garbage collected. A hook that walks the Java stack on every call of a hot function, e.g. libc's
+// write(), creates one per call, and the app crashes in Script.bindWeak() with a null dereference inside Frida. So
+// the Backtraces of javaBacktraceFrames() aren't bound: it frees their handle itself. Every other weak binding, also
+// of a -l script's Java.backtrace(), goes to Frida.
+function wrapBindWeak(): void {
+  if (bindWeakWrapped) return;
+  bindWeakWrapped = true;
+  const bindWeak = Script.bindWeak;
+  Script.bindWeak = (target: any, callback: () => void) => {
+    if (walkingThreads.has(Process.getCurrentThreadId()) && isBacktrace(target)) {
+      backtraceDestructors.set(target, callback);
+      // no id: nothing unbinds a Backtrace
+      return 0;
+    }
+    return bindWeak.call(Script, target, callback);
+  };
+}
+
+// The current thread's Java frames, innermost first, like `Java.backtrace().frames`. Call inside Java.vm.perform().
+function javaBacktraceFrames(): Java.Frame[] {
+  wrapBindWeak();
+  const tid = Process.getCurrentThreadId();
+  // a nested call, e.g. of a hook that fires inside the walk, leaves the entry to the outer one
+  const isOutermost = !walkingThreads.has(tid);
+  walkingThreads.add(tid);
+  let backtrace: Backtrace | undefined;
+  try {
+    backtrace = Java.backtrace() as unknown as Backtrace;
+    return backtrace.frames;
+  } finally {
+    if (isOutermost) walkingThreads.delete(tid);
+    if (backtrace) {
+      const destroy = backtraceDestructors.get(backtrace);
+      backtraceDestructors.delete(backtrace);
+      destroy?.();
+    }
+  }
+}
+
 export const AndroidStackTrace: PlatformStackTrace = {
   // Builds the backtrace module before any hook needs it: the first Java.backtrace() needs the linker's lock, later
   // ones don't, so Java frames can be captured at `linker-busy`
@@ -85,7 +138,7 @@ function walkJavaStack(): Java.Frame[] {
     try {
       if (isFirstCall) resolveArtWalkStack();
       Java.vm.perform(() => {
-        javaStack = Java.backtrace().frames;
+        javaStack = javaBacktraceFrames();
       });
       javaBacktraceState = "ready";
     } catch (_) {

@@ -772,7 +772,6 @@ class TestValuePassingNative:
         assert len(other["stackTrace"]["nativeStackTrace"]) > 0
         assert "skipped" not in other["stackTrace"]
 
-    @pytest.mark.xfail(strict=False, reason="the app sometimes crashes with a bad access while the hooks load")
     def test_early_hook_on_write_with_java_stack_traces(self, run_frooky_spawn, find_matched_events):
         """An early hook on libc's write() that walks the Java stack lets the app start. Frida calls write() itself
         on an app thread that sets a timer, and a Java stack walk inside that call hangs, so the agent sets its

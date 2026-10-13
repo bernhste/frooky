@@ -12,6 +12,11 @@ on:
 permissions:
   contents: read
 
+# a newer push to the same branch or tag replaces the run of an older one
+concurrency:
+  group: test-agent-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-agent-android:
     name: Test agent Android (API ${{ matrix.api-level }})
