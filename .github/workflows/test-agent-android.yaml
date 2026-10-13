@@ -66,7 +66,8 @@ jobs:
           api-level: ${{ matrix.api-level }}
           target: google_apis
           arch: x86_64
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # the emulator logs to the step output; the part after the options is shell syntax that drops its ColorBuffer errors
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim 2>&1 | grep --line-buffered -v ColorBuffer
           disable-animations: true
           script: |
             echo "Preparing scripts"
